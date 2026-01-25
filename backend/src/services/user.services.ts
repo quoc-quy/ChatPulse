@@ -1,16 +1,14 @@
 import User from '~/models/schemas/user.schema'
 import databaseService from './database.services'
+import { RegisterReqBody } from '~/models/requests/users.requests'
 
 class UserService {
-  async register(payload: { email: string; password: string; userName: string; date_of_birth: Date; phone: string }) {
+  async register(payload: RegisterReqBody) {
     const { email, password, userName, date_of_birth, phone } = payload
     const result = await databaseService.users.insertOne(
       new User({
-        email,
-        password,
-        userName,
-        date_of_birth,
-        phone
+        ...payload,
+        date_of_birth: new Date(date_of_birth)
       })
     )
     return result

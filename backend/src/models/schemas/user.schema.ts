@@ -30,7 +30,7 @@ export default class User {
     this._id = _id
     this.userName = userName
     this.password = password
-    this.date_of_birth = date_of_birth
+    this.date_of_birth = date_of_birth || new Date()
     this.email = email
     this.avatar = avatar || ''
     this.bio = bio || ''
