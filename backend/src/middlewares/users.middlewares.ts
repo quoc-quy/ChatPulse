@@ -3,17 +3,49 @@ import { checkSchema } from 'express-validator'
 import { ErrorWithStatus } from '~/models/errors'
 import databaseService from '~/services/database.services'
 import userService from '~/services/user.services'
+import { hashPassword } from '~/utils/crypto'
 import { validate } from '~/utils/validation'
 
-export const loginValidator = (req: Request, res: Response, next: NextFunction) => {
-  const { email, password } = req.body
-  if (!email || !password) {
-    return res.status(400).json({
-      message: 'Email and Password is required'
-    })
-  }
-  next()
-}
+export const loginValidator = validate(
+  checkSchema(
+    {
+      email: {
+        notEmpty: {
+          errorMessage: 'Email không được để trống'
+        },
+        isString: true,
+        trim: true,
+        isEmail: true,
+        isLength: {
+          options: {
+            min: 10,
+            max: 100
+          },
+          errorMessage: 'Email có độ dài từ 10 đến 100 ký tự'
+        },
+        custom: {
+          options: async (value, { req }) => {
+            const user = await databaseService.users.findOne({ email: value, password: hashPassword(req.body.password) })
+
+            if (user == null) {
+              throw new Error('Email hoặc password không đúng')
+            }
+            req.user = user
+
+            return true
+          }
+        }
+      },
+      password: {
+        notEmpty: {
+          errorMessage: 'Mật khẩu không được để trống'
+        },
+        isString: true
+      }
+    },
+    ['body']
+  )
+)
 
 export const registerValidator = validate(
   checkSchema(
