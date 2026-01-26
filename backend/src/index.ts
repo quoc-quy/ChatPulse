@@ -11,6 +11,9 @@ app.use(express.json()) //parse JSON to body
 app.use('/users', usersRouter)
 databaseService.connect()
 
+//default global error 
+// app.use(defaultErrorHandler)
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 })

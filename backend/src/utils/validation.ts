@@ -14,6 +14,6 @@ export const validate = (validation: RunnableValidationChains<ValidationChain>) 
       return next()
     }
 
-    res.status(400).json({ errors: errors.mapped() })
+    res.status(422).json({ errors: errors.mapped() })
   }
 }
