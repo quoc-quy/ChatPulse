@@ -30,10 +30,12 @@
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/lodash": "^4.17.23",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-validator": "^7.3.1",
     "jsonwebtoken": "^9.0.3",
+    "lodash": "^4.17.23",
     "mongodb": "^7.0.0",
     "typescript-eslint": "^8.53.0"
   }
