@@ -1,9 +1,12 @@
 import { NextFunction, Request, Response } from 'express'
 import { checkSchema } from 'express-validator'
+import { JsonWebTokenError } from 'jsonwebtoken'
+import httpStatus from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import databaseService from '~/services/database.services'
 import userService from '~/services/user.services'
 import { hashPassword } from '~/utils/crypto'
+import { verifyToken } from '~/utils/jwt'
 import { validate } from '~/utils/validation'
 
 export const loginValidator = validate(
@@ -25,7 +28,10 @@ export const loginValidator = validate(
         },
         custom: {
           options: async (value, { req }) => {
-            const user = await databaseService.users.findOne({ email: value, password: hashPassword(req.body.password) })
+            const user = await databaseService.users.findOne({
+              email: value,
+              password: hashPassword(req.body.password)
+            })
 
             if (user == null) {
               throw new Error('Email hoặc password không đúng')
@@ -135,6 +141,73 @@ export const registerValidator = validate(
 
             if (existedPhone) {
               throw new Error('Số điện thoại đã tồn tại')
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
+
+export const accessTokenValidator = validate(
+  checkSchema(
+    {
+      Authorization: {
+        notEmpty: {
+          errorMessage: 'Access Token is required'
+        },
+        custom: {
+          options: async (value: string, { req }) => {
+            const access_token = value.split(' ')[1]
+            if (!access_token) {
+              throw new ErrorWithStatus({
+                message: 'Access Token is invalid',
+                status: httpStatus.UNAUTHORIZED
+              })
+            }
+            const decoded_authorization = await verifyToken({ token: access_token })
+            ;(req as Request).decoded_authorization = decoded_authorization
+            return true
+          }
+        }
+      }
+    },
+    ['headers']
+  )
+)
+
+export const refreshTokenValidator = validate(
+  checkSchema(
+    {
+      refresh_token: {
+        notEmpty: {
+          errorMessage: 'Refresh Token is required'
+        },
+        custom: {
+          options: async (value, { req }) => {
+            try {
+              const [refresh_token, decoded_refresh_token] = await Promise.all([
+                databaseService.refreshTokens.findOne({ token: value }),
+                verifyToken({ token: value })
+              ])
+
+              if (refresh_token == null) {
+                throw new ErrorWithStatus({
+                  message: 'Refresh Token is used or does not exist',
+                  status: httpStatus.UNAUTHORIZED
+                })
+              }
+              ;(req as Request).decoded_refresh_token = decoded_refresh_token
+            } catch (error) {
+              if (error instanceof JsonWebTokenError) {
+                throw new ErrorWithStatus({
+                  message: 'Refresh Token is invalid',
+                  status: httpStatus.UNAUTHORIZED
+                })
+              }
+              throw error
             }
             return true
           }
