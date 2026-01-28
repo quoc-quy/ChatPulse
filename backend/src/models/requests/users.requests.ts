@@ -1,4 +1,5 @@
-import { JwtPayload } from "jsonwebtoken"
+import { JwtPayload } from 'jsonwebtoken'
+import { ParamsDictionary } from 'express-serve-static-core'
 
 export interface RegisterReqBody {
   email: string
@@ -9,6 +10,10 @@ export interface RegisterReqBody {
   date_of_birth: Date
 }
 
-export interface TokenPayload extends JwtPayload{
+export interface getProfileReqBody extends ParamsDictionary {
+  userName: string
+}
+
+export interface TokenPayload extends JwtPayload {
   user_id: string
 }

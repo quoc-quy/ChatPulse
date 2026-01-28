@@ -80,6 +80,23 @@ class UserService {
     const user = await databaseService.users.findOne({ phone })
     return Boolean(user)
   }
+
+  async getProfile(userName: string) {
+    const user = await databaseService.users.findOne(
+      {
+        userName: userName
+      },
+      {
+        projection: {
+          password: 0,
+          created_at: 0,
+          updated_at: 0
+        }
+      }
+    )
+
+    return user
+  }
 }
 
 const userService = new UserService()
