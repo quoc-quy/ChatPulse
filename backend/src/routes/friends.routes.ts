@@ -5,6 +5,7 @@ import {
   getFriendListController,
   getReceivedFriendRequestsController
 } from '~/controllers/friends.controllers'
+import { createFriendRequestValidator } from '~/middlewares/friends.middlewares'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -14,7 +15,12 @@ const friendsRouter = Router()
  * Gửi lời mời kết bạn
  * Path: POST /friends/request
  */
-friendsRouter.post('/request', accessTokenValidator, wrapRequestHandler(createFriendRequestController))
+friendsRouter.post(
+  '/request',
+  accessTokenValidator,
+  createFriendRequestValidator,
+  wrapRequestHandler(createFriendRequestController)
+)
 
 /**
  * Chấp nhận lời mời kết bạn
