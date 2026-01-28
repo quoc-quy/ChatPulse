@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 import { ParamsDictionary } from 'express-serve-static-core'
 import { ObjectId, WithId } from 'mongodb'
-import { getProfileReqBody, RegisterReqBody } from '~/models/requests/users.requests'
+import { getProfileReqBody, RegisterReqBody, TokenPayload } from '~/models/requests/users.requests'
 import User from '~/models/schemas/user.schema'
 import userService from '~/services/user.services'
 export const loginController = async (req: Request, res: Response) => {
@@ -37,5 +37,15 @@ export const getProfileController = async (req: Request<getProfileReqBody>, res:
   return res.json({
     message: 'Lấy thông tin người dùng thành công',
     result: user
+  })
+}
+
+export const getMeController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const user = await userService.getMe(user_id)
+
+  return res.json({
+    message: 'Lấy thông tin người dùng thành công',
+    user
   })
 }
