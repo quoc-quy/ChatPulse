@@ -17,3 +17,11 @@ export interface getProfileReqBody extends ParamsDictionary {
 export interface TokenPayload extends JwtPayload {
   user_id: string
 }
+
+export interface UpdateMeReqBody {
+  userName?: string
+  date_of_birth?: string
+  avatar?: string
+  bio?: string
+  phone?: string
+}

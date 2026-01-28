@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getMeController, getProfileController, loginController, logoutController, registerController } from '~/controllers/users.controllers'
+import { getMeController, getProfileController, loginController, logoutController, registerController, updateMeController } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
   loginValidator,
@@ -34,6 +34,12 @@ usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapReq
  * Header: {Authorization: Bearer <access_token>}
  */
 usersRouter.get('/me', accessTokenValidator, wrapRequestHandler(getMeController))
+
+/**
+ * Get me
+ * Header: {Authorization: Bearer <access_token>}
+ */
+usersRouter.patch('/update-profile', accessTokenValidator, wrapRequestHandler(updateMeController))
 
 /**
  * Get user profile
