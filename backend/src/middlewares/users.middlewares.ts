@@ -1,13 +1,24 @@
 import { NextFunction, Request, Response } from 'express'
 import { checkSchema } from 'express-validator'
 import { JsonWebTokenError } from 'jsonwebtoken'
+import { ObjectId } from 'mongodb'
 import httpStatus from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/errors'
+import { TokenPayload } from '~/models/requests/users.requests'
 import databaseService from '~/services/database.services'
 import userService from '~/services/user.services'
 import { hashPassword } from '~/utils/crypto'
 import { verifyToken } from '~/utils/jwt'
 import { validate } from '~/utils/validation'
+
+const passwordSchema = {
+  notEmpty: {
+    errorMessage: 'Mật khẩu không được để trống'
+  },
+  isString: {
+    errorMessage: 'Password phải là chuỗi String'
+  }
+}
 
 export const loginValidator = validate(
   checkSchema(
@@ -42,12 +53,7 @@ export const loginValidator = validate(
           }
         }
       },
-      password: {
-        notEmpty: {
-          errorMessage: 'Mật khẩu không được để trống'
-        },
-        isString: true
-      }
+      password: passwordSchema
     },
     ['body']
   )
@@ -292,6 +298,49 @@ export const updateMeValidator = validate(
           strictSeparator: true
         },
         errorMessage: 'Date_of_birth phải là ISO8601'
+      }
+    }
+  })
+)
+
+export const changePasswordValidator = validate(
+  checkSchema({
+    old_password: {
+      ...passwordSchema,
+      custom: {
+        options: async (value, { req }) => {
+          const { user_id } = req.decoded_authorization as TokenPayload
+          const user = await databaseService.users.findOne({ _id: new ObjectId(user_id) })
+
+          if (!user) {
+            throw new ErrorWithStatus({
+              message: 'Không tìm thấy User',
+              status: httpStatus.NOT_FOUND
+            })
+          }
+
+          if (!(hashPassword(value) == user.password)) {
+            throw new ErrorWithStatus({
+              message: 'Mật khẩu cũ không đúng',
+              status: httpStatus.UNAUTHORIZED
+            })
+          }
+        }
+      }
+    },
+    password: passwordSchema,
+    confirm_password: {
+      notEmpty: {
+        errorMessage: 'Mật khẩu nhập lại không được để trống'
+      },
+      isString: true,
+      custom: {
+        options: (value, { req }) => {
+          if (value !== req.body.password) {
+            throw new Error('Mật khẩu nhập lại không khớp với mật khẩu')
+          }
+          return true
+        }
       }
     }
   })
