@@ -3,7 +3,8 @@ import {
   acceptFriendRequestController,
   createFriendRequestController,
   getFriendListController,
-  getReceivedFriendRequestsController
+  getReceivedFriendRequestsController,
+  unfriendController
 } from '~/controllers/friends.controllers'
 import { createFriendRequestValidator } from '~/middlewares/friends.middlewares'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
@@ -39,5 +40,7 @@ friendsRouter.get('/list', accessTokenValidator, wrapRequestHandler(getFriendLis
  * Path: GET /friends/requests/received
  */
 friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
+
+friendsRouter.delete('/unfriend', accessTokenValidator, wrapRequestHandler(unfriendController))
 
 export default friendsRouter
