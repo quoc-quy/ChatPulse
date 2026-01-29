@@ -217,3 +217,82 @@ export const refreshTokenValidator = validate(
     ['body']
   )
 )
+
+export const updateMeValidator = validate(
+  checkSchema({
+    userName: {
+      optional: true,
+      isString: {
+        errorMessage: 'Username phải là chuỗi string'
+      },
+      custom: {
+        options: async (value, { req }) => {
+          const userName = await databaseService.users.findOne({ userName: value })
+
+          if (userName != null) {
+            throw new Error('Username đã tồn tại trong hệ thống')
+          }
+        }
+      }
+    },
+    avatar: {
+      optional: true,
+      isString: {
+        errorMessage: 'Avatar phải là chuỗi String'
+      },
+      trim: true,
+      isLength: {
+        options: {
+          min: 1,
+          max: 500
+        },
+        errorMessage: 'Avatar phải từ 1 đến 500 kí tự'
+      }
+    },
+    bio: {
+      optional: true,
+      isString: {
+        errorMessage: 'Bio phải là chuỗi String'
+      },
+      isLength: {
+        options: {
+          min: 1,
+          max: 200
+        },
+        errorMessage: 'Bio phải từ 1 đến 200 kí tự'
+      }
+    },
+    phone: {
+      notEmpty: {
+        errorMessage: 'Số điện thoại không được để trống'
+      },
+      isString: true,
+      isLength: {
+        options: {
+          min: 10,
+          max: 10
+        },
+        errorMessage: 'Số điện thoại phải đủ 10 ký tự số'
+      },
+      custom: {
+        options: async (value) => {
+          const existedPhone = await userService.checkExistedPhone(value)
+
+          if (existedPhone) {
+            throw new Error('Số điện thoại đã tồn tại')
+          }
+          return true
+        }
+      }
+    },
+    date_of_birth: {
+      isISO8601: {
+        options: {
+          strict: true,
+          strictSeparator: true
+        },
+        errorMessage: 'Date_of_birth phải là ISO8601'
+      }
+    }
+  })
+)

@@ -4,7 +4,8 @@ import {
   accessTokenValidator,
   loginValidator,
   refreshTokenValidator,
-  registerValidator
+  registerValidator,
+  updateMeValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -39,7 +40,7 @@ usersRouter.get('/me', accessTokenValidator, wrapRequestHandler(getMeController)
  * Get me
  * Header: {Authorization: Bearer <access_token>}
  */
-usersRouter.patch('/update-profile', accessTokenValidator, wrapRequestHandler(updateMeController))
+usersRouter.patch('/update-profile', accessTokenValidator, updateMeValidator, wrapRequestHandler(updateMeController))
 
 /**
  * Get user profile
