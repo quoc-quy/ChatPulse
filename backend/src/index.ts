@@ -5,8 +5,13 @@ import databaseService from './services/database.services'
 import { defaultErrorHandler } from './middlewares/errors.middlwares'
 import friendsRouter from './routes/friends.routes'
 config()
-
-databaseService.connect()
+// Kết nối cơ sở dữ liệu và khởi tạo Index
+databaseService.connect().then(()=>{
+  // Khởi tạo index cho bảng lời mời kết bạn
+  databaseService.indexFriendRequests()
+  // Khởi tạo index cho bảng quan hệ bạn bè chính thức
+  databaseService.indexFriends()
+})
 const app = express()
 const port = process.env.PORT
 
@@ -16,7 +21,6 @@ app.use('/friends', friendsRouter)
 
 //default global error
 app.use(defaultErrorHandler)
-
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 })

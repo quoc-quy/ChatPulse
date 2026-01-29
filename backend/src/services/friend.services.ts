@@ -2,11 +2,15 @@
 import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
+import Friend from '~/models/schemas/friend.schema' // Import schema mới cho KAN-42
 import { FriendStatus } from '~/constants/friendStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 
 class FriendService {
+  /**
+   * Gửi lời mời kết bạn
+   */
   async createFriendRequest(sender_id: string, receiver_id: string) {
     // 1. Kiểm tra xem bạn đã gửi lời mời cho người này chưa (hoặc đã là bạn bè chưa)
     const existedRequest = await databaseService.friendRequests.findOne({
@@ -21,8 +25,7 @@ class FriendService {
       })
     }
 
-    // 2. Kiểm tra ngược lại: Nếu đối phương đã gửi lời mời cho bạn rồi, hãy báo lỗi
-    // (hoặc bạn có thể tự động accept tùy logic dự án)
+    // 2. Kiểm tra ngược lại: Nếu đối phương đã gửi lời mời cho bạn rồi, yêu cầu người dùng kiểm tra danh sách lời mời
     const reverseRequest = await databaseService.friendRequests.findOne({
       sender_id: new ObjectId(receiver_id),
       receiver_id: new ObjectId(sender_id)
@@ -47,8 +50,11 @@ class FriendService {
     return { message: 'Gửi lời mời kết bạn thành công' }
   }
 
+  /**
+   * Chấp nhận kết bạn (Cập nhật cho KAN-42: Tách bảng bạn bè riêng)
+   */
   async acceptFriendRequest(user_id: string, sender_id: string) {
-    // Kiểm tra lời mời có tồn tại ở trạng thái Pending không trước khi update
+    // 1. Cập nhật trạng thái lời mời thành Accepted trong bảng friend_requests
     const result = await databaseService.friendRequests.findOneAndUpdate(
       {
         sender_id: new ObjectId(sender_id),
@@ -71,31 +77,22 @@ class FriendService {
       })
     }
 
+    // 2. KAN-42: Tạo quan hệ bạn bè 2 chiều trong collection friends riêng biệt
+    await databaseService.friends.insertMany([
+      new Friend({ user_id: new ObjectId(user_id), friend_id: new ObjectId(sender_id) }),
+      new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
+    ])
+
     return { message: 'Đã trở thành bạn bè' }
   }
 
+  /**
+   * Lấy danh sách bạn bè chính thức (Truy vấn từ collection friends)
+   */
   async getFriendList(user_id: string) {
-    return await databaseService.friendRequests
+    return await databaseService.friends
       .aggregate([
-        {
-          $match: {
-            $or: [
-              { sender_id: new ObjectId(user_id), status: FriendStatus.Accepted },
-              { receiver_id: new ObjectId(user_id), status: FriendStatus.Accepted }
-            ]
-          }
-        },
-        {
-          $project: {
-            friend_id: {
-              $cond: {
-                if: { $eq: ['$sender_id', new ObjectId(user_id)] },
-                then: '$receiver_id',
-                else: '$sender_id'
-              }
-            }
-          }
-        },
+        { $match: { user_id: new ObjectId(user_id) } }, // Tìm tất cả quan hệ của người dùng này
         {
           $lookup: {
             from: 'users',
@@ -117,6 +114,9 @@ class FriendService {
       .toArray()
   }
 
+  /**
+   * Lấy danh sách lời mời kết bạn đang chờ xử lý
+   */
   async getReceivedFriendRequests(user_id: string) {
     return await databaseService.friendRequests
       .aggregate([
@@ -149,6 +149,29 @@ class FriendService {
         }
       ])
       .toArray()
+  }
+
+  /**
+   * Hủy kết bạn (Xóa dữ liệu ở cả 2 bảng friends và friend_requests)
+   */
+  async unfriend(user_id: string, friend_id: string) {
+    await Promise.all([
+      // Xóa quan hệ 2 chiều trong bảng friends
+      databaseService.friends.deleteMany({
+        $or: [
+          { user_id: new ObjectId(user_id), friend_id: new ObjectId(friend_id) },
+          { user_id: new ObjectId(friend_id), friend_id: new ObjectId(user_id) }
+        ]
+      }),
+      // Xóa trong bảng friend_requests để có thể gửi lại lời mời từ đầu sau này
+      databaseService.friendRequests.deleteOne({
+        $or: [
+          { sender_id: new ObjectId(user_id), receiver_id: new ObjectId(friend_id) },
+          { sender_id: new ObjectId(friend_id), receiver_id: new ObjectId(user_id) }
+        ]
+      })
+    ])
+    return { message: 'Đã hủy kết bạn thành công' }
   }
 }
 

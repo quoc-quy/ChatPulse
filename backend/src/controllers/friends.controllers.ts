@@ -30,3 +30,9 @@ export const getReceivedFriendRequestsController = async (req: Request, res: Res
     result
   })
 }
+export const unfriendController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { friend_id } = req.body
+  const result = await friendService.unfriend(user_id, friend_id)
+  res.json(result)
+}

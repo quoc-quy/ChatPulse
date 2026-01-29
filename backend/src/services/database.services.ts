@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 import User from '~/models/schemas/user.schema'
 import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
+import Friend from '~/models/schemas/friend.schema'
 config()
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ptzh2gl.mongodb.net/?appName=Cluster0`
@@ -35,9 +36,15 @@ class DatabaseService {
   get friendRequests(): Collection<FriendRequest> {
     return this.db.collection('friend_requests')
   }
-
+  get friends(): Collection<Friend> {
+    return this.db.collection('friends')
+  }
   async indexFriendRequests() {
     await this.friendRequests.createIndex({ sender_id: 1, receiver_id: 1 }, { unique: true })
+  }
+  async indexFriends() {
+    // Tạo index kép để đảm bảo không kết bạn trùng lặp và tìm kiếm nhanh
+    await this.friends.createIndex({ user_id: 1, friend_id: 1 }, { unique: true })
   }
 }
 
