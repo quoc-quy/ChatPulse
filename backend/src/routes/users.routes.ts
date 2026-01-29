@@ -1,7 +1,16 @@
 import { Router } from 'express'
-import { getMeController, getProfileController, loginController, logoutController, registerController, updateMeController } from '~/controllers/users.controllers'
+import {
+  changePasswordController,
+  getMeController,
+  getProfileController,
+  loginController,
+  logoutController,
+  registerController,
+  updateMeController
+} from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
+  changePasswordValidator,
   loginValidator,
   refreshTokenValidator,
   registerValidator,
@@ -37,16 +46,26 @@ usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapReq
 usersRouter.get('/me', accessTokenValidator, wrapRequestHandler(getMeController))
 
 /**
- * Get me
+ * Update profile
  * Header: {Authorization: Bearer <access_token>}
  */
 usersRouter.patch('/update-profile', accessTokenValidator, updateMeValidator, wrapRequestHandler(updateMeController))
 
 /**
+ * Change password
+ * Header: {Authorization: Bearer <access_token>}
+ * Body: {old_password: string, password: string, confirm_password: string}
+ */
+usersRouter.put(
+  '/change-password',
+  accessTokenValidator,
+  changePasswordValidator,
+  wrapRequestHandler(changePasswordController)
+)
+
+/**
  * Get user profile
  */
 usersRouter.get('/:userName', wrapRequestHandler(getProfileController))
-
-
 
 export default usersRouter

@@ -1,7 +1,13 @@
 import { NextFunction, Request, Response } from 'express'
 import { ParamsDictionary } from 'express-serve-static-core'
 import { ObjectId, WithId } from 'mongodb'
-import { getProfileReqBody, RegisterReqBody, TokenPayload, UpdateMeReqBody } from '~/models/requests/users.requests'
+import {
+  ChangePasswordReqBody,
+  getProfileReqBody,
+  RegisterReqBody,
+  TokenPayload,
+  UpdateMeReqBody
+} from '~/models/requests/users.requests'
 import User from '~/models/schemas/user.schema'
 import userService from '~/services/user.services'
 export const loginController = async (req: Request, res: Response) => {
@@ -59,5 +65,18 @@ export const updateMeController = async (req: Request<ParamsDictionary, any, Upd
   return res.json({
     message: 'Cập nhật thông tin người dùng thành công',
     user
+  })
+}
+
+export const changePasswordController = async (
+  req: Request<ParamsDictionary, any, ChangePasswordReqBody>,
+  res: Response
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { body } = req
+  await userService.changePassword(user_id, body)
+
+  return res.json({
+    message: "Đổi mật khẩu thành công"
   })
 }

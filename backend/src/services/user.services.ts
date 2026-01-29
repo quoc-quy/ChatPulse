@@ -1,11 +1,13 @@
 import User from '~/models/schemas/user.schema'
 import databaseService from './database.services'
-import { RegisterReqBody, UpdateMeReqBody } from '~/models/requests/users.requests'
+import { ChangePasswordReqBody, RegisterReqBody, UpdateMeReqBody } from '~/models/requests/users.requests'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
 import { TokenType } from '~/constants/enum'
 import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import { ObjectId } from 'mongodb'
+import { ErrorWithStatus } from '~/models/errors'
+import httpStatus from '~/constants/httpStatus'
 
 class UserService {
   private signAccessToken(user_id: string) {
@@ -131,6 +133,29 @@ class UserService {
         }
       }
     )
+
+    return user
+  }
+
+  async changePassword(user_id: string, payload: ChangePasswordReqBody) {
+    const user = await databaseService.users.findOneAndUpdate(
+      {
+        _id: new ObjectId(user_id)
+      },
+      {
+        $set: {
+          password: hashPassword(payload.password),
+          updated_at: new Date()
+        }
+      }
+    )
+
+    if (!user) {
+      throw new ErrorWithStatus({
+        message: 'User không tồn tại trong hệ thống',
+        status: httpStatus.UNAUTHORIZED
+      })
+    }
 
     return user
   }
