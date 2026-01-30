@@ -33,7 +33,7 @@ export const createFriendRequestValidator = validate(
             if (!receiver) {
               throw new ErrorWithStatus({
                 message: 'Người dùng không tồn tại',
-                status: httpStatus.NOT_FOUND
+                status: httpStatus.NOT_FOUND //404
               })
             }
             return true

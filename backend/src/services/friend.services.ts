@@ -12,6 +12,17 @@ class FriendService {
    * Gửi lời mời kết bạn
    */
   async createFriendRequest(sender_id: string, receiver_id: string) {
+    const isFriend = await databaseService.friends.findOne({
+      user_id: new ObjectId(sender_id),
+      friend_id: new ObjectId(receiver_id)
+    })
+
+    if (isFriend) {
+      throw new ErrorWithStatus({
+        message: 'Hai người đã là bạn bè',
+        status: httpStatus.BAD_REQUEST // 400 theo DoD
+      })
+    }
     // 1. Kiểm tra xem bạn đã gửi lời mời cho người này chưa (hoặc đã là bạn bè chưa)
     const existedRequest = await databaseService.friendRequests.findOne({
       sender_id: new ObjectId(sender_id),
