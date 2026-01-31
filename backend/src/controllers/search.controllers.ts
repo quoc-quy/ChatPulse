@@ -24,6 +24,11 @@ export const searchController = async (
 
   return res.json({
     message: 'Tìm kiếm người dùng thành công',
-    result
+    result: {
+      users: result.users,
+      limit,
+      page,
+      total_page: Math.ceil(result.total / limit)
+    }
   })
 }

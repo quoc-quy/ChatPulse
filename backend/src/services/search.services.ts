@@ -46,28 +46,43 @@ class SearchService {
       }
     }
 
-    const result = await databaseService.users
-      .aggregate([
-        {
-          $match
-        },
-        {
-          $project: {
-            password: 0,
-            created_at: 0,
-            updated_at: 0
+    const [users, total] = await Promise.all([
+      databaseService.users
+        .aggregate([
+          {
+            $match
+          },
+          {
+            $project: {
+              password: 0,
+              created_at: 0,
+              updated_at: 0
+            }
+          },
+          {
+            $skip: limit * (page - 1)
+          },
+          {
+            $limit: limit
           }
-        },
-        {
-          $skip: limit * (page - 1)
-        },
-        {
-          $limit: limit
-        }
-      ])
-      .toArray()
+        ])
+        .toArray(),
+      databaseService.users
+        .aggregate([
+          {
+            $match
+          },
+          {
+            $count: 'total'
+          }
+        ])
+        .toArray()
+    ])
 
-    return result
+    return {
+      users,
+      total: total[0]?.total || 0
+    }
   }
 }
 
