@@ -7,11 +7,12 @@ import friendsRouter from './routes/friends.routes'
 import searchRouter from './routes/search.routes'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
-databaseService.connect().then(()=>{
+databaseService.connect().then(async () => {
   // Khởi tạo index cho bảng lời mời kết bạn
-  databaseService.indexFriendRequests()
+  await databaseService.indexFriendRequests()
   // Khởi tạo index cho bảng quan hệ bạn bè chính thức
-  databaseService.indexFriends()
+  await databaseService.indexFriends()
+  await databaseService.cleanupDuplicateFriends()
 })
 const app = express()
 const port = process.env.PORT
