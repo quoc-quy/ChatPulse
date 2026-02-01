@@ -65,33 +65,38 @@ class FriendService {
    * Chấp nhận kết bạn (Cập nhật cho KAN-42: Tách bảng bạn bè riêng)
    */
   async acceptFriendRequest(user_id: string, sender_id: string) {
-    // 1. Cập nhật trạng thái lời mời thành Accepted trong bảng friend_requests
-    const result = await databaseService.friendRequests.findOneAndUpdate(
-      {
-        sender_id: new ObjectId(sender_id),
-        receiver_id: new ObjectId(user_id),
-        status: FriendStatus.Pending
-      },
-      {
-        $set: {
-          status: FriendStatus.Accepted,
-          updated_at: new Date()
-        }
-      },
-      { returnDocument: 'after' }
-    )
+    // 1. Tìm lời mời và kiểm tra Security Check:
+    const friendRequest = await databaseService.friendRequests.findOne({
+      sender_id: new ObjectId(sender_id),
+      receiver_id: new ObjectId(user_id),
+      status: FriendStatus.Pending
+    })
 
-    if (!result) {
+    // Nếu không tìm thấy hoặc người đang đăng nhập không phải receiver_id
+    if (!friendRequest) {
       throw new ErrorWithStatus({
-        message: 'Lời mời kết bạn không tồn tại hoặc đã được xử lý trước đó',
-        status: httpStatus.NOT_FOUND
+        message: 'Lời mời kết bạn không tồn tại hoặc bạn không có quyền chấp nhận lời mời này',
+        status: httpStatus.NOT_FOUND // Security: Tránh User C chấp nhận lời mời của người khác
       })
     }
 
-    // 2. KAN-42: Tạo quan hệ bạn bè 2 chiều trong collection friends riêng biệt
-    await databaseService.friends.insertMany([
-      new Friend({ user_id: new ObjectId(user_id), friend_id: new ObjectId(sender_id) }),
-      new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
+    // 2. Atomic Update: Thực hiện cập nhật trạng thái và tạo quan hệ bạn bè
+    await Promise.all([
+      // Cập nhật trạng thái lời mời thành Accepted
+      databaseService.friendRequests.updateOne(
+        { _id: friendRequest._id },
+        {
+          $set: {
+            status: FriendStatus.Accepted,
+            updated_at: new Date()
+          }
+        }
+      ),
+      // Tạo quan hệ 2 chiều trong bảng friends
+      databaseService.friends.insertMany([
+        new Friend({ user_id: new ObjectId(user_id), friend_id: new ObjectId(sender_id) }),
+        new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
+      ])
     ])
 
     return { message: 'Đã trở thành bạn bè' }

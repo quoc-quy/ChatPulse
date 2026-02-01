@@ -46,6 +46,28 @@ class DatabaseService {
     // Tạo index kép để đảm bảo không kết bạn trùng lặp và tìm kiếm nhanh
     await this.friends.createIndex({ user_id: 1, friend_id: 1 }, { unique: true })
   }
+  async cleanupDuplicateFriends() {
+    const duplicates = await this.friends
+      .aggregate([
+        {
+          $group: {
+            _id: { user_id: '$user_id', friend_id: '$friend_id' },
+            dups: { $push: '$_id' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $match: { count: { $gt: 1 } }
+        }
+      ])
+      .toArray()
+
+    for (const doc of duplicates) {
+      // Giữ lại bản ghi đầu tiên, xóa các bản ghi trùng còn lại
+      doc.dups.shift()
+      await this.friends.deleteMany({ _id: { $in: doc.dups } })
+    }
+  }
 }
 
 const databaseService = new DatabaseService()
