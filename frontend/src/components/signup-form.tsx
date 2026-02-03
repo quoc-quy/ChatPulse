@@ -18,6 +18,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
   const {
     handleSubmit,
     register,
+    setError,
     formState: { errors }
   } = useForm<FormData>({
     resolver: yupResolver(userRegistrationSchema) as Resolver<UserSchema>
@@ -38,8 +39,22 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
         console.log(data)
         toast.success('Đăng ký tài khoản thành công')
       },
-      onError: (error) => {
-        console.log(error)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onError: (error: any) => {
+        const data = error?.response?.data
+
+        if (data?.errors) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          Object.entries(data.errors).forEach(([field, errorObj]: any) => {
+            setError(field as keyof FormData, {
+              type: 'server',
+              message: errorObj.msg
+            })
+          })
+          return
+        }
+
+        toast.error(data?.message || 'Đăng ký thất bại')
       }
     })
   })
