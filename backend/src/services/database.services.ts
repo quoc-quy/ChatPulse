@@ -4,6 +4,7 @@ import User from '~/models/schemas/user.schema'
 import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
 import Friend from '~/models/schemas/friend.schema'
+import Conversation from '~/models/schemas/conversation.schema'
 config()
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ptzh2gl.mongodb.net/?appName=Cluster0`
@@ -76,6 +77,16 @@ class DatabaseService {
       doc.dups.shift()
       await this.friends.deleteMany({ _id: { $in: doc.dups } })
     }
+  }
+
+  get conversations(): Collection<Conversation> {
+    return this.db.collection('conversations')
+  }
+
+  // Thêm index cho conversations để tìm kiếm nhanh theo participants
+  async indexConversations() {
+    await this.conversations.createIndex({ participants: 1 })
+    await this.conversations.createIndex({ updated_at: -1 }) // Sort theo tin nhắn mới nhất
   }
 }
 

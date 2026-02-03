@@ -5,6 +5,7 @@ import databaseService from './services/database.services'
 import { defaultErrorHandler } from './middlewares/errors.middlwares'
 import friendsRouter from './routes/friends.routes'
 import searchRouter from './routes/search.routes'
+import chatRouter from './routes/chat.routes'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
 databaseService.connect().then(async () => {
@@ -14,6 +15,7 @@ databaseService.connect().then(async () => {
   await databaseService.indexFriends()
   await databaseService.indexUser()
   await databaseService.cleanupDuplicateFriends()
+  await databaseService.indexConversations()
 })
 const app = express()
 const port = process.env.PORT
@@ -22,6 +24,7 @@ app.use(express.json()) //parse JSON to body
 app.use('/users', usersRouter)
 app.use('/friends', friendsRouter)
 app.use('/search', searchRouter)
+app.use('/chat', chatRouter)
 
 //default global error
 app.use(defaultErrorHandler)
