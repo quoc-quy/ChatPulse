@@ -1,7 +1,9 @@
 import { Router } from 'express'
 import {
   acceptFriendRequestController,
+  cancelFriendRequestController,
   createFriendRequestController,
+  declineFriendRequestController,
   getFriendListController,
   getReceivedFriendRequestsController,
   unfriendController
@@ -42,5 +44,9 @@ friendsRouter.get('/list', accessTokenValidator, wrapRequestHandler(getFriendLis
 friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
 
 friendsRouter.delete('/unfriend', accessTokenValidator, wrapRequestHandler(unfriendController))
+friendsRouter.delete('/requests/:id/decline', accessTokenValidator, wrapRequestHandler(declineFriendRequestController))
+
+// Hủy lời mời đã gửi
+friendsRouter.delete('/requests/:id/cancel', accessTokenValidator, wrapRequestHandler(cancelFriendRequestController))
 
 export default friendsRouter

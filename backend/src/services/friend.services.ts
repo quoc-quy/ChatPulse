@@ -189,6 +189,38 @@ class FriendService {
     ])
     return { message: 'Đã hủy kết bạn thành công' }
   }
+  // 1. Từ chối lời mời (Dành cho người nhận)
+  async declineFriendRequest(user_id: string, request_id: string) {
+    const result = await databaseService.friendRequests.deleteOne({
+      _id: new ObjectId(request_id),
+      receiver_id: new ObjectId(user_id), // Chỉ người nhận mới có quyền từ chối
+      status: FriendStatus.Pending
+    })
+
+    if (result.deletedCount === 0) {
+      throw new ErrorWithStatus({
+        message: 'Lời mời không tồn tại hoặc bạn không có quyền từ chối',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+    return { message: 'Đã từ chối lời mời kết bạn' }
+  }
+  // 2. Hủy lời mời đã gửi (Dành cho người gửi)
+  async cancelFriendRequest(user_id: string, request_id: string) {
+    const result = await databaseService.friendRequests.deleteOne({
+      _id: new ObjectId(request_id),
+      sender_id: new ObjectId(user_id), // Chỉ người gửi mới có quyền hủy
+      status: FriendStatus.Pending
+    })
+
+    if (result.deletedCount === 0) {
+      throw new ErrorWithStatus({
+        message: 'Lời mời không tồn tại hoặc bạn không có quyền hủy',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+    return { message: 'Đã hủy lời mời kết bạn' }
+  }
 }
 
 export const friendService = new FriendService()

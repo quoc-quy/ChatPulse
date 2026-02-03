@@ -36,3 +36,16 @@ export const unfriendController = async (req: Request, res: Response) => {
   const result = await friendService.unfriend(user_id, friend_id)
   res.json(result)
 }
+export const declineFriendRequestController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { id } = req.params as { id: string } // Lấy request_id từ đường dẫn /:id
+  const result = await friendService.declineFriendRequest(user_id, id)
+  res.json(result)
+}
+
+export const cancelFriendRequestController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { id } = req.params as { id: string }
+  const result = await friendService.cancelFriendRequest(user_id, id)
+  res.json(result)
+}
