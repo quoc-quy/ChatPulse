@@ -3,31 +3,85 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useForm, type Resolver } from 'react-hook-form'
+import { yupResolver } from '@hookform/resolvers/yup'
+import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
+import { useMutation } from '@tanstack/react-query'
+import authApi, { type RegisterBody } from '@/apis/auth.api'
+import { toast } from 'react-toastify'
 
+type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const navigate = useNavigate()
+
+  const {
+    handleSubmit,
+    register,
+    formState: { errors }
+  } = useForm<FormData>({
+    resolver: yupResolver(userRegistrationSchema) as Resolver<UserSchema>
+  })
+
+  const registrationMutation = useMutation({
+    mutationFn: (body: RegisterBody) => authApi.register(body)
+  })
+
+  const onSubmit = handleSubmit((data) => {
+    const body: RegisterBody = {
+      ...data,
+      date_of_birth: new Date(data.date_of_birth as string).toISOString()
+    }
+    registrationMutation.mutate(body, {
+      onSuccess: (data) => {
+        navigate('/')
+        console.log(data)
+        toast.success('Đăng ký tài khoản thành công')
+      },
+      onError: (error) => {
+        console.log(error)
+      }
+    })
+  })
+
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card className='overflow-hidden p-0'>
         <CardContent className='grid p-0 md:grid-cols-2'>
-          <form className='p-6 md:p-8'>
+          <form className='p-6 md:p-8' onSubmit={onSubmit}>
             <FieldGroup>
               <div className='flex flex-col items-center gap-2 text-center'>
                 <h1 className='text-2xl font-bold'>Create your account</h1>
               </div>
               <Field>
                 <FieldLabel htmlFor='email'>Email</FieldLabel>
-                <Input id='email' type='email' placeholder='m@example.com' required />
+                <Input
+                  id='email'
+                  type='email'
+                  {...register('email')}
+                  errorMessage={errors.email?.message}
+                  placeholder='example@gmail.com'
+                />
               </Field>
               <Field>
                 <Field className='grid grid-cols-2 gap-4'>
                   <Field>
                     <FieldLabel htmlFor='password'>Password</FieldLabel>
-                    <Input id='password' type='password' required />
+                    <Input
+                      id='password'
+                      {...register('password')}
+                      errorMessage={errors.password?.message}
+                      type='password'
+                    />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='confirm-password'>Confirm Password</FieldLabel>
-                    <Input id='confirm-password' type='password' required />
+                    <Input
+                      id='confirm-password'
+                      {...register('confirm_password')}
+                      errorMessage={errors.confirm_password?.message}
+                      type='password'
+                    />
                   </Field>
                 </Field>
               </Field>
@@ -35,17 +89,27 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                 <Field className='grid grid-cols-2 gap-4'>
                   <Field>
                     <FieldLabel htmlFor='username'>Username</FieldLabel>
-                    <Input id='username' type='text' required />
+                    <Input
+                      id='username'
+                      {...register('userName')}
+                      errorMessage={errors.userName?.message}
+                      type='text'
+                    />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='phone'>Phone</FieldLabel>
-                    <Input id='phone' type='text' required />
+                    <Input id='phone' {...register('phone')} errorMessage={errors.phone?.message} type='text' />
                   </Field>
                 </Field>
               </Field>
               <Field>
                 <FieldLabel htmlFor='date_of_birth'>Date Of Birth</FieldLabel>
-                <Input id='date_of_birth' type='date' required />
+                <Input
+                  id='date_of_birth'
+                  {...register('date_of_birth')}
+                  errorMessage={errors.date_of_birth?.message}
+                  type='date'
+                />
               </Field>
               <Field>
                 <Button type='submit' className='cursor-pointer'>
