@@ -12,6 +12,7 @@ databaseService.connect().then(async () => {
   await databaseService.indexFriendRequests()
   // Khởi tạo index cho bảng quan hệ bạn bè chính thức
   await databaseService.indexFriends()
+  await databaseService.indexUser()
   await databaseService.cleanupDuplicateFriends()
 })
 const app = express()
