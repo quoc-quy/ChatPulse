@@ -8,6 +8,7 @@ import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import { ObjectId } from 'mongodb'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
+import { sendEmailNotification } from '~/utils/email'
 
 class UserService {
   private signAccessToken(user_id: string) {
@@ -51,6 +52,7 @@ class UserService {
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
     )
+    // await sendEmailNotification(payload.email)
     return { access_token, refresh_token }
   }
 
