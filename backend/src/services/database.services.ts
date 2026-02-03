@@ -26,6 +26,15 @@ class DatabaseService {
     }
   }
 
+  async indexUser() {
+    const exists = await this.users.indexExists(['email_1_password_1', 'userName_1', 'email_1', 'phone_1'])
+    if (!exists) {
+      this.users.createIndex({ email: 1, password: 1 })
+      this.users.createIndex({ userName: 1 })
+      this.users.createIndex({ phone: 1 })
+    }
+  }
+
   get users(): Collection<User> {
     return this.db.collection('users')
   }
