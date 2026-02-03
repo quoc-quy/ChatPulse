@@ -1,5 +1,6 @@
 import express from 'express'
 import { config } from 'dotenv'
+import cors from 'cors'
 import usersRouter from './routes/users.routes'
 import databaseService from './services/database.services'
 import { defaultErrorHandler } from './middlewares/errors.middlwares'
@@ -19,6 +20,13 @@ databaseService.connect().then(async () => {
 })
 const app = express()
 const port = process.env.PORT
+
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+  })
+)
 
 app.use(express.json()) //parse JSON to body
 app.use('/users', usersRouter)
