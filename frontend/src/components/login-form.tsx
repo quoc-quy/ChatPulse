@@ -1,16 +1,71 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { yupResolver } from '@hookform/resolvers/yup'
+import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
+import { useMutation } from '@tanstack/react-query'
+import authApi from '@/apis/auth.api'
+import { toast } from 'react-toastify'
+import { useContext } from 'react'
+import { AppContext } from '@/context/app.context'
 
+type FormData = Pick<UserSchema, 'email' | 'password'>
+const loginSchema = userRegistrationSchema.pick(['email', 'password'])
 export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const { setIsAuthenticated, setProfile } = useContext(AppContext)
+  const navigate = useNavigate()
+
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+    setError
+  } = useForm<FormData>({
+    resolver: yupResolver(loginSchema)
+  })
+
+  const loginMutation = useMutation({
+    mutationFn: (body: FormData) => authApi.login(body)
+  })
+
+  const onSubmit = handleSubmit((data) => {
+    loginMutation.mutate(data, {
+      onSuccess: (data) => {
+        navigate('/')
+        setIsAuthenticated(true)
+        setProfile(data.data.result.user)
+        toast.success('Đăng nhập thành công')
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onError: (error: any) => {
+        const data = error?.response?.data
+
+        if (data?.errors) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          Object.entries(data.errors).forEach(([field, errorObj]: any) => {
+            setError(field as keyof FormData, {
+              type: 'server',
+              message: errorObj.msg
+            })
+          })
+          return
+        }
+
+        toast.error(data?.message || 'Đăng nhập thất bại')
+      }
+    })
+  })
+
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card className='overflow-hidden p-0'>
         <CardContent className='grid p-0 md:grid-cols-2'>
-          <form className='p-6 md:p-8'>
+          <form className='p-6 md:p-8' onSubmit={onSubmit}>
             <FieldGroup>
               <div className='flex flex-col items-center gap-2 text-center'>
                 <h1 className='text-2xl font-bold'>Welcome</h1>
@@ -18,13 +73,18 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
               </div>
               <Field>
                 <FieldLabel htmlFor='email'>Email</FieldLabel>
-                <Input id='email' type='email' placeholder='m@example.com' required />
+                <Input
+                  {...register('email')}
+                  errorMessage={errors.email?.message}
+                  type='email'
+                  placeholder='m@example.com'
+                />
               </Field>
               <Field>
                 <div className='flex items-center'>
                   <FieldLabel htmlFor='password'>Password</FieldLabel>
                 </div>
-                <Input id='password' type='password' required />
+                <Input {...register('password')} errorMessage={errors.password?.message} type='password' />
               </Field>
               <Field>
                 <Button type='submit' className='cursor-pointer'>

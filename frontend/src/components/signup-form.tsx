@@ -10,9 +10,12 @@ import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
 import { useMutation } from '@tanstack/react-query'
 import authApi, { type RegisterBody } from '@/apis/auth.api'
 import { toast } from 'react-toastify'
+import { useContext } from 'react'
+import { AppContext } from '@/context/app.context'
 
 type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const { setIsAuthenticated, setProfile } = useContext(AppContext)
   const navigate = useNavigate()
 
   const {
@@ -36,7 +39,8 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
     registrationMutation.mutate(body, {
       onSuccess: (data) => {
         navigate('/')
-        console.log(data)
+        setIsAuthenticated(true)
+        setProfile(data.data.result.user)
         toast.success('Đăng ký tài khoản thành công')
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

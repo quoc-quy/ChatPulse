@@ -1,3 +1,4 @@
+import type { User } from '@/types/user.type'
 import http from '@/utils/http'
 
 export interface RegisterBody {
@@ -12,6 +13,10 @@ export interface RegisterBody {
 const authApi = {
   register(body: RegisterBody) {
     return http.post('/users/register', body)
+  },
+
+  login(body: { email: string; password: string }) {
+    return http.post('/users/login', body)
   }
 }
 
