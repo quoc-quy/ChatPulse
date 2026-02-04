@@ -13,10 +13,21 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { AppContext } from '@/context/app.context'
 import { useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { clearLS } from '@/utils/auth'
 
 export function NavUser() {
   const { isMobile } = useSidebar()
-  const { profile } = useContext(AppContext)
+
+  const { profile, setIsAuthenticated, setProfile } = useContext(AppContext)
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    clearLS()
+    setIsAuthenticated(false)
+    setProfile(null)
+    navigate('/signin')
+  }
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -78,7 +89,7 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Log out
             </DropdownMenuItem>

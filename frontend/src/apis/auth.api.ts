@@ -1,4 +1,3 @@
-import type { User } from '@/types/user.type'
 import http from '@/utils/http'
 
 export interface RegisterBody {
