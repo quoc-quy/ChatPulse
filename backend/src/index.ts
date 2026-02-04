@@ -24,6 +24,8 @@ const app = express()
 const httpServer = createServer(app)
 const port = process.env.PORT
 
+const socket = 4001
+
 // Khởi tạo Socket Service
 socketService.init(httpServer)
 
@@ -46,6 +48,6 @@ app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 })
 
-httpServer.listen(port, () => {
-  console.log(`Server đang chạy tại http://localhost:${port}`)
+httpServer.listen(socket, () => {
+  console.log(`Server đang chạy tại http://localhost:${socket}`)
 })
