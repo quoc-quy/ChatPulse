@@ -48,6 +48,18 @@ class UserService {
       })
     )
     const user_id = result.insertedId.toString()
+    const user = await databaseService.users.findOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      {
+        projection: {
+          password: 0,
+          created_at: 0,
+          updated_at: 0
+        }
+      }
+    )
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id)
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
@@ -55,18 +67,31 @@ class UserService {
 
     // await sendEmailNotification(payload.email)
 
-    return { access_token, refresh_token }
+    return { access_token, refresh_token, user }
   }
 
   async login(user_id: string) {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id)
+    const user = await databaseService.users.findOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      {
+        projection: {
+          password: 0,
+          created_at: 0,
+          updated_at: 0
+        }
+      }
+    )
 
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
     )
     return {
       access_token,
-      refresh_token
+      refresh_token,
+      user
     }
   }
 
