@@ -1,40 +1,64 @@
-import { useRoutes } from 'react-router-dom'
+import { Navigate, Outlet, useRoutes } from 'react-router-dom'
 import MainLayout from './layouts'
 import ChatAppPage from './pages/ChatAppPage'
 import SignUpPage from './pages/SignUpPage'
 import SignInPage from './pages/SignInPage'
+import { useContext } from 'react'
+import { AppContext } from './context/app.context'
+
+function ProtectedRoute() {
+  const { isAuthenticated } = useContext(AppContext)
+  return isAuthenticated ? <Outlet /> : <Navigate to={'/signin'} />
+}
+
+function RejectedRoute() {
+  const { isAuthenticated } = useContext(AppContext)
+  return !isAuthenticated ? <Outlet /> : <Navigate to={'/'} />
+}
 
 export default function useRouteElements() {
   const routeElements = useRoutes([
     // private routes
     {
-      path: '/',
-      index: true,
-      element: (
-        <MainLayout>
-          <ChatAppPage />
-        </MainLayout>
-      )
+      path: '',
+      element: <ProtectedRoute />,
+      children: [
+        {
+          path: '/',
+          index: true,
+          element: (
+            <MainLayout>
+              <ChatAppPage />
+            </MainLayout>
+          )
+        }
+      ]
     },
 
     // public routes
     {
-      path: '/signup',
-      index: true,
-      element: (
-        <MainLayout>
-          <SignUpPage />
-        </MainLayout>
-      )
-    },
-    {
-      path: '/signin',
-      index: true,
-      element: (
-        <MainLayout>
-          <SignInPage />
-        </MainLayout>
-      )
+      path: '',
+      element: <RejectedRoute />,
+      children: [
+        {
+          path: '/signup',
+          index: true,
+          element: (
+            <MainLayout>
+              <SignUpPage />
+            </MainLayout>
+          )
+        },
+        {
+          path: '/signin',
+          index: true,
+          element: (
+            <MainLayout>
+              <SignInPage />
+            </MainLayout>
+          )
+        }
+      ]
     }
   ])
   return routeElements
