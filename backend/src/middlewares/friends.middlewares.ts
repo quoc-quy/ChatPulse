@@ -44,3 +44,33 @@ export const createFriendRequestValidator = validate(
     ['body']
   )
 )
+export const unfriendValidator = validate(
+  checkSchema(
+    {
+      friend_id: {
+        notEmpty: { errorMessage: 'friend_id không được để trống' },
+        custom: {
+          options: async (value, { req }) => {
+            // 1. Kiểm tra định dạng ObjectId
+            if (!ObjectId.isValid(value)) {
+              throw new ErrorWithStatus({
+                message: 'friend_id không hợp lệ',
+                status: httpStatus.UNPROCESSABLE_ENTITY
+              })
+            }
+            // 2. Không được tự hủy kết bạn với chính mình
+            const { user_id } = req.decoded_authorization
+            if (value === user_id) {
+              throw new ErrorWithStatus({
+                message: 'Bạn không thể hủy kết bạn với chính mình',
+                status: httpStatus.UNPROCESSABLE_ENTITY
+              })
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
