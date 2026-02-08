@@ -8,7 +8,7 @@ import {
   getReceivedFriendRequestsController,
   unfriendController
 } from '~/controllers/friends.controllers'
-import { createFriendRequestValidator } from '~/middlewares/friends.middlewares'
+import { createFriendRequestValidator, unfriendValidator } from '~/middlewares/friends.middlewares'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -43,7 +43,7 @@ friendsRouter.get('/list', accessTokenValidator, wrapRequestHandler(getFriendLis
  */
 friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
 
-friendsRouter.delete('/unfriend', accessTokenValidator, wrapRequestHandler(unfriendController))
+friendsRouter.delete('/unfriend', accessTokenValidator, unfriendValidator, wrapRequestHandler(unfriendController))
 friendsRouter.delete('/requests/:id/decline', accessTokenValidator, wrapRequestHandler(declineFriendRequestController))
 
 // Hủy lời mời đã gửi
