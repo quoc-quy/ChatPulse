@@ -171,15 +171,14 @@ class FriendService {
    * Hủy kết bạn (Xóa dữ liệu ở cả 2 bảng friends và friend_requests)
    */
   async unfriend(user_id: string, friend_id: string) {
-    await Promise.all([
-      // Xóa quan hệ 2 chiều trong bảng friends
+    // Thực hiện xóa và nhận về kết quả từ MongoDB
+    const [friendsDeleted, requestDeleted] = await Promise.all([
       databaseService.friends.deleteMany({
         $or: [
           { user_id: new ObjectId(user_id), friend_id: new ObjectId(friend_id) },
           { user_id: new ObjectId(friend_id), friend_id: new ObjectId(user_id) }
         ]
       }),
-      // Xóa trong bảng friend_requests để có thể gửi lại lời mời từ đầu sau này
       databaseService.friendRequests.deleteOne({
         $or: [
           { sender_id: new ObjectId(user_id), receiver_id: new ObjectId(friend_id) },
@@ -187,6 +186,15 @@ class FriendService {
         ]
       })
     ])
+
+    // KIỂM TRA: Nếu không có bản ghi nào trong bảng friends bị xóa (deletedCount === 0)
+    if (friendsDeleted.deletedCount === 0) {
+      throw new ErrorWithStatus({
+        message: 'Hai người hiện không phải là bạn bè hoặc đã hủy kết bạn trước đó',
+        status: httpStatus.NOT_FOUND // Trả về lỗi 404 thay vì 200
+      })
+    }
+
     return { message: 'Đã hủy kết bạn thành công' }
   }
   // 1. Từ chối lời mời (Dành cho người nhận)
