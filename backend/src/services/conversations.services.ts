@@ -46,6 +46,7 @@ class ChatService {
             type: 1,
             updated_at: 1,
             last_message_id: 1,
+            members: 1,
             // Lọc bỏ user hiện tại khỏi list participants để FE dễ hiển thị tên người kia (đối với chat 1-1)
             participants: {
               $map: {
@@ -140,6 +141,7 @@ class ChatService {
             created_at: 1,
             last_message_id: 1,
             participants: 1,
+            members: 1,
             // Ẩn các thông tin nhạy cảm của user, chỉ lấy ra những thông tin public
             participants_info: {
               $map: {
