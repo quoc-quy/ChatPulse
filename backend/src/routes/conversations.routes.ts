@@ -1,5 +1,9 @@
 import { Router } from 'express'
-import { createConversationController, getConversationsController } from '~/controllers/conversations.controllers'
+import {
+  createConversationController,
+  getConversationController,
+  getConversationsController
+} from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -21,5 +25,13 @@ chatRouter.get('/', accessTokenValidator, wrapRequestHandler(getConversationsCon
  * Body: { type: 'direct' | 'group', members: string[], name?: string }
  */
 chatRouter.post('/', accessTokenValidator, wrapRequestHandler(createConversationController))
+
+/**
+ * Description: Get conversation details and members
+ * Path: /conversations/:id
+ * Method: GET
+ * Header: { Authorization: Bearer <access_token> }
+ */
+chatRouter.get('/:id', accessTokenValidator, wrapRequestHandler(getConversationController))
 
 export default chatRouter
