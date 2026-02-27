@@ -27,3 +27,15 @@ export const createConversationController = async (req: Request, res: Response) 
     result
   })
 }
+
+export const getConversationController = async (req: Request, res: Response) => {
+  const { id } = req.params as any
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  const conversation = await chatService.getConversationById(id, user_id)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Lấy chi tiết hội thoại thành công',
+    result: conversation
+  })
+}

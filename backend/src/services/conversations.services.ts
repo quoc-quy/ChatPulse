@@ -1,4 +1,6 @@
 import { ObjectId } from 'mongodb'
+import httpStatus from '~/constants/httpStatus'
+import { ErrorWithStatus } from '~/models/errors'
 import Conversation from '~/models/schemas/conversation.schema'
 import databaseService from '~/services/database.services'
 
@@ -107,6 +109,77 @@ class ChatService {
       const result = await databaseService.conversations.insertOne(newConversation)
       return { ...newConversation, _id: result.insertedId }
     }
+  }
+
+  async getConversationById(conversationId: string, userId: string) {
+    const convObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    const conversations = await databaseService.conversations
+      .aggregate([
+        {
+          $match: {
+            _id: convObjectId
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'participants',
+            foreignField: '_id',
+            as: 'participants_info'
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            type: 1,
+            name: 1,
+            admin_id: 1,
+            updated_at: 1,
+            created_at: 1,
+            last_message_id: 1,
+            participants: 1,
+            // Ẩn các thông tin nhạy cảm của user, chỉ lấy ra những thông tin public
+            participants_info: {
+              $map: {
+                input: '$participants_info',
+                as: 'participant',
+                in: {
+                  _id: '$$participant._id',
+                  username: '$$participant.username',
+                  avatar: '$$participant.avatar',
+                  email: '$$participant.email'
+                }
+              }
+            }
+          }
+        }
+      ])
+      .toArray()
+
+    if (!conversations || conversations.length === 0) {
+      throw new ErrorWithStatus({
+        message: 'Không tìm thấy cuộc hội thoại',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+
+    const conversationDetail = conversations[0]
+
+    // Kiểm tra xem user đang gọi API có nằm trong danh sách participants không (Lỗi 403)
+    const isMember = conversationDetail.participants.some(
+      (participantId: ObjectId) => participantId.toString() === userId
+    )
+
+    if (!isMember) {
+      throw new ErrorWithStatus({
+        message: 'Bạn không có quyền xem cuộc hội thoại này do không phải là thành viên',
+        status: httpStatus.FORBIDDEN
+      })
+    }
+
+    return conversationDetail
   }
 }
 
