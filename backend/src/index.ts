@@ -9,6 +9,7 @@ import friendsRouter from './routes/friends.routes'
 import searchRouter from './routes/search.routes'
 import chatRouter from './routes/conversations.routes'
 import socketService from './services/socket.services'
+import messageRouter from './routes/message.routes'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
 databaseService.connect().then(async () => {
@@ -41,6 +42,7 @@ app.use('/users', usersRouter)
 app.use('/friends', friendsRouter)
 app.use('/search', searchRouter)
 app.use('/conversations', chatRouter)
+app.use('/messages', messageRouter)
 
 //default global error
 app.use(defaultErrorHandler)

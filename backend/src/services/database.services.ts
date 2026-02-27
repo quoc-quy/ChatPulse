@@ -83,6 +83,10 @@ class DatabaseService {
     return this.db.collection('conversations')
   }
 
+  get messages() {
+    return this.db.collection('messages')
+  }
+
   // Thêm index cho conversations để tìm kiếm nhanh theo participants
   async indexConversations() {
     await this.conversations.createIndex({ participants: 1 })
