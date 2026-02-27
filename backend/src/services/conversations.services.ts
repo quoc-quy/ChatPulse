@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb'
+import Conversation from '~/models/schemas/conversation.schema'
 import databaseService from '~/services/database.services'
 
 class ChatService {
@@ -62,6 +63,50 @@ class ChatService {
       .toArray()
 
     return conversations
+  }
+
+  async createConversation(userId: string, type: 'direct' | 'group', members: string[], name?: string) {
+    const userObjectId = new ObjectId(userId)
+    const memberObjectIds = members.map((id) => new ObjectId(id))
+
+    // Đảm bảo người tạo luôn nằm trong danh sách participants
+    const participants = [userObjectId, ...memberObjectIds]
+
+    if (type === 'direct') {
+      const receiverId = memberObjectIds[0]
+
+      // Kiểm tra xem hội thoại direct giữa 2 người đã tồn tại chưa
+      const existingConversation = await databaseService.conversations.findOne({
+        type: 'direct',
+        participants: { $all: [userObjectId, receiverId], $size: 2 }
+      })
+
+      if (existingConversation) {
+        return existingConversation
+      }
+
+      // Nếu chưa có thì tạo mới
+      const newConversation = new Conversation({
+        participants: [userObjectId, receiverId],
+        type: 'direct',
+        updated_at: new Date(), // Thêm dòng này
+        created_at: new Date()
+      })
+      const result = await databaseService.conversations.insertOne(newConversation)
+      return { ...newConversation, _id: result.insertedId }
+    } else {
+      // Logic cho Group chat
+      const newConversation = new Conversation({
+        participants,
+        type: 'group',
+        name,
+        admin_id: userObjectId, // Gán quyền admin cho người tạo nhóm
+        updated_at: new Date(),
+        created_at: new Date()
+      })
+      const result = await databaseService.conversations.insertOne(newConversation)
+      return { ...newConversation, _id: result.insertedId }
+    }
   }
 }
 

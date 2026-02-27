@@ -5,8 +5,10 @@ interface ConversationType {
   participants: ObjectId[] // Danh sách ID của user tham gia
   last_message_id?: ObjectId // ID tin nhắn cuối cùng để hiển thị preview
   type: 'direct' | 'group' // Chat 1-1 hoặc chat nhóm
-  updated_at: Date
-  created_at: Date
+  name?: string // Tên nhóm (dành cho group chat)
+  admin_id?: ObjectId // ID của admin nhóm (người tạo)
+  updated_at?: Date
+  created_at?: Date
 }
 
 export default class Conversation {
@@ -14,6 +16,8 @@ export default class Conversation {
   participants: ObjectId[]
   last_message_id?: ObjectId
   type: 'direct' | 'group'
+  name?: string
+  admin_id?: ObjectId
   updated_at: Date
   created_at: Date
 
@@ -22,6 +26,8 @@ export default class Conversation {
     this.participants = conversation.participants
     this.last_message_id = conversation.last_message_id
     this.type = conversation.type || 'direct'
+    this.name = conversation.name
+    this.admin_id = conversation.admin_id
     this.updated_at = conversation.updated_at || new Date()
     this.created_at = conversation.created_at || new Date()
   }
