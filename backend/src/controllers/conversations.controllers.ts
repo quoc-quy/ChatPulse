@@ -55,3 +55,15 @@ export const updateGroupController = async (req: Request, res: Response) => {
     result: updatedGroup
   })
 }
+
+export const markConversationAsSeenController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  const result = await chatService.markAsSeen(id, user_id)
+
+  // TODO: Tích hợp Socket.io để emit sự kiện 'message_seen' cho các client khác
+  // socketService.io.to(id).emit('message_seen', { conversationId: id, userId: user_id })
+
+  return res.status(httpStatus.OK).json(result)
+}
