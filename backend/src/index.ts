@@ -7,7 +7,7 @@ import databaseService from './services/database.services'
 import { defaultErrorHandler } from './middlewares/errors.middlwares'
 import friendsRouter from './routes/friends.routes'
 import searchRouter from './routes/search.routes'
-import chatRouter from './routes/chat.routes'
+import chatRouter from './routes/conversations.routes'
 import socketService from './services/socket.services'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
@@ -40,7 +40,7 @@ app.use(express.json()) //parse JSON to body
 app.use('/users', usersRouter)
 app.use('/friends', friendsRouter)
 app.use('/search', searchRouter)
-app.use('/chat', chatRouter)
+app.use('/conversations', chatRouter)
 
 //default global error
 app.use(defaultErrorHandler)
