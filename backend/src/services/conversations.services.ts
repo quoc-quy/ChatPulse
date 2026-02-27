@@ -181,6 +181,52 @@ class ChatService {
 
     return conversationDetail
   }
+
+  async updateGroup(conversationId: string, userId: string, payload: { name?: string; avatarUrl?: string }) {
+    const convObjectId = new ObjectId(conversationId)
+
+    // 1. Tìm cuộc hội thoại
+    const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
+
+    if (!conversation) {
+      throw new ErrorWithStatus({
+        message: 'Không tìm thấy cuộc hội thoại',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+
+    // 2. Kiểm tra loại hội thoại
+    if (conversation.type !== 'group') {
+      throw new ErrorWithStatus({
+        message: 'Chỉ có thể cập nhật thông tin cho nhóm chat',
+        status: httpStatus.BAD_REQUEST
+      })
+    }
+
+    // 3. Kiểm tra quyền: Bất kỳ thành viên nào cũng có quyền cập nhật
+    const isMember = conversation.participants.some((participantId: ObjectId) => participantId.toString() === userId)
+
+    if (!isMember) {
+      throw new ErrorWithStatus({
+        message: 'Bạn không có quyền cập nhật do không phải là thành viên của nhóm này',
+        status: httpStatus.FORBIDDEN
+      })
+    }
+
+    // 4. Chuẩn bị dữ liệu cập nhật
+    const updateData: any = { updated_at: new Date() }
+    if (payload.name !== undefined) updateData.name = payload.name
+    if (payload.avatarUrl !== undefined) updateData.avatarUrl = payload.avatarUrl
+
+    // 5. Cập nhật vào DB và trả về document mới
+    const result = await databaseService.conversations.findOneAndUpdate(
+      { _id: convObjectId },
+      { $set: updateData },
+      { returnDocument: 'after' } // Trả về dữ liệu sau khi đã update
+    )
+
+    return result
+  }
 }
 
 const chatService = new ChatService()

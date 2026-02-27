@@ -39,3 +39,19 @@ export const getConversationController = async (req: Request, res: Response) => 
     result: conversation
   })
 }
+
+export const updateGroupController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { name, avatarUrl } = req.body
+
+  const updatedGroup = await chatService.updateGroup(id, user_id, { name, avatarUrl })
+
+  // TODO: Tích hợp Socket.io để emit sự kiện 'group_updated'
+  // Ví dụ: socketService.io.to(id).emit('group_updated', updatedGroup)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Cập nhật thông tin nhóm thành công',
+    result: updatedGroup
+  })
+}

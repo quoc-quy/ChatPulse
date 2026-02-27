@@ -2,7 +2,8 @@ import { Router } from 'express'
 import {
   createConversationController,
   getConversationController,
-  getConversationsController
+  getConversationsController,
+  updateGroupController
 } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -33,5 +34,14 @@ chatRouter.post('/', accessTokenValidator, wrapRequestHandler(createConversation
  * Header: { Authorization: Bearer <access_token> }
  */
 chatRouter.get('/:id', accessTokenValidator, wrapRequestHandler(getConversationController))
+
+/**
+ * Description: Update group info (Name, Avatar)
+ * Path: /conversations/:id
+ * Method: PATCH
+ * Header: { Authorization: Bearer <access_token> }
+ * Body: { name?: string, avatarUrl?: string }
+ */
+chatRouter.patch('/:id', accessTokenValidator, wrapRequestHandler(updateGroupController))
 
 export default chatRouter
