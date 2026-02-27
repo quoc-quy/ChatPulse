@@ -227,6 +227,51 @@ class ChatService {
 
     return result
   }
+
+  async markAsSeen(conversationId: string, userId: string) {
+    const convObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    // 1. Kiểm tra hội thoại có tồn tại không
+    const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
+    if (!conversation) {
+      throw new ErrorWithStatus({
+        message: 'Không tìm thấy cuộc hội thoại',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+
+    // 2. Kiểm tra xem user có phải thành viên không
+    const isParticipant = conversation.participants.some(
+      (participantId: ObjectId) => participantId.toString() === userId
+    )
+    if (!isParticipant) {
+      throw new ErrorWithStatus({
+        message: 'Bạn không phải là thành viên của cuộc hội thoại này',
+        status: httpStatus.FORBIDDEN
+      })
+    }
+
+    // Nếu hội thoại mới tạo, chưa có tin nhắn nào (last_message_id rỗng) thì không cần đánh dấu
+    if (!conversation.last_message_id) {
+      return { success: true }
+    }
+
+    // 3. Reset unread_count bằng cách đẩy lastViewedMessageId = last_message_id của hội thoại
+    await databaseService.conversations.updateOne(
+      {
+        _id: convObjectId,
+        'members.userId': userObjectId
+      },
+      {
+        $set: {
+          'members.$.lastViewedMessageId': conversation.last_message_id
+        }
+      }
+    )
+
+    return { success: true }
+  }
 }
 
 const chatService = new ChatService()

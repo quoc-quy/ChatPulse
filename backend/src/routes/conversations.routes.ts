@@ -3,6 +3,7 @@ import {
   createConversationController,
   getConversationController,
   getConversationsController,
+  markConversationAsSeenController,
   updateGroupController
 } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
@@ -43,5 +44,13 @@ chatRouter.get('/:id', accessTokenValidator, wrapRequestHandler(getConversationC
  * Body: { name?: string, avatarUrl?: string }
  */
 chatRouter.patch('/:id', accessTokenValidator, wrapRequestHandler(updateGroupController))
+
+/**
+ * Description: Mark conversation as seen (Read receipt)
+ * Path: /conversations/:id/seen
+ * Method: PATCH
+ * Header: { Authorization: Bearer <access_token> }
+ */
+chatRouter.patch('/:id/seen', accessTokenValidator, wrapRequestHandler(markConversationAsSeenController))
 
 export default chatRouter
