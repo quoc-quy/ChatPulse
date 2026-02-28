@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useContext } from 'react'
 import { MessageSquare, Users, Settings, Bell, Plus } from 'lucide-react'
 import { NavUser } from '@/components/nav-user'
 import {
@@ -13,32 +14,41 @@ import {
   useSidebar
 } from '@/components/ui/sidebar'
 
-const data = {
-  user: {
-    name: 'Quốc Quý',
-    email: 'quocquy@example.com',
-    avatar: ''
-  },
-  navMain: [
-    { title: 'Tin nhắn', icon: MessageSquare },
-    { title: 'Danh bạ', icon: Users },
-    { title: 'Thông báo', icon: Bell },
-    { title: 'Cài đặt', icon: Settings }
-  ],
-  chats: [
-    { name: 'Nhóm Chat Web', message: 'Tối nay họp nha', time: '10:20' },
-    { name: 'Dự án ChatPulse', message: 'Hoàn thành sidebar rồi', time: 'Hôm qua' },
-    { name: 'Minh Tuấn', message: 'Oke bạn ơi', time: 'T2' }
-  ]
-}
+// Import AppContext để lấy dữ liệu User
+import { AppContext } from '@/context/app.context'
+
+// 1. Tách các dữ liệu tĩnh (UI) ra ngoài để không bị tạo lại mỗi lần render
+const navMain = [
+  { title: 'Tin nhắn', icon: MessageSquare },
+  { title: 'Danh bạ', icon: Users },
+  { title: 'Thông báo', icon: Bell },
+  { title: 'Cài đặt', icon: Settings }
+]
+
+// Tạm thời giữ dữ liệu cứng cho danh sách chat (Sẽ kết nối API ở các bước sau)
+const dummyChats = [
+  { name: 'Nhóm Chat Web', message: 'Tối nay họp nha', time: '10:20' },
+  { name: 'Dự án ChatPulse', message: 'Hoàn thành sidebar rồi', time: 'Hôm qua' },
+  { name: 'Minh Tuấn', message: 'Oke bạn ơi', time: 'T2' }
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [activeItem, setActiveItem] = React.useState(data.navMain[0])
+  const [activeItem, setActiveItem] = React.useState(navMain[0])
   const { setOpen } = useSidebar()
+
+  // 2. Lấy thông tin profile từ Context
+  const { profile } = useContext(AppContext)
+
+  // 3. Map dữ liệu lấy được vào format của NavUser
+  const currentUser = {
+    name: profile?.userName || 'Người dùng', // Fallback nếu API thiếu trường
+    email: profile?.email || '',
+    avatar: profile?.avatar || ''
+  }
 
   return (
     <Sidebar collapsible='icon' className='overflow-hidden [&>[data-sidebar=sidebar]]:flex-row' {...props}>
-      {/* PANEL 1: Dải Icon mỏng */}
+      {/* PANEL 1: Dải Icon mỏng ngoài cùng bên trái */}
       <Sidebar
         collapsible='none'
         className='!w-[calc(var(--sidebar-width-icon)_+_1px)] border-r border-sidebar-border/40'
@@ -46,11 +56,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* Căn giữa logo */}
               <SidebarMenuButton
                 size='lg'
                 asChild
-                className='mx-auto h-12 w-12 p-0 flex justify-center group-data-[collapsible=icon]:!w-12 group-data-[collapsible=icon]:!h-12 group-data-[collapsible=icon]:!p-0'
+                className='mx-auto md:h-12 md:w-12 md:p-0 flex justify-center group-data-[collapsible=icon]:!w-12 group-data-[collapsible=icon]:!h-12 group-data-[collapsible=icon]:!p-0'
               >
                 <a href='/'>
                   <div className='flex aspect-square size-10 items-center justify-center rounded-xl text-sidebar-primary-foreground'>
@@ -63,7 +72,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu className='gap-2 mt-2'>
-            {data.navMain.map((item) => (
+            {navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   tooltip={{ children: item.title, hidden: false }}
@@ -72,16 +81,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     setOpen(true)
                   }}
                   isActive={activeItem.title === item.title}
-                  className='mx-auto h-11 w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
+                  className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
                 >
-                  <item.icon className='!size-5' />
+                  <item.icon className='!size-6' />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          <NavUser user={data.user} />
+          {/* 4. Truyền dữ liệu thật vào NavUser */}
+          <NavUser user={currentUser} />
         </SidebarFooter>
       </Sidebar>
 
@@ -98,7 +108,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
         <SidebarContent>
           <div className='flex flex-col gap-0 p-2'>
-            {data.chats.map((chat) => (
+            {dummyChats.map((chat) => (
               <div
                 key={chat.name}
                 className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'

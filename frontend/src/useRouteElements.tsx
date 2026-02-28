@@ -43,20 +43,12 @@ export default function useRouteElements() {
         {
           path: '/signup',
           index: true,
-          element: (
-            <MainLayout>
-              <SignUpPage />
-            </MainLayout>
-          )
+          element: <SignUpPage />
         },
         {
           path: '/signin',
           index: true,
-          element: (
-            <MainLayout>
-              <SignInPage />
-            </MainLayout>
-          )
+          element: <SignInPage />
         }
       ]
     }
