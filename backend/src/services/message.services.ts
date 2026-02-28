@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb'
 import databaseService from '~/services/database.services'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
+import Message from '~/models/schemas/message.schema'
 
 class MessageService {
   async getMessages(conversationId: string, userId: string, cursor?: string, limit: number = 20) {
@@ -98,6 +99,106 @@ class MessageService {
       .toArray()
 
     return messages
+  }
+
+  async sendMessage(
+    userId: string,
+    convId: string,
+    type: 'text' | 'sticker' | 'system',
+    content: string,
+    replyToId?: string
+  ) {
+    const userObjectId = new ObjectId(userId)
+    const convObjectId = new ObjectId(convId)
+
+    // 1. Kiểm tra hội thoại và quyền thành viên
+    const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
+    if (!conversation) {
+      throw new ErrorWithStatus({
+        message: 'Không tìm thấy cuộc hội thoại',
+        status: httpStatus.NOT_FOUND
+      })
+    }
+
+    const isMember =
+      conversation.members?.some((m: any) => m.userId?.toString() === userId || m.user_id?.toString() === userId) ||
+      conversation.participants?.some((p: ObjectId) => p.toString() === userId)
+
+    if (!isMember) {
+      throw new ErrorWithStatus({
+        message: 'Bạn không có quyền gửi tin nhắn vào hội thoại này',
+        status: httpStatus.FORBIDDEN
+      })
+    }
+
+    // 2. Khởi tạo đối tượng Message mới
+    const newMessage = new Message({
+      conversationId: convObjectId,
+      senderId: userObjectId,
+      type,
+      content,
+      replyToId: replyToId ? new ObjectId(replyToId) : undefined
+    })
+
+    // Lưu vào database
+    const insertResult = await databaseService.messages.insertOne(newMessage)
+    const messageId = insertResult.insertedId
+
+    // 3. Cập nhật bảng Conversation (last_message_id, updated_at và lastViewedMessageId của người gửi)
+    await databaseService.conversations.updateOne(
+      { _id: convObjectId },
+      {
+        $set: {
+          last_message_id: messageId,
+          updated_at: new Date()
+        }
+      }
+    )
+
+    // Update High Water Mark cho người gửi (xem như họ đã đọc tin nhắn mới nhất này)
+    await databaseService.conversations.updateOne(
+      { _id: convObjectId, 'members.userId': userObjectId },
+      {
+        $set: {
+          'members.$.lastViewedMessageId': messageId
+        }
+      }
+    )
+
+    // 4. Lấy thông tin chi tiết của tin nhắn vừa gửi (kèm user gửi) để trả về FE và Emit Socket
+    const messages = await databaseService.messages
+      .aggregate([
+        { $match: { _id: messageId } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'senderInfo'
+          }
+        },
+        { $unwind: '$senderInfo' },
+        {
+          $project: {
+            _id: 1,
+            conversationId: 1,
+            type: 1,
+            content: 1,
+            replyToId: 1,
+            reactions: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            sender: {
+              _id: '$senderInfo._id',
+              username: '$senderInfo.username',
+              avatar: '$senderInfo.avatar'
+            }
+          }
+        }
+      ])
+      .toArray()
+
+    return messages[0]
   }
 }
 

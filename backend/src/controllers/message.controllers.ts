@@ -16,3 +16,18 @@ export const getMessagesController = async (req: Request, res: Response) => {
     result: messages
   })
 }
+
+export const sendMessageController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { convId, type, content, replyToId } = req.body
+
+  const message = await messageService.sendMessage(user_id, convId, type, content, replyToId)
+
+  // TODO: Tích hợp Socket.io để emit sự kiện 'receive_message' cho các thành viên khác trong nhóm
+  // Ví dụ: socketService.io.to(convId).emit('receive_message', message)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Gửi tin nhắn thành công',
+    result: message
+  })
+}

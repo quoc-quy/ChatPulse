@@ -4,7 +4,7 @@ interface MessageType {
   _id?: ObjectId
   conversationId: ObjectId
   senderId: ObjectId
-  type: 'text' | 'media' | 'system' | 'call' | 'revoked'
+  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
   content: string
   replyToId?: ObjectId
   reactions?: any[]
