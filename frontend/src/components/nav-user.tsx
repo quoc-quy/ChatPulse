@@ -1,4 +1,4 @@
-import { LogOut, ChevronsUpDown, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, Sun, Moon, Monitor } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -33,19 +33,14 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size='lg'
-              className='cursor-pointer hover:bg-transparent data-[state=open]:bg-transparent md:h-12 md:p-0'
+              className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mx-auto h-12 w-12 p-0 flex items-center justify-center rounded-full group-data-[collapsible=icon]:!w-12 group-data-[collapsible=icon]:!h-12 group-data-[collapsible=icon]:!p-0'
             >
-              <Avatar className='h-12 w-12 rounded-lg'>
+              <Avatar className='h-full w-full rounded-lg'>
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className='font-semibold bg-blue-100 text-blue-600'>
+                <AvatarFallback className='font-bold text-lg bg-blue-100 text-blue-600'>
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-semibold'>{user.name}</span>
-                <span className='truncate text-xs'>{user.email}</span>
-              </div>
-              <ChevronsUpDown className='ml-auto size-4' />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

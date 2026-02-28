@@ -47,7 +47,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               {/* Căn giữa logo */}
-              <SidebarMenuButton size='lg' asChild className='mx-auto md:h-12 md:w-12 md:p-0 flex justify-center'>
+              <SidebarMenuButton
+                size='lg'
+                asChild
+                className='mx-auto h-12 w-12 p-0 flex justify-center group-data-[collapsible=icon]:!w-12 group-data-[collapsible=icon]:!h-12 group-data-[collapsible=icon]:!p-0'
+              >
                 <a href='/'>
                   <div className='flex aspect-square size-10 items-center justify-center rounded-xl text-sidebar-primary-foreground'>
                     <img src='/logo-chatpulse-icon.png' alt='Logo' className='size-6' />
@@ -68,8 +72,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     setOpen(true)
                   }}
                   isActive={activeItem.title === item.title}
-                  // Căn giữa icon và xóa text
-                  className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl'
+                  className='mx-auto h-11 w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
                 >
                   <item.icon className='!size-5' />
                 </SidebarMenuButton>
