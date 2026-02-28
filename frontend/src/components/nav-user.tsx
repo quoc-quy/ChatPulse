@@ -15,15 +15,42 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { useTheme } from '@/context/theme.context'
+import { clearLS } from '@/utils/auth'
+import { AppContext } from '@/context/app.context'
+import { useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export function NavUser({ user }: { user: { name: string; email: string; avatar: string } }) {
   const { isMobile } = useSidebar()
   const { theme, setTheme } = useTheme()
+  const navigate = useNavigate()
+
+  // Lấy các hàm cập nhật State từ AppContext
+  const { setIsAuthenticated, setProfile } = useContext(AppContext)
 
   // Hàm lấy chữ cái đầu tiên và viết hoa
   const getInitials = (name: string) => {
     if (!name) return ''
     return name.charAt(0).toUpperCase()
+  }
+
+  // Logic xử lý Đăng xuất
+  const handleLogout = () => {
+    // 1. Xóa dữ liệu dưới LocalStorage (Token, Profile...)
+    // Nếu bạn không có hàm clearLS trong utils/auth.ts thì dùng: localStorage.clear()
+    if (clearLS) {
+      clearLS()
+    } else {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('profile')
+    }
+
+    // 2. Cập nhật lại State Global
+    setIsAuthenticated(false)
+    setProfile(null)
+
+    // 3. Đá người dùng về trang Đăng nhập
+    navigate('/signin')
   }
 
   return (
@@ -96,7 +123,7 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
             {/* ---------------------------------- */}
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem className='text-red-600'>
+            <DropdownMenuItem className='text-red-600 cursor-pointer' onClick={handleLogout}>
               <LogOut className='mr-2 h-4 w-4' />
               Đăng xuất
             </DropdownMenuItem>
