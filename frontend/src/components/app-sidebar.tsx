@@ -17,7 +17,7 @@ const data = {
   user: {
     name: 'Quốc Quý',
     email: 'quocquy@example.com',
-    avatar: '/logo-chatpulse-icon.png'
+    avatar: ''
   },
   navMain: [
     { title: 'Tin nhắn', icon: MessageSquare },
