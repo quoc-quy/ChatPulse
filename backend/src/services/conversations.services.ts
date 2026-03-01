@@ -61,7 +61,9 @@ class ChatService {
             updated_at: 1,
             last_message_id: 1,
             members: 1,
-            // ĐÃ SỬA LỖI: Map đúng tên trường senderId và createdAt từ DB
+            admin_id: 1,
+            avatarUrl: { $ifNull: ['$avatarUrl', ''] },
+
             lastMessage: {
               content: '$last_message_info.content',
               type: '$last_message_info.type',

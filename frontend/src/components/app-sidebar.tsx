@@ -16,6 +16,7 @@ import {
 
 import { AppContext } from '@/context/app.context'
 import { conversationsApi } from '@/apis/conversations.api'
+import { ChatAvatar } from './chat-avatar'
 
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
@@ -122,7 +123,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               id: conv._id,
               name: chatName,
               message: lastMessageContent,
-              time: timeString
+              time: timeString,
+              type: conv.type,
+              avatarUrl: conv.avatarUrl,
+              participants: conv.participants || [], // Truyền toàn bộ list user
+              admin_id: conv.admin_id
             }
           })
 
@@ -213,9 +218,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       key={chat.id}
                       className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'
                     >
-                      <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-lg'>
-                        {chat.name.charAt(0).toUpperCase()}
-                      </div>
+                      <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
                       <div className='flex flex-col flex-1 overflow-hidden py-0.5'>
                         <div className='flex justify-between items-center w-full'>
                           <span className='font-semibold text-sm truncate'>{chat.name}</span>
