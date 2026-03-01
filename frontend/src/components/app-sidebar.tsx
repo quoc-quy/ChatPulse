@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { useContext } from 'react'
-import { MessageSquare, Users, Settings, Bell, Plus } from 'lucide-react'
+import { useEffect, useState, useContext } from 'react'
+import { MessageSquare, Users, Settings, Bell, Plus, Loader2 } from 'lucide-react'
 import { NavUser } from '@/components/nav-user'
 import {
   Sidebar,
@@ -14,10 +14,9 @@ import {
   useSidebar
 } from '@/components/ui/sidebar'
 
-// Import AppContext để lấy dữ liệu User
 import { AppContext } from '@/context/app.context'
+import { conversationsApi } from '@/apis/conversations.api'
 
-// 1. Tách các dữ liệu tĩnh (UI) ra ngoài để không bị tạo lại mỗi lần render
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
   { title: 'Danh bạ', icon: Users },
@@ -25,30 +24,123 @@ const navMain = [
   { title: 'Cài đặt', icon: Settings }
 ]
 
-// Tạm thời giữ dữ liệu cứng cho danh sách chat (Sẽ kết nối API ở các bước sau)
-const dummyChats = [
-  { name: 'Nhóm Chat Web', message: 'Tối nay họp nha', time: '10:20' },
-  { name: 'Dự án ChatPulse', message: 'Hoàn thành sidebar rồi', time: 'Hôm qua' },
-  { name: 'Minh Tuấn', message: 'Oke bạn ơi', time: 'T2' }
-]
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [activeItem, setActiveItem] = React.useState(navMain[0])
+  const [activeItem, setActiveItem] = useState(navMain[0])
   const { setOpen } = useSidebar()
 
-  // 2. Lấy thông tin profile từ Context
+  // Lấy Profile User từ Global Context
   const { profile } = useContext(AppContext)
 
-  // 3. Map dữ liệu lấy được vào format của NavUser
+  // State quản lý danh sách chat
+  const [chatList, setChatList] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+
   const currentUser = {
-    name: profile?.userName || 'Người dùng', // Fallback nếu API thiếu trường
+    name: profile?.userName || 'Người dùng',
     email: profile?.email || '',
     avatar: profile?.avatar || ''
   }
 
+  // Gọi API lấy danh sách chat
+  useEffect(() => {
+    if (activeItem.title === 'Tin nhắn' && profile) {
+      const fetchChats = async () => {
+        setIsLoading(true)
+        try {
+          const res = await conversationsApi.getConversations()
+
+          let rawData = res.data?.result || res.data?.data || res.data
+          if (!Array.isArray(rawData)) {
+            rawData = []
+          }
+
+          const formattedChats = rawData.map((conv: any) => {
+            let chatName = 'Cuộc trò chuyện'
+
+            // XỬ LÝ LẠI LOGIC XÁC ĐỊNH TÊN DỰA TRÊN TRƯỜNG "type"
+            if (conv.type === 'direct') {
+              // Nếu là chat 1-1, lấy tên người đối diện
+              const otherUser = conv.participants?.find((p: any) => p._id !== profile._id)
+              // Sửa lại thành userName cho khớp với JSON trả về
+              if (otherUser) {
+                chatName = otherUser.userName || otherUser.fullName || 'Người dùng'
+              }
+            } else if (conv.type === 'group') {
+              // Nếu là nhóm, ưu tiên lấy tên nhóm (nếu có).
+              // Nếu không có, ghép tên các thành viên (trừ user hiện tại) lại
+              if (conv.name) {
+                chatName = conv.name
+              } else if (conv.participants) {
+                const otherUsers = conv.participants.filter((p: any) => p._id !== profile._id)
+                // Ghép tên (vd: "LamSon, quyleo")
+                chatName = otherUsers.map((u: any) => u.userName).join(', ')
+                if (!chatName) chatName = 'Nhóm trò chuyện'
+              }
+            }
+
+            // XỬ LÝ LẠI LOGIC THỜI GIAN (Dựa vào updated_at thay vì updatedAt)
+            const timeString = conv.updated_at
+              ? new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : ''
+
+            // XỬ LÝ LẠI LOGIC TIN NHẮN CUỐI CÙNG
+            let lastMessageContent = 'Chưa có tin nhắn nào...'
+            if (conv.lastMessage && (conv.lastMessage.content || conv.lastMessage.type)) {
+              // 1. Xác định nội dung tin nhắn
+              let content = conv.lastMessage.content
+              if (conv.lastMessage.type === 'image') {
+                content = 'Đã gửi một hình ảnh'
+              } else if (!content) {
+                content = 'Tin nhắn mới'
+              }
+
+              // 2. Xác định tiền tố (Bạn: hoặc userName:)
+              let prefix = ''
+              if (conv.lastMessage.sender_id) {
+                // Kiểm tra xem người gửi có phải là user đang đăng nhập không
+                const isMe = conv.lastMessage.sender_id === profile._id
+
+                if (isMe) {
+                  prefix = 'Bạn: '
+                }
+                // Nếu là group và không phải mình gửi -> tìm tên người gửi
+                else if (conv.type === 'group') {
+                  const sender = conv.participants?.find((p: any) => p._id === conv.lastMessage.sender_id)
+                  if (sender) {
+                    // Ưu tiên lấy userName, nếu không có thì lấy fullName
+                    const senderName = sender.userName || sender.fullName || 'Thành viên'
+                    prefix = `${senderName}: `
+                  }
+                }
+              }
+
+              // 3. Ghép tiền tố và nội dung
+              lastMessageContent = `${prefix}${content}`
+            }
+
+            return {
+              id: conv._id,
+              name: chatName,
+              message: lastMessageContent,
+              time: timeString
+            }
+          })
+
+          setChatList(formattedChats)
+        } catch (error) {
+          console.error('Lỗi khi tải danh sách cuộc trò chuyện:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      fetchChats()
+    }
+  }, [activeItem.title, profile])
+
   return (
     <Sidebar collapsible='icon' className='overflow-hidden [&>[data-sidebar=sidebar]]:flex-row' {...props}>
-      {/* PANEL 1: Dải Icon mỏng ngoài cùng bên trái */}
+      {/* PANEL 1: Dải Icon mỏng */}
       <Sidebar
         collapsible='none'
         className='!w-[calc(var(--sidebar-width-icon)_+_1px)] border-r border-sidebar-border/40'
@@ -90,12 +182,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          {/* 4. Truyền dữ liệu thật vào NavUser */}
           <NavUser user={currentUser} />
         </SidebarFooter>
       </Sidebar>
 
-      {/* PANEL 2: Panel danh sách mở rộng kế bên */}
+      {/* PANEL 2: Panel danh sách mở rộng */}
       <Sidebar collapsible='none' className='hidden flex-1 md:flex'>
         <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4'>
           <div className='flex w-full items-center justify-between'>
@@ -108,23 +199,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
         <SidebarContent>
           <div className='flex flex-col gap-0 p-2'>
-            {dummyChats.map((chat) => (
-              <div
-                key={chat.name}
-                className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'
-              >
-                <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-lg'>
-                  {chat.name.charAt(0)}
-                </div>
-                <div className='flex flex-col flex-1 overflow-hidden py-0.5'>
-                  <div className='flex justify-between items-center w-full'>
-                    <span className='font-semibold text-sm truncate'>{chat.name}</span>
-                    <span className='text-xs text-muted-foreground shrink-0'>{chat.time}</span>
+            {activeItem.title === 'Tin nhắn' && (
+              <>
+                {isLoading ? (
+                  <div className='flex justify-center items-center py-6'>
+                    <Loader2 className='h-6 w-6 animate-spin text-blue-500' />
                   </div>
-                  <span className='text-sm text-muted-foreground truncate mt-0.5'>{chat.message}</span>
-                </div>
-              </div>
-            ))}
+                ) : chatList.length === 0 ? (
+                  <div className='text-center py-6 text-sm text-muted-foreground'>Không có cuộc trò chuyện nào</div>
+                ) : (
+                  chatList.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'
+                    >
+                      <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-lg'>
+                        {chat.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className='flex flex-col flex-1 overflow-hidden py-0.5'>
+                        <div className='flex justify-between items-center w-full'>
+                          <span className='font-semibold text-sm truncate'>{chat.name}</span>
+                          <span className='text-xs text-muted-foreground shrink-0'>{chat.time}</span>
+                        </div>
+                        <span className='text-sm text-muted-foreground truncate mt-0.5'>{chat.message}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+
+            {activeItem.title !== 'Tin nhắn' && (
+              <div className='text-center py-6 text-sm text-muted-foreground'>Tính năng đang phát triển...</div>
+            )}
           </div>
         </SidebarContent>
       </Sidebar>
