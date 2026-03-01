@@ -11,26 +11,23 @@ class ChatService {
 
     const conversations = await databaseService.conversations
       .aggregate([
-        // 1. Tìm các cuộc hội thoại mà user tham gia
         {
           $match: {
             participants: userObjectId
           }
         },
-        // 2. Sắp xếp theo thời gian cập nhật (tin nhắn mới nhất lên đầu)
         {
           $sort: {
             updated_at: -1
           }
         },
-        // 3. Phân trang
         {
           $skip: skip
         },
         {
           $limit: limit
         },
-        // 4. Lookup thông tin các thành viên (participants)
+        // Lookup thông tin User
         {
           $lookup: {
             from: 'users',
@@ -39,15 +36,38 @@ class ChatService {
             as: 'participants_info'
           }
         },
-        // 5. Project để format lại dữ liệu trả về (ẩn password, giữ lại avatar, name)
+        // MỚI: Lookup để lấy nội dung của Last Message
+        {
+          $lookup: {
+            from: 'messages', // Đảm bảo collection tin nhắn của bạn tên là 'messages'
+            localField: 'last_message_id',
+            foreignField: '_id',
+            as: 'last_message_info'
+          }
+        },
+        // MỚI: Unwind (giải nén mảng) last_message_info để nó thành 1 object
+        {
+          $unwind: {
+            path: '$last_message_info',
+            preserveNullAndEmptyArrays: true // Giữ lại cả những hội thoại chưa có tin nhắn nào
+          }
+        },
+        // Project định dạng dữ liệu đầu ra
         {
           $project: {
             _id: 1,
             type: 1,
+            name: 1, // BẮT BUỘC TRẢ VỀ name để group chat hiển thị đúng
             updated_at: 1,
             last_message_id: 1,
             members: 1,
-            // Lọc bỏ user hiện tại khỏi list participants để FE dễ hiển thị tên người kia (đối với chat 1-1)
+            // ĐÃ SỬA LỖI: Map đúng tên trường senderId và createdAt từ DB
+            lastMessage: {
+              content: '$last_message_info.content',
+              type: '$last_message_info.type',
+              created_at: '$last_message_info.createdAt', // Sửa từ created_at thành createdAt
+              sender_id: '$last_message_info.senderId' // Sửa từ sender_id thành senderId
+            },
             participants: {
               $map: {
                 input: '$participants_info',
@@ -55,6 +75,7 @@ class ChatService {
                 in: {
                   _id: '$$participant._id',
                   userName: '$$participant.userName',
+                  fullName: '$$participant.fullName',
                   avatar: '$$participant.avatar',
                   email: '$$participant.email'
                 }
