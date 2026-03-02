@@ -13,6 +13,7 @@ import authApi from '@/apis/auth.api'
 import { toast } from 'react-toastify'
 import { useContext } from 'react'
 import { AppContext } from '@/context/app.context'
+import backgroundLoginImage from '../../public/background-login.png'
 
 type FormData = Pick<UserSchema, 'email' | 'password'>
 const loginSchema = userRegistrationSchema.pick(['email', 'password'])
@@ -130,7 +131,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
           </form>
           <div className='bg-muted relative hidden md:block'>
             <img
-              src='/placeholder.svg'
+              src={backgroundLoginImage}
               alt='Image'
               className='absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale'
             />
