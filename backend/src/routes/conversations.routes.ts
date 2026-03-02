@@ -8,6 +8,7 @@ import {
 } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
+import { addMembersController } from '~/controllers/group.controllers'
 
 const chatRouter = Router()
 
@@ -52,5 +53,16 @@ chatRouter.patch('/:id', accessTokenValidator, wrapRequestHandler(updateGroupCon
  * Header: { Authorization: Bearer <access_token> }
  */
 chatRouter.patch('/:id/seen', accessTokenValidator, wrapRequestHandler(markConversationAsSeenController))
+
+/**
+ * Description: Add members to group
+ * Path: /conversations/:id/members 
+ * Method: POST
+ * Header: { Authorization: Bearer <access_token> }
+ * Body: { members: string[] }
+ */
+chatRouter.post('/:id/members', accessTokenValidator, wrapRequestHandler(addMembersController))
+
+
 
 export default chatRouter
