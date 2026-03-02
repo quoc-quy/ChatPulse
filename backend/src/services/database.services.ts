@@ -5,6 +5,7 @@ import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
 import Friend from '~/models/schemas/friend.schema'
 import Conversation from '~/models/schemas/conversation.schema'
+import UserBlocks from '~/models/schemas/userBlocks.schema'
 config()
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ptzh2gl.mongodb.net/?appName=Cluster0`
@@ -49,6 +50,17 @@ class DatabaseService {
   get friends(): Collection<Friend> {
     return this.db.collection('friends')
   }
+  get conversations(): Collection<Conversation> {
+    return this.db.collection('conversations')
+  }
+  get messages() {
+    return this.db.collection('messages')
+  }
+  get user_blocks(): Collection<UserBlocks> {
+    return this.db.collection('user_blocks')
+  }
+
+  //Create Index
   async indexFriendRequests() {
     await this.friendRequests.createIndex({ sender_id: 1, receiver_id: 1 }, { unique: true })
   }
@@ -77,14 +89,6 @@ class DatabaseService {
       doc.dups.shift()
       await this.friends.deleteMany({ _id: { $in: doc.dups } })
     }
-  }
-
-  get conversations(): Collection<Conversation> {
-    return this.db.collection('conversations')
-  }
-
-  get messages() {
-    return this.db.collection('messages')
   }
 
   // Thêm index cho conversations để tìm kiếm nhanh theo participants
