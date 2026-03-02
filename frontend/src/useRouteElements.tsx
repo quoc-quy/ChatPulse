@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Navigate, Outlet, useRoutes } from 'react-router-dom'
 import MainLayout from './layouts'
 import ChatAppPage from './pages/ChatAppPage'
