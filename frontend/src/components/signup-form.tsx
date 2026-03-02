@@ -12,6 +12,7 @@ import authApi, { type RegisterBody } from '@/apis/auth.api'
 import { toast } from 'react-toastify'
 import { useContext } from 'react'
 import { AppContext } from '@/context/app.context'
+import backgroundRegisterImage from '../../public/background-register.png'
 
 type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
@@ -174,7 +175,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
           </form>
           <div className='bg-muted relative hidden md:block'>
             <img
-              src='/placeholder.svg'
+              src={backgroundRegisterImage}
               alt='Image'
               className='absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale'
             />
