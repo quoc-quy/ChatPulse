@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { ParamsDictionary } from 'express-serve-static-core'
 import { ObjectId, WithId } from 'mongodb'
 import {
+  BlockUserReqBody,
   ChangePasswordReqBody,
   getProfileReqBody,
   RegisterReqBody,
@@ -77,6 +78,18 @@ export const changePasswordController = async (
   await userService.changePassword(user_id, body)
 
   return res.json({
-    message: "Đổi mật khẩu thành công"
+    message: 'Đổi mật khẩu thành công'
   })
+}
+
+export const blockUserController = async (
+  req: Request<ParamsDictionary, any, BlockUserReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { blocked_user_id } = req.body
+  const result = await userService.blockUser(user_id, blocked_user_id)
+
+  return res.json(result)
 }

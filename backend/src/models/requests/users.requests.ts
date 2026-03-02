@@ -31,3 +31,7 @@ export interface ChangePasswordReqBody {
   password: string
   confirm_password: string
 }
+
+export interface BlockUserReqBody {
+  blocked_user_id: string
+}
