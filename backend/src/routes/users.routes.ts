@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  blockUserController,
   changePasswordController,
   getMeController,
   getProfileController,
@@ -43,6 +44,13 @@ usersRouter.put(
   changePasswordValidator,
   wrapRequestHandler(changePasswordController)
 )
+
+/**
+ * Change password
+ * Header: {Authorization: Bearer <access_token>}
+ * Body: {blocked_user_id}
+ */
+usersRouter.post('/block', accessTokenValidator, wrapRequestHandler(blockUserController))
 
 /**
  * Get user profile

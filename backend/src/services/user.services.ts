@@ -9,6 +9,7 @@ import { ObjectId } from 'mongodb'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { sendEmailNotification } from '~/utils/email'
+import UserBlocks from '~/models/schemas/userBlocks.schema'
 
 class UserService {
   private signAccessToken(user_id: string) {
@@ -187,6 +188,28 @@ class UserService {
     }
 
     return user
+  }
+
+  async blockUser(user_id: string, blocked_user_id: string) {
+    const user = await databaseService.user_blocks.findOne({
+      user_id: new ObjectId(user_id),
+      blocked_user_id: new ObjectId(blocked_user_id)
+    })
+
+    if (user === null) {
+      await databaseService.user_blocks.insertOne(
+        new UserBlocks({
+          user_id: new ObjectId(user_id),
+          blocked_user_id: new ObjectId(blocked_user_id)
+        })
+      )
+      return {
+        message: 'Chặn người dùng thành công'
+      }
+    }
+    return {
+      message: 'Bạn đã chặn người dùng này rồi'
+    }
   }
 }
 
