@@ -90,7 +90,7 @@ class MessageService {
             updatedAt: 1,
             sender: {
               _id: '$senderInfo._id',
-              username: '$senderInfo.username',
+              userName: '$senderInfo.userName',
               avatar: '$senderInfo.avatar'
             }
           }
@@ -190,7 +190,7 @@ class MessageService {
             updatedAt: 1,
             sender: {
               _id: '$senderInfo._id',
-              username: '$senderInfo.username',
+              userName: '$senderInfo.userName',
               avatar: '$senderInfo.avatar'
             }
           }

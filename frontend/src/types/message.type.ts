@@ -1,6 +1,6 @@
 export interface SenderInfo {
   _id: string
-  username: string
+  userName: string
   avatar?: string
 }
 
