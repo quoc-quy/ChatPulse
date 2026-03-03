@@ -1,31 +1,131 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+// frontend-demo/src/components/chat/ChatBody.tsx
+import { useEffect, useState, useRef, useCallback, useContext } from 'react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { messagesApi } from '@/apis/messages.api'
+import type { Message } from '@/types/message.type'
+import { AppContext } from '@/context/app.context'
 
-// Mock data tin nhắn
-const mockMessages = [
-  { id: 1, text: 'Chào bạn, dự án ChatPulse đến đâu rồi?', senderId: 'friend_1', time: '09:00' },
-  { id: 2, text: 'Mình đang làm phần frontend, chia component cho Chat Area.', senderId: 'me', time: '09:05' },
-  { id: 3, text: 'Tuyệt vời, nhớ thiết kế theo tone màu chủ đạo nhé.', senderId: 'friend_1', time: '09:06' },
-  {
-    id: 4,
-    text: 'Oke, mình đang dùng class Tailwind để tự động đổi màu theo Theme sáng/tối đây.',
-    senderId: 'me',
-    time: '09:10'
+interface ChatBodyProps {
+  convId: string // Bắt buộc phải có từ ChatArea truyền xuống
+}
+
+export function ChatBody({ convId }: ChatBodyProps) {
+  // Lấy profile từ Global Context để biết ai đang đăng nhập
+  const { profile } = useContext(AppContext)
+  const currentUserId = profile?._id || ''
+
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const previousScrollHeightRef = useRef<number>(0)
+
+  const fetchMessages = useCallback(
+    async (isInitial = false) => {
+      // Check an toàn ObjectId của MongoDB
+      if (!convId || convId.length !== 24) {
+        console.warn('Đang chờ convId hợp lệ từ Sidebar...', convId)
+        return
+      }
+
+      if (isLoading || (!hasMore && !isInitial)) return
+
+      try {
+        setIsLoading(true)
+        if (containerRef.current) {
+          previousScrollHeightRef.current = containerRef.current.scrollHeight
+        }
+
+        const response = await messagesApi.getMessages({
+          convId,
+          cursor: isInitial ? undefined : nextCursor,
+          limit: 20
+        })
+
+        const resData = (response as any).data !== undefined ? (response as any).data : response
+        const newMessages: Message[] = resData.result || []
+
+        if (newMessages.length < 20) {
+          setHasMore(false)
+        }
+
+        if (newMessages.length > 0) {
+          const oldestMessageInBatch = newMessages[newMessages.length - 1]
+          setNextCursor(oldestMessageInBatch._id)
+        }
+
+        if (isInitial) {
+          setMessages([...newMessages].reverse())
+        } else {
+          setMessages((prev) => [...[...newMessages].reverse(), ...prev])
+        }
+      } catch (error) {
+        console.error('Lỗi khi tải lịch sử tin nhắn:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [convId, nextCursor, isLoading, hasMore]
+  )
+
+  useEffect(() => {
+    if (convId) {
+      setMessages([])
+      setNextCursor(undefined)
+      setHasMore(true)
+      fetchMessages(true)
+    }
+  }, [convId])
+
+  const handleScroll = () => {
+    if (containerRef.current) {
+      const { scrollTop } = containerRef.current
+      if (scrollTop < 50 && !isLoading && hasMore) {
+        fetchMessages(false)
+      }
+    }
   }
-]
 
-export function ChatBody() {
-  const currentUserId = 'me' // Sau này lấy từ profile._id trong AppContext
+  useEffect(() => {
+    if (!isLoading && containerRef.current && messages.length > 0 && nextCursor) {
+      const newScrollHeight = containerRef.current.scrollHeight
+      const heightDifference = newScrollHeight - previousScrollHeightRef.current
+      containerRef.current.scrollTop = heightDifference
+    }
+  }, [messages, isLoading])
+
+  useEffect(() => {
+    if (!nextCursor && containerRef.current && messages.length > 0) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    }
+  }, [messages])
+
+  const getInitials = (name?: string) => (name ? name.substring(0, 2).toUpperCase() : 'U')
 
   return (
-    <div className='flex-1 overflow-y-auto bg-muted/20 p-4'>
+    <div className='flex-1 overflow-y-auto bg-muted/20 p-4' ref={containerRef} onScroll={handleScroll}>
       <div className='flex flex-col gap-4'>
-        {mockMessages.map((msg) => {
-          const isMe = msg.senderId === currentUserId
+        {isLoading && hasMore && (
+          <div className='text-center text-xs text-muted-foreground py-2'>Đang tải tin nhắn cũ...</div>
+        )}
+
+        {messages.map((msg) => {
+          // So sánh ID để phân biệt tin nhắn gửi / nhận
+          const isMe = msg.sender?._id === currentUserId
+
+          const time = new Date(msg.createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+
           return (
-            <div key={msg.id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg._id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
               {!isMe && (
                 <Avatar className='h-8 w-8 shrink-0 mt-1'>
-                  <AvatarFallback className='text-xs'>FR</AvatarFallback>
+                  <AvatarImage src={msg.sender?.avatar} alt={msg.sender?.username || 'User'} />
+                  <AvatarFallback className='text-xs'>{getInitials(msg.sender?.username || 'User')}</AvatarFallback>
                 </Avatar>
               )}
 
@@ -33,13 +133,13 @@ export function ChatBody() {
                 <div
                   className={`px-4 py-2 rounded-2xl ${
                     isMe
-                      ? 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm' // Tin nhắn của mình: Nền xanh chủ đạo
-                      : 'bg-background border border-border text-foreground rounded-tl-sm' // Tin nhắn người khác: Nền xám/trắng
+                      ? 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm'
+                      : 'bg-background border border-border text-foreground rounded-tl-sm'
                   }`}
                 >
-                  <p className='text-sm leading-relaxed'>{msg.text}</p>
+                  <p className='text-sm leading-relaxed'>{msg.content}</p>
                 </div>
-                <span className='text-[11px] text-muted-foreground mt-1 px-1'>{msg.time}</span>
+                <span className='text-[11px] text-muted-foreground mt-1 px-1'>{time}</span>
               </div>
             </div>
           )
