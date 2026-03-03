@@ -192,7 +192,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </Sidebar>
 
       {/* PANEL 2: Panel danh sách mở rộng */}
-      <Sidebar collapsible='none' className='hidden flex-1 md:flex'>
+      <Sidebar collapsible='none' className='hidden flex-1 md:flex overflow-hidden'>
         <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4'>
           <div className='flex w-full items-center justify-between'>
             <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
@@ -202,8 +202,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
           <SidebarInput placeholder='Tìm kiếm...' />
         </SidebarHeader>
-        <SidebarContent>
-          <div className='flex flex-col gap-0 p-2'>
+
+        <SidebarContent className='overflow-hidden'>
+          <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
             {activeItem.title === 'Tin nhắn' && (
               <>
                 {isLoading ? (
@@ -216,15 +217,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   chatList.map((chat) => (
                     <div
                       key={chat.id}
-                      className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'
+                      className='flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors w-full overflow-hidden'
                     >
-                      <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
-                      <div className='flex flex-col flex-1 overflow-hidden py-0.5'>
-                        <div className='flex justify-between items-center w-full'>
-                          <span className='font-semibold text-sm truncate'>{chat.name}</span>
-                          <span className='text-xs text-muted-foreground shrink-0'>{chat.time}</span>
+                      <div className='shrink-0'>
+                        <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
+                      </div>
+
+                      <div className='flex-1 overflow-hidden'>
+                        <div className='flex justify-between items-center mb-0.5 gap-2'>
+                          <div className='font-semibold text-sm truncate'>{chat.name}</div>
+                          <div className='text-xs text-muted-foreground shrink-0'>{chat.time}</div>
                         </div>
-                        <span className='text-sm text-muted-foreground truncate mt-0.5'>{chat.message}</span>
+
+                        <div className='text-sm text-muted-foreground truncate w-full'>{chat.message}</div>
                       </div>
                     </div>
                   ))

@@ -48,7 +48,7 @@ class Http {
         const { url } = response.config
 
         // Xử lý khi Đăng nhập hoặc Đăng ký thành công
-        if (url === '/users/login' || url === '/users/register') {
+        if (url === '/auth/login' || url === '/auth/register') {
           const data = response.data
           // Cập nhật biến class
           this.access_token = data.result.access_token
@@ -61,7 +61,7 @@ class Http {
           setProfileFromLS(data.result.user)
         }
         // Xử lý khi Đăng xuất
-        else if (url === '/users/logout') {
+        else if (url === '/auth/logout') {
           this.access_token = ''
           this.refresh_token = ''
           clearLS()
