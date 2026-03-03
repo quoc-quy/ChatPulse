@@ -7,6 +7,7 @@ import {
   loginController,
   logoutController,
   registerController,
+  unBlockUserController,
   updateMeController
 } from '~/controllers/users.controllers'
 import {
@@ -46,11 +47,18 @@ usersRouter.put(
 )
 
 /**
- * Change password
+ * Block user
  * Header: {Authorization: Bearer <access_token>}
  * Body: {blocked_user_id}
  */
 usersRouter.post('/block', accessTokenValidator, wrapRequestHandler(blockUserController))
+
+/**
+ * Unblock User
+ * Header: {Authorization: Bearer <access_token>}
+ * Params: {user_id}
+ */
+usersRouter.delete('/unblock/:user_id', accessTokenValidator, wrapRequestHandler(unBlockUserController))
 
 /**
  * Get user profile

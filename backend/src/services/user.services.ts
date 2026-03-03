@@ -211,6 +211,28 @@ class UserService {
       message: 'Bạn đã chặn người dùng này rồi'
     }
   }
+
+  async unBlockUser(user_id: string, blocked_user_id: string) {
+    const user = await databaseService.user_blocks.findOne({
+      user_id: new ObjectId(user_id),
+      blocked_user_id: new ObjectId(blocked_user_id)
+    })
+
+    if (user != null) {
+      await databaseService.user_blocks.deleteOne({
+        user_id: new ObjectId(user_id),
+        blocked_user_id: new ObjectId(blocked_user_id)
+      })
+
+      return {
+        message: 'Bỏ chặn người dùng thành công'
+      }
+    }
+
+    return {
+      message: 'Bỏ chặn người dùng thất bại'
+    }
+  }
 }
 
 const userService = new UserService()

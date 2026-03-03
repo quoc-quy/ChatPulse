@@ -7,6 +7,7 @@ import {
   getProfileReqBody,
   RegisterReqBody,
   TokenPayload,
+  UnBlockUserReqBody,
   UpdateMeReqBody
 } from '~/models/requests/users.requests'
 import User from '~/models/schemas/user.schema'
@@ -90,6 +91,18 @@ export const blockUserController = async (
   const { user_id } = req.decoded_authorization as TokenPayload
   const { blocked_user_id } = req.body
   const result = await userService.blockUser(user_id, blocked_user_id)
+
+  return res.json(result)
+}
+
+export const unBlockUserController = async (
+  req: Request<UnBlockUserReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { user_id: blocked_user_id } = req.params
+  const result = await userService.unBlockUser(user_id, blocked_user_id)
 
   return res.json(result)
 }
