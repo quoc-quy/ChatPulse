@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View, SafeAreaView } from "react-native";
-import { LoginForm } from "./components/auth/LoginForm";
+import { LoginForm } from "./src/screens/LoginForm";
 
 export default function App() {
   return (

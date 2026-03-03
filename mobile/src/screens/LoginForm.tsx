@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Input } from "../ui/Input";
-import { SocialButtons } from "./SocialButtons";
+import { Input } from "../components/ui/Input";
+import { SocialButtons } from "../components/auth/SocialButtons";
 
 export function LoginForm() {
   return (
