@@ -14,7 +14,7 @@ interface InputProps extends TextInputProps {
 
 export const Input = ({ label, error, ...props }: InputProps) => (
   <View style={styles.container}>
-    {label ? <Text style={styles.label}>{label}</Text> : null}
+    {label && <Text style={styles.label}>{label}</Text>}
     <TextInput
       style={[styles.input, error ? styles.inputError : null]}
       placeholderTextColor="#a1a1aa"
@@ -25,18 +25,10 @@ export const Input = ({ label, error, ...props }: InputProps) => (
 );
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-    width: "100%",
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#09090b",
-    marginBottom: 8,
-  },
+  container: { marginBottom: 16, width: "100%" },
+  label: { fontSize: 14, fontWeight: "500", color: "#09090b", marginBottom: 8 },
   input: {
-    height: 44, // Tăng độ cao để dễ bấm trên mobile
+    height: 44,
     borderWidth: 1,
     borderColor: "#e4e4e7",
     borderRadius: 8,
