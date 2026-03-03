@@ -1,41 +1,30 @@
 import React from "react";
 import { StatusBar } from "expo-status-bar";
-import {
-  StyleSheet,
-  View,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
 import { LoginForm } from "./src/screens/LoginForm";
+import { SignUpForm } from "./src/screens/SignUpForm";
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.wrapper}>
-            <LoginForm />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <StatusBar style="dark" />
+        <Stack.Navigator
+          initialRouteName="Login"
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#f4f4f5" },
+          }}
+        >
+          <Stack.Screen name="Login" component={LoginForm} />
+          <Stack.Screen name="SignUp" component={SignUpForm} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f4f5" },
-  keyboardView: { flex: 1 },
-  scrollContent: { flexGrow: 1 },
-  wrapper: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-});

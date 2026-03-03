@@ -12,9 +12,11 @@ import {
 import { Input } from "../components/ui/Input";
 import { SocialButtons } from "../components/auth/SocialButtons";
 
-export function LoginForm({ navigation }: any) {
+export function SignUpForm({ navigation }: any) {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   return (
     <SafeAreaView style={styles.container}>
@@ -28,11 +30,18 @@ export function LoginForm({ navigation }: any) {
         >
           <View style={styles.card}>
             <View style={styles.header}>
-              <Text style={styles.title}>Welcome back</Text>
+              <Text style={styles.title}>Create account</Text>
               <Text style={styles.subtitle}>
-                Login to your ChatPulse account
+                Join the ChatPulse community today
               </Text>
             </View>
+
+            <Input
+              label="Full Name"
+              placeholder="John Doe"
+              value={fullName}
+              onChangeText={setFullName}
+            />
 
             <Input
               label="Email"
@@ -43,37 +52,38 @@ export function LoginForm({ navigation }: any) {
               autoCapitalize="none"
             />
 
-            <View style={styles.passwordSection}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.labelSmall}>Password</Text>
-                <TouchableOpacity>
-                  <Text style={styles.link}>Forgot password?</Text>
-                </TouchableOpacity>
-              </View>
-              <Input
-                placeholder="••••••••"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
+            <Input
+              label="Password"
+              placeholder="••••••••"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <Input
+              label="Confirm Password"
+              placeholder="••••••••"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
 
             <TouchableOpacity style={styles.btnPrimary}>
-              <Text style={styles.btnText}>Login</Text>
+              <Text style={styles.btnText}>Sign up</Text>
             </TouchableOpacity>
 
             <View style={styles.separatorContainer}>
               <View style={styles.line} />
-              <Text style={styles.sepText}>Or continue with</Text>
+              <Text style={styles.sepText}>Or register with</Text>
               <View style={styles.line} />
             </View>
 
             <SocialButtons />
 
             <View style={styles.footer}>
-              <Text style={styles.footerGray}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
-                <Text style={styles.boldLink}>Sign up</Text>
+              <Text style={styles.footerGray}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <Text style={styles.boldLink}>Login</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -97,7 +107,6 @@ const styles = StyleSheet.create({
   header: { alignItems: "center", marginBottom: 30 },
   title: { fontSize: 24, fontWeight: "bold", color: "#09090b" },
   subtitle: { color: "#71717a", marginTop: 4 },
-  passwordSection: { marginBottom: 10 },
   btnPrimary: {
     backgroundColor: "#18181b",
     height: 44,
@@ -107,13 +116,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   btnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  link: { fontSize: 12, textDecorationLine: "underline", color: "#09090b" },
-  labelSmall: { fontSize: 14, fontWeight: "500", color: "#09090b" },
   separatorContainer: {
     flexDirection: "row",
     alignItems: "center",
