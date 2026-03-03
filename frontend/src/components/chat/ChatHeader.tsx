@@ -9,6 +9,12 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chat }: ChatHeaderProps) {
+  // Đồng nhất hàm lấy chữ cái đầu
+  const getInitials = (name: string) => {
+    if (!name) return 'U'
+    return name.charAt(0).toUpperCase()
+  }
+
   return (
     <header className='flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background px-4 shadow-sm'>
       <div className='flex items-center gap-3'>
@@ -17,7 +23,8 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
 
         <Avatar className='h-10 w-10 border border-border'>
           <AvatarImage src={chat.avatar} alt={chat.name} />
-          <AvatarFallback className='bg-blue-100 text-blue-600'>{chat.name.charAt(0)}</AvatarFallback>
+          {/* Cập nhật class font-semibold giống NavUser */}
+          <AvatarFallback className='font-bold bg-blue-100 text-blue-600'>{getInitials(chat.name)}</AvatarFallback>
         </Avatar>
 
         <div className='flex flex-col'>

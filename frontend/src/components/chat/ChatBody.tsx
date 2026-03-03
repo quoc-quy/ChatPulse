@@ -6,11 +6,10 @@ import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
 
 interface ChatBodyProps {
-  convId: string // Bắt buộc phải có từ ChatArea truyền xuống
+  convId: string
 }
 
 export function ChatBody({ convId }: ChatBodyProps) {
-  // Lấy profile từ Global Context để biết ai đang đăng nhập
   const { profile } = useContext(AppContext)
   const currentUserId = profile?._id || ''
 
@@ -24,11 +23,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
 
   const fetchMessages = useCallback(
     async (isInitial = false) => {
-      // Check an toàn ObjectId của MongoDB
-      if (!convId || convId.length !== 24) {
-        console.warn('Đang chờ convId hợp lệ từ Sidebar...', convId)
-        return
-      }
+      if (!convId || convId.length !== 24) return
 
       if (isLoading || (!hasMore && !isInitial)) return
 
@@ -102,7 +97,11 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }, [messages])
 
-  const getInitials = (name?: string) => (name ? name.substring(0, 2).toUpperCase() : 'U')
+  // Lấy chữ cái đầu (đã chuẩn hóa an toàn)
+  const getInitials = (name?: string) => {
+    if (!name || name.trim() === '') return 'U'
+    return name.trim().charAt(0).toUpperCase()
+  }
 
   return (
     <div className='flex-1 overflow-y-auto bg-muted/20 p-4' ref={containerRef} onScroll={handleScroll}>
@@ -112,8 +111,10 @@ export function ChatBody({ convId }: ChatBodyProps) {
         )}
 
         {messages.map((msg) => {
-          // So sánh ID để phân biệt tin nhắn gửi / nhận
           const isMe = msg.sender?._id === currentUserId
+
+          // Dùng chính xác msg.sender.userName dựa theo Schema mới
+          const senderName = msg.sender?.userName || 'User'
 
           const time = new Date(msg.createdAt).toLocaleTimeString([], {
             hour: '2-digit',
@@ -124,8 +125,10 @@ export function ChatBody({ convId }: ChatBodyProps) {
             <div key={msg._id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
               {!isMe && (
                 <Avatar className='h-8 w-8 shrink-0 mt-1'>
-                  <AvatarImage src={msg.sender?.avatar} alt={msg.sender?.username || 'User'} />
-                  <AvatarFallback className='text-xs'>{getInitials(msg.sender?.username || 'User')}</AvatarFallback>
+                  <AvatarImage src={msg.sender?.avatar} alt={senderName} />
+                  <AvatarFallback className='text-xs font-semibold bg-blue-100 text-blue-600'>
+                    {getInitials(senderName)}
+                  </AvatarFallback>
                 </Avatar>
               )}
 
