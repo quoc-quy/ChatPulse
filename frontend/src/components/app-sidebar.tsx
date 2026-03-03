@@ -29,6 +29,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [activeItem, setActiveItem] = useState(navMain[0])
   const { setOpen } = useSidebar()
 
+  const { setActiveChat } = useContext(AppContext)
+
   // Lấy Profile User từ Global Context
   const { profile } = useContext(AppContext)
 
@@ -217,6 +219,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   chatList.map((chat) => (
                     <div
                       key={chat.id}
+                      onClick={() =>
+                        setActiveChat({ id: chat.id, name: chat.name, avatar: chat.avatarUrl, isOnline: true })
+                      }
                       className='flex items-center gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors w-full overflow-hidden'
                     >
                       <div className='shrink-0'>
