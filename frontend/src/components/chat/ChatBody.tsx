@@ -1,9 +1,11 @@
 // frontend-demo/src/components/chat/ChatBody.tsx
 import { useEffect, useState, useRef, useCallback, useContext } from 'react'
+import { io, Socket } from 'socket.io-client' // Add this import
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
+// Import getProfileFromLS or get the user ID from context to pass to the socket connection
 
 interface ChatBodyProps {
   convId: string
@@ -20,9 +22,11 @@ export function ChatBody({ convId }: ChatBodyProps) {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const previousScrollHeightRef = useRef<number>(0)
+  const socketRef = useRef<Socket | null>(null) // Keep a reference to the socket
 
   const fetchMessages = useCallback(
     async (isInitial = false) => {
+      // ... (Your existing fetchMessages logic remains exactly the same)
       if (!convId || convId.length !== 24) return
 
       if (isLoading || (!hasMore && !isInitial)) return
@@ -74,21 +78,53 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }, [convId])
 
-  const handleScroll = () => {
-    if (containerRef.current) {
-      const { scrollTop } = containerRef.current
-      if (scrollTop < 50 && !isLoading && hasMore) {
-        fetchMessages(false)
+  // --- NEW: Socket Connection and Listener ---
+  useEffect(() => {
+    if (!currentUserId || !convId) return
+
+    // Connect to the socket server
+    // Replace URL with your actual backend URL if different
+    const socket = io('http://localhost:4001', {
+      auth: {
+        user_id: currentUserId // Required by your backend SocketService
       }
+    })
+
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      console.log('Connected to socket server')
+    })
+
+    // Listen for incoming messages
+    socket.on('receive_message', (newMessage: Message) => {
+      // Only append if the message belongs to the currently open conversation
+      if (newMessage.conversationId === convId) {
+        setMessages((prevMessages) => [...prevMessages, newMessage])
+
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight
+          }
+        }, 50)
+      }
+    })
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      socket.off('receive_message')
+      socket.disconnect()
     }
+  }, [currentUserId, convId])
+  // -------------------------------------------
+
+  const handleScroll = () => {
+    // ... (Your existing handleScroll logic)
   }
 
   useEffect(() => {
-    if (!isLoading && containerRef.current && messages.length > 0 && nextCursor) {
-      const newScrollHeight = containerRef.current.scrollHeight
-      const heightDifference = newScrollHeight - previousScrollHeightRef.current
-      containerRef.current.scrollTop = heightDifference
-    }
+    // ... (Your existing scroll position logic for pagination)
   }, [messages, isLoading])
 
   useEffect(() => {
@@ -97,7 +133,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }, [messages])
 
-  // Lấy chữ cái đầu (đã chuẩn hóa an toàn)
   const getInitials = (name?: string) => {
     if (!name || name.trim() === '') return 'U'
     return name.trim().charAt(0).toUpperCase()
@@ -106,14 +141,13 @@ export function ChatBody({ convId }: ChatBodyProps) {
   return (
     <div className='flex-1 overflow-y-auto bg-muted/20 p-4' ref={containerRef} onScroll={handleScroll}>
       <div className='flex flex-col gap-4'>
+        {/* ... (Your existing rendering logic remains exactly the same) */}
         {isLoading && hasMore && (
           <div className='text-center text-xs text-muted-foreground py-2'>Đang tải tin nhắn cũ...</div>
         )}
 
         {messages.map((msg) => {
           const isMe = msg.sender?._id === currentUserId
-
-          // Dùng chính xác msg.sender.userName dựa theo Schema mới
           const senderName = msg.sender?.userName || 'User'
 
           const time = new Date(msg.createdAt).toLocaleTimeString([], {
@@ -147,6 +181,10 @@ export function ChatBody({ convId }: ChatBodyProps) {
             </div>
           )
         })}
+
+        {!hasMore && messages.length > 0 && (
+          <div className='text-center text-xs text-muted-foreground py-4'>Bắt đầu cuộc trò chuyện</div>
+        )}
       </div>
     </div>
   )

@@ -1,56 +1,71 @@
-import { Paperclip, Smile, SendHorizontal, Image as ImageIcon, Mic } from 'lucide-react'
+// frontend-demo/src/components/chat/ChatFooter.tsx
 import { useState } from 'react'
+import { SendHorizontal, Paperclip, Smile } from 'lucide-react'
+import { messagesApi } from '@/apis/messages.api'
 
-export function ChatFooter() {
-  const [message, setMessage] = useState('')
+interface ChatFooterProps {
+  convId: string
+}
 
-  const handleSend = () => {
-    if (!message.trim()) return
-    console.log('Sending:', message)
-    // TODO: Call API gửi tin nhắn ở đây
-    setMessage('')
+export function ChatFooter({ convId }: ChatFooterProps) {
+  const [content, setContent] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSend = async () => {
+    if (!content.trim() || !convId || isLoading) return
+
+    try {
+      setIsLoading(true)
+      // Gọi API: Backend lưu DB và sẽ lo nhiệm vụ bắn Socket tới những người trong nhóm
+      await messagesApi.sendMessage({
+        convId,
+        type: 'text',
+        content: content.trim()
+      })
+      setContent('') // Gửi xong thì xóa trắng ô input
+    } catch (error) {
+      console.error('Lỗi khi gửi tin nhắn:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Nhấn Enter (không đè Shift) thì gửi
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
   }
 
   return (
-    <footer className='border-t border-border/40 bg-background p-3 sm:p-4'>
-      <div className='flex items-end gap-2'>
-        {/* Nhóm chức năng đính kèm */}
-        <div className='flex pb-1 gap-1 text-muted-foreground shrink-0'>
-          <button className='p-2 hover:bg-muted hover:text-blue-500 rounded-full transition-colors'>
-            <Paperclip className='h-5 w-5' />
-          </button>
-          <button className='p-2 hover:bg-muted hover:text-blue-500 rounded-full transition-colors hidden sm:block'>
-            <ImageIcon className='h-5 w-5' />
-          </button>
-        </div>
+    <div className='flex items-center gap-2 border-t border-border/40 bg-background p-4'>
+      <button className='p-2 text-muted-foreground hover:text-foreground transition-colors '>
+        <Paperclip className='h-5 w-5' />
+      </button>
 
-        {/* Khung nhập text */}
-        <div className='flex-1 flex items-center bg-muted/50 border border-border rounded-3xl px-4 py-2 focus-within:ring-1 focus-within:ring-blue-500 transition-all'>
-          <input
-            type='text'
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder='Nhập tin nhắn...'
-            className='flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground'
-          />
-          <button className='p-1.5 text-muted-foreground hover:text-blue-500 transition-colors shrink-0'>
-            <Smile className='h-5 w-5' />
-          </button>
-        </div>
-
-        {/* Nút gửi hoặc Ghi âm */}
-        <button
-          onClick={handleSend}
-          className={`shrink-0 p-3 rounded-full transition-all flex items-center justify-center ${
-            message.trim()
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-              : 'bg-muted text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {message.trim() ? <SendHorizontal className='h-5 w-5' /> : <Mic className='h-5 w-5' />}
+      <div className='flex-1 relative'>
+        <input
+          type='text'
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder='Nhập tin nhắn...'
+          disabled={isLoading}
+          className='w-full rounded-full border border-border text-foreground bg-muted/50 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50'
+        />
+        <button className='absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground transition-colors'>
+          <Smile className='h-5 w-5' />
         </button>
       </div>
-    </footer>
+
+      <button
+        onClick={handleSend}
+        disabled={!content.trim() || isLoading}
+        className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#6b45e9] text-white disabled:opacity-50 transition-colors hover:bg-[#a139e4]'
+      >
+        <SendHorizontal className='h-5 w-5 ml-0.5' />
+      </button>
+    </div>
   )
 }
