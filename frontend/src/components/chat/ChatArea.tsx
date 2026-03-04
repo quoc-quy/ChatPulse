@@ -1,4 +1,3 @@
-// frontend-demo/src/components/chat/ChatArea.tsx
 import { ChatHeader } from './ChatHeader'
 import { ChatBody } from './ChatBody'
 import { ChatFooter } from './ChatFooter'
@@ -12,9 +11,9 @@ export function ChatArea({ chat }: ChatAreaProps) {
   return (
     <div className='flex h-screen flex-col bg-background w-full'>
       <ChatHeader chat={chat} />
-      {/* Truyền chat.id xuống ChatBody làm convId */}
       <ChatBody convId={chat.id} />
-      <ChatFooter />
+      {/* Truyền convId xuống để Footer biết đang gửi vào nhóm nào */}
+      <ChatFooter convId={chat.id} />
     </div>
   )
 }
