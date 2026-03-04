@@ -35,9 +35,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const [chatList, setChatList] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [refetchTrigger, setRefetchTrigger] = useState(0) // Trigger để refetch khi có chat mới tinh
   const socketRef = useRef<Socket | null>(null)
 
-  // Dùng Ref để tránh stale state (closure) bên trong socket mà không làm re-render socket
   const activeChatRef = useRef(activeChat)
   useEffect(() => {
     activeChatRef.current = activeChat
@@ -49,7 +49,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: profile?.avatar || ''
   }
 
-  // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN LẦN ĐẦU ---
+  // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN ---
+  // Đã thêm refetchTrigger vào dependency để tự động gọi lại API khi cần
   useEffect(() => {
     if (activeItem.title === 'Tin nhắn' && profile) {
       const fetchChats = async () => {
@@ -68,10 +69,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             let lastActiveAt = undefined
 
             if (conv.type === 'direct') {
-              const otherUser = conv.participants?.find((p: any) => p._id !== profile._id)
+              const otherUser = conv.participants?.find((p: any) => String(p._id) !== String(profile._id))
               if (otherUser) {
                 chatName = otherUser.userName || otherUser.fullName || 'Người dùng'
-                // Backend trả về trạng thái từ Map qua API
                 isOnline = otherUser.isOnline === true
                 lastActiveAt = otherUser.last_active_at || otherUser.lastActiveAt
               }
@@ -79,7 +79,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               if (conv.name) {
                 chatName = conv.name
               } else if (conv.participants) {
-                const otherUsers = conv.participants.filter((p: any) => p._id !== profile._id)
+                const otherUsers = conv.participants.filter((p: any) => String(p._id) !== String(profile._id))
                 chatName = otherUsers.map((u: any) => u.userName || u.fullName).join(', ')
                 if (!chatName) chatName = 'Nhóm trò chuyện'
               }
@@ -92,7 +92,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             let lastMessageContent = 'Chưa có tin nhắn nào...'
             if (conv.lastMessage && (conv.lastMessage.content || conv.lastMessage.type)) {
               let content = conv.lastMessage.content
-              if (conv.lastMessage.type === 'image') {
+              if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
                 content = 'Đã gửi một hình ảnh'
               } else if (!content) {
                 content = 'Tin nhắn mới'
@@ -101,11 +101,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               let prefix = ''
               if (conv.lastMessage.sender_id || conv.lastMessage.senderId) {
                 const senderId = conv.lastMessage.sender_id || conv.lastMessage.senderId
-                const isMe = senderId === profile._id
+                const isMe = String(senderId) === String(profile._id)
                 if (isMe) {
                   prefix = 'Bạn: '
                 } else if (conv.type === 'group') {
-                  const sender = conv.participants?.find((p: any) => p._id === senderId)
+                  const sender = conv.participants?.find((p: any) => String(p._id) === String(senderId))
                   if (sender) {
                     const senderName = sender.userName || sender.fullName || 'Thành viên'
                     prefix = `${senderName}: `
@@ -115,7 +115,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               lastMessageContent = `${prefix}${content}`
             }
 
-            const unreadCount = conv.unreadCount || 0
+            const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0
 
             return {
               id: conv._id,
@@ -144,31 +144,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       fetchChats()
     }
-  }, [activeItem.title, profile])
+  }, [activeItem.title, profile, refetchTrigger]) // Lắng nghe refetchTrigger
 
-  // --- 2. LẮNG NGHE SOCKET REALTIME (Giữ nguyên suốt phiên đăng nhập) ---
+  // --- 2. LẮNG NGHE SOCKET REALTIME TỐI ƯU HÓA ---
   useEffect(() => {
     if (!profile) return
 
-    const socket = io('http://localhost:4000', {
+    const socket = io('http://localhost:4001', {
       auth: { user_id: profile._id }
     })
     socketRef.current = socket
 
-    // A. Lắng nghe tin nhắn tới
+    // A. NHẬN TIN NHẮN MỚI
     socket.on('receive_message', (newMessage: any) => {
       setChatList((prevChats) => {
-        const existingChatIndex = prevChats.findIndex((c) => c.id === newMessage.conversationId)
+        const convIdStr = String(newMessage.conversationId)
+        const existingChatIndex = prevChats.findIndex((c) => String(c.id) === convIdStr)
         let updatedChats = [...prevChats]
 
-        const isMe = newMessage.sender?._id === profile._id || newMessage.senderId === profile._id
+        const senderIdStr = String(newMessage.sender?._id || newMessage.senderId)
+        const isMe = senderIdStr === String(profile._id)
+
         let prefix = isMe ? 'Bạn: ' : ''
         if (!isMe && newMessage.type === 'group') {
           prefix = `${newMessage.sender?.userName || newMessage.sender?.fullName || 'Thành viên'}: `
         }
 
         let previewContent = newMessage.content
-        if (newMessage.type === 'image') previewContent = 'Đã gửi một hình ảnh'
+        if (newMessage.type === 'image' || newMessage.type === 'media') previewContent = 'Đã gửi một hình ảnh'
 
         const newPreview = `${prefix}${previewContent}`
         const newTime = new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -180,27 +183,41 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           chatToUpdate.time = newTime
           chatToUpdate.timestamp = newTimestamp
 
-          // Dùng activeChatRef thay vì activeChat để Socket không bị reset
-          // Nếu tin nhắn không thuộc nhóm đang mở và không phải do mình gửi -> tăng badge
-          if (activeChatRef.current?.id !== newMessage.conversationId && !isMe) {
-            chatToUpdate.unreadCount = (chatToUpdate.unreadCount || 0) + 1
+          // KIỂM TRA ĐIỀU KIỆN UNREAD BADGE CHUẨN XÁC
+          const isCurrentlyViewing = String(activeChatRef.current?.id) === convIdStr
+
+          if (!isMe) {
+            if (isCurrentlyViewing) {
+              // Nếu đang mở chat này -> Tự động đánh dấu đã đọc lên server ngay lập tức để F5 không bị lỗi
+              conversationsApi.markAsSeen(convIdStr).catch((err) => console.error(err))
+            } else {
+              // Nếu KHÔNG mở chat này -> Tăng số đếm
+              chatToUpdate.unreadCount = (chatToUpdate.unreadCount || 0) + 1
+            }
           }
 
-          // Rút ra và đẩy lên đầu mảng
+          // Cập nhật mảng
           updatedChats.splice(existingChatIndex, 1)
           updatedChats.unshift(chatToUpdate)
+          return updatedChats
+        } else {
+          // BẮT TRƯỜNG HỢP: Tin nhắn từ 1 nhóm/người hoàn toàn mới chưa có trong list hiện tại
+          setRefetchTrigger((prev) => prev + 1)
+          return prevChats
         }
-
-        return updatedChats
       })
     })
 
-    // B. Lắng nghe trạng thái Online/Offline
+    // B. CẬP NHẬT TRẠNG THÁI ONLINE/OFFLINE
     socket.on('user_status_change', (data: { userId: string; isOnline: boolean; lastActiveAt?: string }) => {
       setChatList((prevChats) =>
         prevChats.map((chat) => {
-          if (chat.type === 'direct' && chat.participants?.some((p: any) => p._id === data.userId)) {
-            return { ...chat, isOnline: data.isOnline, lastActiveAt: data.lastActiveAt || chat.lastActiveAt }
+          if (chat.type === 'direct') {
+            // FIX LỖI 1: Bọc String() để so sánh chính xác tuyệt đối
+            const hasUser = chat.participants?.some((p: any) => String(p._id) === String(data.userId))
+            if (hasUser) {
+              return { ...chat, isOnline: data.isOnline, lastActiveAt: data.lastActiveAt || chat.lastActiveAt }
+            }
           }
           return chat
         })
@@ -212,12 +229,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       socket.off('user_status_change')
       socket.disconnect()
     }
-  }, [profile]) // Tuyệt đối không thêm biến nào khác vào đây để Socket luôn sống
+  }, [profile])
 
   // --- 3. ĐỒNG BỘ TRẠNG THÁI TỪ CHAT LIST LÊN CHAT HEADER ---
   useEffect(() => {
     if (activeChat) {
-      const currentInList = chatList.find((c) => c.id === activeChat.id)
+      const currentInList = chatList.find((c) => String(c.id) === String(activeChat.id))
       if (
         currentInList &&
         (currentInList.isOnline !== activeChat.isOnline || currentInList.lastActiveAt !== activeChat.lastActiveAt)
@@ -236,7 +253,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [chatList, activeChat, setActiveChat])
 
   // --- 4. SỰ KIỆN CLICK VÀO MỘT CHAT ---
-  const handleChatSelect = (chat: any) => {
+  const handleChatSelect = async (chat: any) => {
     setActiveChat({
       id: chat.id,
       name: chat.name,
@@ -246,8 +263,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       lastActiveAt: chat.lastActiveAt
     })
 
-    // Click vào thì đặt số tin nhắn chưa đọc về 0 ngay lập tức
-    setChatList((prev) => prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)))
+    // Reset giao diện
+    setChatList((prev) => prev.map((c) => (String(c.id) === String(chat.id) ? { ...c, unreadCount: 0 } : c)))
+
+    // Gọi API lưu trạng thái
+    try {
+      await conversationsApi.markAsSeen(chat.id)
+    } catch (error) {
+      console.error('Lỗi khi đánh dấu đã xem:', error)
+    }
   }
 
   return (
@@ -322,8 +346,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <div className='text-center py-6 text-sm text-muted-foreground'>Không có cuộc trò chuyện nào</div>
                 ) : (
                   chatList.map((chat) => {
-                    const displayUnread = chat.unreadCount > 5 ? '5+' : chat.unreadCount
-                    const isActive = activeChat?.id === chat.id
+                    const displayUnread = chat.unreadCount > 99 ? '99+' : chat.unreadCount
+                    const isActive = String(activeChat?.id) === String(chat.id)
 
                     return (
                       <div
@@ -366,7 +390,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                               {chat.message}
                             </div>
 
-                            {/* Badge thông báo số tin nhắn chưa đọc (màu Gradient chuẩn) */}
                             {chat.unreadCount > 0 && !isActive && (
                               <div className='flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-[#6b45e9] to-[#a139e4] px-1.5 text-[10px] font-bold text-white shrink-0'>
                                 {displayUnread}
