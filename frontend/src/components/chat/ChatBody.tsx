@@ -1,11 +1,9 @@
-// frontend-demo/src/components/chat/ChatBody.tsx
-import { useEffect, useState, useRef, useCallback, useContext } from 'react'
-import { io, Socket } from 'socket.io-client' // Add this import
+import { useEffect, useState, useRef, useCallback, useContext, useLayoutEffect } from 'react'
+import { io, Socket } from 'socket.io-client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
-// Import getProfileFromLS or get the user ID from context to pass to the socket connection
 
 interface ChatBodyProps {
   convId: string
@@ -20,20 +18,26 @@ export function ChatBody({ convId }: ChatBodyProps) {
   const [hasMore, setHasMore] = useState(true)
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
 
+  // THÊM MỚI: Cờ báo hiệu đang tải tin nhắn cũ & cờ lần đầu load
+  const [isFetchingOlder, setIsFetchingOlder] = useState(false)
+  const isInitialLoad = useRef(true)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const previousScrollHeightRef = useRef<number>(0)
-  const socketRef = useRef<Socket | null>(null) // Keep a reference to the socket
+  const socketRef = useRef<Socket | null>(null)
 
   const fetchMessages = useCallback(
     async (isInitial = false) => {
-      // ... (Your existing fetchMessages logic remains exactly the same)
       if (!convId || convId.length !== 24) return
 
       if (isLoading || (!hasMore && !isInitial)) return
 
       try {
         setIsLoading(true)
-        if (containerRef.current) {
+
+        // THÊM MỚI: Lưu lại chiều cao hiện tại trước khi gọi API để tính bù trừ
+        if (!isInitial && containerRef.current) {
+          setIsFetchingOlder(true)
           previousScrollHeightRef.current = containerRef.current.scrollHeight
         }
 
@@ -43,8 +47,9 @@ export function ChatBody({ convId }: ChatBodyProps) {
           limit: 20
         })
 
-        const resData = (response as any).data !== undefined ? (response as any).data : response
-        const newMessages: Message[] = resData.result || []
+        // Xử lý lấy data an toàn từ Axios
+        const resData = (response as any).data?.result || (response as any).result || (response as any).data || []
+        const newMessages: Message[] = Array.isArray(resData) ? resData : []
 
         if (newMessages.length < 20) {
           setHasMore(false)
@@ -74,35 +79,45 @@ export function ChatBody({ convId }: ChatBodyProps) {
       setMessages([])
       setNextCursor(undefined)
       setHasMore(true)
+      isInitialLoad.current = true // Reset cờ lần đầu khi chuyển hội thoại
       fetchMessages(true)
     }
   }, [convId])
 
-  // --- NEW: Socket Connection and Listener ---
+  // THÊM MỚI: Xử lý giữ vị trí cuộn mượt mà
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      if (isInitialLoad.current && messages.length > 0) {
+        // Lần đầu load -> tự động cuộn xuống đáy ngay lập tức
+        containerRef.current.scrollTop = containerRef.current.scrollHeight
+        isInitialLoad.current = false
+      } else if (isFetchingOlder) {
+        // Khi load thêm tin nhắn cũ -> Tính chiều cao mới trừ chiều cao cũ để giữ nguyên khung nhìn
+        const newScrollHeight = containerRef.current.scrollHeight
+        containerRef.current.scrollTop = newScrollHeight - previousScrollHeightRef.current
+        setIsFetchingOlder(false)
+      }
+    }
+  }, [messages, isFetchingOlder])
+
+  // --- Socket Connection ---
   useEffect(() => {
     if (!currentUserId || !convId) return
 
-    // Connect to the socket server
-    // Replace URL with your actual backend URL if different
-    const socket = io('http://localhost:4001', {
+    // Chú ý: Đổi lại port 4000 cho khớp với toàn dự án
+    const socket = io('http://localhost:4000', {
       auth: {
-        user_id: currentUserId // Required by your backend SocketService
+        user_id: currentUserId
       }
     })
 
     socketRef.current = socket
 
-    socket.on('connect', () => {
-      console.log('Connected to socket server')
-    })
-
-    // Listen for incoming messages
     socket.on('receive_message', (newMessage: Message) => {
-      // Only append if the message belongs to the currently open conversation
       if (newMessage.conversationId === convId) {
         setMessages((prevMessages) => [...prevMessages, newMessage])
 
-        // Auto-scroll to bottom
+        // Auto-scroll to bottom khi có tin mới
         setTimeout(() => {
           if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight
@@ -111,27 +126,21 @@ export function ChatBody({ convId }: ChatBodyProps) {
       }
     })
 
-    // Cleanup on unmount or when dependencies change
     return () => {
       socket.off('receive_message')
       socket.disconnect()
     }
   }, [currentUserId, convId])
-  // -------------------------------------------
 
+  // THÊM MỚI: Hàm xử lý khi người dùng lăn chuột
   const handleScroll = () => {
-    // ... (Your existing handleScroll logic)
-  }
-
-  useEffect(() => {
-    // ... (Your existing scroll position logic for pagination)
-  }, [messages, isLoading])
-
-  useEffect(() => {
-    if (!nextCursor && containerRef.current && messages.length > 0) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    if (containerRef.current) {
+      // Bắt sự kiện người dùng cuộn kịch trần (khoảng cách < 5px cho mượt)
+      if (containerRef.current.scrollTop <= 5 && !isLoading && hasMore) {
+        fetchMessages(false)
+      }
     }
-  }, [messages])
+  }
 
   const getInitials = (name?: string) => {
     if (!name || name.trim() === '') return 'U'
@@ -141,7 +150,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
   return (
     <div className='flex-1 overflow-y-auto bg-muted/20 p-4' ref={containerRef} onScroll={handleScroll}>
       <div className='flex flex-col gap-4'>
-        {/* ... (Your existing rendering logic remains exactly the same) */}
+        {/* Loader khi scroll lên */}
         {isLoading && hasMore && (
           <div className='text-center text-xs text-muted-foreground py-2'>Đang tải tin nhắn cũ...</div>
         )}
@@ -181,10 +190,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
             </div>
           )
         })}
-
-        {!hasMore && messages.length > 0 && (
-          <div className='text-center text-xs text-muted-foreground py-4'>Bắt đầu cuộc trò chuyện</div>
-        )}
       </div>
     </div>
   )

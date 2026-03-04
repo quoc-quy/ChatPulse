@@ -10,5 +10,20 @@ export const conversationsApi = {
         Authorization: `Bearer ${token}`
       }
     })
+  },
+
+  // THÊM MỚI: API đánh dấu đã đọc
+  markAsSeen: (conversationId: string) => {
+    const token = localStorage.getItem('access_token')
+
+    return http.patch(
+      `/conversations/${conversationId}/seen`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
   }
 }

@@ -1,64 +1,52 @@
-import { Server as ServerSocket } from 'socket.io'
-import { Server as HttpServer } from 'http'
+import { Server, Socket } from 'socket.io'
+import http from 'http'
 
 class SocketService {
-  private io: ServerSocket | null = null
-  // FIX: Dùng Set để quản lý nhiều socketId trên cùng 1 user (khi mở nhiều tab/component)
-  public usersOnline = new Map<string, Set<string>>()
+  public io!: Server
+  public usersOnline: Set<string> = new Set() // Dùng Set để lưu danh sách online dễ dàng
 
-  init(httpServer: HttpServer) {
-    this.io = new ServerSocket(httpServer, {
-      cors: {
-        origin: 'http://localhost:5173',
-        credentials: true
-      }
+  init(httpServer: http.Server) {
+    this.io = new Server(httpServer, {
+      cors: { origin: '*' } // Cho phép frontend kết nối
     })
 
-    this.io.on('connection', (socket) => {
-      const user_id = socket.handshake.auth.user_id as string
-      if (user_id) {
-        // Nếu user này chưa từng có kết nối nào -> Bắn thông báo Online cho mọi người
-        if (!this.usersOnline.has(user_id)) {
-          this.usersOnline.set(user_id, new Set())
-          this.io?.emit('user_status_change', { userId: user_id, isOnline: true })
-        }
-
-        // Thêm socket mới vào danh sách
-        this.usersOnline.get(user_id)?.add(socket.id)
-        console.log(`User ${user_id} connected with socket ${socket.id}`)
+    this.io.on('connection', (socket: Socket) => {
+      const userId = socket.handshake.auth.user_id as string
+      if (!userId) {
+        socket.disconnect()
+        return
       }
 
-      socket.on('disconnect', () => {
-        if (user_id && this.usersOnline.has(user_id)) {
-          const userSockets = this.usersOnline.get(user_id)
-          userSockets?.delete(socket.id) // Xóa kết nối vừa đứt
+      // 1. Gắn user vào một "Room" mang tên chính ID của họ (Giải quyết vụ 1 user dùng nhiều Tab/Điện thoại)
+      socket.join(userId)
+      this.usersOnline.add(userId)
 
-          // Nếu user không còn cái tab/kết nối nào -> Thực sự Offline
-          if (userSockets?.size === 0) {
-            this.usersOnline.delete(user_id)
-            console.log(`User ${user_id} disconnected completely`)
+      // 2. Báo cho TẤT CẢ mọi người biết user này vừa online
+      socket.broadcast.emit('user_status_change', { userId, isOnline: true })
 
-            // Bắn thông báo Offline
-            this.io?.emit('user_status_change', {
-              userId: user_id,
-              isOnline: false,
-              lastActiveAt: new Date()
-            })
-          }
+      // 3. Xử lý ngắt kết nối (Offline)
+      socket.on('disconnect', async () => {
+        // Kiểm tra xem user này còn tab/thiết bị nào khác đang kết nối không?
+        const sockets = await this.io.in(userId).fetchSockets()
+
+        if (sockets.length === 0) {
+          // Nếu không còn tab nào -> Chắc chắn đã Offline
+          this.usersOnline.delete(userId)
+
+          // Phát sự kiện offline cho TẤT CẢ mọi người kèm thời gian lastActive
+          this.io.emit('user_status_change', {
+            userId,
+            isOnline: false,
+            lastActiveAt: new Date().toISOString()
+          })
         }
       })
     })
   }
 
-  // Hàm helper để gửi event đến một user cụ thể
-  emitToUser(user_id: string, event: string, data: any) {
-    const userSockets = this.usersOnline.get(user_id)
-    if (userSockets && this.io) {
-      // Gửi event đến TẤT CẢ các màn hình/tab mà user đó đang mở
-      userSockets.forEach((socketId) => {
-        this.io!.to(socketId).emit(event, data)
-      })
-    }
+  // Hàm bắn tin nhắn chuẩn xác vào Room của User
+  emitToUser(userId: string, event: string, data: any) {
+    this.io.to(userId).emit(event, data)
   }
 }
 
