@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import ChatScreen from "./src/screens/ChatScreen"; // hoặc đúng path của bạn
 
 import { LoginForm } from "./src/screens/LoginForm";
 import { SignUpForm } from "./src/screens/SignUpForm";
@@ -23,6 +24,7 @@ export default function App() {
         >
           <Stack.Screen name="Login" component={LoginForm} />
           <Stack.Screen name="SignUp" component={SignUpForm} />
+          <Stack.Screen name="Chat" component={ChatScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
