@@ -3,6 +3,7 @@ import databaseService from '~/services/database.services'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import Message from '~/models/schemas/message.schema'
+import socketService from './socket.services'
 
 class MessageService {
   async getMessages(conversationId: string, userId: string, cursor?: string, limit: number = 20) {
@@ -165,7 +166,7 @@ class MessageService {
       }
     )
 
-    // 4. Lấy thông tin chi tiết của tin nhắn vừa gửi (kèm user gửi) để trả về FE và Emit Socket
+    // 4. Lấy thông tin chi tiết của tin nhắn vừa gửi (kèm user gửi)
     const messages = await databaseService.messages
       .aggregate([
         { $match: { _id: messageId } },
@@ -190,7 +191,7 @@ class MessageService {
             updatedAt: 1,
             sender: {
               _id: '$senderInfo._id',
-              userName: '$senderInfo.userName',
+              userName: '$senderInfo.userName', // FIX: Đã đổi thành userName (N hoa)
               avatar: '$senderInfo.avatar'
             }
           }
@@ -198,7 +199,33 @@ class MessageService {
       ])
       .toArray()
 
-    return messages[0]
+    const populatedMessage = messages[0]
+
+    // ==========================================
+    // 5. EMIT SOCKET: Gom ID từ cả participants và members để bắn Realtime
+    // ==========================================
+    const targetUserIds = new Set<string>()
+
+    // Lấy ID từ mảng participants
+    if (conversation.participants) {
+      conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+    }
+
+    // Lấy ID từ mảng members
+    if (conversation.members) {
+      conversation.members.forEach((m: any) => {
+        const mId = m.userId?.toString() || m.user_id?.toString()
+        if (mId) targetUserIds.add(mId)
+      })
+    }
+
+    // Lặp qua Set (đã loại bỏ ID trùng lặp) và phát sự kiện socket
+    targetUserIds.forEach((id) => {
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+    })
+    // ==========================================
+
+    return populatedMessage
   }
 }
 
