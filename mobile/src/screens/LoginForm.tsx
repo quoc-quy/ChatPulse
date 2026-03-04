@@ -58,7 +58,10 @@ export function LoginForm({ navigation }: any) {
               />
             </View>
 
-            <TouchableOpacity style={styles.btnPrimary}>
+            <TouchableOpacity
+              style={styles.btnPrimary}
+              onPress={() => navigation.replace("Chat")}
+            >
               <Text style={styles.btnText}>Login</Text>
             </TouchableOpacity>
 
