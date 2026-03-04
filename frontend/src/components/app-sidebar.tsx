@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { useEffect, useState, useContext } from 'react'
+import { useEffect, useState, useContext, useRef } from 'react'
+import { io, Socket } from 'socket.io-client'
 import { MessageSquare, Users, Settings, Bell, Plus, Loader2 } from 'lucide-react'
 import { NavUser } from '@/components/nav-user'
 import {
@@ -29,12 +30,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [activeItem, setActiveItem] = useState(navMain[0])
   const { setOpen } = useSidebar()
 
-  // Lấy Profile User từ Global Context
+  const { setActiveChat, activeChat } = useContext(AppContext)
   const { profile } = useContext(AppContext)
 
-  // State quản lý danh sách chat
   const [chatList, setChatList] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const socketRef = useRef<Socket | null>(null)
+
+  // Dùng Ref để tránh stale state (closure) bên trong socket mà không làm re-render socket
+  const activeChatRef = useRef(activeChat)
+  useEffect(() => {
+    activeChatRef.current = activeChat
+  }, [activeChat])
 
   const currentUser = {
     name: profile?.userName || 'Người dùng',
@@ -42,7 +49,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: profile?.avatar || ''
   }
 
-  // Gọi API lấy danh sách chat
+  // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN LẦN ĐẦU ---
   useEffect(() => {
     if (activeItem.title === 'Tin nhắn' && profile) {
       const fetchChats = async () => {
@@ -57,37 +64,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
           const formattedChats = rawData.map((conv: any) => {
             let chatName = 'Cuộc trò chuyện'
+            let isOnline = false
+            let lastActiveAt = undefined
 
-            // XỬ LÝ LẠI LOGIC XÁC ĐỊNH TÊN DỰA TRÊN TRƯỜNG "type"
             if (conv.type === 'direct') {
-              // Nếu là chat 1-1, lấy tên người đối diện
               const otherUser = conv.participants?.find((p: any) => p._id !== profile._id)
-              // Sửa lại thành userName cho khớp với JSON trả về
               if (otherUser) {
                 chatName = otherUser.userName || otherUser.fullName || 'Người dùng'
+                // Backend trả về trạng thái từ Map qua API
+                isOnline = otherUser.isOnline === true
+                lastActiveAt = otherUser.last_active_at || otherUser.lastActiveAt
               }
             } else if (conv.type === 'group') {
-              // Nếu là nhóm, ưu tiên lấy tên nhóm (nếu có).
-              // Nếu không có, ghép tên các thành viên (trừ user hiện tại) lại
               if (conv.name) {
                 chatName = conv.name
               } else if (conv.participants) {
                 const otherUsers = conv.participants.filter((p: any) => p._id !== profile._id)
-                // Ghép tên (vd: "LamSon, quyleo")
-                chatName = otherUsers.map((u: any) => u.userName).join(', ')
+                chatName = otherUsers.map((u: any) => u.userName || u.fullName).join(', ')
                 if (!chatName) chatName = 'Nhóm trò chuyện'
               }
             }
 
-            // XỬ LÝ LẠI LOGIC THỜI GIAN (Dựa vào updated_at thay vì updatedAt)
             const timeString = conv.updated_at
               ? new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : ''
 
-            // XỬ LÝ LẠI LOGIC TIN NHẮN CUỐI CÙNG
             let lastMessageContent = 'Chưa có tin nhắn nào...'
             if (conv.lastMessage && (conv.lastMessage.content || conv.lastMessage.type)) {
-              // 1. Xác định nội dung tin nhắn
               let content = conv.lastMessage.content
               if (conv.lastMessage.type === 'image') {
                 content = 'Đã gửi một hình ảnh'
@@ -95,42 +98,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 content = 'Tin nhắn mới'
               }
 
-              // 2. Xác định tiền tố (Bạn: hoặc userName:)
               let prefix = ''
-              if (conv.lastMessage.sender_id) {
-                // Kiểm tra xem người gửi có phải là user đang đăng nhập không
-                const isMe = conv.lastMessage.sender_id === profile._id
-
+              if (conv.lastMessage.sender_id || conv.lastMessage.senderId) {
+                const senderId = conv.lastMessage.sender_id || conv.lastMessage.senderId
+                const isMe = senderId === profile._id
                 if (isMe) {
                   prefix = 'Bạn: '
-                }
-                // Nếu là group và không phải mình gửi -> tìm tên người gửi
-                else if (conv.type === 'group') {
-                  const sender = conv.participants?.find((p: any) => p._id === conv.lastMessage.sender_id)
+                } else if (conv.type === 'group') {
+                  const sender = conv.participants?.find((p: any) => p._id === senderId)
                   if (sender) {
-                    // Ưu tiên lấy userName, nếu không có thì lấy fullName
                     const senderName = sender.userName || sender.fullName || 'Thành viên'
                     prefix = `${senderName}: `
                   }
                 }
               }
-
-              // 3. Ghép tiền tố và nội dung
               lastMessageContent = `${prefix}${content}`
             }
+
+            const unreadCount = conv.unreadCount || 0
 
             return {
               id: conv._id,
               name: chatName,
               message: lastMessageContent,
               time: timeString,
+              timestamp: new Date(conv.updated_at || 0).getTime(),
               type: conv.type,
               avatarUrl: conv.avatarUrl,
-              participants: conv.participants || [], // Truyền toàn bộ list user
-              admin_id: conv.admin_id
+              participants: conv.participants || [],
+              admin_id: conv.admin_id,
+              isOnline,
+              lastActiveAt,
+              unreadCount
             }
           })
 
+          formattedChats.sort((a, b) => b.timestamp - a.timestamp)
           setChatList(formattedChats)
         } catch (error) {
           console.error('Lỗi khi tải danh sách cuộc trò chuyện:', error)
@@ -143,9 +146,113 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [activeItem.title, profile])
 
+  // --- 2. LẮNG NGHE SOCKET REALTIME (Giữ nguyên suốt phiên đăng nhập) ---
+  useEffect(() => {
+    if (!profile) return
+
+    const socket = io('http://localhost:4000', {
+      auth: { user_id: profile._id }
+    })
+    socketRef.current = socket
+
+    // A. Lắng nghe tin nhắn tới
+    socket.on('receive_message', (newMessage: any) => {
+      setChatList((prevChats) => {
+        const existingChatIndex = prevChats.findIndex((c) => c.id === newMessage.conversationId)
+        let updatedChats = [...prevChats]
+
+        const isMe = newMessage.sender?._id === profile._id || newMessage.senderId === profile._id
+        let prefix = isMe ? 'Bạn: ' : ''
+        if (!isMe && newMessage.type === 'group') {
+          prefix = `${newMessage.sender?.userName || newMessage.sender?.fullName || 'Thành viên'}: `
+        }
+
+        let previewContent = newMessage.content
+        if (newMessage.type === 'image') previewContent = 'Đã gửi một hình ảnh'
+
+        const newPreview = `${prefix}${previewContent}`
+        const newTime = new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const newTimestamp = new Date(newMessage.createdAt).getTime()
+
+        if (existingChatIndex !== -1) {
+          const chatToUpdate = { ...updatedChats[existingChatIndex] }
+          chatToUpdate.message = newPreview
+          chatToUpdate.time = newTime
+          chatToUpdate.timestamp = newTimestamp
+
+          // Dùng activeChatRef thay vì activeChat để Socket không bị reset
+          // Nếu tin nhắn không thuộc nhóm đang mở và không phải do mình gửi -> tăng badge
+          if (activeChatRef.current?.id !== newMessage.conversationId && !isMe) {
+            chatToUpdate.unreadCount = (chatToUpdate.unreadCount || 0) + 1
+          }
+
+          // Rút ra và đẩy lên đầu mảng
+          updatedChats.splice(existingChatIndex, 1)
+          updatedChats.unshift(chatToUpdate)
+        }
+
+        return updatedChats
+      })
+    })
+
+    // B. Lắng nghe trạng thái Online/Offline
+    socket.on('user_status_change', (data: { userId: string; isOnline: boolean; lastActiveAt?: string }) => {
+      setChatList((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.type === 'direct' && chat.participants?.some((p: any) => p._id === data.userId)) {
+            return { ...chat, isOnline: data.isOnline, lastActiveAt: data.lastActiveAt || chat.lastActiveAt }
+          }
+          return chat
+        })
+      )
+    })
+
+    return () => {
+      socket.off('receive_message')
+      socket.off('user_status_change')
+      socket.disconnect()
+    }
+  }, [profile]) // Tuyệt đối không thêm biến nào khác vào đây để Socket luôn sống
+
+  // --- 3. ĐỒNG BỘ TRẠNG THÁI TỪ CHAT LIST LÊN CHAT HEADER ---
+  useEffect(() => {
+    if (activeChat) {
+      const currentInList = chatList.find((c) => c.id === activeChat.id)
+      if (
+        currentInList &&
+        (currentInList.isOnline !== activeChat.isOnline || currentInList.lastActiveAt !== activeChat.lastActiveAt)
+      ) {
+        setActiveChat((prev) =>
+          prev
+            ? {
+                ...prev,
+                isOnline: currentInList.isOnline,
+                lastActiveAt: currentInList.lastActiveAt
+              }
+            : prev
+        )
+      }
+    }
+  }, [chatList, activeChat, setActiveChat])
+
+  // --- 4. SỰ KIỆN CLICK VÀO MỘT CHAT ---
+  const handleChatSelect = (chat: any) => {
+    setActiveChat({
+      id: chat.id,
+      name: chat.name,
+      avatar: chat.avatarUrl,
+      isOnline: chat.isOnline,
+      type: chat.type,
+      lastActiveAt: chat.lastActiveAt
+    })
+
+    // Click vào thì đặt số tin nhắn chưa đọc về 0 ngay lập tức
+    setChatList((prev) => prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)))
+  }
+
   return (
     <Sidebar collapsible='icon' className='overflow-hidden [&>[data-sidebar=sidebar]]:flex-row' {...props}>
-      {/* PANEL 1: Dải Icon mỏng */}
+      {/* PANEL 1: Cột biểu tượng */}
       <Sidebar
         collapsible='none'
         className='!w-[calc(var(--sidebar-width-icon)_+_1px)] border-r border-sidebar-border/40'
@@ -191,19 +298,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarFooter>
       </Sidebar>
 
-      {/* PANEL 2: Panel danh sách mở rộng */}
-      <Sidebar collapsible='none' className='hidden flex-1 md:flex'>
+      {/* PANEL 2: Danh sách nội dung */}
+      <Sidebar collapsible='none' className='hidden flex-1 md:flex overflow-hidden'>
         <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4'>
           <div className='flex w-full items-center justify-between'>
             <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
-            <button className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20'>
+            <button className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 transition-colors'>
               <Plus className='h-4 w-4' />
             </button>
           </div>
           <SidebarInput placeholder='Tìm kiếm...' />
         </SidebarHeader>
-        <SidebarContent>
-          <div className='flex flex-col gap-0 p-2'>
+
+        <SidebarContent className='overflow-hidden'>
+          <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
             {activeItem.title === 'Tin nhắn' && (
               <>
                 {isLoading ? (
@@ -213,21 +321,62 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 ) : chatList.length === 0 ? (
                   <div className='text-center py-6 text-sm text-muted-foreground'>Không có cuộc trò chuyện nào</div>
                 ) : (
-                  chatList.map((chat) => (
-                    <div
-                      key={chat.id}
-                      className='flex items-start gap-3 rounded-lg p-2 hover:bg-muted cursor-pointer transition-colors'
-                    >
-                      <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
-                      <div className='flex flex-col flex-1 overflow-hidden py-0.5'>
-                        <div className='flex justify-between items-center w-full'>
-                          <span className='font-semibold text-sm truncate'>{chat.name}</span>
-                          <span className='text-xs text-muted-foreground shrink-0'>{chat.time}</span>
+                  chatList.map((chat) => {
+                    const displayUnread = chat.unreadCount > 5 ? '5+' : chat.unreadCount
+                    const isActive = activeChat?.id === chat.id
+
+                    return (
+                      <div
+                        key={chat.id}
+                        onClick={() => handleChatSelect(chat)}
+                        className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden ${
+                          isActive ? 'bg-muted/80' : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className='shrink-0'>
+                          <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
                         </div>
-                        <span className='text-sm text-muted-foreground truncate mt-0.5'>{chat.message}</span>
+
+                        <div className='flex-1 overflow-hidden'>
+                          <div className='flex justify-between items-center mb-0.5 gap-2'>
+                            <div
+                              className={`font-semibold text-sm truncate ${
+                                chat.unreadCount > 0 && !isActive ? 'text-foreground font-bold' : ''
+                              }`}
+                            >
+                              {chat.name}
+                            </div>
+                            <div
+                              className={`text-xs shrink-0 ${
+                                chat.unreadCount > 0 && !isActive ? 'text-blue-500 font-bold' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {chat.time}
+                            </div>
+                          </div>
+
+                          <div className='flex justify-between items-center gap-2'>
+                            <div
+                              className={`text-sm truncate flex-1 ${
+                                chat.unreadCount > 0 && !isActive
+                                  ? 'text-foreground font-medium'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {chat.message}
+                            </div>
+
+                            {/* Badge thông báo số tin nhắn chưa đọc (màu Gradient chuẩn) */}
+                            {chat.unreadCount > 0 && !isActive && (
+                              <div className='flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-[#6b45e9] to-[#a139e4] px-1.5 text-[10px] font-bold text-white shrink-0'>
+                                {displayUnread}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </>
             )}

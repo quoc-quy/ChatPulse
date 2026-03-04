@@ -3,6 +3,7 @@ import httpStatus from '~/constants/httpStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import Conversation from '~/models/schemas/conversation.schema'
 import databaseService from '~/services/database.services'
+import socketService from './socket.services'
 
 class ChatService {
   async getConversations(userId: string, limit: number = 20, page: number = 1) {
@@ -87,6 +88,20 @@ class ChatService {
         }
       ])
       .toArray()
+
+    const conversationsWithOnlineStatus = conversations.map((conv) => {
+      if (conv.participants && Array.isArray(conv.participants)) {
+        conv.participants = conv.participants.map((p: any) => {
+          // Kiểm tra xem ID của user này có đang nằm trong Map usersOnline của socket không
+          const isUserOnline = socketService.usersOnline.has(p._id.toString())
+          return {
+            ...p,
+            isOnline: isUserOnline
+          }
+        })
+      }
+      return conv
+    })
 
     return conversations
   }

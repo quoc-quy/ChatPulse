@@ -11,11 +11,11 @@ export interface RegisterBody {
 
 const authApi = {
   register(body: RegisterBody) {
-    return http.post('/users/register', body)
+    return http.post('/auth/register', body)
   },
 
   login(body: { email: string; password: string }) {
-    return http.post('/users/login', body)
+    return http.post('/auth/login', body)
   }
 }
 

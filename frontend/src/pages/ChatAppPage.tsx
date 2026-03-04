@@ -1,22 +1,21 @@
-import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Separator } from '@/components/ui/separator'
+import { useContext } from 'react'
+import { AppContext } from '@/context/app.context'
+import { ChatWelcomeScreen } from '@/components/chat/ChatWelcomScreen'
+import { ChatArea } from '@/components/chat/ChatArea'
 
 export default function ChatAppPage() {
-  return (
-    <div className='flex h-screen flex-col bg-background'>
-      <header className='flex h-14 shrink-0 items-center gap-2 border-b border-border/40 px-4'>
-        {/* Nút Hamburger để mở/đóng Sidebar trên Mobile hoặc khi đóng panel phụ */}
-        <SidebarTrigger className='-ml-1 text-foreground' />
-        <Separator orientation='vertical' className='mr-2 h-4' />
+  // Lấy trạng thái chat đang chọn từ Global Context
+  const { activeChat } = useContext(AppContext)
 
-        {/* Thêm text-foreground vào đây */}
-        <div className='flex-1 font-medium text-foreground'>Nhóm Chat Web</div>
-      </header>
-
-      {/* Nội dung tin nhắn */}
-      <div className='flex flex-1 items-center justify-center bg-muted/10'>
-        <p className='text-muted-foreground'>Khung chat sẽ nằm ở đây...</p>
+  // Nếu chưa chọn ai -> Hiện màn hình chào mừng
+  if (!activeChat) {
+    return (
+      <div className='flex h-screen w-full flex-col'>
+        <ChatWelcomeScreen />
       </div>
-    </div>
-  )
+    )
+  }
+
+  // Nếu đã chọn chat -> Hiện giao diện nhắn tin
+  return <ChatArea chat={activeChat} />
 }

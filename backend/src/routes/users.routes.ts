@@ -1,11 +1,13 @@
 import { Router } from 'express'
 import {
+  blockUserController,
   changePasswordController,
   getMeController,
   getProfileController,
   loginController,
   logoutController,
   registerController,
+  unBlockUserController,
   updateMeController
 } from '~/controllers/users.controllers'
 import {
@@ -19,25 +21,6 @@ import {
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const usersRouter = Router()
-
-/**
- * Login account
- * Body: {email: string, password: string}
- */
-usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
-
-/**
- * Register a new user
- * Body: {email: string, password: string, confirm_password: string, userName: string, date_of_birth: ISOString, phone: number}
- */
-usersRouter.post('/register', registerValidator, wrapRequestHandler(registerController))
-
-/**
- * Logout
- * Header: {Authorization: Bearer <access_token>}
- * body: {refresh_token: string}
- */
-usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
 
 /**
  * Get me
@@ -62,6 +45,20 @@ usersRouter.put(
   changePasswordValidator,
   wrapRequestHandler(changePasswordController)
 )
+
+/**
+ * Block user
+ * Header: {Authorization: Bearer <access_token>}
+ * Body: {blocked_user_id}
+ */
+usersRouter.post('/block', accessTokenValidator, wrapRequestHandler(blockUserController))
+
+/**
+ * Unblock User
+ * Header: {Authorization: Bearer <access_token>}
+ * Params: {user_id}
+ */
+usersRouter.delete('/unblock/:user_id', accessTokenValidator, wrapRequestHandler(unBlockUserController))
 
 /**
  * Get user profile
