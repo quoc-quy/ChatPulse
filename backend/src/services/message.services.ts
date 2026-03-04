@@ -84,6 +84,8 @@ class MessageService {
             conversationId: 1,
             type: 1,
             content: 1,
+            isEdited: 1,
+            isDeleted: 1,
             replyToId: 1,
             reactions: 1,
             callInfo: 1,
@@ -226,6 +228,42 @@ class MessageService {
     // ==========================================
 
     return populatedMessage
+  }
+  // 5. Hàm Chỉnh sửa tin nhắn
+  async editMessage(messageId: string, userId: string, newContent: string) {
+    const result = await databaseService.messages.findOneAndUpdate(
+      {
+        _id: new ObjectId(messageId),
+        senderId: new ObjectId(userId) // Bảo mật: Chỉ người gửi mới được sửa
+      },
+      {
+        $set: {
+          content: newContent,
+          isEdited: true, // Đánh dấu đã sửa để FE hiển thị nhãn
+          updatedAt: new Date()
+        }
+      },
+      { returnDocument: 'after' } 
+    )
+    return result
+  }
+
+  // 6. Hàm Thu hồi tin nhắn (Recall)
+  async recallMessage(messageId: string, userId: string) {
+    const result = await databaseService.messages.findOneAndUpdate(
+      {
+        _id: new ObjectId(messageId),
+        senderId: new ObjectId(userId) // Bảo mật: Chỉ người gửi mới được thu hồi
+      },
+      {
+        $set: {
+          isDeleted: true, // Đánh dấu đã xóa/thu hồi
+          updatedAt: new Date()
+        }
+      },
+      { returnDocument: 'after' }
+    )
+    return result
   }
 }
 
