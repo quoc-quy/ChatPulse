@@ -7,6 +7,9 @@ export interface ChatItem {
   name: string
   avatar?: string
   isOnline?: boolean
+  lastActiveAt?: string // Added for last seen time
+  unreadCount?: number // Added for unread badge
+  type?: 'direct' | 'group' // Good to have for conditional rendering
 }
 
 interface AppContextInterface {
