@@ -112,7 +112,9 @@ export function LoginForm({ navigation }: any) {
 
               <View style={styles.passwordSection}>
                 <View style={styles.rowBetween}>
-                  <Text style={styles.labelSmall}>Password</Text>
+                  {/* Xóa dòng <Text style={styles.labelSmall}>Password</Text> ở đây */}
+                  <View />{" "}
+                  {/* Dùng View trống để đẩy nút Forgot password sang bên phải */}
                   <TouchableOpacity>
                     <Text style={styles.link}>Forgot password?</Text>
                   </TouchableOpacity>
