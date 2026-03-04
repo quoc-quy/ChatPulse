@@ -1,13 +1,26 @@
+// frontend/src/components/chat-avatar.tsx
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
-// Định nghĩa kiểu dữ liệu cho props để TypeScript không báo lỗi
+// Định nghĩa kiểu dữ liệu cho props
 interface ChatAvatarProps {
   chat: any
   currentUserId: string
 }
 
+// FIX: Đưa StatusDot ra ngoài, khai báo như một component độc lập và nhận prop
+const StatusDot = ({ isOnline }: { isOnline: boolean }) => (
+  <span
+    className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-background ${
+      isOnline ? 'bg-green-500' : 'bg-gray-400'
+    }`}
+  />
+)
+
 export function ChatAvatar({ chat, currentUserId }: ChatAvatarProps) {
   const getInitials = (name: string) => (name ? name.charAt(0).toUpperCase() : 'U')
+
+  // Trạng thái online
+  const isOnline = chat.isOnline || false
 
   if (chat.type === 'direct' || chat.avatarUrl) {
     let displayAvatar = chat.avatarUrl
@@ -22,12 +35,17 @@ export function ChatAvatar({ chat, currentUserId }: ChatAvatarProps) {
     }
 
     return (
-      <Avatar className='h-12 w-12 shrink-0 rounded-full border border-sidebar-border/40'>
-        <AvatarImage src={displayAvatar} className='object-cover' />
-        <AvatarFallback className='bg-blue-100 text-blue-600 font-bold text-lg'>
-          {getInitials(displayName)}
-        </AvatarFallback>
-      </Avatar>
+      <div className='relative inline-block'>
+        <Avatar className='h-12 w-12 shrink-0 rounded-full border border-sidebar-border/40'>
+          <AvatarImage src={displayAvatar} className='object-cover' />
+          <AvatarFallback className='bg-blue-100 text-blue-600 font-bold text-lg'>
+            {getInitials(displayName)}
+          </AvatarFallback>
+        </Avatar>
+
+        {/* FIX: Gọi component StatusDot và truyền prop isOnline vào */}
+        {chat.type === 'direct' && <StatusDot isOnline={isOnline} />}
+      </div>
     )
   }
 
