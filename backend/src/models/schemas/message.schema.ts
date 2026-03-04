@@ -9,9 +9,12 @@ interface MessageType {
   replyToId?: ObjectId
   reactions?: any[]
   deletedByUsers?: ObjectId[] // Xóa tin nhắn 1 chiều
+  isEdited?: boolean    
+  isDeleted?: boolean
   callInfo?: any // Lưu thông tin nếu là cuộc gọi
   createdAt?: Date
   updatedAt?: Date
+
 }
 
 export default class Message {
@@ -23,6 +26,8 @@ export default class Message {
   replyToId?: ObjectId
   reactions: any[]
   deletedByUsers: ObjectId[]
+  isEdited?: boolean
+  isDeleted?: boolean
   callInfo?: any
   createdAt: Date
   updatedAt: Date
@@ -36,6 +41,8 @@ export default class Message {
     this.replyToId = message.replyToId
     this.reactions = message.reactions || []
     this.deletedByUsers = message.deletedByUsers || []
+    this.isEdited = message.isEdited || false
+    this.isDeleted = message.isDeleted || false
     this.callInfo = message.callInfo
     this.createdAt = message.createdAt || new Date()
     this.updatedAt = message.updatedAt || new Date()
