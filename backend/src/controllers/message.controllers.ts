@@ -48,11 +48,35 @@ export const editMessageController = async (req: any, res: any) => {
   })
 }
 
-export const recallMessageController = async (req: any, res: any) => {
+export const deleteMessageController = async (req: Request, res: Response) => {
   const { id } = req.params
-  const { user_id } = req.decoded_authorization
+  const { user_id } = req.decoded_authorization as TokenPayload
 
-  const result = await messageService.recallMessage(id, user_id)
+  const result = await messageService.deleteMessage(id as any, user_id)
+  
+  return res.json({
+    message: 'Xóa tin nhắn ở phía bạn thành công',
+    result
+  })
+}
+export const reactMessageController = async (req: Request, res: Response) => {
+  const { id } = req.params // ID của tin nhắn
+  const { emoji } = req.body // Emoji từ client gửi lên
+  const { user_id } = req.decoded_authorization as TokenPayload // ID người thả tim
+
+  const result = await messageService.reactMessage(id as any, user_id, emoji)
+  
+  return res.json({
+    message: 'Thả cảm xúc thành công',
+    result
+  })
+  
+} 
+export const revokeMessageController = async (req: Request, res: Response) => {
+  const { id } = req.params 
+  const { user_id } = req.decoded_authorization as TokenPayload 
+
+  const result = await messageService.revokeMessage(id as any, user_id)
   
   return res.json({
     message: 'Thu hồi tin nhắn thành công',

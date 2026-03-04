@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getMessagesController, sendMessageController ,editMessageController,recallMessageController} from '~/controllers/message.controllers'
+import { getMessagesController, sendMessageController ,editMessageController,reactMessageController, revokeMessageController, deleteMessageController} from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -36,13 +36,26 @@ messageRouter.patch(
  * Description: Thu hồi tin nhắn (Recall)
  * Path: /messages/:message_id
  */
-messageRouter.delete(
-  // '/:message_id', 
-  '/:id',
+// messageRouter.delete(
+//   // '/:message_id', 
+//   '/:id',
+//   accessTokenValidator, 
+//   wrapRequestHandler(recallMessageController) 
+// )
+// Route cho Reaction tin nhắn
+messageRouter.post(
+  '/:id/react', 
   accessTokenValidator, 
-  wrapRequestHandler(recallMessageController) 
+  wrapRequestHandler(reactMessageController)
 )
+// Route cho Thu hồi Reaction
+messageRouter.post('/:id/revoke', accessTokenValidator, wrapRequestHandler(revokeMessageController))
 
-
+// Route xóa tin nhắn phía tôi
+messageRouter.delete(
+  '/:id', 
+  accessTokenValidator, 
+  wrapRequestHandler(deleteMessageController)
+)
 export default messageRouter
     

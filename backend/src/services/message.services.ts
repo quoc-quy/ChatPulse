@@ -229,7 +229,8 @@ class MessageService {
 
     return populatedMessage
   }
-  // 5. Hàm Chỉnh sửa tin nhắn
+// ==========================================================
+  // 1. Hàm Chỉnh sửa tin nhắn
   async editMessage(messageId: string, userId: string, newContent: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       {
@@ -248,7 +249,7 @@ class MessageService {
     return result
   }
 
-  // 6. Hàm Thu hồi tin nhắn (Recall)
+  // 2. Hàm Thu hồi tin nhắn (Recall)
   async recallMessage(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       {
@@ -265,6 +266,64 @@ class MessageService {
     )
     return result
   }
+  async reactMessage(messageId: string, userId: string, emoji: string) {
+  // 3. Cập nhật emoji vào mảng reactions của tin nhắn
+  const result = await databaseService.messages.findOneAndUpdate(
+    { _id: new ObjectId(messageId) },
+    {
+      $addToSet: { 
+        reactions: { 
+          userId: new ObjectId(userId), 
+          emoji, 
+          createdAt: new Date() 
+        } 
+      }
+    },
+    { returnDocument: 'after' }
+  )
+  // Sau này sẽ gọi Socket ở đây: socket.emit('message_reacted', ...)
+  return result
+}
+// 4. Hàm Thu hồi Reaction
+async revokeMessage(messageId: string, userId: string) {
+  // Tìm đúng tin nhắn của người gửi và cập nhật
+  const result = await databaseService.messages.findOneAndUpdate(
+    { 
+      _id: new ObjectId(messageId), 
+      senderId: new ObjectId(userId) // Bảo mật: Chỉ chủ nhân mới được thu hồi
+    },
+    {
+      $set: { 
+        content: '', // Xóa trắng nội dung theo yêu cầu Jira
+        type: 'revoked', // Đổi type để giao diện Mobile biết tin đã bị thu hồi
+        updatedAt: new Date()
+      }
+    },
+    { returnDocument: 'after' }
+  )
+
+  // Nếu không tìm thấy hoặc không phải chủ tin nhắn, báo lỗi ngay
+  if (!result) {
+    throw new Error('403!')
+  }
+
+  return result
+}
+// 5 . Hàm Xóa tin nhắn (Soft Delete - chỉ ẩn với user đó)
+async deleteMessage(messageId: string, userId: string) {
+  const result = await databaseService.messages.findOneAndUpdate(
+    { _id: new ObjectId(messageId) },
+    {
+      // Thêm ID của mình vào danh sách những người đã xóa tin này
+      $addToSet: { 
+        deleted_by_users: new ObjectId(userId) 
+      }
+    },
+    { returnDocument: 'after' }
+  )
+  if (!result) throw new Error('Không tìm thấy tin nhắn')
+  return result
+}
 }
 
 const messageService = new MessageService()
