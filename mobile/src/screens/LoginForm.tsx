@@ -13,14 +13,10 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from "react-native";
-import { Input } from "../components/ui/Input"; //
-import { SocialButtons } from "../components/auth/SocialButtons"; //
-import axios from "axios";
+import { Input } from "../components/ui/Input";
+import { SocialButtons } from "../components/auth/SocialButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
-
-// Cấu hình URL API (đảm bảo đúng IP máy tính của bạn)
-const API_URL = "http://192.168.1.21:4000";
 
 export function LoginForm({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -34,7 +30,6 @@ export function LoginForm({ navigation }: any) {
     }
     setLoading(true);
     try {
-      // Sử dụng instance 'api' thay vì axios.post(API_URL...) để tận dụng cấu hình baseURL
       const response = await api.post("/users/login", {
         email: email.trim(),
         password: password,
@@ -42,95 +37,97 @@ export function LoginForm({ navigation }: any) {
 
       if (response.data.result) {
         const { access_token, refresh_token } = response.data.result;
-        // Phải dùng đúng key "access_token"
         await AsyncStorage.setItem("access_token", access_token);
         await AsyncStorage.setItem("refresh_token", refresh_token);
         navigation.replace("Main");
       }
     } catch (error: any) {
-      // Log lỗi chi tiết từ server để biết vì sao bị 422
       console.log("Lỗi chi tiết:", error.response?.data);
       Alert.alert("Lỗi", error.response?.data?.message || "Đăng nhập thất bại");
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableWithoutFeedback>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+      {/* FIX 1: Thêm Keyboard.dismiss và đảm bảo chỉ có 1 con trực tiếp là View */}
+      <TouchableWithoutFeedback accessible={false}>
+        <View style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
           >
-            <View style={styles.card}>
-              <View style={styles.header}>
-                <Text style={styles.title}>Welcome back</Text>
-                <Text style={styles.subtitle}>
-                  Login to your ChatPulse account
-                </Text>
-              </View>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.card}>
+                <View style={styles.header}>
+                  <Text style={styles.title}>Welcome back</Text>
+                  <Text style={styles.subtitle}>
+                    Login to your ChatPulse account
+                  </Text>
+                </View>
 
-              <Input
-                label="Email"
-                placeholder="m@example.com"
-                value={email} // Gán giá trị từ state
-                onChangeText={(text) => setEmail(text)} // Cập nhật state khi gõ
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+                <Input
+                  label="Email"
+                  placeholder="m@example.com"
+                  value={email}
+                  onChangeText={(text) => setEmail(text)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
 
-              <View style={styles.passwordSection}>
-                <View style={styles.rowBetween}>
-                  {/* Xóa dòng <Text style={styles.labelSmall}>Password</Text> ở đây */}
-                  <View />{" "}
-                  {/* Dùng View trống để đẩy nút Forgot password sang bên phải */}
-                  <TouchableOpacity>
-                    <Text style={styles.link}>Forgot password?</Text>
+                <View style={styles.passwordSection}>
+                  <View style={styles.rowBetween}>
+                    {/* FIX 2: Xóa bỏ các khoảng trắng/View thừa gây lỗi Text Node */}
+                    <View />
+                    <TouchableOpacity>
+                      <Text style={styles.link}>Forgot password?</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Input
+                    label="Password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChangeText={(text) => setPassword(text)}
+                    isPassword={true}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnText}>Login</Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.separatorContainer}>
+                  <View style={styles.line} />
+                  <Text style={styles.sepText}>Or continue with</Text>
+                  <View style={styles.line} />
+                </View>
+
+                <SocialButtons />
+
+                <View style={styles.footer}>
+                  <Text style={styles.footerGray}>Don't have an account? </Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("SignUp")}
+                  >
+                    <Text style={styles.boldLink}>Sign up</Text>
                   </TouchableOpacity>
                 </View>
-                <Input
-                  label="Password"
-                  placeholder="••••••••"
-                  value={password} // Gán giá trị từ state
-                  onChangeText={(text) => setPassword(text)} // Cập nhật state khi gõ
-                  isPassword={true}
-                />
               </View>
-
-              {/* Nút Login đã được gắn hàm xử lý */}
-              <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.btnText}>Login</Text>
-                )}
-              </TouchableOpacity>
-
-              <View style={styles.separatorContainer}>
-                <View style={styles.line} />
-                <Text style={styles.sepText}>Or continue with</Text>
-                <View style={styles.line} />
-              </View>
-
-              <SocialButtons />
-
-              <View style={styles.footer}>
-                <Text style={styles.footerGray}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
-                  <Text style={styles.boldLink}>Sign up</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
@@ -166,7 +163,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   link: { fontSize: 12, textDecorationLine: "underline", color: "#09090b" },
-  labelSmall: { fontSize: 14, fontWeight: "500", color: "#09090b" },
   separatorContainer: {
     flexDirection: "row",
     alignItems: "center",
