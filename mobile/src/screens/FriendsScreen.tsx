@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
 import { friendApi } from "../apis/friends.api";
+import { useNavigation } from "@react-navigation/native";
 
 interface Friend {
   _id: string;
@@ -66,12 +67,18 @@ export default function FriendsScreen({ navigation }: any) {
 
   const handleLogout = async () => {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem("access_token"),
-        AsyncStorage.removeItem("refresh_token"),
-      ]);
-    } catch (e) {
-      console.log("Logout error", e);
+      // 1. Xóa token và các thông tin liên quan trong máy
+      await AsyncStorage.removeItem("access_token");
+      // Nếu bạn có lưu user_info hay refresh_token thì xóa luôn ở đây
+      // await AsyncStorage.clear(); // Hoặc xóa sạch toàn bộ nếu muốn
+
+      console.log("Logged out successfully");
+
+      // 2. Điều hướng về trang Login
+      // Sử dụng .replace để ghi đè stack, không cho quay lại Main
+      navigation.replace("Login");
+    } catch (error) {
+      console.error("Lỗi khi đăng xuất:", error);
     }
   };
   // 3. Xử lý Chấp nhận/Từ chối lời mời
@@ -116,7 +123,7 @@ export default function FriendsScreen({ navigation }: any) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Contacts</Text>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout 🚪</Text>
+          <Text>Logout</Text>
         </TouchableOpacity>
       </View>
 
