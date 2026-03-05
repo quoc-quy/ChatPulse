@@ -1,9 +1,11 @@
+// frontend-demo/src/components/chat/ChatBody.tsx
 import { useEffect, useState, useRef, useCallback, useContext, useLayoutEffect } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
+import { MessageItem } from './MessageItem'
+import { formatZaloMessageTime, shouldShowTimeDivider } from '@/utils/time'
 
 interface ChatBodyProps {
   convId: string
@@ -18,7 +20,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
   const [hasMore, setHasMore] = useState(true)
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
 
-  // THÊM MỚI: Cờ báo hiệu đang tải tin nhắn cũ & cờ lần đầu load
   const [isFetchingOlder, setIsFetchingOlder] = useState(false)
   const isInitialLoad = useRef(true)
 
@@ -35,7 +36,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
       try {
         setIsLoading(true)
 
-        // THÊM MỚI: Lưu lại chiều cao hiện tại trước khi gọi API để tính bù trừ
         if (!isInitial && containerRef.current) {
           setIsFetchingOlder(true)
           previousScrollHeightRef.current = containerRef.current.scrollHeight
@@ -47,7 +47,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
           limit: 20
         })
 
-        // Xử lý lấy data an toàn từ Axios
         const resData = (response as any).data?.result || (response as any).result || (response as any).data || []
         const newMessages: Message[] = Array.isArray(resData) ? resData : []
 
@@ -79,20 +78,17 @@ export function ChatBody({ convId }: ChatBodyProps) {
       setMessages([])
       setNextCursor(undefined)
       setHasMore(true)
-      isInitialLoad.current = true // Reset cờ lần đầu khi chuyển hội thoại
+      isInitialLoad.current = true
       fetchMessages(true)
     }
   }, [convId])
 
-  // THÊM MỚI: Xử lý giữ vị trí cuộn mượt mà
   useLayoutEffect(() => {
     if (containerRef.current) {
       if (isInitialLoad.current && messages.length > 0) {
-        // Lần đầu load -> tự động cuộn xuống đáy ngay lập tức
         containerRef.current.scrollTop = containerRef.current.scrollHeight
         isInitialLoad.current = false
       } else if (isFetchingOlder) {
-        // Khi load thêm tin nhắn cũ -> Tính chiều cao mới trừ chiều cao cũ để giữ nguyên khung nhìn
         const newScrollHeight = containerRef.current.scrollHeight
         containerRef.current.scrollTop = newScrollHeight - previousScrollHeightRef.current
         setIsFetchingOlder(false)
@@ -100,11 +96,9 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }, [messages, isFetchingOlder])
 
-  // --- Socket Connection ---
   useEffect(() => {
     if (!currentUserId || !convId) return
 
-    // Chú ý: Đổi lại port 4000 cho khớp với toàn dự án
     const socket = io('http://localhost:4001', {
       auth: {
         user_id: currentUserId
@@ -117,7 +111,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
       if (newMessage.conversationId === convId) {
         setMessages((prevMessages) => [...prevMessages, newMessage])
 
-        // Auto-scroll to bottom khi có tin mới
         setTimeout(() => {
           if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight
@@ -132,62 +125,80 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }, [currentUserId, convId])
 
-  // THÊM MỚI: Hàm xử lý khi người dùng lăn chuột
   const handleScroll = () => {
     if (containerRef.current) {
-      // Bắt sự kiện người dùng cuộn kịch trần (khoảng cách < 5px cho mượt)
       if (containerRef.current.scrollTop <= 5 && !isLoading && hasMore) {
         fetchMessages(false)
       }
     }
   }
 
-  const getInitials = (name?: string) => {
-    if (!name || name.trim() === '') return 'U'
-    return name.trim().charAt(0).toUpperCase()
-  }
-
   return (
-    <div className='flex-1 overflow-y-auto bg-muted/20 p-4' ref={containerRef} onScroll={handleScroll}>
-      <div className='flex flex-col gap-4'>
-        {/* Loader khi scroll lên */}
+    <div className='flex-1 overflow-y-auto bg-muted/10 p-4 scroll-smooth' ref={containerRef} onScroll={handleScroll}>
+      <div className='flex flex-col'>
         {isLoading && hasMore && (
-          <div className='text-center text-xs text-muted-foreground py-2'>Đang tải tin nhắn cũ...</div>
+          <div className='flex justify-center py-4'>
+            <span className='px-4 py-1 bg-muted rounded-full text-[12px] text-muted-foreground animate-pulse'>
+              Đang tải tin nhắn cũ...
+            </span>
+          </div>
         )}
 
-        {messages.map((msg) => {
+        {messages.map((msg, index) => {
           const isMe = msg.sender?._id === currentUserId
           const senderName = msg.sender?.userName || 'User'
 
-          const time = new Date(msg.createdAt).toLocaleTimeString([], {
+          const displayTime = new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit'
           })
 
-          return (
-            <div key={msg._id} className={`flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-              {!isMe && (
-                <Avatar className='h-8 w-8 shrink-0 mt-1'>
-                  <AvatarImage src={msg.sender?.avatar} alt={senderName} />
-                  <AvatarFallback className='text-xs font-semibold bg-blue-100 text-blue-600'>
-                    {getInitials(senderName)}
-                  </AvatarFallback>
-                </Avatar>
-              )}
+          const previousMsg = index > 0 ? messages[index - 1] : undefined
+          const nextMsg = index < messages.length - 1 ? messages[index + 1] : undefined
 
-              <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                <div
-                  className={`px-4 py-2 rounded-2xl ${
-                    isMe
-                      ? 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm'
-                      : 'bg-background border border-border text-foreground rounded-tl-sm'
-                  }`}
-                >
-                  <p className='text-sm leading-relaxed'>{msg.content}</p>
-                </div>
-                <span className='text-[11px] text-muted-foreground mt-1 px-1'>{time}</span>
-              </div>
-            </div>
+          const showTimeDivider = shouldShowTimeDivider(msg.createdAt, previousMsg?.createdAt)
+          const dividerTimeStr = showTimeDivider ? formatZaloMessageTime(msg.createdAt) : ''
+
+          // 1. Tính toán xem có phải tin nhắn ĐẦU TIÊN của một nhóm không (để hiện Avatar)
+          let isFirstInGroup = true
+          if (previousMsg && !showTimeDivider) {
+            const isSameSender = previousMsg.sender?._id === msg.sender?._id
+            const diffInMinutes =
+              (new Date(msg.createdAt).getTime() - new Date(previousMsg.createdAt).getTime()) / (1000 * 60)
+
+            if (isSameSender && diffInMinutes < 5) {
+              isFirstInGroup = false // Thuộc cùng nhóm và gửi liên tiếp -> Ẩn Avatar đi
+            }
+          }
+
+          // 2. Tính toán xem có phải tin nhắn CUỐI CÙNG của một nhóm không (để hiện Thời Gian)
+          let isLastInGroup = true
+          if (nextMsg) {
+            // Xem tin tiếp theo có bị ngăn cách bởi mốc thời gian không
+            const nextMsgShowDivider = shouldShowTimeDivider(nextMsg.createdAt, msg.createdAt)
+            if (!nextMsgShowDivider) {
+              const isSameSender = nextMsg.sender?._id === msg.sender?._id
+              const diffInMinutes =
+                (new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime()) / (1000 * 60)
+
+              if (isSameSender && diffInMinutes < 5) {
+                isLastInGroup = false // Có tin nhắn mới hơn phía dưới -> Ẩn thời gian đi
+              }
+            }
+          }
+
+          return (
+            <MessageItem
+              key={msg._id}
+              message={msg}
+              isMe={isMe}
+              senderName={senderName}
+              displayTime={displayTime}
+              showTimeDivider={showTimeDivider}
+              dividerTimeStr={dividerTimeStr}
+              isFirstInGroup={isFirstInGroup} // Truyền cờ nhóm xuống Component
+              isLastInGroup={isLastInGroup}
+            />
           )
         })}
       </div>
