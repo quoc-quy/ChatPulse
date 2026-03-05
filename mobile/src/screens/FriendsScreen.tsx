@@ -10,17 +10,20 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FriendItem } from "../components/friends/FriendItem";
-import { api } from "../apis/api"; //
+import { api } from "../apis/api";
+import { friendApi } from "../apis/friends.api";
 
 interface Friend {
   _id: string;
-  username: string;
-  email?: string;
+  userName: string; // Khớp với field từ Backend
+  fullName?: string;
+  avatar?: string;
   [key: string]: any;
 }
 
-export default function FriendsScreen() {
+export default function FriendsScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<Friend[]>([]);
@@ -35,56 +38,72 @@ export default function FriendsScreen() {
         api.get("/friends/list"),
         api.get("/friends/requests/received"),
       ]);
-
-      // Giả định backend trả về object có field 'result' chứa mảng
       setFriends(friendsRes.data.result || []);
       setRequests(requestsRes.data.result || []);
-    } catch (error) {
-      console.error("Lỗi khi tải dữ liệu:", error);
-      Alert.alert("Lỗi", "Không thể kết nối đến máy chủ.");
+    } catch (error: any) {
+      const serverError = error.response?.data;
+      console.log("Lỗi chi tiết từ Server:", serverError);
+
+      // Kiểm tra nếu thông báo lỗi là 'jwt expired'
+      const isExpired =
+        serverError?.errors?.authorization?.msg === "jwt expired";
+
+      if (error.response?.status === 422 && isExpired) {
+        Alert.alert("Phiên đăng nhập hết hạn", "Vui lòng đăng nhập lại.");
+        await AsyncStorage.removeItem("access_token"); // Xóa token cũ
+        navigation.replace("Login"); // Quay lại trang Login
+      }
     } finally {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchData();
   }, []);
 
-  // 2. Xử lý Chấp nhận/Từ chối lời mời
+  // 2. Xử lý Đăng xuất
+  // src/screens/FriendsScreen.tsx
+
+  const handleLogout = async () => {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem("access_token"),
+        AsyncStorage.removeItem("refresh_token"),
+      ]);
+    } catch (e) {
+      console.log("Logout error", e);
+    }
+  };
+  // 3. Xử lý Chấp nhận/Từ chối lời mời
   const handleAction = useCallback(
     async (id: string, action: "accept" | "decline") => {
-      // Optimistic UI: Xóa khỏi danh sách ngay lập tức để tạo cảm giác mượt mà
+      // Optimistic UI: Xóa khỏi danh sách ngay lập tức
       setRequests((prev) => prev.filter((item) => item._id !== id));
 
       try {
         await api.post(`/friends/${action}`, { friendId: id });
-
         if (action === "accept") {
-          // Nếu chấp nhận, tải lại danh sách bạn bè để cập nhật tab kia
-          const res = await api.get("/friends/list");
-          setFriends(res.data.result || []);
+          fetchData(); // Tải lại để cập nhật danh sách bạn bè mới
         }
       } catch (error) {
         Alert.alert("Thông báo", "Thao tác thất bại. Vui lòng thử lại.");
-        fetchData(); // Tải lại dữ liệu gốc nếu có lỗi
+        fetchData(); // Rollback dữ liệu nếu lỗi
       }
     },
-    [requests],
+    [],
   );
 
-  // 3. Lọc danh sách theo ô tìm kiếm
+  // 4. Lọc danh sách an toàn (tránh lỗi toLowerCase trên undefined)
   const filteredData = (activeTab === "friends" ? friends : requests).filter(
     (item) => {
-      // Sử dụng userName theo backend trả về
-      const displayName = item?.userName || item?.fullName || "Người dùng";
-      return displayName.toLowerCase().includes(searchText.toLowerCase()); //
+      const name = item?.userName || item?.fullName || "Người dùng";
+      return name.toLowerCase().includes(searchText.toLowerCase());
     },
   );
 
   const renderItem = ({ item }: { item: Friend }) => (
     <FriendItem
-      item={item._id}
+      item={item}
       type={activeTab === "friends" ? "friend" : "request"}
       onAccept={(id) => handleAction(id, "accept")}
       onDecline={(id) => handleAction(id, "decline")}
@@ -93,11 +112,11 @@ export default function FriendsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header section */}
+      {/* Header section tích hợp Logout */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Contacts</Text>
-        <TouchableOpacity style={styles.iconButton}>
-          <Text style={{ fontSize: 20 }}>🔍</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Logout 🚪</Text>
         </TouchableOpacity>
       </View>
 
@@ -107,7 +126,7 @@ export default function FriendsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search contacts..."
+            placeholder="Tìm kiếm..."
             placeholderTextColor="#a1a1aa"
             value={searchText}
             onChangeText={setSearchText}
@@ -127,7 +146,7 @@ export default function FriendsScreen() {
               activeTab === "friends" && styles.activeTabText,
             ]}
           >
-            Bạn bè
+            Bạn bè ({friends.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -171,7 +190,7 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f4f5" }, // Đồng bộ màu nền dự án
+  container: { flex: 1, backgroundColor: "#f4f4f5" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -181,7 +200,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   headerTitle: { fontSize: 28, fontWeight: "bold", color: "#09090b" },
-  iconButton: { padding: 5 },
+  logoutButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#fee2e2",
+    borderRadius: 8,
+  },
+  logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 14 },
   searchContainer: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -214,7 +239,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#ef4444", // Màu đỏ lỗi đồng bộ
+    backgroundColor: "#ef4444",
     marginLeft: 4,
   },
   row: { flexDirection: "row", alignItems: "center" },
