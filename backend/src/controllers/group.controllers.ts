@@ -2,13 +2,20 @@ import { Request, Response } from 'express'
 import { groupService } from '~/services/group.services'
 import httpStatus from '~/constants/httpStatus'
 
+
 // Thêm thành viên
 export const addMembersController = async (req: Request, res: Response) => {
-  const id = req.params.id as string // Ép kiểu ở đây
-  const { member_ids } = req.body as { member_ids: string[] } // Ép kiểu cho mảng luôn
-  
-  await groupService.addMembers(id, member_ids)
-  return res.status(httpStatus.OK).json({ message: 'Thêm thành viên thành công' })
+  const id = req.params.id as string
+  const { member_ids } = req.body as { member_ids: string[] }
+
+  // 1. Hứng kết quả trả về từ service
+  const updatedGroup = await groupService.addMembers(id, member_ids)
+
+  // 2. Trả kèm updatedGroup (hoặc bạn có thể đặt tên key là data/result tùy ý)
+  return res.status(httpStatus.OK).json({
+    message: 'Thêm thành viên thành công',
+    result: updatedGroup
+  })
 }
 
 // Rời nhóm
@@ -16,26 +23,42 @@ export const leaveGroupController = async (req: Request, res: Response) => {
   const id = req.params.id as string
   const userId = req.decoded_authorization?.user_id as string
 
-  await groupService.leaveGroup(id, userId)
-  return res.status(httpStatus.OK).json({ message: 'Rời nhóm thành công' })
+  // Hứng data trả về
+  const updatedGroup = await groupService.leaveGroup(id, userId)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Rời nhóm thành công',
+    result: updatedGroup // Trả data ra Postman
+  })
 }
 
 // Xóa thành viên (Kick)
 export const kickMemberController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  const { member_id } = req.body as { member_id: string }
+  // Lấy memberId từ URL (params) thay vì req.body để khớp với file Route
+  const memberId = req.params.memberId as string
 
-  await groupService.kickMember(id, member_id)
-  return res.status(httpStatus.OK).json({ message: 'Xóa thành viên thành công' })
+  // Hứng data trả về từ service
+  const updatedGroup = await groupService.kickMember(id, memberId)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Xóa thành viên thành công',
+    result: updatedGroup // Trả về data để check luôn trên Postman
+  })
 }
 
 // Thăng cấp Admin
 export const promoteAdminController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  const { user_id } = req.body as { user_id: string }
+  const memberId = req.params.memberId as string
 
-  await groupService.promoteToAdmin(id, user_id)
-  return res.status(httpStatus.OK).json({ message: 'Thăng cấp Admin thành công' })
+  // Chỉ cần truyền id nhóm và id người được lên admin
+  const updatedGroup = await groupService.promoteToAdmin(id, memberId)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Chuyển giao quyền Admin thành công',
+    result: updatedGroup
+  })
 }
 
 // Ghim hội thoại
@@ -44,10 +67,15 @@ export const pinController = async (req: Request, res: Response) => {
   const { is_pin } = req.body as { is_pin: boolean }
   const userId = req.decoded_authorization?.user_id as string
 
-  await groupService.togglePin(userId, id, is_pin)
+  // Hứng kết quả từ service
+  const updatedGroup = await groupService.togglePin(userId, id, is_pin)
+
   return res
     .status(httpStatus.OK)
-    .json({ message: is_pin ? 'Ghim thành công' : 'Bỏ ghim thành công' })
+    .json({
+      message: is_pin ? 'Ghim thành công' : 'Bỏ ghim thành công',
+      result: updatedGroup // Trả thêm data nếu Frontend cần
+    })
 }
 
 // Đánh dấu đã xem
