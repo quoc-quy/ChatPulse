@@ -105,7 +105,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
     if (!currentUserId || !convId) return
 
     // Chú ý: Đổi lại port 4000 cho khớp với toàn dự án
-    const socket = io('http://localhost:4000', {
+    const socket = io('http://localhost:4001', {
       auth: {
         user_id: currentUserId
       }
