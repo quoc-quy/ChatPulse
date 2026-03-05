@@ -15,7 +15,7 @@ import { api } from "../apis/api"; //
 
 interface Friend {
   _id: string;
-  fullName: string;
+  username: string;
   email?: string;
   [key: string]: any;
 }
@@ -33,7 +33,7 @@ export default function FriendsScreen() {
     try {
       const [friendsRes, requestsRes] = await Promise.all([
         api.get("/friends/list"),
-        api.get("/friends/requests"),
+        api.get("/friends/requests/received"),
       ]);
 
       // Giả định backend trả về object có field 'result' chứa mảng
@@ -75,12 +75,16 @@ export default function FriendsScreen() {
 
   // 3. Lọc danh sách theo ô tìm kiếm
   const filteredData = (activeTab === "friends" ? friends : requests).filter(
-    (item) => item.fullName.toLowerCase().includes(searchText.toLowerCase()),
+    (item) => {
+      // Sử dụng userName theo backend trả về
+      const displayName = item?.userName || item?.fullName || "Người dùng";
+      return displayName.toLowerCase().includes(searchText.toLowerCase()); //
+    },
   );
 
   const renderItem = ({ item }: { item: Friend }) => (
     <FriendItem
-      item={item}
+      item={item._id}
       type={activeTab === "friends" ? "friend" : "request"}
       onAccept={(id) => handleAction(id, "accept")}
       onDecline={(id) => handleAction(id, "decline")}
