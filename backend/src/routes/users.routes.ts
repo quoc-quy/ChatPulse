@@ -64,21 +64,5 @@ usersRouter.delete('/unblock/:user_id', accessTokenValidator, wrapRequestHandler
  * Get user profile
  */
 usersRouter.get('/:userName', wrapRequestHandler(getProfileController))
-/**
- * Register
- * Body: {name, email, password, confirm_password, ...}
- */
-usersRouter.post('/register', registerValidator, wrapRequestHandler(registerController))
 
-/**
- * Login
- * Body: {email, password}
- */
-usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
-
-/**
- * Logout
- * Body: {refresh_token}
- */
-usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
 export default usersRouter
