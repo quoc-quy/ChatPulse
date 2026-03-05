@@ -17,18 +17,37 @@ import { Input } from "../components/ui/Input";
 import { SocialButtons } from "../components/auth/SocialButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
+// Import các hàm validate từ utils
+import { validateEmail, validatePassword } from "../utils/validations";
 
 export function LoginForm({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // State quản lý lỗi cho từng trường nhập liệu
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Lỗi nhập liệu", "Email và mật khẩu không được để trống");
+    // 1. Chạy Validation
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+
+    // 2. Nếu có lỗi, cập nhật state errors và dừng xử lý
+    if (emailError || passwordError) {
+      setErrors({
+        email: emailError || undefined,
+        password: passwordError || undefined,
+      });
       return;
     }
+
+    // 3. Xóa các lỗi cũ và bắt đầu gọi API
+    setErrors({});
     setLoading(true);
+
     try {
       const response = await api.post("/users/login", {
         email: email.trim(),
@@ -43,7 +62,10 @@ export function LoginForm({ navigation }: any) {
       }
     } catch (error: any) {
       console.log("Lỗi chi tiết:", error.response?.data);
-      Alert.alert("Lỗi", error.response?.data?.message || "Đăng nhập thất bại");
+      Alert.alert(
+        "Đăng nhập thất bại",
+        error.response?.data?.message || "Email hoặc mật khẩu không chính xác.",
+      );
     } finally {
       setLoading(false);
     }
@@ -51,7 +73,6 @@ export function LoginForm({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* FIX 1: Thêm Keyboard.dismiss và đảm bảo chỉ có 1 con trực tiếp là View */}
       <TouchableWithoutFeedback accessible={false}>
         <View style={{ flex: 1 }}>
           <KeyboardAvoidingView
@@ -70,34 +91,46 @@ export function LoginForm({ navigation }: any) {
                   </Text>
                 </View>
 
+                {/* Ô nhập Email */}
                 <Input
                   label="Email"
                   placeholder="m@example.com"
                   value={email}
-                  onChangeText={(text) => setEmail(text)}
+                  error={errors.email} // Hiển thị lỗi dưới ô input
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errors.email)
+                      setErrors({ ...errors, email: undefined });
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
 
                 <View style={styles.passwordSection}>
                   <View style={styles.rowBetween}>
-                    {/* FIX 2: Xóa bỏ các khoảng trắng/View thừa gây lỗi Text Node */}
                     <View />
                     <TouchableOpacity>
                       <Text style={styles.link}>Forgot password?</Text>
                     </TouchableOpacity>
                   </View>
+
+                  {/* Ô nhập Password */}
                   <Input
                     label="Password"
                     placeholder="••••••••"
                     value={password}
-                    onChangeText={(text) => setPassword(text)}
+                    error={errors.password} // Hiển thị lỗi dưới ô input
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (errors.password)
+                        setErrors({ ...errors, password: undefined });
+                    }}
                     isPassword={true}
                   />
                 </View>
 
                 <TouchableOpacity
-                  style={styles.btnPrimary}
+                  style={[styles.btnPrimary, loading && { opacity: 0.7 }]}
                   onPress={handleLogin}
                   disabled={loading}
                 >
