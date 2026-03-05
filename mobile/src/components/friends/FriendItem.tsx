@@ -14,7 +14,7 @@ export const FriendItem = React.memo(
       <View style={styles.container}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>
-            {item.fullName?.charAt(0) || "U"}
+            {(item.userName || item.fullName || "U").charAt(0)}
           </Text>
         </View>
 

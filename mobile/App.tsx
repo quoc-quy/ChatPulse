@@ -72,7 +72,7 @@ export default function App() {
           <Stack.Screen name="SignUp" component={SignUpForm} />
 
           {/* Main map với FriendsScreen là đúng logic bạn đang làm */}
-          <Stack.Screen name="Main" component={FriendsScreen} />
+          <Stack.Screen name="Friends" component={FriendsScreen} />
 
           <Stack.Screen name="Chat" component={ChatScreen} />
         </Stack.Navigator>
