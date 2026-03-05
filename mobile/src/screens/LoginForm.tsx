@@ -42,9 +42,10 @@ export function LoginForm({ navigation }: any) {
 
       if (response.data.result) {
         const { access_token, refresh_token } = response.data.result;
+        // Phải dùng đúng key "access_token"
         await AsyncStorage.setItem("access_token", access_token);
         await AsyncStorage.setItem("refresh_token", refresh_token);
-        navigation.replace("Main");
+        navigation.replace("Friends");
       }
     } catch (error: any) {
       // Log lỗi chi tiết từ server để biết vì sao bị 422
