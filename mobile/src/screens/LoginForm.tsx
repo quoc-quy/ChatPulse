@@ -17,9 +17,10 @@ import { Input } from "../components/ui/Input"; //
 import { SocialButtons } from "../components/auth/SocialButtons"; //
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "../apis/api";
 
 // Cấu hình URL API (đảm bảo đúng IP máy tính của bạn)
-const API_URL = "http://192.168.1.17:4000";
+const API_URL = "http://192.168.1.21:4000";
 
 export function LoginForm({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -27,57 +28,28 @@ export function LoginForm({ navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    console.log("Nút Login đã được bấm!"); // 1. Kiểm tra xem nút có ăn không
-    console.log("Email:", email, "Pass:", password); // 2. Kiểm tra xem đã nhận text chưa
-
-    // Validate
     if (!email || !password) {
       Alert.alert("Lỗi nhập liệu", "Email và mật khẩu không được để trống");
       return;
     }
-
     setLoading(true);
     try {
-      console.log(`Đang kết nối tới: ${API_URL}/users/login`); // 3. Kiểm tra IP
-
-      const response = await axios.post(`${API_URL}/users/login`, {
+      // Sử dụng instance 'api' thay vì axios.post(API_URL...) để tận dụng cấu hình baseURL
+      const response = await api.post("/users/login", {
         email: email.trim(),
         password: password,
       });
 
-      console.log("Phản hồi từ server:", response.data);
-
-      // Kiểm tra cấu trúc trả về chính xác từ Backend của bạn
-      // Backend ChatPulse thường trả về: { result: { access_token: "..." } }
-      const result = response.data.result || response.data;
-      const token = result.access_token || result.token;
-
-      if (token) {
-        await AsyncStorage.setItem("access_token", token);
-        await AsyncStorage.setItem("refresh_token", result.refresh_token || "");
-
-        // Chuyển màn hình
-        Alert.alert("Thành công", "Đăng nhập thành công!", [
-          { text: "OK", onPress: () => navigation.replace("Main") },
-        ]);
-      } else {
-        Alert.alert("Lỗi Token", "Server không trả về access_token.");
+      if (response.data.result) {
+        const { access_token, refresh_token } = response.data.result;
+        await AsyncStorage.setItem("access_token", access_token);
+        await AsyncStorage.setItem("refresh_token", refresh_token);
+        navigation.replace("Main");
       }
     } catch (error: any) {
-      console.error("Lỗi chi tiết:", error);
-
-      // Hiển thị lỗi chi tiết để biết sai ở đâu
-      const message =
-        error.response?.data?.message || error.message || "Lỗi không xác định";
-
-      if (error.message.includes("Network Error")) {
-        Alert.alert(
-          "Lỗi Mạng",
-          "Không thể kết nối Server. Vui lòng kiểm tra:\n1. Backend đã chạy chưa?\n2. IP trong code có đúng IP máy tính không?",
-        );
-      } else {
-        Alert.alert("Đăng nhập thất bại", message);
-      }
+      // Log lỗi chi tiết từ server để biết vì sao bị 422
+      console.log("Lỗi chi tiết:", error.response?.data);
+      Alert.alert("Lỗi", error.response?.data?.message || "Đăng nhập thất bại");
     } finally {
       setLoading(false);
     }
