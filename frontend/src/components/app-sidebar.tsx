@@ -323,8 +323,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </Sidebar>
 
       {/* PANEL 2: Danh sách nội dung */}
-      <Sidebar collapsible='none' className='hidden flex-1 md:flex overflow-hidden'>
-        <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4'>
+      <Sidebar collapsible='none' className='hidden flex-1 md:flex overflow-hidden '>
+        <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4 shadow-sm'>
           <div className='flex w-full items-center justify-between'>
             <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
             <button className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 transition-colors'>
