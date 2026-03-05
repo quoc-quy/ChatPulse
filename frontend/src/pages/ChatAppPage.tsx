@@ -4,10 +4,8 @@ import { ChatWelcomeScreen } from '@/components/chat/ChatWelcomScreen'
 import { ChatArea } from '@/components/chat/ChatArea'
 
 export default function ChatAppPage() {
-  // Lấy trạng thái chat đang chọn từ Global Context
   const { activeChat } = useContext(AppContext)
 
-  // Nếu chưa chọn ai -> Hiện màn hình chào mừng
   if (!activeChat) {
     return (
       <div className='flex h-screen w-full flex-col'>
@@ -16,6 +14,5 @@ export default function ChatAppPage() {
     )
   }
 
-  // Nếu đã chọn chat -> Hiện giao diện nhắn tin
   return <ChatArea chat={activeChat} />
 }

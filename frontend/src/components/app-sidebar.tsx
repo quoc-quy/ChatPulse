@@ -1,3 +1,4 @@
+// frontend-demo/src/components/app-sidebar.tsx
 import * as React from 'react'
 import { useEffect, useState, useContext, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
@@ -35,7 +36,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const [chatList, setChatList] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [refetchTrigger, setRefetchTrigger] = useState(0) // Trigger để refetch khi có chat mới tinh
+  const [refetchTrigger, setRefetchTrigger] = useState(0)
   const socketRef = useRef<Socket | null>(null)
 
   const activeChatRef = useRef(activeChat)
@@ -50,7 +51,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN ---
-  // Đã thêm refetchTrigger vào dependency để tự động gọi lại API khi cần
   useEffect(() => {
     if (activeItem.title === 'Tin nhắn' && profile) {
       const fetchChats = async () => {
@@ -144,7 +144,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       fetchChats()
     }
-  }, [activeItem.title, profile, refetchTrigger]) // Lắng nghe refetchTrigger
+  }, [activeItem.title, profile, refetchTrigger])
 
   // --- 2. LẮNG NGHE SOCKET REALTIME TỐI ƯU HÓA ---
   useEffect(() => {
@@ -155,7 +155,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })
     socketRef.current = socket
 
-    // A. NHẬN TIN NHẮN MỚI
     socket.on('receive_message', (newMessage: any) => {
       setChatList((prevChats) => {
         const convIdStr = String(newMessage.conversationId)
@@ -183,25 +182,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           chatToUpdate.time = newTime
           chatToUpdate.timestamp = newTimestamp
 
-          // KIỂM TRA ĐIỀU KIỆN UNREAD BADGE CHUẨN XÁC
           const isCurrentlyViewing = String(activeChatRef.current?.id) === convIdStr
 
           if (!isMe) {
             if (isCurrentlyViewing) {
-              // Nếu đang mở chat này -> Tự động đánh dấu đã đọc lên server ngay lập tức để F5 không bị lỗi
               conversationsApi.markAsSeen(convIdStr).catch((err) => console.error(err))
             } else {
-              // Nếu KHÔNG mở chat này -> Tăng số đếm
               chatToUpdate.unreadCount = (chatToUpdate.unreadCount || 0) + 1
             }
           }
 
-          // Cập nhật mảng
           updatedChats.splice(existingChatIndex, 1)
           updatedChats.unshift(chatToUpdate)
           return updatedChats
         } else {
-          // BẮT TRƯỜNG HỢP: Tin nhắn từ 1 nhóm/người hoàn toàn mới chưa có trong list hiện tại
           setRefetchTrigger((prev) => prev + 1)
           return prevChats
         }
@@ -212,11 +206,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     socket.on('user_status_change', (data: { userId: string; isOnline: boolean; lastActiveAt?: string }) => {
       setChatList((prevChats) =>
         prevChats.map((chat) => {
-          if (chat.type === 'direct') {
-            // FIX LỖI 1: Bọc String() để so sánh chính xác tuyệt đối
-            const hasUser = chat.participants?.some((p: any) => String(p._id) === String(data.userId))
-            if (hasUser) {
-              return { ...chat, isOnline: data.isOnline, lastActiveAt: data.lastActiveAt || chat.lastActiveAt }
+          // Kiểm tra xem User có thay đổi trạng thái có mặt trong chat này không (cả nhóm lẫn 1-1)
+          const hasUser = chat.participants?.some((p: any) => String(p._id) === String(data.userId))
+
+          if (hasUser) {
+            // Cập nhật sâu bên trong mảng participants
+            const updatedParticipants = chat.participants.map((p: any) =>
+              String(p._id) === String(data.userId)
+                ? { ...p, isOnline: data.isOnline, last_active_at: data.lastActiveAt || p.last_active_at }
+                : p
+            )
+
+            // Cập nhật isOnline của nguyên khối Chat nếu đây là chat 1-1
+            let updatedIsOnline = chat.isOnline
+            if (chat.type === 'direct') {
+              const otherUser = updatedParticipants.find((p: any) => String(p._id) !== String(profile._id))
+              if (otherUser) {
+                updatedIsOnline = otherUser.isOnline === true
+              }
+            }
+
+            return {
+              ...chat,
+              isOnline: updatedIsOnline,
+              lastActiveAt: data.lastActiveAt || chat.lastActiveAt,
+              participants: updatedParticipants
             }
           }
           return chat
@@ -253,22 +267,44 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [chatList, activeChat, setActiveChat])
 
   // --- 4. SỰ KIỆN CLICK VÀO MỘT CHAT ---
-  const handleChatSelect = async (chat: any) => {
-    setActiveChat({
-      id: chat.id,
-      name: chat.name,
-      avatar: chat.avatarUrl,
-      isOnline: chat.isOnline,
-      type: chat.type,
-      lastActiveAt: chat.lastActiveAt
+  // FIX TRIỆT ĐỂ: Chỉ nhận vào ID thay vì toàn bộ Object Chat để tránh lỗi Stale State
+  const handleChatSelect = async (chatId: string) => {
+    // Sử dụng setChatList để truy cập trực tiếp vào Mảng dữ liệu tươi mới nhất đang có
+    setChatList((currentChatList) => {
+      const targetChat = currentChatList.find((c) => String(c.id) === String(chatId))
+
+      if (!targetChat) return currentChatList // Bỏ qua nếu lỗi không tìm thấy
+
+      let displayAvatar = targetChat.avatarUrl
+      let actualIsOnline = targetChat.isOnline
+      let actualLastActiveAt = targetChat.lastActiveAt
+
+      if (targetChat.type === 'direct') {
+        const otherUser = targetChat.participants?.find((p: any) => String(p._id) !== String(profile?._id))
+        if (otherUser) {
+          displayAvatar = displayAvatar || otherUser.avatar
+          actualIsOnline = otherUser.isOnline === true
+          actualLastActiveAt = otherUser.last_active_at || otherUser.lastActiveAt
+        }
+      }
+
+      // Cập nhật Active Chat ngay lập tức với dữ liệu chuẩn xác nhất
+      setActiveChat({
+        id: targetChat.id,
+        name: targetChat.name,
+        avatar: displayAvatar,
+        isOnline: actualIsOnline,
+        type: targetChat.type,
+        lastActiveAt: actualLastActiveAt
+      })
+
+      // Trả về mảng mới để reset unreadCount
+      return currentChatList.map((c) => (String(c.id) === String(chatId) ? { ...c, unreadCount: 0 } : c))
     })
 
-    // Reset giao diện
-    setChatList((prev) => prev.map((c) => (String(c.id) === String(chat.id) ? { ...c, unreadCount: 0 } : c)))
-
-    // Gọi API lưu trạng thái
+    // Gọi API lưu trạng thái đã xem
     try {
-      await conversationsApi.markAsSeen(chat.id)
+      await conversationsApi.markAsSeen(chatId)
     } catch (error) {
       console.error('Lỗi khi đánh dấu đã xem:', error)
     }
@@ -352,7 +388,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     return (
                       <div
                         key={chat.id}
-                        onClick={() => handleChatSelect(chat)}
+                        onClick={() => handleChatSelect(chat.id)} // FIX Ở ĐÂY: Truyền ID thay vì truyền nguyên object
                         className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden ${
                           isActive ? 'bg-muted/80' : 'hover:bg-muted/50'
                         }`}
