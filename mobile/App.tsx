@@ -61,18 +61,18 @@ export default function App() {
       <NavigationContainer>
         <StatusBar style="dark" />
         <Stack.Navigator
-          initialRouteName={initialRoute} // Sử dụng state đã check
+          initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
             contentStyle: { flex: 1, backgroundColor: "#f4f4f5" },
-            animation: "slide_from_right", // Thêm hiệu ứng chuyển cảnh cho mượt
+            animation: "slide_from_right",
           }}
         >
           <Stack.Screen name="Login" component={LoginForm} />
           <Stack.Screen name="SignUp" component={SignUpForm} />
 
-          {/* Main map với FriendsScreen là đúng logic bạn đang làm */}
-          <Stack.Screen name="Friends" component={FriendsScreen} />
+          {/* FIX: Đổi tên từ "Friends" thành "Main" */}
+          <Stack.Screen name="Main" component={FriendsScreen} />
 
           <Stack.Screen name="Chat" component={ChatScreen} />
         </Stack.Navigator>

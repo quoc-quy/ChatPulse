@@ -45,7 +45,7 @@ export function LoginForm({ navigation }: any) {
         // Phải dùng đúng key "access_token"
         await AsyncStorage.setItem("access_token", access_token);
         await AsyncStorage.setItem("refresh_token", refresh_token);
-        navigation.replace("Friends");
+        navigation.replace("Main");
       }
     } catch (error: any) {
       // Log lỗi chi tiết từ server để biết vì sao bị 422
