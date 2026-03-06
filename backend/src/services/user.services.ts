@@ -249,7 +249,7 @@ class UserService {
           // Điều kiện 2: KHÔNG tìm thấy chính mình
           _id: { $ne: new ObjectId(currentUserId) },
           // Điều kiện 3: KHÔNG hiện người đã bị mình block và ngược lại
-          // (Giả sử bạn có mảng blocked_users và blocked_by_users trong model User)
+          // (Giả sử có mảng blocked_users và blocked_by_users trong model User)
           blocked_users: { $ne: new ObjectId(currentUserId) },
           blocked_by_users: { $ne: new ObjectId(currentUserId) }
         }
