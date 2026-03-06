@@ -9,8 +9,8 @@ import { ActivityIndicator, View } from "react-native";
 // Import các màn hình
 // Lưu ý: Đảm bảo ChatScreen export default, nếu không phải dùng { ChatScreen }
 import ChatScreen from "./src/screens/ChatScreen";
-import { LoginForm } from "./src/screens/LoginForm";
-import { SignUpForm } from "./src/screens/SignUpForm";
+import { LoginForm } from "./src/auth/LoginForm";
+import { SignUpForm } from "./src/auth/SignUpForm";
 import FriendsScreen from "./src/screens/FriendsScreen"; //
 
 const Stack = createNativeStackNavigator();
