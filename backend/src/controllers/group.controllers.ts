@@ -35,27 +35,26 @@ export const leaveGroupController = async (req: Request, res: Response) => {
 // Xóa thành viên (Kick)
 export const kickMemberController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  // Lấy memberId từ URL (params) thay vì req.body để khớp với file Route
-  const memberId = req.params.memberId as string
+  // Lấy memberId từ Body thay vì params
+  const { memberId } = req.body 
 
-  // Hứng data trả về từ service
   const updatedGroup = await groupService.kickMember(id, memberId)
-
-  return res.status(httpStatus.OK).json({
+  
+  return res.status(httpStatus.OK).json({ 
     message: 'Xóa thành viên thành công',
-    result: updatedGroup // Trả về data để check luôn trên Postman
+    result: updatedGroup
   })
 }
 
 // Thăng cấp Admin
 export const promoteAdminController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  const memberId = req.params.memberId as string
+  // Lấy memberId từ Body thay vì params
+  const { memberId } = req.body 
 
-  // Chỉ cần truyền id nhóm và id người được lên admin
   const updatedGroup = await groupService.promoteToAdmin(id, memberId)
-
-  return res.status(httpStatus.OK).json({
+  
+  return res.status(httpStatus.OK).json({ 
     message: 'Chuyển giao quyền Admin thành công',
     result: updatedGroup
   })

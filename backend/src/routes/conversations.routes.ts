@@ -61,62 +61,40 @@ chatRouter.patch('/:id/seen', accessTokenValidator, wrapRequestHandler(markConve
  * Description: Add members to group
  * Path: /conversations/:id/members 
  * Method: POST
- * Header: { Authorization: Bearer <access_token> }
  * Body: { members: string[] }
  */
 chatRouter.post('/:id/members', accessTokenValidator, wrapRequestHandler(addMembersController))
 
 /**
- * Description: User tự rời nhóm
- * Path: /conversations/:id/members/me
+ * Description: Kick member from group
+ * Path: /conversations/:id/members
  * Method: DELETE
- * Header: { Authorization: Bearer <access_token> }
+ * Body: { memberId: string }
  */
-chatRouter.delete('/:id/members/me', accessTokenValidator, wrapRequestHandler(leaveGroupController))
+chatRouter.delete('/:id/members', accessTokenValidator, wrapRequestHandler(kickMemberController))
 
 /**
- * Description: Kick member from group
- * Path: /conversations/:id/members/:memberId
+ * Description: User tự rời nhóm
+ * Path: /conversations/:id/leave
  * Method: DELETE
- * Header: { Authorization: Bearer <access_token> }
  */
-chatRouter.delete(
-  '/:id/members/:memberId', 
-  accessTokenValidator, 
-  wrapRequestHandler(kickMemberController)
-)
+chatRouter.delete('/:id/leave', accessTokenValidator, wrapRequestHandler(leaveGroupController))
+
+/**
+ * Description: Thăng cấp 1 member lên làm Admin
+ * Path: /conversations/:id/admin
+ * Method: PATCH
+ * Body: { memberId: string }
+ */
+chatRouter.patch('/:id/admin', accessTokenValidator, wrapRequestHandler(promoteAdminController))
 
 /**
  * Description: Pin/Unpin conversation
  * Path: /conversations/:id/pin
  * Method: PATCH
- * Header: { Authorization: Bearer <access_token> }
  * Body: { is_pin: boolean }
  */
 chatRouter.patch('/:id/pin', accessTokenValidator, wrapRequestHandler(pinController))
-
-/**
- * Description: User tự rời nhóm
- * Path: /conversations/:id/members/me
- * Method: DELETE
- * Header: { Authorization: Bearer <access_token> }
- */
-chatRouter.delete('/:id/members/me', accessTokenValidator, wrapRequestHandler(leaveGroupController))
-
-/**
- * Description: Thăng cấp 1 member lên làm Admin
- * Path: /conversations/:id/members/:memberId/admin
- * Method: PATCH
- * Header: { Authorization: Bearer <access_token> }
- */
-chatRouter.patch(
-  '/:id/members/:memberId/admin', 
-  accessTokenValidator, 
-  wrapRequestHandler(promoteAdminController)
-)
-
-
-
 
 
 export default chatRouter
