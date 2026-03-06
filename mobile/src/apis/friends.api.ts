@@ -11,5 +11,5 @@ export const friendApi = {
     api.post("/friends/accept", { friendId }),
 
   declineRequest: (friendId: string) =>
-    api.post("/friends/decline", { friendId }),
+    api.post("/friends/requests/:id/decline", { friendId }),
 };
