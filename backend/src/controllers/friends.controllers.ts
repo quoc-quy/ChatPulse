@@ -23,12 +23,12 @@ export const createFriendRequestController = async (req: Request, res: Response)
 
 export const acceptFriendRequestController = async (req: Request, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload // người nhận lời mời
-  const { sender_id } = req.body // người gửi lời mời ban đầu
-  const result = await friendService.acceptFriendRequest(user_id, sender_id)
+  const { id } = req.params as { id: string }
+  const result = await friendService.acceptFriendRequest(user_id, id)
 
   // Bắn socket thông báo cho người gửi ban đầu
   const acceptorInfo = await userService.getMe(user_id)
-  socketService.emitToUser(sender_id, 'friend_request_accepted', {
+  socketService.emitToUser(id, 'friend_request_accepted', {
     friend: {
       _id: acceptorInfo?._id,
       userName: acceptorInfo?.userName,

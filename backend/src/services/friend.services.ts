@@ -64,35 +64,29 @@ class FriendService {
   /**
    * Chấp nhận kết bạn (Cập nhật cho KAN-42: Tách bảng bạn bè riêng)
    */
-  async acceptFriendRequest(user_id: string, sender_id: string) {
-    // 1. Tìm lời mời và kiểm tra Security Check:
+  async acceptFriendRequest(user_id: string, request_id: string) {
+    // 1. Tìm đúng bản ghi lời mời bằng _id truyền từ URL
     const friendRequest = await databaseService.friendRequests.findOne({
-      sender_id: new ObjectId(sender_id),
-      receiver_id: new ObjectId(user_id),
+      _id: new ObjectId(request_id),
+      receiver_id: new ObjectId(user_id), // Bảo mật: Chỉ người nhận mới được chấp nhận
       status: FriendStatus.Pending
     })
 
-    // Nếu không tìm thấy hoặc người đang đăng nhập không phải receiver_id
     if (!friendRequest) {
       throw new ErrorWithStatus({
-        message: 'Lời mời kết bạn không tồn tại hoặc bạn không có quyền chấp nhận lời mời này',
-        status: httpStatus.NOT_FOUND // Security: Tránh User C chấp nhận lời mời của người khác
+        message: 'Lời mời kết bạn không tồn tại hoặc bạn không có quyền...',
+        status: httpStatus.NOT_FOUND
       })
     }
 
-    // 2. Atomic Update: Thực hiện cập nhật trạng thái và tạo quan hệ bạn bè
+    // 2. Lấy sender_id từ bản ghi vừa tìm được để tạo quan hệ bạn bè
+    const { sender_id } = friendRequest
+
     await Promise.all([
-      // Cập nhật trạng thái lời mời thành Accepted
       databaseService.friendRequests.updateOne(
         { _id: friendRequest._id },
-        {
-          $set: {
-            status: FriendStatus.Accepted,
-            updated_at: new Date()
-          }
-        }
+        { $set: { status: FriendStatus.Accepted, updated_at: new Date() } }
       ),
-      // Tạo quan hệ 2 chiều trong bảng friends
       databaseService.friends.insertMany([
         new Friend({ user_id: new ObjectId(user_id), friend_id: new ObjectId(sender_id) }),
         new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
