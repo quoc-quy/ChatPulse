@@ -71,4 +71,20 @@ usersRouter.delete(
  */
 usersRouter.get('/:userName', wrapRequestHandler(getProfileController))
 
+/**
+ * Register
+ */
+usersRouter.post('/register', registerValidator, wrapRequestHandler(registerController))
+
+/**
+ * Login
+ */
+usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
+
+/**
+ * Logout
+ */
+usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
+
+
 export default usersRouter

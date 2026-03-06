@@ -14,6 +14,7 @@ class DatabaseService {
   private client: MongoClient
   private db: Db
   constructor() {
+
     this.client = new MongoClient(uri)
     this.db = this.client.db(process.env.DB_NAME)
   }
@@ -29,11 +30,14 @@ class DatabaseService {
   }
 
   async indexUser() {
+    // Kiểm tra xem các index đã tồn tại chưa để tránh tạo trùng lặp
     const exists = await this.users.indexExists(['email_1_password_1', 'userName_1', 'email_1', 'phone_1'])
     if (!exists) {
       this.users.createIndex({ email: 1, password: 1 })
       this.users.createIndex({ userName: 1 })
       this.users.createIndex({ phone: 1 })
+      // Đánh index cho username và displayName để tối ưu tốc độ search < 200ms
+     this.users.createIndex({ displayName: 1 })
     }
   }
 
