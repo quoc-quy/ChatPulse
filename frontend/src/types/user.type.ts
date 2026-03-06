@@ -4,9 +4,13 @@ export interface User {
   password: string
   date_of_birth: string
   email: string
+  phone: string
+  gender?: string
   avatar?: string
   bio?: string
-  phone: string
   created_at?: string
   updated_at?: string
+  forgot_password_token?: string
+  last_active_at?: string
+  fcm_token?: string
 }
