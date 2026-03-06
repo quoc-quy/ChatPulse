@@ -6,6 +6,7 @@ import SignUpPage from './pages/SignUpPage'
 import SignInPage from './pages/SignInPage'
 import { useContext } from 'react'
 import { AppContext } from './context/app.context'
+import ProfilePage from './pages/ProfilePage'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -30,6 +31,15 @@ export default function useRouteElements() {
           element: (
             <MainLayout>
               <ChatAppPage />
+            </MainLayout>
+          )
+        },
+        {
+          path: '/profile',
+          index: true,
+          element: (
+            <MainLayout>
+              <ProfilePage />
             </MainLayout>
           )
         }

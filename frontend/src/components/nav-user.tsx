@@ -1,4 +1,4 @@
-import { LogOut, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, Sun, Moon, Monitor, User } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { useTheme } from '@/context/theme.context'
 import { clearLS } from '@/utils/auth'
 import { AppContext } from '@/context/app.context'
 import { useContext } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export function NavUser({ user }: { user: { name: string; email: string; avatar: string } }) {
   const { isMobile } = useSidebar()
@@ -120,6 +120,27 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
                 </DropdownMenuPortal>
               </DropdownMenuSub>
             </DropdownMenuGroup>
+            {/* ---------------------------------- */}
+
+            <DropdownMenuSeparator />
+            <Link
+              className='
+                focus:bg-accent 
+                focus:text-accent-foreground 
+                relative flex items-center gap-2 
+                rounded-sm px-2 py-1.5 text-sm outline-hidden 
+                select-none 
+                [&_svg]:pointer-events-none 
+                [&_svg]:shrink-0 
+                [&_svg]:size-4
+                hover:bg-accent
+                cursor-pointer
+              '
+              to={'/profile'}
+            >
+              <User className='mr-2 h-4 w-4' />
+              Hồ sơ của tôi
+            </Link>
             {/* ---------------------------------- */}
 
             <DropdownMenuSeparator />
