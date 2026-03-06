@@ -1,314 +1,221 @@
-import React, { useEffect, useState } from "react"
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TextInput,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ActivityIndicator
-} from "react-native"
+  SafeAreaView
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import SearchComponent from '../components/ui/SearchComponent';
 
-interface User {
-  _id: string
-  name: string
-  email: string
-  isBlocked?: boolean
-}
+const ChatScreen = () => {
 
-interface Conversation {
-  _id: string
-  name?: string
-  type: "direct" | "group"
-  updated_at: string
-  last_message?: {
-    content: string
-    created_at: string
-  }
-  unreadCount?: number
-}
+  const navigation = useNavigation<any>();
 
-const mockConversations: Conversation[] = [
-  {
-    _id: "1",
-    type: "direct",
-    updated_at: new Date().toISOString(),
-    last_message: {
-      content: "Ê tối nay code tiếp không?",
-      created_at: new Date().toISOString()
+  const [conversations] = useState([
+    {
+      id: '1',
+      name: 'Sarah Chen',
+      message: 'That sounds perfect! Let’s meet at 3pm.',
+      time: '2m',
+      unread: 2
     },
-    unreadCount: 2
-  },
-  {
-    _id: "2",
-    type: "group",
-    name: "Nhóm CNM",
-    updated_at: new Date().toISOString(),
-    last_message: {
-      content: "Nộp bài trước 23h59 nhé!",
-      created_at: new Date().toISOString()
+    {
+      id: '2',
+      name: 'Design Team',
+      message: 'Alex: Uploaded the new mockups',
+      time: '15m',
+      unread: 5
+    },
+    {
+      id: '3',
+      name: 'Marcus Williams',
+      message: 'Thanks for the update!',
+      time: '1h',
+      unread: 0
+    },
+    {
+      id: '4',
+      name: 'Emily Park',
+      message: 'Voice message (0:42)',
+      time: '3h',
+      unread: 0
+    },
+    {
+      id: '5',
+      name: 'Project Alpha',
+      message: 'You: I’ll send the docs tonight',
+      time: '5h',
+      unread: 0
     }
-  }
-]
+  ]);
 
-const mockUsers: User[] = [
-  { _id: "u1", name: "Nguyen Van A", email: "a@gmail.com" },
-  { _id: "u2", name: "Tran Thi B", email: "b@gmail.com" },
-  { _id: "u3", name: "Le Van C", email: "c@gmail.com" }
-]
-
-const ChatScreen: React.FC = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const [searchText, setSearchText] = useState("")
-  const [searchResults, setSearchResults] = useState<User[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
-
-  // Load conversations giả lập
-  useEffect(() => {
-    setTimeout(() => {
-      setConversations(mockConversations)
-      setLoading(false)
-    }, 500)
-  }, [])
-
-  // SEARCH xử lý tại đây
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (!searchText.trim()) {
-        setSearchResults([])
-        return
-      }
-
-      const keyword = searchText.toLowerCase()
-
-      // Tìm user
-      const filteredUsers = mockUsers.filter((user) =>
-        user.name.toLowerCase().includes(keyword)
-      )
-
-      // Tìm conversation theo name hoặc nội dung tin nhắn cuối
-      const filteredConversations = mockConversations.filter((conv) =>
-        (conv.name || "direct chat")
-          .toLowerCase()
-          .includes(keyword) ||
-        conv.last_message?.content
-          ?.toLowerCase()
-          .includes(keyword)
-      )
-
-      // Gộp lại
-      setSearchResults([
-        ...filteredUsers,
-        ...filteredConversations as any
-      ])
-    }, 400)
-
-    return () => clearTimeout(handler)
-  }, [searchText])
-
-  const renderConversation = ({ item }: { item: Conversation }) => {
-    return (
-      <TouchableOpacity style={styles.card}>
-        <View style={styles.avatar} />
-        <View style={styles.content}>
-          <Text style={styles.name}>
-            {item.type === "group" ? item.name : "Direct Chat"}
-          </Text>
-          <Text style={styles.message}>
-            {item.last_message?.content || "No messages yet"}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    )
-  }
-
-  const renderUser = ({ item }: { item: User }) => (
-    <View style={styles.userCard}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.userName}>{item.name}</Text>
-        <Text style={styles.userEmail}>{item.email}</Text>
+  const renderItem = ({ item }: any) => (
+    <TouchableOpacity
+      style={styles.chatItem}
+      onPress={() => navigation.navigate('MessageScreen', { id: item.id })}
+    >
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>
+          {item.name.charAt(0)}
+        </Text>
       </View>
 
-      <TouchableOpacity
-        style={[
-          styles.blockBtn,
-          item.isBlocked && { backgroundColor: "#EF4444" }
-        ]}
-        onPress={() => {
-          setSearchResults((prev) =>
-            prev.map((u) =>
-              u._id === item._id
-                ? { ...u, isBlocked: !u.isBlocked }
-                : u
-            )
-          )
-        }}
-      >
-        <Text style={styles.blockText}>
-          {item.isBlocked ? "Unblock" : "Block"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  )
+      <View style={styles.chatContent}>
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </SafeAreaView>
-    )
-  }
+        <View style={styles.chatHeader}>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.name}
+          </Text>
+
+          <Text style={styles.time}>
+            {item.time}
+          </Text>
+        </View>
+
+        <View style={styles.chatFooter}>
+
+          <Text
+            style={[
+              styles.message,
+              item.unread > 0 && styles.unreadMessage
+            ]}
+            numberOfLines={1}
+          >
+            {item.message}
+          </Text>
+
+          {item.unread > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {item.unread}
+              </Text>
+            </View>
+          )}
+
+        </View>
+
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
 
-      <Text style={styles.title}>Messages</Text>
+      {/* Header */}
+      <Text style={styles.title}>Chats</Text>
 
-      <View style={styles.searchBox}>
-        <TextInput
-          placeholder="Search users..."
-          placeholderTextColor="#9CA3AF"
-          style={styles.searchInput}
-          value={searchText}
-          onChangeText={setSearchText}
-        />
-      </View>
+      {/* Search */}
+      <SearchComponent />
 
-      {searchText.length > 0 ? (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item: any) => item._id}
-          renderItem={({ item }: any) => {
-            if (item.type) {
-              return renderConversation({ item })
-            }
-            return renderUser({ item })
-          }}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No results found</Text>
-          }
-        />
-      ) : (
-        <FlatList
-          data={conversations}   // ✅ ĐÚNG
-          keyExtractor={(item) => item._id}
-          renderItem={renderConversation}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No conversations found
-            </Text>
-          }
-        />
-      )}
+      {/* Chat List */}
+      <FlatList
+        data={conversations}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+      />
+
     </SafeAreaView>
-  )
-}
+  );
+};
 
-export default ChatScreen
+export default ChatScreen;
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
-    backgroundColor: "#0B1220",
-    paddingHorizontal: 16
-  },
-
-  center: {
-    flex: 1,
-    backgroundColor: "#0B1220",
-    justifyContent: "center",
-    alignItems: "center"
+    backgroundColor: "#0F172A"
   },
 
   title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#FFF",
-    marginVertical: 16
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#A855F7",
+    paddingHorizontal: 20,
+    marginBottom: 10
   },
 
-  searchBox: {
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 16
-  },
-
-  searchInput: {
-    color: "#FFF"
-  },
-
-  card: {
+  chatItem: {
     flexDirection: "row",
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1F2937"
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    alignItems: "center"
   },
 
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#1F2937",
-    marginRight: 12
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#7C3AED",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14
   },
 
-  content: {
+  avatarText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold"
+  },
+
+  chatContent: {
     flex: 1
   },
 
+  chatHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4
+  },
+
   name: {
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFF"
+    flex: 1,
+    marginRight: 8
   },
 
-  message: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 4
-  },
-
-  emptyText: {
-    color: "#9CA3AF",
-    textAlign: "center",
-    marginTop: 40
-  },
-
-  userCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1F2937"
-  },
-
-  userName: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600"
-  },
-
-  userEmail: {
-    color: "#9CA3AF",
+  time: {
+    color: "#94A3B8",
     fontSize: 12
   },
 
-  blockBtn: {
-    backgroundColor: "#3B82F6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8
+  chatFooter: {
+    flexDirection: "row",
+    alignItems: "center"
   },
 
-  blockText: {
-    color: "#FFF",
+  message: {
+    color: "#94A3B8",
+    fontSize: 14,
+    flex: 1,
+    marginRight: 10
+  },
+
+  unreadMessage: {
+    color: "#fff",
     fontWeight: "600"
+  },
+
+  badge: {
+    backgroundColor: "#A855F7",
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6
+  },
+
+  badgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "bold"
   }
-})
+
+});
