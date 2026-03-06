@@ -29,7 +29,7 @@ friendsRouter.post(
  * Chấp nhận lời mời kết bạn
  * Path: POST /friends/accept
  */
-friendsRouter.post('/accept', accessTokenValidator, wrapRequestHandler(acceptFriendRequestController))
+friendsRouter.patch('/requests/:id/accept', accessTokenValidator, wrapRequestHandler(acceptFriendRequestController))
 
 /**
  * Lấy danh sách bạn bè
