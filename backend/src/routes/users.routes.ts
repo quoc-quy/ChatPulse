@@ -12,6 +12,7 @@ import {
 } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
+  blockUserValidator,
   changePasswordValidator,
   loginValidator,
   refreshTokenValidator,
@@ -51,14 +52,19 @@ usersRouter.put(
  * Header: {Authorization: Bearer <access_token>}
  * Body: {blocked_user_id}
  */
-usersRouter.post('/block', accessTokenValidator, wrapRequestHandler(blockUserController))
+usersRouter.post('/block', accessTokenValidator, blockUserValidator, wrapRequestHandler(blockUserController))
 
 /**
  * Unblock User
  * Header: {Authorization: Bearer <access_token>}
  * Params: {user_id}
  */
-usersRouter.delete('/unblock/:user_id', accessTokenValidator, wrapRequestHandler(unBlockUserController))
+usersRouter.delete(
+  '/unblock/:user_id',
+  accessTokenValidator,
+  unBlockUserController,
+  wrapRequestHandler(unBlockUserController)
+)
 
 /**
  * Get user profile

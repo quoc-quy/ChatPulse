@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express'
-import { checkSchema } from 'express-validator'
+import { checkSchema, ParamSchema } from 'express-validator'
 import { JsonWebTokenError } from 'jsonwebtoken'
 import { ObjectId } from 'mongodb'
 import httpStatus from '~/constants/httpStatus'
@@ -17,6 +17,30 @@ const passwordSchema = {
   },
   isString: {
     errorMessage: 'Password phải là chuỗi String'
+  }
+}
+
+const userIdSchema: ParamSchema = {
+  custom: {
+    options: async (value, { req }) => {
+      if (!ObjectId.isValid(value)) {
+        throw new ErrorWithStatus({
+          message: 'User is Invalid',
+          status: httpStatus.NOT_FOUND
+        })
+      }
+
+      const user = await databaseService.users.findOne({
+        _id: new ObjectId(value)
+      })
+
+      if (user == null) {
+        throw new ErrorWithStatus({
+          message: 'User not found',
+          status: httpStatus.NOT_FOUND
+        })
+      }
+    }
   }
 }
 
@@ -344,4 +368,22 @@ export const changePasswordValidator = validate(
       }
     }
   })
+)
+
+export const blockUserValidator = validate(
+  checkSchema(
+    {
+      blocked_user_id: userIdSchema
+    },
+    ['body']
+  )
+)
+
+export const unBlockUserValidator = validate(
+  checkSchema(
+    {
+      user_id: userIdSchema
+    },
+    ['params']
+  )
 )
