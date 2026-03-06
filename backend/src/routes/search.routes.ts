@@ -7,6 +7,13 @@ import { wrapRequestHandler } from '~/utils/handlers'
 
 const searchRouter = Router()
 
-searchRouter.get('/', accessTokenValidator, searchValidator, paginationValidator, searchController, wrapRequestHandler(searchUserController))
+searchRouter.get(
+  '/',
+  accessTokenValidator,
+  searchValidator,
+  paginationValidator,
+  searchController,
+  wrapRequestHandler(searchUserController)
+)
 
 export default searchRouter

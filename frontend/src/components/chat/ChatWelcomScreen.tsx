@@ -1,6 +1,5 @@
 import { useContext } from 'react'
 import { AppContext } from '@/context/app.context'
-import { MessageSquare } from 'lucide-react'
 
 export function ChatWelcomeScreen() {
   // Lấy thông tin người dùng từ Global Context
