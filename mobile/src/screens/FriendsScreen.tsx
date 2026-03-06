@@ -84,20 +84,28 @@ export default function FriendsScreen({ navigation }: any) {
   // 3. Xử lý Chấp nhận/Từ chối lời mời
   const handleAction = useCallback(
     async (id: string, action: "accept" | "decline") => {
+      console.log("Đang gọi action:", action, "cho ID:", id); // Thêm dòng này để debug
       // Optimistic UI: Xóa khỏi danh sách ngay lập tức
       setRequests((prev) => prev.filter((item) => item._id !== id));
 
       try {
-        await api.post(`/friends/${action}`, { friendId: id });
         if (action === "accept") {
-          fetchData(); // Tải lại để cập nhật danh sách bạn bè mới
+          // Fix cho Accept: Đổi key 'friendId' thành 'sender_id' theo Backend controller
+          // Sử dụng PATCH và truyền ID vào URL
+          await api.patch(`/friends/requests/${id}/accept`);
+          fetchData(); // Tải lại danh sách bạn bè mới
+        } else {
+          // Fix cho Decline: Đổi sang phương thức DELETE và đúng đường dẫn
+          // Route: DELETE /friends/requests/:id/decline
+          await api.delete(`/friends/requests/${id}/decline`);
         }
       } catch (error) {
+        console.log("Lỗi khi thực hiện action:", error);
         Alert.alert("Thông báo", "Thao tác thất bại. Vui lòng thử lại.");
         fetchData(); // Rollback dữ liệu nếu lỗi
       }
     },
-    [],
+    [fetchData],
   );
 
   // 4. Lọc danh sách an toàn (tránh lỗi toLowerCase trên undefined)
