@@ -184,7 +184,7 @@ export const registerValidator = validate(
 export const accessTokenValidator = validate(
   checkSchema(
     {
-      Authorization: {
+      authorization: {
         notEmpty: {
           errorMessage: 'Access Token is required'
         },
