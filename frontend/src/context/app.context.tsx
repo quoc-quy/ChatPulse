@@ -1,42 +1,55 @@
+import { createContext, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react'
 import type { User } from '@/types/user.type'
-import { getAccessTokenFromLS, getProfileFromLS } from '@/utils/auth'
-import React, { createContext, useState } from 'react'
+import { getProfileFromLS } from '@/utils/auth'
+
+export interface ActiveCall {
+  callId: string
+  conversationId: string
+  type: 'video' | 'audio'
+  isReceiving: boolean
+  callerName?: string
+  callerAvatar?: string
+}
 
 export interface ChatItem {
   id: string
   name: string
   avatar?: string
   isOnline?: boolean
-  lastActiveAt?: string // Added for last seen time
-  unreadCount?: number // Added for unread badge
-  type?: 'direct' | 'group' // Good to have for conditional rendering
+  lastActiveAt?: string
+  type: string
 }
 
 interface AppContextInterface {
   isAuthenticated: boolean
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
+  setIsAuthenticated: Dispatch<SetStateAction<boolean>>
   profile: User | null
-  setProfile: React.Dispatch<React.SetStateAction<User | null>>
+  setProfile: Dispatch<SetStateAction<User | null>>
   activeChat: ChatItem | null
-  setActiveChat: React.Dispatch<React.SetStateAction<ChatItem | null>>
+  setActiveChat: Dispatch<SetStateAction<ChatItem | null>>
+  activeCall: ActiveCall | null
+  setActiveCall: Dispatch<SetStateAction<ActiveCall | null>>
 }
 
 const initialAppContext: AppContextInterface = {
-  isAuthenticated: Boolean(getAccessTokenFromLS()),
+  isAuthenticated: Boolean(getProfileFromLS()),
   setIsAuthenticated: () => null,
   profile: getProfileFromLS(),
   setProfile: () => null,
   activeChat: null,
-  setActiveChat: () => null
+  setActiveChat: () => null,
+  activeCall: null,
+  setActiveCall: () => null
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AppContext = createContext<AppContextInterface>(initialAppContext)
 
-export const AppProvider = ({ children }: { children: React.ReactNode }) => {
+export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(initialAppContext.isAuthenticated)
   const [profile, setProfile] = useState<User | null>(initialAppContext.profile)
-  const [activeChat, setActiveChat] = useState<ChatItem | null>(initialAppContext.activeChat)
+  const [activeChat, setActiveChat] = useState<ChatItem | null>(null)
+  const [activeCall, setActiveCall] = useState<ActiveCall | null>(null)
 
   return (
     <AppContext.Provider
@@ -46,7 +59,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         profile,
         setProfile,
         activeChat,
-        setActiveChat
+        setActiveChat,
+        activeCall,
+        setActiveCall
       }}
     >
       {children}

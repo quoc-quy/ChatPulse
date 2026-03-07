@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/app-sidebar'
+import { GlobalCallUI } from '@/components/chat/GlobalCallUI'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     >
       <AppSidebar />
       <SidebarInset>{children}</SidebarInset>
+      <GlobalCallUI />
     </SidebarProvider>
   )
 }
