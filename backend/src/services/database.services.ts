@@ -6,6 +6,7 @@ import FriendRequest from '~/models/schemas/friendRequest.schema'
 import Friend from '~/models/schemas/friend.schema'
 import Conversation from '~/models/schemas/conversation.schema'
 import UserBlocks from '~/models/schemas/userBlocks.schema'
+import Call from '~/models/schemas/call.schema'
 config()
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ptzh2gl.mongodb.net/?appName=Cluster0`
@@ -62,6 +63,10 @@ class DatabaseService {
   }
   get user_blocks(): Collection<UserBlocks> {
     return this.db.collection('user_blocks')
+  }
+
+  get calls(): Collection<Call> {
+    return this.db.collection('calls')
   }
 
   //Create Index

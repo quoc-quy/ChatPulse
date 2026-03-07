@@ -1,5 +1,9 @@
 import { Server, Socket } from 'socket.io'
 import http from 'http'
+import Call from '~/models/schemas/call.schema'
+import { ObjectId } from 'mongodb'
+import { CallStatus, CallType } from '~/constants/callStataus'
+import databaseService from './database.services'
 
 class SocketService {
   public io!: Server
@@ -17,14 +21,163 @@ class SocketService {
         return
       }
 
-      // 1. Gắn user vào một "Room" mang tên chính ID của họ (Giải quyết vụ 1 user dùng nhiều Tab/Điện thoại)
       socket.join(userId)
       this.usersOnline.add(userId)
-
-      // 2. Báo cho TẤT CẢ mọi người biết user này vừa online
       socket.broadcast.emit('user_status_change', { userId, isOnline: true })
 
-      // 3. Xử lý ngắt kết nối (Offline)
+      // 1. Khởi tạo cuộc gọi
+      socket.on('call:initiate', async (data: { conversationId: string; type: CallType }, callback: Function) => {
+        try {
+          const { conversationId, type } = data
+
+          const newCall = new Call({
+            conversationId: new ObjectId(conversationId),
+            callerId: new ObjectId(userId),
+            type: type,
+            status: CallStatus.INITIATED,
+            participants: [new ObjectId(userId)],
+            startedAt: new Date()
+          })
+
+          const result = await databaseService.calls.insertOne(newCall)
+          const realCallId = result.insertedId.toString()
+
+          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+          if (conversation && conversation.participants) {
+            conversation.participants.forEach((participantId) => {
+              if (participantId.toString() !== userId) {
+                this.emitToUser(participantId.toString(), 'call:incoming', {
+                  callId: realCallId, // Gửi ID thật cho người nhận
+                  conversationId,
+                  callerId: userId,
+                  type
+                })
+              }
+            })
+          }
+
+          // TRẢ ID THẬT VỀ CHO NGƯỜI GỌI BẰNG CALLBACK
+          if (typeof callback === 'function') {
+            callback({ callId: realCallId })
+          }
+        } catch (error) {
+          console.error('Lỗi khi khởi tạo cuộc gọi:', error)
+        }
+      })
+
+      // Cập nhật thêm try-catch cho call:join để chống sập nếu gửi sai ID
+      socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
+        try {
+          const { callId, conversationId } = data
+          await databaseService.calls.updateOne(
+            { _id: new ObjectId(callId) },
+            {
+              $addToSet: { participants: new ObjectId(userId) },
+              $set: { status: CallStatus.ONGOING }
+            }
+          )
+
+          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+          if (conversation && conversation.participants) {
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'call:user-joined', {
+                  userId: userId,
+                  socketId: socket.id
+                })
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Lỗi khi Join cuộc gọi:', error)
+        }
+      })
+
+      // Cập nhật thêm try-catch cho call:join để chống sập nếu gửi sai ID
+      socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
+        try {
+          const { callId, conversationId } = data
+          await databaseService.calls.updateOne(
+            { _id: new ObjectId(callId) },
+            {
+              $addToSet: { participants: new ObjectId(userId) },
+              $set: { status: CallStatus.ONGOING }
+            }
+          )
+
+          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+          if (conversation && conversation.participants) {
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'call:user-joined', {
+                  userId: userId,
+                  socketId: socket.id
+                })
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Lỗi khi Join cuộc gọi:', error)
+        }
+      })
+
+      // 2. Chấp nhận và Tham gia cuộc gọi
+      socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
+        const { callId, conversationId } = data
+
+        await databaseService.calls.updateOne(
+          { _id: new ObjectId(callId) },
+          {
+            $addToSet: { participants: new ObjectId(userId) },
+            $set: { status: CallStatus.ONGOING }
+          }
+        )
+
+        const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+        if (conversation && conversation.participants) {
+          conversation.participants.forEach((pId) => {
+            if (pId.toString() !== userId) {
+              this.emitToUser(pId.toString(), 'call:user-joined', {
+                userId: userId,
+                socketId: socket.id
+              })
+            }
+          })
+        }
+      })
+
+      // 3. Truyền nhận tín hiệu WebRTC (Offer, Answer, ICE)
+      socket.on('call:signal', (data: { targetSocketId?: string; targetUserId?: string; signal: any }) => {
+        if (data.targetSocketId) {
+          this.io.to(data.targetSocketId).emit('call:signal', {
+            callerId: userId,
+            callerSocketId: socket.id,
+            signal: data.signal
+          })
+        } else if (data.targetUserId) {
+          this.emitToUser(data.targetUserId, 'call:signal', {
+            callerId: userId,
+            callerSocketId: socket.id,
+            signal: data.signal
+          })
+        }
+      })
+
+      // 4. Rời khỏi cuộc gọi
+      socket.on('call:leave', async (data: { callId: string; conversationId: string }) => {
+        const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
+        if (conversation && conversation.participants) {
+          conversation.participants.forEach((pId) => {
+            if (pId.toString() !== userId) {
+              this.emitToUser(pId.toString(), 'call:user-left', {
+                userId: userId,
+                socketId: socket.id
+              })
+            }
+          })
+        }
+      })
+
       socket.on('disconnect', async () => {
         // Kiểm tra xem user này còn tab/thiết bị nào khác đang kết nối không?
         const sockets = await this.io.in(userId).fetchSockets()

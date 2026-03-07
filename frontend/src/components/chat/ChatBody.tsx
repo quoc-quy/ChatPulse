@@ -1,6 +1,7 @@
 // frontend-demo/src/components/chat/ChatBody.tsx
 import { useEffect, useState, useRef, useCallback, useContext, useLayoutEffect } from 'react'
-import { io, Socket } from 'socket.io-client'
+import { useSocket } from '@/context/socket.context'
+// import { io, Socket } from 'socket.io-client'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
@@ -25,7 +26,8 @@ export function ChatBody({ convId }: ChatBodyProps) {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const previousScrollHeightRef = useRef<number>(0)
-  const socketRef = useRef<Socket | null>(null)
+  // const socketRef = useRef<Socket | null>(null)
+  const { socket } = useSocket()
 
   const fetchMessages = useCallback(
     async (isInitial = false) => {
@@ -62,7 +64,12 @@ export function ChatBody({ convId }: ChatBodyProps) {
         if (isInitial) {
           setMessages([...newMessages].reverse())
         } else {
-          setMessages((prev) => [...[...newMessages].reverse(), ...prev])
+          setMessages((prev) => {
+            const combined = [...[...newMessages].reverse(), ...prev]
+            // LỌC TRÙNG ID BẰNG MAP
+            const uniqueMessages = Array.from(new Map(combined.map((msg) => [msg._id, msg])).values())
+            return uniqueMessages
+          })
         }
       } catch (error) {
         console.error('Lỗi khi tải lịch sử tin nhắn:', error)
@@ -97,19 +104,14 @@ export function ChatBody({ convId }: ChatBodyProps) {
   }, [messages, isFetchingOlder])
 
   useEffect(() => {
-    if (!currentUserId || !convId) return
+    if (!currentUserId || !convId || !socket) return
 
-    const socket = io('http://localhost:4001', {
-      auth: {
-        user_id: currentUserId
-      }
-    })
-
-    socketRef.current = socket
-
-    socket.on('receive_message', (newMessage: Message) => {
+    const handleReceiveMessage = (newMessage: Message) => {
       if (newMessage.conversationId === convId) {
-        setMessages((prevMessages) => [...prevMessages, newMessage])
+        setMessages((prevMessages) => {
+          if (prevMessages.some((msg) => msg._id === newMessage._id)) return prevMessages
+          return [...prevMessages, newMessage]
+        })
 
         setTimeout(() => {
           if (containerRef.current) {
@@ -117,13 +119,14 @@ export function ChatBody({ convId }: ChatBodyProps) {
           }
         }, 50)
       }
-    })
+    }
+
+    socket.on('receive_message', handleReceiveMessage)
 
     return () => {
-      socket.off('receive_message')
-      socket.disconnect()
+      socket.off('receive_message', handleReceiveMessage)
     }
-  }, [currentUserId, convId])
+  }, [currentUserId, convId, socket])
 
   const handleScroll = () => {
     if (containerRef.current) {
