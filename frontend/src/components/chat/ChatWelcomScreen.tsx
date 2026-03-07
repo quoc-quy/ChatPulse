@@ -1,5 +1,6 @@
 import { useContext } from 'react'
 import { AppContext } from '@/context/app.context'
+
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 export function ChatWelcomeScreen() {

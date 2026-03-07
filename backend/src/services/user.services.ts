@@ -233,6 +233,34 @@ class UserService {
       message: 'Bỏ chặn người dùng thất bại'
     }
   }
+  async searchUser(keyword: string, currentUserId: string) {
+  // Tạo biểu thức tìm kiếm không phân biệt hoa thường ('i')
+  const regex = new RegExp(keyword, 'i')
+
+  // Tìm trong bảng users
+  const users = await databaseService.users
+    .find({
+      $and: [
+        {
+          // Điều kiện 1: Khớp với username hoặc displayName
+          $or: [{ userName: regex }, { displayName: regex }]
+        },
+        {
+          // Điều kiện 2: KHÔNG tìm thấy chính mình
+          _id: { $ne: new ObjectId(currentUserId) },
+          // Điều kiện 3: KHÔNG hiện người đã bị mình block và ngược lại
+          // (Giả sử có mảng blocked_users và blocked_by_users trong model User)
+          blocked_users: { $ne: new ObjectId(currentUserId) },
+          blocked_by_users: { $ne: new ObjectId(currentUserId) }
+        }
+      ]
+    })
+    .project({ password: 0, email: 0 }) // Bảo mật: Không trả về mật khẩu và email
+    .toArray()
+
+  return users
+}
+
 }
 
 const userService = new UserService()

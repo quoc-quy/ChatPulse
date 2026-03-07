@@ -7,6 +7,7 @@ import SignInPage from './pages/SignInPage'
 import { useContext } from 'react'
 import { AppContext } from './context/app.context'
 import ProfilePage from './pages/ProfilePage'
+import FriendPage from './pages/FriendPage'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -40,6 +41,15 @@ export default function useRouteElements() {
           element: (
             <MainLayout>
               <ProfilePage />
+            </MainLayout>
+          )
+        },
+        {
+          path: '/phonebook',
+          index: true,
+          element: (
+            <MainLayout>
+              <FriendPage />
             </MainLayout>
           )
         }

@@ -106,3 +106,19 @@ export const unBlockUserController = async (
 
   return res.json(result)
 }
+
+export const searchUserController = async (req: Request, res: Response) => {
+  // Lấy từ khóa người dùng gõ từ URL (?q=vinh)
+  const { q } = req.query
+  
+  // Lấy ID của chính mình (đã qua giải mã token)
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  // Gọi xuống Service để tìm kiếm
+  const result = await userService.searchUser(q as string, user_id)
+
+  return res.json({
+    message: 'Tìm kiếm người dùng thành công',
+    result
+  })
+}

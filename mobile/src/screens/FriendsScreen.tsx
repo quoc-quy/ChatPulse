@@ -1,269 +1,277 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  ScrollView,
   Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Search, UserPlus, Bell, Edit3, QrCode } from "lucide-react-native";
 import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
 import { friendApi } from "../apis/friends.api";
-import { useNavigation } from "@react-navigation/native";
 
-interface Friend {
-  _id: string;
-  userName: string; // Khớp với field từ Backend
-  fullName?: string;
-  avatar?: string;
-  [key: string]: any;
-}
+const COLORS = {
+  primary: "#4F46E5",
+  secondary: "#A855F7",
+  background: "#F8FAFC",
+  foreground: "#1E293B",
+  muted: "#94A3B8",
+  white: "#FFFFFF",
+};
 
-export default function FriendsScreen({ navigation }: any) {
-  const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [requests, setRequests] = useState<Friend[]>([]);
-  const [searchText, setSearchText] = useState("");
+export default function FriendsScreen() {
+  // 1. Quản lý tab đang chọn (All Friends hoặc Requests)
+  const [activeFilter, setActiveFilter] = useState<
+    "All Friends" | "Requests" | "Blocked"
+  >("All Friends");
+  const [friends, setFriends] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1. Hàm lấy dữ liệu từ Backend
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Gọi cả 2 API cùng lúc
       const [friendsRes, requestsRes] = await Promise.all([
         api.get("/friends/list"),
         api.get("/friends/requests/received"),
       ]);
       setFriends(friendsRes.data.result || []);
       setRequests(requestsRes.data.result || []);
-    } catch (error: any) {
-      const serverError = error.response?.data;
-      console.log("Lỗi chi tiết từ Server:", serverError);
-
-      // Kiểm tra nếu thông báo lỗi là 'jwt expired'
-      const isExpired =
-        serverError?.errors?.authorization?.msg === "jwt expired";
-
-      if (error.response?.status === 422 && isExpired) {
-        Alert.alert("Phiên đăng nhập hết hạn", "Vui lòng đăng nhập lại.");
-        await AsyncStorage.removeItem("access_token"); // Xóa token cũ
-        navigation.replace("Login"); // Quay lại trang Login
-      }
+    } catch (error) {
+      console.log("Lỗi tải dữ liệu:", error);
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // 2. Xử lý Đăng xuất
-  // src/screens/FriendsScreen.tsx
-
-  const handleLogout = async () => {
+  // 2. Logic lọc dữ liệu hiển thị theo Tab
+  const getDisplayData = () => {
+    if (activeFilter === "Requests") return requests;
+    if (activeFilter === "Blocked") return []; // Giả lập chưa có blocked
+    return friends;
+  };
+  const handleAccept = async (id: string) => {
     try {
-      // 1. Xóa token và các thông tin liên quan trong máy
-      await AsyncStorage.removeItem("access_token");
-      // Nếu bạn có lưu user_info hay refresh_token thì xóa luôn ở đây
-      // await AsyncStorage.clear(); // Hoặc xóa sạch toàn bộ nếu muốn
-
-      console.log("Logged out successfully");
-
-      // 2. Điều hướng về trang Login
-      // Sử dụng .replace để ghi đè stack, không cho quay lại Main
-      navigation.replace("Login");
+      await friendApi.acceptRequest(id);
+      Alert.alert("Thành công", "Đã chấp nhận lời mời kết bạn");
+      fetchData(); // Tải lại danh sách để cập nhật UI
     } catch (error) {
-      console.error("Lỗi khi đăng xuất:", error);
+      Alert.alert("Lỗi", "Không thể chấp nhận lời mời");
     }
   };
-  // 3. Xử lý Chấp nhận/Từ chối lời mời
-  const handleAction = useCallback(
-    async (id: string, action: "accept" | "decline") => {
-      console.log("Đang gọi action:", action, "cho ID:", id); // Thêm dòng này để debug
-      // Optimistic UI: Xóa khỏi danh sách ngay lập tức
-      setRequests((prev) => prev.filter((item) => item._id !== id));
-
-      try {
-        if (action === "accept") {
-          // Fix cho Accept: Đổi key 'friendId' thành 'sender_id' theo Backend controller
-          // Sử dụng PATCH và truyền ID vào URL
-          await api.patch(`/friends/requests/${id}/accept`);
-          fetchData(); // Tải lại danh sách bạn bè mới
-        } else {
-          // Fix cho Decline: Đổi sang phương thức DELETE và đúng đường dẫn
-          // Route: DELETE /friends/requests/:id/decline
-          await api.delete(`/friends/requests/${id}/decline`);
-        }
-      } catch (error) {
-        console.log("Lỗi khi thực hiện action:", error);
-        Alert.alert("Thông báo", "Thao tác thất bại. Vui lòng thử lại.");
-        fetchData(); // Rollback dữ liệu nếu lỗi
-      }
-    },
-    [fetchData],
-  );
-
-  // 4. Lọc danh sách an toàn (tránh lỗi toLowerCase trên undefined)
-  const filteredData = (activeTab === "friends" ? friends : requests).filter(
-    (item) => {
-      const name = item?.userName || item?.fullName || "Người dùng";
-      return name.toLowerCase().includes(searchText.toLowerCase());
-    },
-  );
-
-  const renderItem = ({ item }: { item: Friend }) => (
-    <FriendItem
-      item={item}
-      type={activeTab === "friends" ? "friend" : "request"}
-      onAccept={(id) => handleAction(id, "accept")}
-      onDecline={(id) => handleAction(id, "decline")}
-    />
-  );
+  const handleDecline = async (id: string) => {
+    try {
+      await friendApi.declineRequest(id);
+      Alert.alert("Thông báo", "Đã từ chối lời mời");
+      fetchData(); // Tải lại danh sách
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể thực hiện thao tác");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header section tích hợp Logout */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Contacts</Text>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar section */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm kiếm..."
-            placeholderTextColor="#a1a1aa"
-            value={searchText}
-            onChangeText={setSearchText}
-          />
+        <View style={styles.headerLeft}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoSmallText}>CP</Text>
+          </View>
+          <Text style={styles.headerTitle}>Contacts</Text>
+        </View>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity>
+            <Search size={22} color={COLORS.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Edit3 size={22} color={COLORS.foreground} />
+          </TouchableOpacity>
+          <View>
+            <TouchableOpacity>
+              <Bell size={22} color={COLORS.foreground} />
+            </TouchableOpacity>
+            <View style={styles.redDot} />
+          </View>
         </View>
       </View>
 
-      {/* Tab Navigator */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "friends" && styles.activeTab]}
-          onPress={() => setActiveTab("friends")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "friends" && styles.activeTabText,
-            ]}
-          >
-            Bạn bè ({friends.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "requests" && styles.activeTab]}
-          onPress={() => setActiveTab("requests")}
-        >
-          <View style={styles.row}>
-            <Text
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.searchSection}>
+          <View style={styles.searchBar}>
+            <Search size={20} color={COLORS.muted} style={styles.searchIcon} />
+            <TextInput
+              placeholder="Search conversations..."
+              style={styles.searchInput}
+            />
+          </View>
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionButton}>
+            <UserPlus size={20} color={COLORS.secondary} />
+            <Text style={styles.actionText}>Add Friend</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton}>
+            <QrCode size={20} color={COLORS.secondary} />
+            <Text style={styles.actionText}>QR Code</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Tab Filter Bar */}
+        <View style={styles.filterContainer}>
+          {(["All Friends", "Requests", "Blocked"] as const).map((filter) => (
+            <TouchableOpacity
+              key={filter}
+              onPress={() => setActiveFilter(filter)}
               style={[
-                styles.tabText,
-                activeTab === "requests" && styles.activeTabText,
+                styles.filterTab,
+                activeFilter === filter && styles.activeFilterTab,
               ]}
             >
-              Lời mời
-            </Text>
-            {requests.length > 0 && <View style={styles.badge} />}
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* List content */}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#18181b" />
+              <Text
+                style={[
+                  styles.filterTabText,
+                  activeFilter === filter && styles.activeFilterText,
+                ]}
+              >
+                {filter}
+              </Text>
+              {filter === "Requests" && requests.length > 0 && (
+                <View style={styles.requestBadge}>
+                  <Text style={styles.requestBadgeText}>{requests.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
-      ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Không có dữ liệu hiển thị</Text>
-            </View>
-          }
-        />
-      )}
+
+        <View style={styles.listContainer}>
+          {loading ? (
+            <ActivityIndicator
+              color={COLORS.secondary}
+              style={{ marginTop: 20 }}
+            />
+          ) : (
+            getDisplayData().map((item: any) => (
+              <FriendItem
+                key={item._id}
+                item={item}
+                // Truyền type dựa trên tab đang chọn để FriendItem hiển thị nút phù hợp
+                type={activeFilter === "Requests" ? "request" : "friend"}
+                onAccept={handleAccept} // TRUYỀN THÊM DÒNG NÀY
+                onDecline={handleDecline} // TRUYỀN THÊM DÒNG NÀY
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f4f5" },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
   },
-  headerTitle: { fontSize: 28, fontWeight: "bold", color: "#09090b" },
-  logoutButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: "#fee2e2",
+  headerLeft: { flexDirection: "row", alignItems: "center" },
+  logoBox: {
+    width: 32,
+    height: 32,
+    backgroundColor: "#EEF2FF",
     borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
-  logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 14 },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#e4e4e7",
+  logoSmallText: { fontSize: 10, fontWeight: "bold", color: COLORS.primary },
+  headerTitle: { fontSize: 24, fontWeight: "bold", color: COLORS.secondary },
+  headerIcons: { flexDirection: "row", gap: 18 },
+  redDot: {
+    position: "absolute",
+    right: -2,
+    top: -2,
+    width: 8,
+    height: 8,
+    backgroundColor: "#EF4444",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: COLORS.white,
   },
+  searchSection: { padding: 16, backgroundColor: COLORS.white },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f4f4f5",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 40,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    height: 45,
   },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 16, color: "#09090b" },
-  tabBar: {
+  searchIcon: { marginRight: 10 },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.foreground },
+  actionRow: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#e4e4e7",
+    paddingHorizontal: 16,
+    gap: 12,
+    marginVertical: 15,
   },
-  tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: "#18181b" },
-  tabText: { color: "#71717a", fontWeight: "500" },
-  activeTabText: { color: "#18181b", fontWeight: "bold" },
-  listContent: { flexGrow: 1 },
-  badge: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#ef4444",
-    marginLeft: 4,
-  },
-  row: { flexDirection: "row", alignItems: "center" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyState: {
+  actionButton: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.white,
+    height: 50,
+    borderRadius: 25,
+    gap: 8,
+    elevation: 1,
+  },
+  actionText: { fontSize: 15, fontWeight: "600", color: COLORS.foreground },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 10,
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 6,
+    borderRadius: 25,
+    marginHorizontal: 16,
+  },
+  filterTab: {
+    flex: 1,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 50,
+    borderRadius: 18,
+    flexDirection: "row",
   },
-  emptyText: { color: "#71717a" },
+  activeFilterTab: { backgroundColor: COLORS.white, elevation: 2 },
+  filterTabText: { color: COLORS.muted, fontWeight: "500", fontSize: 13 },
+  activeFilterText: { color: COLORS.foreground, fontWeight: "bold" },
+  requestBadge: {
+    backgroundColor: "#EF4444",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 6,
+  },
+  requestBadgeText: { color: COLORS.white, fontSize: 9, fontWeight: "bold" },
+  listContainer: { flex: 1, paddingHorizontal: 4 },
 });

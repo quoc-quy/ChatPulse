@@ -1,82 +1,89 @@
+// App.tsx
 import React, { useEffect, useState } from "react";
-import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import này để check token
-import { ActivityIndicator, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ActivityIndicator, View, StyleSheet } from "react-native";
 
-// Import các màn hình
-// Lưu ý: Đảm bảo ChatScreen export default, nếu không phải dùng { ChatScreen }
+// Import các màn hình và navigation
+import MainTabs from "./src/navigation/MainTabs";
 import ChatScreen from "./src/screens/ChatScreen";
 import { LoginForm } from "./src/auth/LoginForm";
 import { SignUpForm } from "./src/auth/SignUpForm";
-import FriendsScreen from "./src/screens/FriendsScreen"; //
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  // State để xác định màn hình đầu tiên (Login hay Main)
-  const [initialRoute, setInitialRoute] = useState("Login");
-  const [isLoading, setIsLoading] = useState(true);
+  // Trạng thái đăng nhập: null (đang kiểm tra), true (đã login), false (chưa login)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
-  // Logic kiểm tra đăng nhập tự động
+  // Kiểm tra trạng thái đăng nhập khi khởi động App
+  const checkLoginStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      // Nếu có token thì coi như đã đăng nhập
+      setIsLoggedIn(!!token);
+    } catch (e) {
+      console.error("Lỗi khi kiểm tra token:", e);
+      setIsLoggedIn(false);
+    }
+  };
+
   useEffect(() => {
-    const checkLoginStatus = async () => {
-      try {
-        // Kiểm tra xem trong máy có Token chưa
-        const token = await AsyncStorage.getItem("access_token");
-        if (token) {
-          console.log("Token found, auto-login to Main");
-          setInitialRoute("Main"); // Nếu có token, set màn hình đầu là Main (FriendsScreen)
-        }
-      } catch (error) {
-        console.error("Lỗi kiểm tra đăng nhập:", error);
-      } finally {
-        setIsLoading(false); // Kết thúc quá trình kiểm tra
-      }
-    };
-
     checkLoginStatus();
   }, []);
 
+  // Hàm xử lý khi đăng xuất thành công (sẽ được truyền xuống ProfileScreen)
+  const handleLogoutAction = () => {
+    setIsLoggedIn(false);
+    // Khi state này chuyển sang false, React Navigation sẽ tự động gỡ bỏ MainTabs
+    // và đưa người dùng về cụm Auth (Login)
+  };
+
   // Hiển thị màn hình chờ khi đang check token
-  if (isLoading) {
+  if (isLoggedIn === null) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#f4f4f5",
-        }}
-      >
-        <ActivityIndicator size="large" color="#18181b" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#A855F7" />
       </View>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="dark" />
-        <Stack.Navigator
-          initialRouteName={initialRoute}
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { flex: 1, backgroundColor: "#f4f4f5" },
-            animation: "slide_from_right",
-          }}
-        >
-          <Stack.Screen name="Login" component={LoginForm} />
-          <Stack.Screen name="SignUp" component={SignUpForm} />
-
-          {/* FIX: Đổi tên từ "Friends" thành "Main" */}
-          <Stack.Screen name="Main" component={FriendsScreen} />
-
-          <Stack.Screen name="Chat" component={ChatScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isLoggedIn ? (
+          // Cụm màn hình sau khi đăng nhập (Main Stack)
+          <Stack.Group>
+            <Stack.Screen name="Main">
+              {(props) => <MainTabs {...props} onLogout={handleLogoutAction} />}
+            </Stack.Screen>
+            <Stack.Screen name="Chat" component={ChatScreen} />
+          </Stack.Group>
+        ) : (
+          // Cụm màn hình đăng nhập/đăng ký (Auth Stack)
+          <Stack.Group>
+            <Stack.Screen name="Login">
+              {(props) => (
+                <LoginForm
+                  {...props}
+                  onLoginSuccess={() => setIsLoggedIn(true)}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="SignUp" component={SignUpForm} />
+          </Stack.Group>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+});

@@ -18,7 +18,9 @@ import {
 import { AppContext } from '@/context/app.context'
 import { conversationsApi } from '@/apis/conversations.api'
 import { ChatAvatar } from './chat-avatar'
+
 import { useSocket } from '@/context/socket.context'
+import PhoneBook from './phonebook/PhoneBook'
 
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
