@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { Input } from "../components/ui/Input";
 import { SocialButtons } from "../components/auth/SocialButtons";
@@ -18,7 +19,22 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
 import { validateEmail, validatePassword } from "../utils/validations";
 
-export function LoginForm({ navigation }: any) {
+// Bảng màu đồng bộ với index.css
+const COLORS = {
+  primary: "#4F46E5", // --primary: hsl(230 85% 60%)
+  secondary: "#A855F7", // --secondary: hsl(270 75% 65%)
+  background: "#F8FAFC", // --background: hsl(240 30% 98%)
+  foreground: "#1E293B", // --foreground: hsl(240 10% 15%)
+  muted: "#94A3B8",
+  white: "#FFFFFF",
+};
+
+interface LoginFormProps {
+  navigation: any;
+  onLoginSuccess?: () => void; // Prop để cập nhật trạng thái tại App.tsx
+}
+
+export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,21 +58,26 @@ export function LoginForm({ navigation }: any) {
     setLoading(true);
 
     try {
-      // ĐÚNG ROUTE: Dựa trên auth.routes.ts, route là /auth/login
       const response = await api.post("/auth/login", {
         email: email.trim(),
         password: password,
       });
 
-      // Backend trả về result chứa tokens
       if (response.data.result) {
         const { access_token, refresh_token } = response.data.result;
+        // Lưu trữ token vào bộ nhớ máy
         await AsyncStorage.setItem("access_token", access_token);
         await AsyncStorage.setItem("refresh_token", refresh_token);
-        navigation.replace("Main");
+
+        // Gọi callback để App.tsx biết đã đăng nhập thành công
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        } else {
+          navigation.replace("Main");
+        }
       }
     } catch (error: any) {
-      console.log("Lỗi chi tiết:", error.response?.data);
+      console.log("Lỗi đăng nhập:", error.response?.data);
       Alert.alert(
         "Đăng nhập thất bại",
         error.response?.data?.message || "Email hoặc mật khẩu không chính xác.",
@@ -66,152 +87,150 @@ export function LoginForm({ navigation }: any) {
     }
   };
 
-  const handleForgotPassword = () => {
-    // LƯU Ý: Hiện tại trong các file route bạn gửi (auth, users, message...)
-    // CHƯA có route /forgot-password. Bạn cần kiểm tra lại Backend.
-    Alert.alert("Thông báo", "Tính năng này đang được cập nhật trên Server.");
-  };
-
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableWithoutFeedback accessible={false}>
-        <View style={{ flex: 1 }}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1 }}
+      <TouchableWithoutFeedback>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.card}>
-                <View style={styles.header}>
-                  <Text style={styles.title}>Welcome back</Text>
-                  <Text style={styles.subtitle}>
-                    Login to your ChatPulse account
-                  </Text>
+            <View style={styles.card}>
+              <View style={styles.header}>
+                {/* Tiêu đề dùng màu secondary giống Contacts */}
+                <Text style={styles.title}>Welcome back</Text>
+                <Text style={styles.subtitle}>
+                  Login to your ChatPulse account
+                </Text>
+              </View>
+
+              <Input
+                label="Email"
+                placeholder="m@example.com"
+                value={email}
+                error={errors.email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) setErrors({ ...errors, email: undefined });
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <View style={styles.passwordSection}>
+                <View style={styles.rowBetween}>
+                  <View />
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert("Thông báo", "Tính năng đang cập nhật.")
+                    }
+                  >
+                    <Text style={styles.link}>Forgot password?</Text>
+                  </TouchableOpacity>
                 </View>
 
                 <Input
-                  label="Email"
-                  placeholder="m@example.com"
-                  value={email}
-                  error={errors.email}
+                  label="Password"
+                  placeholder="••••••••"
+                  value={password}
+                  error={errors.password}
                   onChangeText={(text) => {
-                    setEmail(text);
-                    if (errors.email)
-                      setErrors({ ...errors, email: undefined });
+                    setPassword(text);
+                    if (errors.password)
+                      setErrors({ ...errors, password: undefined });
                   }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  isPassword={true}
                 />
-
-                <View style={styles.passwordSection}>
-                  <View style={styles.rowBetween}>
-                    <View />
-                    <TouchableOpacity onPress={handleForgotPassword}>
-                      <Text style={styles.link}>Forgot password?</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <Input
-                    label="Password"
-                    placeholder="••••••••"
-                    value={password}
-                    error={errors.password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (errors.password)
-                        setErrors({ ...errors, password: undefined });
-                    }}
-                    isPassword={true}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.btnPrimary, loading && { opacity: 0.7 }]}
-                  onPress={handleLogin}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.btnText}>Login</Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.separatorContainer}>
-                  <View style={styles.line} />
-                  <Text style={styles.sepText}>Or continue with</Text>
-                  <View style={styles.line} />
-                </View>
-
-                <SocialButtons />
-
-                <View style={styles.footer}>
-                  <Text style={styles.footerGray}>Don't have an account? </Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("SignUp")}
-                  >
-                    <Text style={styles.boldLink}>Sign up</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
+
+              {/* Nút bấm dùng màu primary tím xanh từ index.css */}
+              <TouchableOpacity
+                style={[styles.btnPrimary, loading && { opacity: 0.7 }]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnText}>Login</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.separatorContainer}>
+                <View style={styles.line} />
+                <Text style={styles.sepText}>Or continue with</Text>
+                <View style={styles.line} />
+              </View>
+
+              <SocialButtons />
+
+              <View style={styles.footer}>
+                <Text style={styles.footerGray}>Don't have an account? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+                  <Text style={styles.boldLink}>Sign up</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f4f5" },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { flexGrow: 1, justifyContent: "center", padding: 20 },
   card: {
     padding: 24,
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e4e4e7",
-    width: "100%",
+    borderRadius: 24, // Bo góc lớn hơn cho hiện đại
+    backgroundColor: COLORS.white,
+    // Hiệu ứng bóng đổ nhẹ
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
   header: { alignItems: "center", marginBottom: 30 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#09090b" },
-  subtitle: { color: "#71717a", marginTop: 4 },
+  title: { fontSize: 28, fontWeight: "800", color: COLORS.secondary },
+  subtitle: { color: COLORS.muted, marginTop: 4, textAlign: "center" },
   passwordSection: { marginBottom: 10 },
   btnPrimary: {
-    backgroundColor: "#18181b",
-    height: 44,
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    height: 50,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
   },
-  btnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  link: { fontSize: 12, textDecorationLine: "underline", color: "#09090b" },
+  link: { fontSize: 13, fontWeight: "600", color: COLORS.primary },
   separatorContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 25,
   },
-  line: { flex: 1, height: 1, backgroundColor: "#e4e4e7" },
+  line: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   sepText: {
     marginHorizontal: 10,
-    color: "#71717a",
-    fontSize: 12,
+    color: COLORS.muted,
+    fontSize: 11,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  footer: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
-  footerGray: { color: "#71717a" },
+  footer: { flexDirection: "row", justifyContent: "center", marginTop: 25 },
+  footerGray: { color: COLORS.muted },
   boldLink: {
     fontWeight: "bold",
-    textDecorationLine: "underline",
-    color: "#09090b",
+    color: COLORS.primary,
   },
 });
