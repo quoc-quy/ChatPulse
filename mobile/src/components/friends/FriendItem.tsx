@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 interface FriendItemProps {
   item: any;
@@ -8,24 +8,40 @@ interface FriendItemProps {
   onDecline?: (id: string) => void;
 }
 
+const COLORS = {
+  primary: "#4F46E5",
+  secondary: "#A855F7",
+  foreground: "#1E293B",
+  muted: "#64748B",
+  white: "#FFFFFF",
+  grayBtn: "#F1F5F9",
+};
+
 export const FriendItem = React.memo(
   ({ item, type, onAccept, onDecline }: FriendItemProps) => {
+    const displayName = item.fullName || item.userName || "User";
+    const initials = displayName.charAt(0).toUpperCase();
+
     return (
       <View style={styles.container}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>
-            {(item.userName || item.fullName || "U").charAt(0)}
-          </Text>
+        <View style={styles.avatarWrapper}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+          <View style={styles.onlineBadge} />
         </View>
 
         <View style={styles.info}>
-          <Text style={styles.name}>{item.fullName || "User"}</Text>
-          <Text style={styles.status}>
-            {type === "friend" ? "Online" : "Sent a request"}
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {type === "request"
+              ? "Hey, let's connect!"
+              : "Living my best life ✨"}
           </Text>
         </View>
 
-        {type === "request" && (
+        {/* 3. Hiển thị nút Accept/Decline khi ở tab Request */}
+        {type === "request" ? (
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.btnAccept}
@@ -40,7 +56,7 @@ export const FriendItem = React.memo(
               <Text style={styles.btnTextBlack}>Decline</Text>
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
       </View>
     );
   },
@@ -49,39 +65,47 @@ export const FriendItem = React.memo(
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    padding: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#e4e4e7", // Đồng bộ với Input.tsx
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     alignItems: "center",
   },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#f4f4f5", // Đồng bộ với background LoginForm
+  avatarWrapper: { position: "relative" },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.secondary,
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: { fontWeight: "bold", color: "#71717a" },
-  info: { flex: 1, marginLeft: 12 },
-  name: { fontSize: 16, fontWeight: "600", color: "#09090b" },
-  status: { fontSize: 13, color: "#71717a" },
+  avatarText: { color: COLORS.white, fontSize: 18, fontWeight: "bold" },
+  onlineBadge: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 14,
+    height: 14,
+    backgroundColor: "#22C55E",
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  info: { flex: 1, marginLeft: 14 },
+  name: { fontSize: 16, fontWeight: "700", color: COLORS.foreground },
+  lastMessage: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
   actions: { flexDirection: "row", gap: 8 },
   btnAccept: {
-    backgroundColor: "#18181b", // Màu chủ đạo của ChatPulse
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   btnDecline: {
-    backgroundColor: "#f4f4f5",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#e4e4e7",
+    backgroundColor: COLORS.grayBtn,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
-  btnTextWhite: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  btnTextBlack: { color: "#09090b", fontSize: 12, fontWeight: "600" },
+  btnTextWhite: { color: COLORS.white, fontSize: 13, fontWeight: "bold" },
+  btnTextBlack: { color: COLORS.muted, fontSize: 13, fontWeight: "600" },
 });
