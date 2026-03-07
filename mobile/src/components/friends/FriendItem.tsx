@@ -20,7 +20,7 @@ const COLORS = {
 export const FriendItem = React.memo(
   ({ item, type, onAccept, onDecline }: FriendItemProps) => {
     const displayName = item.fullName || item.userName || "User";
-    const initials = displayName.charAt(0).toUpperCase();
+    const initials = displayName.trim().charAt(0).toUpperCase();
 
     return (
       <View style={styles.container}>
