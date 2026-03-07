@@ -7,15 +7,15 @@ import type { ChatItem } from '@/context/app.context'
 
 interface ChatHeaderProps {
   chat: ChatItem
+  onStartCall?: (type: 'video' | 'audio') => void // <-- Thêm dòng này
 }
 
-export function ChatHeader({ chat }: ChatHeaderProps) {
+export function ChatHeader({ chat, onStartCall }: ChatHeaderProps) {
   const getInitials = (name: string) => {
     if (!name) return 'U'
     return name.charAt(0).toUpperCase()
   }
 
-  // Helper function to format last active time
   const formatLastActive = (dateString?: string) => {
     if (!dateString) return 'Truy cập gần đây'
 
@@ -44,7 +44,6 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
             <AvatarImage src={chat.avatar} alt={chat.name} />
             <AvatarFallback className='font-bold bg-blue-100 text-blue-600'>{getInitials(chat.name)}</AvatarFallback>
           </Avatar>
-          {/* Show dot only for direct messages if possible, or assume chat.type is passed */}
           {chat.type !== 'group' && (
             <span
               className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-background ${
@@ -67,10 +66,18 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
       </div>
 
       <div className='flex items-center gap-2 text-muted-foreground'>
-        <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors'>
+        {/* Nút Gọi Audio */}
+        <button
+          onClick={() => onStartCall && onStartCall('audio')}
+          className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
+        >
           <Phone className='h-5 w-5' />
         </button>
-        <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors'>
+        {/* Nút Gọi Video */}
+        <button
+          onClick={() => onStartCall && onStartCall('video')}
+          className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
+        >
           <Video className='h-5 w-5' />
         </button>
         <Separator orientation='vertical' className='h-5 mx-1 hidden sm:block' />

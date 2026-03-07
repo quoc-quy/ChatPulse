@@ -8,6 +8,7 @@ import { Toaster } from 'sonner'
 import { ToastContainer } from 'react-toastify'
 import './index.css'
 import { AppProvider } from './context/app.context'
+import { SocketProvider } from './context/socket.context'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +24,10 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AppProvider>
-          <App />
+          {/* BỌC SOCKET PROVIDER Ở ĐÂY */}
+          <SocketProvider>
+            <App />
+          </SocketProvider>
         </AppProvider>
         <ToastContainer />
         {/* <ReactQueryDevtools initialIsOpen={false} /> */}
