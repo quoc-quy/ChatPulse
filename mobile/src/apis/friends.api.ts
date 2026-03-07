@@ -7,9 +7,11 @@ export const friendApi = {
   // Cập nhật lại cho đúng với endpoint bạn đang gọi ở Screen
   getRequests: () => api.get("/friends/requests/received"),
 
-  acceptRequest: (friendId: string) =>
-    api.post("/friends/accept", { friendId }),
+  // Cập nhật theo Postman: PATCH http://localhost:4000/friends/requests/:id/accept
+  acceptRequest: (requestId: string) =>
+    api.patch(`/friends/requests/${requestId}/accept`),
 
-  declineRequest: (friendId: string) =>
-    api.post("/friends/requests/:id/decline", { friendId }),
+  // Cập nhật theo Postman: DELETE http://localhost:4000/friends/requests/:id/decline
+  declineRequest: (requestId: string) =>
+    api.delete(`/friends/requests/${requestId}/decline`),
 };

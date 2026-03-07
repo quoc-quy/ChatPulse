@@ -13,6 +13,7 @@ import {
 import { Search, UserPlus, Bell, Edit3, QrCode } from "lucide-react-native";
 import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
+import { friendApi } from "../apis/friends.api";
 
 const COLORS = {
   primary: "#4F46E5",
@@ -58,6 +59,24 @@ export default function FriendsScreen() {
     if (activeFilter === "Requests") return requests;
     if (activeFilter === "Blocked") return []; // Giả lập chưa có blocked
     return friends;
+  };
+  const handleAccept = async (id: string) => {
+    try {
+      await friendApi.acceptRequest(id);
+      Alert.alert("Thành công", "Đã chấp nhận lời mời kết bạn");
+      fetchData(); // Tải lại danh sách để cập nhật UI
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể chấp nhận lời mời");
+    }
+  };
+  const handleDecline = async (id: string) => {
+    try {
+      await friendApi.declineRequest(id);
+      Alert.alert("Thông báo", "Đã từ chối lời mời");
+      fetchData(); // Tải lại danh sách
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể thực hiện thao tác");
+    }
   };
 
   return (
@@ -149,6 +168,8 @@ export default function FriendsScreen() {
                 item={item}
                 // Truyền type dựa trên tab đang chọn để FriendItem hiển thị nút phù hợp
                 type={activeFilter === "Requests" ? "request" : "friend"}
+                onAccept={handleAccept} // TRUYỀN THÊM DÒNG NÀY
+                onDecline={handleDecline} // TRUYỀN THÊM DÒNG NÀY
               />
             ))
           )}
