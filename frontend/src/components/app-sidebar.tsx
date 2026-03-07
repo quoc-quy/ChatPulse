@@ -19,6 +19,7 @@ import {
 import { AppContext } from '@/context/app.context'
 import { conversationsApi } from '@/apis/conversations.api'
 import { ChatAvatar } from './chat-avatar'
+import PhoneBook from './phonebook/PhoneBook'
 
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
@@ -440,7 +441,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </>
             )}
 
-            {activeItem.title !== 'Tin nhắn' && (
+            {activeItem.title === 'Danh bạ' && <PhoneBook />}
+
+            {activeItem.title !== 'Tin nhắn' && activeItem.title !== 'Danh bạ' && (
               <div className='text-center py-6 text-sm text-muted-foreground'>Tính năng đang phát triển...</div>
             )}
           </div>
