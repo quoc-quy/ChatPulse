@@ -2,16 +2,17 @@ export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
   Chat: undefined;
+  Main: undefined;
 };
 
 export interface Conversation {
-  _id: string
-  name: string
-  avatarUrl?: string
+  _id: string;
+  name: string;
+  avatarUrl?: string;
   lastMessage?: {
-    content: string
-    created_at: string
-  }
-  unreadCount: number
-  type: 'private' | 'group'
+    content: string;
+    created_at: string;
+  };
+  unreadCount: number;
+  type: "private" | "group";
 }
