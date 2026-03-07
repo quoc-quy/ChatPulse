@@ -4,6 +4,7 @@ import axios from "axios";
 const BASE_URL = "http://192.168.1.15:4000";
 export const api = axios.create({
   baseURL: BASE_URL,
+  timeout: 10000, // Thêm timeout để tránh treo app khi server lỗi
 });
 // Thêm interceptor để tự động gắn Token
 api.interceptors.request.use(
