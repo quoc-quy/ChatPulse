@@ -9,6 +9,7 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import {
   Edit3,
@@ -22,8 +23,10 @@ import {
   MessageSquare,
   HelpCircle,
 } from "lucide-react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { api } from "../apis/api";
+import { clearAuthData } from "../utils/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const COLORS = {
   primary: "#4F46E5",
@@ -56,11 +59,11 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
       setUser(userRes.data.result);
       setStats({
         friends: friendsRes.data.result?.length || 0,
-        groups: 12, // Dữ liệu giả lập theo ảnh mẫu
-        media: 1200, // Dữ liệu giả lập theo ảnh mẫu
+        groups: 12,
+        media: 1200,
       });
     } catch (error) {
-      console.error("Error loading profile:", error);
+      console.log("PROFILE ERROR:", error);
     } finally {
       setLoading(false);
     }
@@ -70,27 +73,51 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
     fetchProfileData();
   }, []);
 
+  // ✅ THE FIX: React Native Alert doesn't work on Web (Expo Web / browser)
+  // Use window.confirm on web, Alert on native
   const handleLogout = async () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn thoát không?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Gọi API với timeout ngắn để tránh chờ đợi lâu
-            await api.post("/auth/logout", {}, { timeout: 3000 });
-          } catch (e) {
-            console.log("Logout API failed, forcing local logout...");
-          } finally {
-            // CỰC KỲ QUAN TRỌNG: Xóa sạch bộ nhớ và gọi callback điều hướng
-            await AsyncStorage.clear();
-            if (onLogout) onLogout();
-          }
+    const doLogout = async () => {
+      try {
+        // ✅ Call API FIRST while token still exists, then clear it
+        const accessToken = await AsyncStorage.getItem("access_token");
+        const refreshToken = await AsyncStorage.getItem("refresh_token");
+        await api
+          .post(
+            "/auth/logout",
+            { refresh_token: refreshToken },
+            {
+              // Access Token gửi trong Headers (dưới dạng Bearer token)
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            },
+          )
+          .catch(() => {});
+        await clearAuthData();
+        onLogout(); // triggers App.tsx to swap to Login screen
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      // window.confirm works synchronously in browsers
+      const confirmed = window.confirm("Bạn có chắc chắn muốn thoát không?");
+      if (confirmed) {
+        await doLogout();
+      }
+    } else {
+      Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn thoát không?", [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: doLogout,
         },
-      },
-    ]);
+      ]);
+    }
   };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -99,10 +126,10 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
     );
   }
 
-  // - Tìm đến dòng định nghĩa initials trong ProfileScreen.tsx
   const initials = user?.fullName
     ? user.fullName.trim().charAt(0).toUpperCase()
-    : "U"; // Mặc định là U nếu chưa load xong
+    : "U";
+
   const MenuItem = ({
     icon: Icon,
     title,
@@ -110,41 +137,45 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
     onPress,
     isDestructive,
     hasSwitch,
-  }: any) => (
-    <TouchableOpacity
-      style={styles.menuItem}
-      onPress={onPress}
-      disabled={hasSwitch}
-    >
-      <View
-        style={[
-          styles.menuIconBox,
-          isDestructive && { backgroundColor: "#FEE2E2" },
-        ]}
+  }: any) => {
+    return (
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={onPress}
+        disabled={hasSwitch}
       >
-        <Icon
-          size={20}
-          color={isDestructive ? COLORS.destructive : COLORS.primary}
-        />
-      </View>
-      <View style={styles.menuContent}>
-        <Text
+        <View
           style={[
-            styles.menuTitle,
-            isDestructive && { color: COLORS.destructive },
+            styles.menuIconBox,
+            isDestructive && { backgroundColor: "#FEE2E2" },
           ]}
         >
-          {title}
-        </Text>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
-      </View>
-      {hasSwitch ? (
-        <Switch value={isDarkMode} onValueChange={setIsDarkMode} />
-      ) : (
-        <ChevronRight size={18} color={COLORS.muted} />
-      )}
-    </TouchableOpacity>
-  );
+          <Icon
+            size={20}
+            color={isDestructive ? COLORS.destructive : COLORS.primary}
+          />
+        </View>
+
+        <View style={styles.menuContent}>
+          <Text
+            style={[
+              styles.menuTitle,
+              isDestructive && { color: COLORS.destructive },
+            ]}
+          >
+            {title}
+          </Text>
+          {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+        </View>
+
+        {hasSwitch ? (
+          <Switch value={isDarkMode} onValueChange={setIsDarkMode} />
+        ) : (
+          <ChevronRight size={18} color={COLORS.muted} />
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -171,10 +202,8 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
               <Camera size={14} color={COLORS.white} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>{user?.fullName || "Alex Morgan"}</Text>
-          <Text style={styles.userHandle}>
-            @{user?.userName || "alexmorgan"}
-          </Text>
+          <Text style={styles.userName}>{user?.fullName}</Text>
+          <Text style={styles.userHandle}>@{user?.userName}</Text>
           <Text style={styles.userBio}>
             {user?.bio || "Living the dream ✨"}
           </Text>
@@ -242,7 +271,7 @@ export default function ProfileScreen({ navigation, onLogout }: Props) {
             title="Log Out"
             subtitle="Sign out of your account"
             isDestructive
-            onPress={handleLogout}
+            onPress={handleLogout} // ✅ directly passed, no wrapper needed
           />
         </View>
       </ScrollView>
@@ -302,7 +331,7 @@ const styles = StyleSheet.create({
     color: COLORS.foreground,
     marginTop: 10,
   },
-  userHandle: { fontSize: 14, color: COLORS.muted, marginBottom: 4 },
+  userHandle: { fontSize: 14, color: COLORS.muted },
   userBio: { fontSize: 14, color: COLORS.muted },
   actionButtons: {
     flexDirection: "row",
@@ -319,9 +348,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    elevation: 1,
   },
-  actionBtnText: { fontSize: 14, fontWeight: "600", color: COLORS.foreground },
+  actionBtnText: { fontWeight: "600", color: COLORS.foreground },
   statsRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -334,17 +362,15 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 20,
     alignItems: "center",
-    elevation: 1,
   },
   statValue: { fontSize: 18, fontWeight: "bold", color: COLORS.secondary },
-  statLabel: { fontSize: 12, color: COLORS.muted, marginTop: 4 },
+  statLabel: { fontSize: 12, color: COLORS.muted },
   menuSection: {
     marginHorizontal: 20,
     backgroundColor: COLORS.white,
     borderRadius: 25,
     paddingVertical: 10,
     marginBottom: 30,
-    elevation: 1,
   },
   menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
   menuIconBox: {
@@ -358,5 +384,5 @@ const styles = StyleSheet.create({
   },
   menuContent: { flex: 1 },
   menuTitle: { fontSize: 16, fontWeight: "600", color: COLORS.foreground },
-  menuSubtitle: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  menuSubtitle: { fontSize: 12, color: COLORS.muted },
 });
