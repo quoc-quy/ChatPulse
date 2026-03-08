@@ -1,10 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
-const BASE_URL = "http://192.168.1.15:4000";
+const BASE_URL = "http://192.168.1.66:4000";
 export const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 5000,
+  timeout: 10000,
 });
 // Thêm interceptor để tự động gắn Token
 api.interceptors.request.use(
