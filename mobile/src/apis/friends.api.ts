@@ -14,4 +14,10 @@ export const friendApi = {
   // Cập nhật theo Postman: DELETE http://localhost:4000/friends/requests/:id/decline
   declineRequest: (requestId: string) =>
     api.delete(`/friends/requests/${requestId}/decline`),
+  
+  // Sửa lại theo đúng Postman: DELETE /friends/unfriend kèm body { friend_id }
+  deleteFriend: (friendId: string) =>
+    api.delete("/friends/unfriend", {
+      data: { friend_id: friendId },
+    }),
 };
