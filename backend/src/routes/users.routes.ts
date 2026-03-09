@@ -7,6 +7,7 @@ import {
   loginController,
   logoutController,
   registerController,
+  searchUserController,
   unBlockUserController,
   updateMeController
 } from '~/controllers/users.controllers'
@@ -66,10 +67,6 @@ usersRouter.delete(
   wrapRequestHandler(unBlockUserController)
 )
 
-/**
- * Get user profile
- */
-usersRouter.get('/:userName', wrapRequestHandler(getProfileController))
 
 /**
  * Register
@@ -85,6 +82,17 @@ usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
  * Logout
  */
 usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
-
+/**
+ * Search user 
+ */
+usersRouter.get(
+  '/search',
+  accessTokenValidator,
+  wrapRequestHandler(searchUserController)
+)
+/**
+ * Get user profile
+ */
+usersRouter.get('/:userName', wrapRequestHandler(getProfileController))
 
 export default usersRouter
