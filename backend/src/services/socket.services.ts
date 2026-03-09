@@ -1,17 +1,18 @@
 import { Server, Socket } from 'socket.io'
 import http from 'http'
 import Call from '~/models/schemas/call.schema'
+import Message from '~/models/schemas/message.schema' // Bổ sung import Message
 import { ObjectId } from 'mongodb'
 import { CallStatus, CallType } from '~/constants/callStataus'
 import databaseService from './database.services'
 
 class SocketService {
   public io!: Server
-  public usersOnline: Set<string> = new Set() // Dùng Set để lưu danh sách online dễ dàng
+  public usersOnline: Set<string> = new Set()
 
   init(httpServer: http.Server) {
     this.io = new Server(httpServer, {
-      cors: { origin: '*' } // Cho phép frontend kết nối
+      cors: { origin: '*' }
     })
 
     this.io.on('connection', (socket: Socket) => {
@@ -69,12 +70,21 @@ class SocketService {
       socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
         try {
           const { callId, conversationId } = data
-          await databaseService.calls.updateOne(
-            { _id: new ObjectId(callId) },
-            { $addToSet: { participants: new ObjectId(userId) }, $set: { status: 'ONGOING' } }
-          )
 
-          // Lấy thông tin user để hiển thị tên thật
+          // Tính thời gian từ lúc bắt đầu trò chuyện thật sự
+          const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
+          if (call && call.status === 'INITIATED') {
+            await databaseService.calls.updateOne(
+              { _id: new ObjectId(callId) },
+              { $addToSet: { participants: new ObjectId(userId) }, $set: { status: 'ONGOING', startedAt: new Date() } }
+            )
+          } else {
+            await databaseService.calls.updateOne(
+              { _id: new ObjectId(callId) },
+              { $addToSet: { participants: new ObjectId(userId) } }
+            )
+          }
+
           const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
           const userName = user?.userName || 'Người dùng'
 
@@ -85,7 +95,7 @@ class SocketService {
                 this.emitToUser(pId.toString(), 'call:user-joined', {
                   userId: userId,
                   socketId: socket.id,
-                  userName // Gửi kèm tên
+                  userName
                 })
               }
             })
@@ -99,7 +109,6 @@ class SocketService {
       socket.on('call:signal', async (data: { targetSocketId?: string; targetUserId?: string; signal: any }) => {
         try {
           let userName = undefined
-          // Chỉ query DB lấy tên khi gửi Offer/Answer để tối ưu hiệu suất (bỏ qua ICE candidate)
           if (data.signal && (data.signal.type === 'offer' || data.signal.type === 'answer')) {
             const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
             userName = user?.userName || 'Người dùng'
@@ -109,7 +118,7 @@ class SocketService {
             this.io.to(data.targetSocketId).emit('call:signal', {
               callerId: userId,
               callerSocketId: socket.id,
-              userName, // Gửi kèm tên
+              userName,
               signal: data.signal
             })
           }
@@ -121,7 +130,17 @@ class SocketService {
       // 4. Từ chối cuộc gọi
       socket.on('call:reject', async (data: { callId: string; conversationId: string }) => {
         try {
-          await databaseService.calls.updateOne({ _id: new ObjectId(data.callId) }, { $set: { status: 'REJECTED' } })
+          const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
+          if (call && !['ENDED', 'REJECTED', 'CANCELLED'].includes(call.status)) {
+            await databaseService.calls.updateOne(
+              { _id: new ObjectId(data.callId) },
+              { $set: { status: 'REJECTED', endedAt: new Date() } }
+            )
+
+            // TẠO TIN NHẮN TỪ CHỐI
+            await this.createAndEmitCallMessage(data.callId, 'rejected')
+          }
+
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
           if (conversation && conversation.participants) {
             conversation.participants.forEach((pId) => {
@@ -133,9 +152,28 @@ class SocketService {
         }
       })
 
-      // 5. Rời cuộc gọi
+      // 5. Rời cuộc gọi / Hủy gọi
       socket.on('call:leave', async (data: { callId: string; conversationId: string }) => {
         try {
+          const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
+
+          if (call && !['ENDED', 'REJECTED', 'CANCELLED'].includes(call.status)) {
+            let newStatus = ''
+            if (call.status === 'INITIATED')
+              newStatus = 'CANCELLED' // Người gọi tắt khi chưa ai nghe
+            else if (call.status === 'ONGOING') newStatus = 'ENDED' // Kết thúc cuộc gọi bình thường
+
+            if (newStatus) {
+              await databaseService.calls.updateOne(
+                { _id: call._id },
+                { $set: { status: newStatus, endedAt: new Date() } }
+              )
+
+              // TẠO TIN NHẮN KẾT THÚC HOẶC HỦY
+              await this.createAndEmitCallMessage(data.callId, newStatus === 'ENDED' ? 'completed' : 'cancelled')
+            }
+          }
+
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
           if (conversation && conversation.participants) {
             const isOneOnOne = conversation.participants.length <= 2
@@ -154,7 +192,7 @@ class SocketService {
         }
       })
 
-      // 6. Cập nhật trạng thái Bật/Tắt Mic và Camera
+      // 6. Cập nhật Media
       socket.on(
         'call:toggle-media',
         async (data: { callId: string; conversationId: string; isMicOn: boolean; isCameraOn: boolean }) => {
@@ -179,25 +217,84 @@ class SocketService {
       )
 
       socket.on('disconnect', async () => {
-        // Kiểm tra xem user này còn tab/thiết bị nào khác đang kết nối không?
         const sockets = await this.io.in(userId).fetchSockets()
-
         if (sockets.length === 0) {
-          // Nếu không còn tab nào -> Chắc chắn đã Offline
           this.usersOnline.delete(userId)
-
-          // Phát sự kiện offline cho TẤT CẢ mọi người kèm thời gian lastActive
-          this.io.emit('user_status_change', {
-            userId,
-            isOnline: false,
-            lastActiveAt: new Date().toISOString()
-          })
+          this.io.emit('user_status_change', { userId, isOnline: false, lastActiveAt: new Date().toISOString() })
         }
       })
     })
   }
 
-  // Hàm bắn tin nhắn chuẩn xác vào Room của User
+  // --- HÀM TẠO VÀ PHÁT TIN NHẮN CUỘC GỌI ---
+  private async createAndEmitCallMessage(
+    callIdStr: string,
+    callStatus: 'completed' | 'missed' | 'rejected' | 'cancelled'
+  ) {
+    try {
+      const call = await databaseService.calls.findOne({ _id: new ObjectId(callIdStr) })
+      if (!call) return
+
+      // Tính thời lượng bằng giây
+      let duration = 0
+      if (callStatus === 'completed' && call.startedAt) {
+        duration = Math.floor((new Date().getTime() - call.startedAt.getTime()) / 1000)
+      }
+
+      // Tạo tin nhắn System Call
+      const newMessage = new Message({
+        conversationId: call.conversationId,
+        senderId: call.callerId, // Người gọi là người gửi tin nhắn này
+        type: 'call',
+        content: 'Cuộc gọi ' + (call.type === 'video' ? 'Video' : 'Thoại'),
+        callInfo: {
+          status: callStatus,
+          duration: duration,
+          type: call.type
+        }
+      })
+
+      const insertResult = await databaseService.messages.insertOne(newMessage)
+
+      // Cập nhật cuộc hội thoại lên trên cùng
+      await databaseService.conversations.updateOne(
+        { _id: call.conversationId },
+        { $set: { last_message_id: insertResult.insertedId, updated_at: new Date() } }
+      )
+
+      const messages = await databaseService.messages
+        .aggregate([
+          { $match: { _id: insertResult.insertedId } },
+          { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
+          { $unwind: '$senderInfo' },
+          {
+            $project: {
+              _id: 1,
+              conversationId: 1,
+              type: 1,
+              content: 1,
+              callInfo: 1,
+              createdAt: 1,
+              sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
+            }
+          }
+        ])
+        .toArray()
+
+      const populatedMessage = messages[0]
+
+      // Bắn qua Socket cho tất cả thành viên
+      const conversation = await databaseService.conversations.findOne({ _id: call.conversationId })
+      if (conversation && conversation.participants) {
+        conversation.participants.forEach((pId) => {
+          this.emitToUser(pId.toString(), 'receive_message', populatedMessage)
+        })
+      }
+    } catch (error) {
+      console.error('Lỗi khi tạo tin nhắn cuộc gọi:', error)
+    }
+  }
+
   emitToUser(userId: string, event: string, data: any) {
     this.io.to(userId).emit(event, data)
   }
