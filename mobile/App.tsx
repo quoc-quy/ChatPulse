@@ -8,6 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import MainTabs from "./src/navigation/MainTabs";
 import { LoginForm } from "./src/auth/LoginForm";
 import { SignUpForm } from "./src/auth/SignUpForm";
+import FriendRequestsScreen from "./src/screens/FriendRequestsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -23,8 +24,8 @@ export default function App() {
       try {
         // Tạm thời XÓA SẠCH data cũ đi để ép bạn đăng nhập lại lấy Token mới
         // (Sau khi đăng nhập thành công 1 lần, bạn có thể xóa dòng AsyncStorage.clear() này đi)
-        await AsyncStorage.clear(); 
-        
+        await AsyncStorage.clear();
+
         const token = await AsyncStorage.getItem("access_token");
         if (token) {
           setIsLoggedIn(true);
@@ -64,10 +65,23 @@ export default function App() {
     <NavigationContainer key={navKey}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          <Stack.Screen name="Main">
-            {(props) => <MainTabs {...props} onLogout={handleLogout} />}
-          </Stack.Screen>
+          // Thêm cặp dấu <> và </> ở đây để bọc các Screen lại
+          <>
+            <Stack.Screen name="Main">
+              {(props) => <MainTabs {...props} onLogout={handleLogout} />}
+            </Stack.Screen>
+
+            <Stack.Screen
+              name="FriendRequests"
+              component={FriendRequestsScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+          </>
         ) : (
+          // Các màn hình khi chưa đăng nhập (Login/SignUp) để ở đây
           <>
             <Stack.Screen name="Login">
               {(props) => (
