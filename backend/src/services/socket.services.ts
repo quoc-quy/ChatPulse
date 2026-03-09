@@ -154,6 +154,30 @@ class SocketService {
         }
       })
 
+      // 6. Cập nhật trạng thái Bật/Tắt Mic và Camera
+      socket.on(
+        'call:toggle-media',
+        async (data: { callId: string; conversationId: string; isMicOn: boolean; isCameraOn: boolean }) => {
+          try {
+            const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
+            if (conversation && conversation.participants) {
+              conversation.participants.forEach((pId) => {
+                if (pId.toString() !== userId) {
+                  this.emitToUser(pId.toString(), 'call:media-toggled', {
+                    userId: userId,
+                    socketId: socket.id,
+                    isMicOn: data.isMicOn,
+                    isCameraOn: data.isCameraOn
+                  })
+                }
+              })
+            }
+          } catch (error) {
+            console.error('Lỗi khi đồng bộ trạng thái media:', error)
+          }
+        }
+      )
+
       socket.on('disconnect', async () => {
         // Kiểm tra xem user này còn tab/thiết bị nào khác đang kết nối không?
         const sockets = await this.io.in(userId).fetchSockets()
