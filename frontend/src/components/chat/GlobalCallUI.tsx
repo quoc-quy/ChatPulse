@@ -9,7 +9,6 @@ export function GlobalCallUI() {
   const { activeCall, setActiveCall, profile } = useContext(AppContext)
   const { socket } = useSocket()
 
-  // STATE PIP
   const [isMinimized, setIsMinimized] = useState(false)
   const [position, setPosition] = useState({ x: 20, y: 20 })
   const [isDragging, setIsDragging] = useState(false)
@@ -20,15 +19,12 @@ export function GlobalCallUI() {
     activeCallRef.current = activeCall
   }, [activeCall])
 
-  // Khởi tạo vị trí PiP ở góc dưới phải màn hình
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPosition({ x: window.innerWidth - 340, y: window.innerHeight - 300 })
     }
   }, [])
 
-  // Logic Kéo Thả
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) setPosition({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y })
@@ -71,15 +67,23 @@ export function GlobalCallUI() {
       setActiveCall(null)
       setIsMinimized(false)
     }
+    // FIX: Nhận sự kiện hết 60s không trả lời
+    const handleMissed = () => {
+      toast.info('Người nhận không trả lời.')
+      setActiveCall(null)
+      setIsMinimized(false)
+    }
 
     socket.on('call:incoming', handleIncoming)
     socket.on('call:ended', handleEnded)
     socket.on('call:rejected', handleRejected)
+    socket.on('call:missed', handleMissed)
 
     return () => {
       socket.off('call:incoming', handleIncoming)
       socket.off('call:ended', handleEnded)
       socket.off('call:rejected', handleRejected)
+      socket.off('call:missed', handleMissed)
     }
   }, [socket, setActiveCall])
 
@@ -91,12 +95,10 @@ export function GlobalCallUI() {
     setActiveCall(null)
   }
 
-  // 1. MÀN HÌNH ĐỔ CHUÔNG
   if (activeCall.isReceiving) {
     return (
       <div className='fixed inset-0 bg-background/80 backdrop-blur-sm z-[9999] flex items-center justify-center pointer-events-auto'>
         <div className='bg-card border shadow-2xl rounded-3xl p-8 w-[340px] text-center animate-in fade-in zoom-in duration-300'>
-          {/* SỬA ẢNH AVATAR HOẶC CHỮ CÁI ĐẦU */}
           <div className='w-24 h-24 bg-muted rounded-full mx-auto mb-4 animate-pulse flex items-center justify-center border-4 border-primary overflow-hidden shadow-lg'>
             {activeCall.callerAvatar ? (
               <img src={activeCall.callerAvatar} alt='avatar' className='w-full h-full object-cover' />
@@ -106,8 +108,6 @@ export function GlobalCallUI() {
               </span>
             )}
           </div>
-
-          {/* SỬA MÀU CHỮ DARK MODE */}
           <h3 className='text-2xl font-bold mb-1 text-foreground'>{activeCall.callerName || 'Ai đó'}</h3>
           <p className='text-muted-foreground mb-8 text-sm font-medium'>
             Đang gọi {activeCall.type === 'video' ? 'Video' : 'Thoại'}...
@@ -136,7 +136,6 @@ export function GlobalCallUI() {
     )
   }
 
-  // 2. MÀN HÌNH PHÒNG GỌI (FULLSCREEN HOẶC PIP)
   return (
     <div
       className={
@@ -146,7 +145,6 @@ export function GlobalCallUI() {
       }
       style={isMinimized ? { left: position.x, top: position.y, width: 320, height: 240 } : {}}
     >
-      {/* THANH ĐIỀU KHIỂN KÉO THẢ CỦA PIP */}
       {isMinimized && (
         <div
           className='bg-secondary text-secondary-foreground flex justify-between items-center px-3 py-2 cursor-move border-b border-border/50 shrink-0 pointer-events-auto'
@@ -176,7 +174,6 @@ export function GlobalCallUI() {
         </div>
       )}
 
-      {/* COMPONENT VIDEO KHÔNG BAO GIỜ UNMOUNT */}
       <div
         className={
           isMinimized
@@ -192,7 +189,7 @@ export function GlobalCallUI() {
           isVideoCall={activeCall.type === 'video'}
           onEndCall={() => setActiveCall(null)}
           onMinimize={() => setIsMinimized(true)}
-          isMinimized={isMinimized} // Truyền prop thu nhỏ xuống
+          isMinimized={isMinimized}
         />
       </div>
     </div>
