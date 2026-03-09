@@ -445,8 +445,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   )}
                 </>
               )}
+              {activeItem.title === 'Danh bạ' && <PhoneBook />}
 
-              {activeItem.title !== 'Tin nhắn' && (
+              {activeItem.title !== 'Tin nhắn' && activeItem.title !== 'Danh bạ' && (
                 <div className='text-center py-6 text-sm text-muted-foreground'>Tính năng đang phát triển...</div>
               )}
             </div>
