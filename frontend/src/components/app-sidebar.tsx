@@ -1,7 +1,7 @@
 import * as React from 'react'
-import { useEffect, useState, useContext, useRef } from 'react'
+import { useEffect, useState, useContext, useRef, useMemo } from 'react'
 import { MessageSquare, Users, Settings, Bell, Plus, Loader2 } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom' // THÊM IMPORT NÀY
+import { useNavigate, useLocation } from 'react-router-dom'
 import { NavUser } from '@/components/nav-user'
 import {
   Sidebar,
@@ -30,8 +30,8 @@ const navMain = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const navigate = useNavigate() // KHỞI TẠO ROUTER
-  const location = useLocation() // LẤY URL HIỆN TẠI
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const [activeItem, setActiveItem] = useState(navMain[0])
   const { setOpen, setOpenMobile, isMobile } = useSidebar()
@@ -55,9 +55,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: profile?.avatar || ''
   }
 
-  // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN ---
+  // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN (LUÔN CHẠY ĐỂ TÍNH UNREAD BẤT KỂ ĐANG Ở TAB NÀO) ---
   useEffect(() => {
-    if (activeItem.title === 'Tin nhắn' && profile) {
+    if (profile) {
       const fetchChats = async () => {
         setIsLoading(true)
         try {
@@ -157,7 +157,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       fetchChats()
     }
-  }, [activeItem.title, profile, refetchTrigger])
+  }, [profile, refetchTrigger]) // Bỏ activeItem.title ra khỏi dependencies để gọi API ngay lần đầu
 
   // --- 2. LẮNG NGHE SOCKET REALTIME ---
   useEffect(() => {
@@ -308,7 +308,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setOpenMobile(false)
     }
 
-    // FIX TẠI ĐÂY: Ép trình duyệt chuyển về lại trang Chat chính (/)
     if (location.pathname !== '/') {
       navigate('/')
     }
@@ -319,6 +318,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       console.error('Lỗi khi đánh dấu đã xem:', error)
     }
   }
+
+  // --- 5. TÍNH TOÁN SỐ LƯỢNG TIN NHẮN CHƯA ĐỌC TỔNG ---
+  const hasUnreadMessages = useMemo(() => {
+    return chatList.some((chat) => chat.unreadCount > 0)
+  }, [chatList])
 
   return (
     <Sidebar collapsible='icon' className='overflow-hidden' {...props}>
@@ -355,7 +359,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       setActiveItem(item)
                       setOpen(true)
 
-                      // FIX TẠI ĐÂY: Nếu bấm nút Tin nhắn trên Sidebar, lập tức quay về giao diện Chat
                       if (item.title === 'Tin nhắn' && location.pathname !== '/') {
                         navigate('/')
                       }
@@ -363,7 +366,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     isActive={activeItem.title === item.title}
                     className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
                   >
-                    <item.icon className='!size-6' />
+                    {/* Bọc Icon trong relative để gắn dấu chấm đỏ */}
+                    <div className='relative flex items-center justify-center'>
+                      <item.icon className='!size-6' />
+                      {/* Dấu chấm thông báo cho tab Tin nhắn */}
+                      {item.title === 'Tin nhắn' && hasUnreadMessages && (
+                        <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
+                          <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
+                          <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
+                        </span>
+                      )}
+                    </div>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
