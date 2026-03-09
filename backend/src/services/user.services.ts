@@ -233,33 +233,39 @@ class UserService {
       message: 'Bỏ chặn người dùng thất bại'
     }
   }
+// searchUser: Tìm kiếm người dùng theo userName hoặc displayName, loại bỏ những người đã bị block bởi currentUser hoặc đã block currentUser
   async searchUser(keyword: string, currentUserId: string) {
-  // Tạo biểu thức tìm kiếm không phân biệt hoa thường ('i')
-  const regex = new RegExp(keyword, 'i')
+  if (!keyword || keyword.trim() === "") return { users: [] };
 
-  // Tìm trong bảng users
-  const users = await databaseService.users
-    .find({
-      $and: [
-        {
-          // Điều kiện 1: Khớp với username hoặc displayName
-          $or: [{ userName: regex }, { displayName: regex }]
-        },
-        {
-          // Điều kiện 2: KHÔNG tìm thấy chính mình
-          _id: { $ne: new ObjectId(currentUserId) },
-          // Điều kiện 3: KHÔNG hiện người đã bị mình block và ngược lại
-          // (Giả sử có mảng blocked_users và blocked_by_users trong model User)
-          blocked_users: { $ne: new ObjectId(currentUserId) },
-          blocked_by_users: { $ne: new ObjectId(currentUserId) }
-        }
-      ]
-    })
-    .project({ password: 0, email: 0 }) // Bảo mật: Không trả về mật khẩu và email
-    .toArray()
+  const blockedRecords = await databaseService.user_blocks.find({
+    $or: [
+      { user_id: new ObjectId(currentUserId) },
+      { blocked_user_id: new ObjectId(currentUserId) }
+    ]
+  }).toArray();
 
-  return users
+  const blockedIds = blockedRecords.map(r => 
+    r.user_id.toString() === currentUserId ? r.blocked_user_id : r.user_id
+  );
+
+  const users = await databaseService.users.find({
+    $and: [
+      {
+        $or: [
+          { userName: { $regex: keyword, $options: "i" } },
+          { displayName: { $regex: keyword, $options: "i" } }
+        ]
+      },
+      { _id: { $ne: new ObjectId(currentUserId) } },
+      { _id: { $nin: blockedIds } } 
+    ]
+  })
+  .project({ password: 0, email: 0, verify_token: 0 })
+  .limit(10)
+  .toArray();
+  return { users };
 }
+
 
 }
 

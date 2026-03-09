@@ -108,17 +108,29 @@ export const unBlockUserController = async (
 }
 
 export const searchUserController = async (req: Request, res: Response) => {
-  // Lấy từ khóa người dùng gõ từ URL (?q=vinh)
-  const { q } = req.query
+  const q = (req.query.q as string) || ''; 
+  const { user_id } = req.decoded_authorization as TokenPayload;
+
+  // Nếu không có từ khóa
+  if (!q.trim()) {
+    return res.json({
+      message: 'Vui lòng nhập từ khóa tìm kiếm',
+      result: { users: [] }
+    });
+  }
+
+  const result = await userService.searchUser(q, user_id);
   
-  // Lấy ID của chính mình (đã qua giải mã token)
-  const { user_id } = req.decoded_authorization as TokenPayload
-
-  // Gọi xuống Service để tìm kiếm
-  const result = await userService.searchUser(q as string, user_id)
-
+  // KIỂM TRA TẠI ĐÂY: Nếu mảng users rỗng (có thể do không khớp hoặc đã bị block)
+  if (result.users.length === 0) {
+    return res.json({
+      message: 'Không tìm thấy người dùng', // Thông báo đúng ý em muốn
+      result: { users: [] }
+    });
+  }
+  // Nếu tìm thấy
   return res.json({
     message: 'Tìm kiếm người dùng thành công',
     result
-  })
-}
+  });
+};
