@@ -5,8 +5,10 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
   const [peers, setPeers] = useState<{ [socketId: string]: RTCPeerConnection }>({})
   const [remoteStreams, setRemoteStreams] = useState<{ [socketId: string]: MediaStream }>({})
 
-  // State lưu thông tin người dùng (Tên)
-  const [peersInfo, setPeersInfo] = useState<{ [socketId: string]: { userName: string } }>({})
+  // STATE LƯU THÔNG TIN: Tên, Trạng thái Mic, Trạng thái Camera
+  const [peersInfo, setPeersInfo] = useState<{
+    [socketId: string]: { userName: string; isMicOn?: boolean; isCameraOn?: boolean }
+  }>({})
 
   const localStreamRef = useRef<MediaStream | null>(null)
   const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({})
@@ -44,9 +46,7 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
     if (!socket) return
 
     const handleUserJoined = async ({ socketId, userName }: any) => {
-      // Lưu tên người dùng
-      if (userName) setPeersInfo((prev) => ({ ...prev, [socketId]: { userName } }))
-
+      if (userName) setPeersInfo((prev) => ({ ...prev, [socketId]: { ...(prev[socketId] || {}), userName } }))
       const peer = createPeer(socketId, localStreamRef.current)
       setPeers((prev) => ({ ...prev, [socketId]: peer }))
 
@@ -65,7 +65,7 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
           try {
             await peer.addIceCandidate(new RTCIceCandidate(candidate))
           } catch (e) {
-            console.error('Lỗi thêm Ice Candidate:', e)
+            console.error('Lỗi thêm ICE Candidate:', e)
           }
         }
         pendingCandidates.current[socketId] = []
@@ -73,8 +73,8 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
     }
 
     const handleSignal = async ({ callerSocketId, userName, signal }: any) => {
-      // Lưu tên người dùng
-      if (userName) setPeersInfo((prev) => ({ ...prev, [callerSocketId]: { userName } }))
+      if (userName)
+        setPeersInfo((prev) => ({ ...prev, [callerSocketId]: { ...(prev[callerSocketId] || {}), userName } }))
 
       let peer = peersRef.current[callerSocketId]
 
@@ -87,7 +87,6 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
         if (signal.type === 'offer') {
           const polite = socket.id.localeCompare(callerSocketId) > 0
           const offerCollision = peer.signalingState !== 'stable'
-
           if (offerCollision && !polite) return
           if (offerCollision) await peer.setLocalDescription({ type: 'rollback' })
 
@@ -95,7 +94,6 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
           const answer = await peer.createAnswer()
           await peer.setLocalDescription(answer)
           socket.emit('call:signal', { targetSocketId: callerSocketId, signal: answer })
-
           await processPendingCandidates(callerSocketId, peer)
         } else if (signal.type === 'answer') {
           if (peer.signalingState === 'have-local-offer') {
@@ -139,17 +137,30 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
       }
     }
 
+    // SỰ KIỆN NHẬN TRẠNG THÁI MIC/CAM CỦA ĐỐI TÁC
+    const handleMediaToggled = ({ socketId, isMicOn, isCameraOn }: any) => {
+      setPeersInfo((prev) => ({
+        ...prev,
+        [socketId]: {
+          ...(prev[socketId] || { userName: '' }),
+          isMicOn,
+          isCameraOn
+        }
+      }))
+    }
+
     socket.on('call:user-joined', handleUserJoined)
     socket.on('call:signal', handleSignal)
     socket.on('call:user-left', handleUserLeft)
+    socket.on('call:media-toggled', handleMediaToggled)
 
     return () => {
       socket.off('call:user-joined', handleUserJoined)
       socket.off('call:signal', handleSignal)
       socket.off('call:user-left', handleUserLeft)
+      socket.off('call:media-toggled', handleMediaToggled)
     }
   }, [socket])
 
-  // XUẤT THÊM peersInfo ĐỂ HIỂN THỊ UI
   return { localStreamRef, remoteStreams, peersInfo }
 }
