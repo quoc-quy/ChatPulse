@@ -6,6 +6,7 @@ interface FriendItemProps {
   type: "friend" | "request";
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
+  onDelete?: (id: string, name: string) => void;
 }
 
 const COLORS = {
@@ -18,46 +19,75 @@ const COLORS = {
 };
 
 export const FriendItem = React.memo(
-  ({ item, type, onAccept, onDecline }: FriendItemProps) => {
-    const displayName = item.fullName || item.userName || "User";
-    const initials = displayName.trim().charAt(0).toUpperCase();
+  ({ item, type, onAccept, onDecline, onDelete }: FriendItemProps) => {
+    // ===== LẤY USER DATA AN TOÀN =====
+    const userData =
+      item?.sender_info || item?.sender || item?.user || item || {};
+
+    // ===== ID AN TOÀN =====
+    const requestId = item?.id || item?._id;
+
+    // ===== TÊN HIỂN THỊ =====
+    const displayName =
+      userData?.fullName ||
+      userData?.userName ||
+      userData?.username ||
+      userData?.name ||
+      "Người dùng";
+
+    // ===== AVATAR LETTER =====
+    const initials = displayName?.charAt(0)?.toUpperCase() || "?";
 
     return (
-      <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.container}
+        activeOpacity={0.7}
+        delayLongPress={500}
+        onLongPress={() =>
+          type === "friend" && onDelete?.(requestId, displayName)
+        }
+      >
+        {/* AVATAR */}
         <View style={styles.avatarWrapper}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
+
           <View style={styles.onlineBadge} />
         </View>
 
+        {/* INFO */}
         <View style={styles.info}>
-          <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>
+          <Text style={styles.name} numberOfLines={1}>
+            {displayName}
+          </Text>
+
+          <Text style={styles.status} numberOfLines={1}>
             {type === "request"
-              ? "Hey, let's connect!"
-              : "Living my best life ✨"}
+              ? "Muốn kết bạn với bạn"
+              : userData?.bio || "Living my best life ✨"}
           </Text>
         </View>
 
-        {/* 3. Hiển thị nút Accept/Decline khi ở tab Request */}
-        {type === "request" ? (
+        {/* ACTION BUTTONS */}
+        {type === "request" && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.btnAccept}
-              onPress={() => onAccept?.(item._id)}
+              onPress={() => onAccept?.(requestId)}
             >
-              <Text style={styles.btnTextWhite}>Accept</Text>
+              <Text style={styles.btnTextWhite}>Đồng ý</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.btnDecline}
-              onPress={() => onDecline?.(item._id)}
+              onPress={() => onDecline?.(requestId)}
             >
-              <Text style={styles.btnTextBlack}>Decline</Text>
+              <Text style={styles.btnTextBlack}>Từ chối</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
-      </View>
+        )}
+      </TouchableOpacity>
     );
   },
 );
@@ -68,8 +98,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     alignItems: "center",
+    backgroundColor: COLORS.white,
   },
-  avatarWrapper: { position: "relative" },
+
+  avatarWrapper: {
+    position: "relative",
+  },
+
   avatar: {
     width: 52,
     height: 52,
@@ -78,7 +113,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: { color: COLORS.white, fontSize: 18, fontWeight: "bold" },
+
+  avatarText: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+
   onlineBadge: {
     position: "absolute",
     right: 2,
@@ -90,22 +131,53 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-  info: { flex: 1, marginLeft: 14 },
-  name: { fontSize: 16, fontWeight: "700", color: COLORS.foreground },
-  lastMessage: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
-  actions: { flexDirection: "row", gap: 8 },
-  btnAccept: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+
+  info: {
+    flex: 1,
+    marginLeft: 14,
+    justifyContent: "center",
   },
+
+  name: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.foreground,
+  },
+
+  status: {
+    fontSize: 13,
+    color: COLORS.muted,
+    marginTop: 2,
+  },
+
+  actions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+
+  btnAccept: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+
   btnDecline: {
     backgroundColor: COLORS.grayBtn,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 15,
   },
-  btnTextWhite: { color: COLORS.white, fontSize: 13, fontWeight: "bold" },
-  btnTextBlack: { color: COLORS.muted, fontSize: 13, fontWeight: "600" },
+
+  btnTextWhite: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  btnTextBlack: {
+    color: COLORS.foreground,
+    fontSize: 12,
+    fontWeight: "600",
+  },
 });
