@@ -75,6 +75,36 @@ export default function FriendsScreen({ navigation }: any) {
       fetchData(); // Gọi lại API để cập nhật Badge lời mời và danh sách bạn bè
     }, []),
   );
+  const handleDeleteFriend = (friendId: string, name: string) => {
+    Alert.alert(
+      "Xóa bạn bè",
+      `Bạn có chắc chắn muốn xóa ${name} khỏi danh sách bạn bè không?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Gọi API xóa bạn bè với ID người dùng
+              await friendApi.deleteFriend(friendId);
+
+              Alert.alert("Thành công", `Đã xóa ${name} khỏi danh sách bạn bè`);
+
+              // Tải lại danh sách để cập nhật giao diện ngay lập tức
+              fetchData(true);
+            } catch (error: any) {
+              console.log("Lỗi xóa bạn:", error.response?.data);
+              Alert.alert(
+                "Lỗi",
+                "Không thể xóa bạn lúc này. Vui lòng thử lại sau.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // Hàm xử lý phân nhóm Alphabet giống Zalo
   const groupedFriends = useMemo(() => {
@@ -172,7 +202,13 @@ export default function FriendsScreen({ navigation }: any) {
               <Text style={styles.sectionTitle}>{title}</Text>
             </View>
           )}
-          renderItem={({ item }) => <FriendItem item={item} type="friend" />}
+          renderItem={({ item }) => (
+            <FriendItem
+              item={item}
+              type="friend"
+              onDelete={handleDeleteFriend}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.emptyText}>Không tìm thấy bạn bè</Text>
           }
