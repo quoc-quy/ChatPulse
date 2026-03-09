@@ -68,23 +68,23 @@ usersRouter.delete(
 )
 
 
-/**
- * Register
- */
-usersRouter.post('/register', registerValidator, wrapRequestHandler(registerController))
+// /**
+//  * Register
+//  */
+// usersRouter.post('/register', registerValidator, wrapRequestHandler(registerController))
 
-/**
- * Login
- */
-usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
+// /**
+//  * Login
+//  */
+// usersRouter.post('/login', loginValidator, wrapRequestHandler(loginController))
 
-/**
- * Logout
- */
-usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
-/**
- * Search user 
- */
+// /**
+//  * Logout
+//  */
+// usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
+// /**
+//  * Search user 
+//  */
 usersRouter.get(
   '/search',
   accessTokenValidator,
