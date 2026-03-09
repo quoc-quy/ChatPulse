@@ -11,6 +11,7 @@ interface VideoCallRoomProps {
   isVideoCall: boolean
   onEndCall: () => void
   onMinimize: () => void
+  isMinimized?: boolean
 }
 
 export const VideoCallRoom: React.FC<VideoCallRoomProps> = ({
@@ -20,16 +21,19 @@ export const VideoCallRoom: React.FC<VideoCallRoomProps> = ({
   currentUserId,
   isVideoCall,
   onEndCall,
-  onMinimize
+  onMinimize,
+  isMinimized = false
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null)
-  const { localStreamRef, remoteStreams } = useWebRTC(socket, conversationId, currentUserId)
+
+  // Lấy peersInfo để render Tên thật
+  const { localStreamRef, remoteStreams, peersInfo } = useWebRTC(socket, conversationId, currentUserId)
   const [deviceError, setDeviceError] = useState<string | null>(null)
 
   useEffect(() => {
     const initMedia = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setDeviceError('Trình duyệt không hỗ trợ hoặc cần chạy HTTPS/localhost.')
+        setDeviceError('Trình duyệt không hỗ trợ')
         socket?.emit('call:join', { callId, conversationId })
         return
       }
@@ -39,35 +43,17 @@ export const VideoCallRoom: React.FC<VideoCallRoomProps> = ({
         localStreamRef.current = stream
         if (localVideoRef.current && isVideoCall) localVideoRef.current.srcObject = stream
       } catch (err: any) {
-        if (err.name === 'NotReadableError' || err.name === 'TrackStartError')
-          setDeviceError('Camera/Micro đang bị ứng dụng khác chiếm dụng.')
-        else if (isVideoCall) {
-          try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-            localStreamRef.current = audioStream
-            setDeviceError('Không tìm thấy Camera, đang gọi bằng Micro.')
-          } catch (audioErr) {
-            setDeviceError('Không thể truy cập Camera và Micro.')
-          }
-        } else {
-          setDeviceError('Vui lòng cấp quyền Micro để trò chuyện.')
-        }
+        setDeviceError('Không thể lấy Camera/Micro')
       } finally {
         socket?.emit('call:join', { callId, conversationId })
       }
     }
-
     initMedia()
 
-    // FIX LỖI: Bắt sự kiện khi người dùng tắt hẳn tab trình duyệt thì mới rời phòng
-    const handleBeforeUnload = () => {
-      socket?.emit('call:leave', { callId, conversationId })
-    }
+    const handleBeforeUnload = () => socket?.emit('call:leave', { callId, conversationId })
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
-      // FIX LỖI STRICT MODE: Đã xóa lệnh socket.emit('call:leave') ở đây
-      // Chỉ dừng camera/micro chứ không báo server là đã rời cuộc gọi
       if (localStreamRef.current) localStreamRef.current.getTracks().forEach((track) => track.stop())
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
@@ -80,53 +66,86 @@ export const VideoCallRoom: React.FC<VideoCallRoomProps> = ({
   }
 
   return (
-    <div className='flex-1 flex flex-col p-4 animate-in slide-in-from-bottom'>
-      <div className='flex-1 flex flex-wrap gap-4 items-center justify-center p-4 relative'>
-        {deviceError && (
-          <div className='absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm z-50 shadow-lg text-center'>
+    <div
+      className={`flex flex-col bg-background/95 h-full w-full ${isMinimized ? '' : 'p-4 animate-in slide-in-from-bottom'}`}
+    >
+      {/* KHUNG HIỂN THỊ CÁC CAMERA */}
+      <div
+        className={`flex-1 flex flex-wrap items-center justify-center relative ${isMinimized ? 'bg-black' : 'gap-4 p-4'}`}
+      >
+        {deviceError && !isMinimized && (
+          <div className='absolute top-2 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-2 py-1 rounded text-xs z-50'>
             {deviceError}
           </div>
         )}
 
+        {/* CAMERA CỦA MÌNH */}
         {isVideoCall && !deviceError ? (
-          <div className='relative w-full max-w-[300px] aspect-video bg-black rounded-xl overflow-hidden border-2 border-blue-500 shadow-lg'>
+          <div
+            className={`${isMinimized ? 'absolute bottom-2 right-2 w-20 z-10 shadow-[0_0_10px_rgba(0,0,0,0.8)] border border-white/20' : 'relative w-full max-w-[300px] border-2 border-blue-500'} aspect-video bg-black rounded-xl overflow-hidden`}
+          >
             <video ref={localVideoRef} autoPlay muted playsInline className='w-full h-full object-cover scale-x-[-1]' />
-            <span className='absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded'>Bạn</span>
+            {!isMinimized && (
+              <span className='absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded'>Bạn</span>
+            )}
           </div>
         ) : (
-          <div className='relative w-full max-w-[300px] h-32 bg-muted rounded-xl border border-gray-600 flex items-center justify-center'>
-            <div className='w-12 h-12 bg-gray-500 rounded-full flex items-center justify-center animate-pulse mb-2'>
-              <span className='text-white font-bold'>You</span>
+          !isMinimized && (
+            <div className='relative w-full max-w-[300px] h-32 bg-muted rounded-xl border border-gray-600 flex items-center justify-center'>
+              <div className='w-12 h-12 bg-gray-500 rounded-full flex items-center justify-center animate-pulse mb-2'>
+                <span className='text-white font-bold'>You</span>
+              </div>
             </div>
-          </div>
+          )
         )}
 
+        {/* CAMERA CỦA NGƯỜI KHÁC */}
         {Object.entries(remoteStreams).map(([socketId, stream]) => (
-          <RemoteMedia key={socketId} stream={stream} isVideoCall={isVideoCall} />
+          <RemoteMedia
+            key={socketId}
+            stream={stream}
+            isVideoCall={isVideoCall}
+            userName={peersInfo[socketId]?.userName}
+            isMinimized={isMinimized}
+          />
         ))}
       </div>
 
-      <div className='h-24 flex items-center justify-center gap-8'>
-        <button
-          onClick={onMinimize}
-          className='bg-secondary text-foreground hover:bg-secondary/80 rounded-full p-4 shadow-lg transition-transform hover:scale-105'
-          title='Thu nhỏ'
-        >
-          <Minimize2 className='w-6 h-6' />
-        </button>
-        <button
-          onClick={handleEndCall}
-          className='bg-destructive text-white hover:bg-destructive/90 rounded-full p-5 shadow-2xl transition-transform hover:scale-105'
-          title='Kết thúc'
-        >
-          <PhoneOff className='w-8 h-8' />
-        </button>
-      </div>
+      {/* THANH CÔNG CỤ (BỊ ẨN KHI Ở CHẾ ĐỘ PIP) */}
+      {!isMinimized && (
+        <div className='h-24 flex items-center justify-center gap-8 shrink-0'>
+          <button
+            onClick={onMinimize}
+            className='bg-secondary text-foreground hover:bg-secondary/80 rounded-full p-4 shadow-lg transition-transform hover:scale-105'
+            title='Thu nhỏ'
+          >
+            <Minimize2 className='w-6 h-6' />
+          </button>
+          <button
+            onClick={handleEndCall}
+            className='bg-destructive text-white hover:bg-destructive/90 rounded-full p-5 shadow-2xl transition-transform hover:scale-105'
+            title='Kết thúc'
+          >
+            <PhoneOff className='w-8 h-8' />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-const RemoteMedia = ({ stream, isVideoCall }: { stream: MediaStream; isVideoCall: boolean }) => {
+// COMPONENT REMOTE MEDIA ĐÃ SỬA CHỮ "ĐỐI TÁC" THÀNH TÊN THẬT
+const RemoteMedia = ({
+  stream,
+  isVideoCall,
+  userName,
+  isMinimized
+}: {
+  stream: MediaStream
+  isVideoCall: boolean
+  userName?: string
+  isMinimized: boolean
+}) => {
   const mediaRef = useRef<HTMLVideoElement & HTMLAudioElement>(null)
 
   useEffect(() => {
@@ -140,22 +159,32 @@ const RemoteMedia = ({ stream, isVideoCall }: { stream: MediaStream; isVideoCall
 
   if (!isVideoCall || !hasVideoTrack) {
     return (
-      <div className='relative w-full max-w-[300px] h-32 bg-muted rounded-xl border flex items-center justify-center shadow-lg'>
+      <div
+        className={`relative ${isMinimized ? 'w-full h-full' : 'w-full max-w-[300px] h-32'} bg-muted flex items-center justify-center ${!isMinimized ? 'rounded-xl border shadow-lg' : ''}`}
+      >
         <audio ref={mediaRef} autoPlay playsInline />
         <div className='flex flex-col items-center'>
-          <div className='w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center animate-pulse mb-2'>
-            <span className='text-white font-bold'>B</span>
+          <div
+            className={`${isMinimized ? 'w-16 h-16 text-xl' : 'w-12 h-12'} bg-blue-500 rounded-full flex items-center justify-center animate-pulse mb-2`}
+          >
+            <span className='text-white font-bold'>{userName ? userName.charAt(0).toUpperCase() : 'U'}</span>
           </div>
-          <p className='text-foreground font-semibold'>Đối tác (Đang nói)</p>
+          <p className='text-foreground font-semibold'>{userName || 'Đang kết nối...'}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className='relative w-full max-w-[300px] aspect-video bg-black rounded-xl overflow-hidden shadow-lg border'>
+    <div
+      className={`relative ${isMinimized ? 'w-full h-full' : 'w-full max-w-[300px] aspect-video rounded-xl shadow-lg border'} bg-black overflow-hidden`}
+    >
       <video ref={mediaRef} autoPlay playsInline className='w-full h-full object-cover' />
-      <span className='absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded'>Đối tác</span>
+      <span
+        className={`absolute bottom-2 left-2 bg-black/60 text-white px-2 py-1 rounded ${isMinimized ? 'text-[10px]' : 'text-xs'}`}
+      >
+        {userName || 'Đang kết nối...'}
+      </span>
     </div>
   )
 }

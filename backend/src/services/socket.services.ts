@@ -65,7 +65,7 @@ class SocketService {
         }
       })
 
-      // Cập nhật thêm try-catch cho call:join để chống sập nếu gửi sai ID
+      // 2. Chấp nhận và Tham gia cuộc gọi
       socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
         try {
           const { callId, conversationId } = data
@@ -73,11 +73,20 @@ class SocketService {
             { _id: new ObjectId(callId) },
             { $addToSet: { participants: new ObjectId(userId) }, $set: { status: 'ONGOING' } }
           )
+
+          // Lấy thông tin user để hiển thị tên thật
+          const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+          const userName = user?.userName || 'Người dùng'
+
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
           if (conversation && conversation.participants) {
             conversation.participants.forEach((pId) => {
               if (pId.toString() !== userId) {
-                this.emitToUser(pId.toString(), 'call:user-joined', { userId: userId, socketId: socket.id })
+                this.emitToUser(pId.toString(), 'call:user-joined', {
+                  userId: userId,
+                  socketId: socket.id,
+                  userName // Gửi kèm tên
+                })
               }
             })
           }
@@ -86,40 +95,30 @@ class SocketService {
         }
       })
 
-      // 2. Chấp nhận và Tham gia cuộc gọi
-      socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
-        const { callId, conversationId } = data
-
-        await databaseService.calls.updateOne(
-          { _id: new ObjectId(callId) },
-          {
-            $addToSet: { participants: new ObjectId(userId) },
-            $set: { status: CallStatus.ONGOING }
+      // 3. Truyền nhận tín hiệu WebRTC
+      socket.on('call:signal', async (data: { targetSocketId?: string; targetUserId?: string; signal: any }) => {
+        try {
+          let userName = undefined
+          // Chỉ query DB lấy tên khi gửi Offer/Answer để tối ưu hiệu suất (bỏ qua ICE candidate)
+          if (data.signal && (data.signal.type === 'offer' || data.signal.type === 'answer')) {
+            const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+            userName = user?.userName || 'Người dùng'
           }
-        )
 
-        const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
-        if (conversation && conversation.participants) {
-          conversation.participants.forEach((pId) => {
-            if (pId.toString() !== userId) {
-              this.emitToUser(pId.toString(), 'call:user-joined', {
-                userId: userId,
-                socketId: socket.id
-              })
-            }
-          })
+          if (data.targetSocketId) {
+            this.io.to(data.targetSocketId).emit('call:signal', {
+              callerId: userId,
+              callerSocketId: socket.id,
+              userName, // Gửi kèm tên
+              signal: data.signal
+            })
+          }
+        } catch (error) {
+          console.error(error)
         }
       })
 
-      // 3. Truyền nhận tín hiệu WebRTC (Offer, Answer, ICE)
-      socket.on('call:signal', (data: { targetSocketId?: string; targetUserId?: string; signal: any }) => {
-        if (data.targetSocketId) {
-          this.io
-            .to(data.targetSocketId)
-            .emit('call:signal', { callerId: userId, callerSocketId: socket.id, signal: data.signal })
-        }
-      })
-
+      // 4. Từ chối cuộc gọi
       socket.on('call:reject', async (data: { callId: string; conversationId: string }) => {
         try {
           await databaseService.calls.updateOne({ _id: new ObjectId(data.callId) }, { $set: { status: 'REJECTED' } })
@@ -134,17 +133,16 @@ class SocketService {
         }
       })
 
+      // 5. Rời cuộc gọi
       socket.on('call:leave', async (data: { callId: string; conversationId: string }) => {
         try {
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
           if (conversation && conversation.participants) {
-            // Cực kỳ quan trọng: Nếu đây là gọi 1-1, khi 1 người thoát thì buộc người kia cũng phải kết thúc
             const isOneOnOne = conversation.participants.length <= 2
 
             conversation.participants.forEach((pId) => {
               if (pId.toString() !== userId) {
                 this.emitToUser(pId.toString(), 'call:user-left', { userId: userId, socketId: socket.id })
-                // Phát sự kiện 'call:ended' để đóng modal/tắt phòng của người còn lại (Fix bug 2 & 3)
                 if (isOneOnOne) {
                   this.emitToUser(pId.toString(), 'call:ended', { callId: data.callId })
                 }
