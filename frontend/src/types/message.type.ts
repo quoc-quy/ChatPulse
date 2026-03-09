@@ -11,7 +11,14 @@ export interface Message {
   content: string
   replyToId?: string
   reactions?: any[]
-  callInfo?: any
+
+  // CHI TIẾT CUỘC GỌI
+  callInfo?: {
+    status: 'completed' | 'missed' | 'rejected' | 'cancelled'
+    duration?: number
+    type: 'video' | 'audio'
+  }
+
   createdAt: string
   updatedAt: string
   sender: SenderInfo
