@@ -1,6 +1,8 @@
 import friendApi from '@/apis/friend.api'
+import { Input } from '@/components/ui/input'
 import type { User } from '@/types/user.type'
 import { useQuery } from '@tanstack/react-query'
+import { Users } from 'lucide-react'
 import { useEffect } from 'react'
 
 export default function FriendPage() {
@@ -14,34 +16,60 @@ export default function FriendPage() {
   useEffect(() => {}, [])
 
   return (
-    <div className='flex flex-1 flex-col bg-muted/10 p-8'>
-      <h2 className='text-2xl font-semibold mb-8 text-center text-foreground'>Danh sách bạn bè</h2>
-      {listFriends.map((friend) => {
-        return (
-          <div className='flex items-center justify-between p-2 hover:bg-gray-900/10 text-foreground cursor-pointer'>
-            <div className='flex items-center'>
-              <div className='h-14 w-14 mr-5 overflow-hidden text-foreground rounded-full border'>
-                <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
+    <div className='flex flex-1 flex-col bg-muted/10'>
+      <div className='flex items-center p-4 bg-white'>
+        <Users size={20} className='mr-3' />
+        <h2 className='text-lg font-semibold text-center text-foreground'>Danh sách bạn bè</h2>
+      </div>
+      <div className='p-4'>
+        <p>Bạn bè ({listFriends.length})</p>
+      </div>
+      <div className='bg-white rounded-sm mx-4'>
+        <div className='relative w-1/2 mx-4 mb-2'>
+          <svg
+            xmlns='http://www.w3.org/2000/svg'
+            fill='none'
+            viewBox='0 0 24 24'
+            strokeWidth='1.5'
+            stroke='currentColor'
+            className='absolute left-3 h-5 w-5 text-gray-400 top-1/2 -translate-y-1/2'
+          >
+            <path
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              d='m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z'
+            />
+          </svg>
+
+          <Input className='w-full pl-10' placeholder='Tìm bạn' />
+        </div>
+        {listFriends.map((friend) => {
+          return (
+            <div className='flex items-center justify-between px-8 py-3 hover:bg-gray-900/10 text-foreground cursor-pointer'>
+              <div className='flex items-center'>
+                <div className='h-14 w-14 mr-5 overflow-hidden text-foreground rounded-full border'>
+                  <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
+                </div>
+                <p>{friend.userName}</p>
               </div>
-              <p>{friend.userName}</p>
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke-width='1.5'
+                stroke='currentColor'
+                className='size-7'
+              >
+                <path
+                  stroke-linecap='round'
+                  stroke-linejoin='round'
+                  d='M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
+                />
+              </svg>
             </div>
-            <svg
-              xmlns='http://www.w3.org/2000/svg'
-              fill='none'
-              viewBox='0 0 24 24'
-              stroke-width='1.5'
-              stroke='currentColor'
-              className='size-7'
-            >
-              <path
-                stroke-linecap='round'
-                stroke-linejoin='round'
-                d='M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
-              />
-            </svg>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
