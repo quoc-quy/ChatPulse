@@ -4,8 +4,11 @@ import { Socket } from 'socket.io-client'
 export const useWebRTC = (socket: Socket | null, conversationId: string, currentUserId: string) => {
   const [peers, setPeers] = useState<{ [socketId: string]: RTCPeerConnection }>({})
   const [remoteStreams, setRemoteStreams] = useState<{ [socketId: string]: MediaStream }>({})
-  const localStreamRef = useRef<MediaStream | null>(null)
 
+  // State lưu thông tin người dùng (Tên)
+  const [peersInfo, setPeersInfo] = useState<{ [socketId: string]: { userName: string } }>({})
+
+  const localStreamRef = useRef<MediaStream | null>(null)
   const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({})
   const pendingCandidates = useRef<{ [socketId: string]: RTCIceCandidateInit[] }>({})
 
@@ -40,7 +43,10 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
   useEffect(() => {
     if (!socket) return
 
-    const handleUserJoined = async ({ socketId }: { socketId: string }) => {
+    const handleUserJoined = async ({ socketId, userName }: any) => {
+      // Lưu tên người dùng
+      if (userName) setPeersInfo((prev) => ({ ...prev, [socketId]: { userName } }))
+
       const peer = createPeer(socketId, localStreamRef.current)
       setPeers((prev) => ({ ...prev, [socketId]: peer }))
 
@@ -59,14 +65,17 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
           try {
             await peer.addIceCandidate(new RTCIceCandidate(candidate))
           } catch (e) {
-            console.error('Lỗi add ICE:', e)
+            console.error('Lỗi thêm Ice Candidate:', e)
           }
         }
         pendingCandidates.current[socketId] = []
       }
     }
 
-    const handleSignal = async ({ callerSocketId, signal }: any) => {
+    const handleSignal = async ({ callerSocketId, userName, signal }: any) => {
+      // Lưu tên người dùng
+      if (userName) setPeersInfo((prev) => ({ ...prev, [callerSocketId]: { userName } }))
+
       let peer = peersRef.current[callerSocketId]
 
       if (!peer) {
@@ -76,17 +85,11 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
 
       try {
         if (signal.type === 'offer') {
-          // FIX LỖI VĂNG PHÒNG: Thuật toán Polite Peer (Nhường nhịn)
           const polite = socket.id.localeCompare(callerSocketId) > 0
           const offerCollision = peer.signalingState !== 'stable'
 
-          if (offerCollision && !polite) {
-            return // Bỏ qua Offer vì mình không phải người nhường
-          }
-
-          if (offerCollision) {
-            await peer.setLocalDescription({ type: 'rollback' }) // Rollback trạng thái
-          }
+          if (offerCollision && !polite) return
+          if (offerCollision) await peer.setLocalDescription({ type: 'rollback' })
 
           await peer.setRemoteDescription(new RTCSessionDescription(signal))
           const answer = await peer.createAnswer()
@@ -95,7 +98,6 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
 
           await processPendingCandidates(callerSocketId, peer)
         } else if (signal.type === 'answer') {
-          // Chỉ set Answer khi trạng thái đang chờ nhận
           if (peer.signalingState === 'have-local-offer') {
             await peer.setRemoteDescription(new RTCSessionDescription(signal))
             await processPendingCandidates(callerSocketId, peer)
@@ -104,14 +106,12 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
           if (peer.remoteDescription && peer.remoteDescription.type) {
             await peer.addIceCandidate(new RTCIceCandidate(signal.candidate))
           } else {
-            if (!pendingCandidates.current[callerSocketId]) {
-              pendingCandidates.current[callerSocketId] = []
-            }
+            if (!pendingCandidates.current[callerSocketId]) pendingCandidates.current[callerSocketId] = []
             pendingCandidates.current[callerSocketId].push(signal.candidate)
           }
         }
       } catch (err) {
-        console.error('Lỗi xử lý Signal WebRTC:', err)
+        console.error('Lỗi xử lý Signal:', err)
       }
     }
 
@@ -131,6 +131,11 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
           delete n[socketId]
           return n
         })
+        setPeersInfo((prev) => {
+          const n = { ...prev }
+          delete n[socketId]
+          return n
+        })
       }
     }
 
@@ -145,5 +150,6 @@ export const useWebRTC = (socket: Socket | null, conversationId: string, current
     }
   }, [socket])
 
-  return { localStreamRef, remoteStreams }
+  // XUẤT THÊM peersInfo ĐỂ HIỂN THỊ UI
+  return { localStreamRef, remoteStreams, peersInfo }
 }
