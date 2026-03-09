@@ -16,15 +16,15 @@ export default function FriendPage() {
   useEffect(() => {}, [])
 
   return (
-    <div className='flex flex-1 flex-col bg-muted/10'>
-      <div className='flex items-center p-4 bg-white'>
+    <div className='flex flex-1 flex-col text-foreground'>
+      <div className='flex items-center p-4 text-foreground'>
         <Users size={20} className='mr-3' />
         <h2 className='text-lg font-semibold text-center text-foreground'>Danh sách bạn bè</h2>
       </div>
-      <div className='p-4'>
+      <div className='p-4 text-foreground'>
         <p>Bạn bè ({listFriends.length})</p>
       </div>
-      <div className='bg-white rounded-sm mx-4'>
+      <div className='text-foreground rounded-sm mx-4'>
         <div className='relative w-1/2 mx-4 mb-2'>
           <svg
             xmlns='http://www.w3.org/2000/svg'

@@ -1,7 +1,7 @@
-// frontend-demo/src/components/app-sidebar.tsx
 import * as React from 'react'
 import { useEffect, useState, useContext, useRef } from 'react'
 import { MessageSquare, Users, Settings, Bell, Plus, Loader2 } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom' // THÊM IMPORT NÀY
 import { NavUser } from '@/components/nav-user'
 import {
   Sidebar,
@@ -30,6 +30,9 @@ const navMain = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const navigate = useNavigate() // KHỞI TẠO ROUTER
+  const location = useLocation() // LẤY URL HIỆN TẠI
+
   const [activeItem, setActiveItem] = useState(navMain[0])
   const { setOpen, setOpenMobile, isMobile } = useSidebar()
 
@@ -305,6 +308,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setOpenMobile(false)
     }
 
+    // FIX TẠI ĐÂY: Ép trình duyệt chuyển về lại trang Chat chính (/)
+    if (location.pathname !== '/') {
+      navigate('/')
+    }
+
     try {
       await conversationsApi.markAsSeen(chatId)
     } catch (error) {
@@ -314,7 +322,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible='icon' className='overflow-hidden' {...props}>
-      {/* WRAPPER FIX LỖI MOBILE: Bọc thẻ flex-row để ép 2 Panel nằm ngang */}
       <div className='flex flex-row h-full w-full'>
         {/* PANEL 1: Cột biểu tượng */}
         <Sidebar
@@ -347,6 +354,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     onClick={() => {
                       setActiveItem(item)
                       setOpen(true)
+
+                      // FIX TẠI ĐÂY: Nếu bấm nút Tin nhắn trên Sidebar, lập tức quay về giao diện Chat
+                      if (item.title === 'Tin nhắn' && location.pathname !== '/') {
+                        navigate('/')
+                      }
                     }}
                     isActive={activeItem.title === item.title}
                     className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
