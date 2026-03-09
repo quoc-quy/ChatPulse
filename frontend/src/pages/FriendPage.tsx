@@ -16,16 +16,16 @@ export default function FriendPage() {
   useEffect(() => {}, [])
 
   return (
-    <div className='flex flex-1 flex-col text-foreground'>
-      <div className='flex items-center p-4 text-foreground'>
+    <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
+      <div className='flex items-center bg-white dark:bg-background p-4 text-foreground'>
         <Users size={20} className='mr-3' />
-        <h2 className='text-lg font-semibold text-center text-foreground'>Danh sách bạn bè</h2>
+        <h2 className='text-lg font-semibold text-center text-foreground '>Danh sách bạn bè</h2>
       </div>
       <div className='p-4 text-foreground'>
-        <p>Bạn bè ({listFriends.length})</p>
+        <p className='font-semibold'>Bạn bè ({listFriends.length})</p>
       </div>
-      <div className='text-foreground rounded-sm mx-4'>
-        <div className='relative w-1/2 mx-4 mb-2'>
+      <div className='text-foreground bg-white dark:bg-background rounded-sm mx-4'>
+        <div className='relative w-1/2 mx-4 mb-2 mt-2'>
           <svg
             xmlns='http://www.w3.org/2000/svg'
             fill='none'
@@ -43,32 +43,34 @@ export default function FriendPage() {
 
           <Input className='w-full pl-10' placeholder='Tìm bạn' />
         </div>
-        {listFriends.map((friend) => {
-          return (
-            <div className='flex items-center justify-between px-8 py-3 hover:bg-gray-900/10 text-foreground cursor-pointer'>
-              <div className='flex items-center'>
-                <div className='h-14 w-14 mr-5 overflow-hidden text-foreground rounded-full border'>
-                  <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
+        <div className='mb-5'>
+          {listFriends.map((friend) => {
+            return (
+              <div className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-gray-900  hover:rounded-sm text-foreground cursor-pointer'>
+                <div className='flex items-center'>
+                  <div className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border'>
+                    <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
+                  </div>
+                  <p>{friend.userName}</p>
                 </div>
-                <p>{friend.userName}</p>
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  fill='none'
+                  viewBox='0 0 24 24'
+                  stroke-width='1.5'
+                  stroke='currentColor'
+                  className='size-7'
+                >
+                  <path
+                    stroke-linecap='round'
+                    stroke-linejoin='round'
+                    d='M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
+                  />
+                </svg>
               </div>
-              <svg
-                xmlns='http://www.w3.org/2000/svg'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke-width='1.5'
-                stroke='currentColor'
-                className='size-7'
-              >
-                <path
-                  stroke-linecap='round'
-                  stroke-linejoin='round'
-                  d='M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
-                />
-              </svg>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
