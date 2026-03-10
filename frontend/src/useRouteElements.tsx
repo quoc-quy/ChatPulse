@@ -8,6 +8,7 @@ import { useContext } from 'react'
 import { AppContext } from './context/app.context'
 import ProfilePage from './pages/ProfilePage'
 import FriendPage from './pages/FriendPage'
+import FriendInvitationPage from './pages/FriendInvitationPage'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -45,13 +46,22 @@ export default function useRouteElements() {
           )
         },
         {
-          path: '/phonebook',
+          path: '/phonebook/friend-list',
           index: true,
-          element: (
+          element: [
             <MainLayout>
               <FriendPage />
             </MainLayout>
-          )
+          ]
+        },
+        {
+          path: '/phonebook/friend-invitation',
+          index: true,
+          element: [
+            <MainLayout>
+              <FriendInvitationPage />
+            </MainLayout>
+          ]
         }
       ]
     },
