@@ -4,13 +4,19 @@ export interface SenderInfo {
   avatar?: string
 }
 
+export interface Reaction {
+  userId: string
+  emoji: string
+  createdAt: string
+}
+
 export interface Message {
   _id: string
   conversationId: string
   type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
   content: string
   replyToId?: string
-  reactions?: any[]
+  reactions?: Reaction[]
 
   // CHI TIẾT CUỘC GỌI
   callInfo?: {

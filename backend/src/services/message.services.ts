@@ -268,21 +268,60 @@ class MessageService {
     return result
   }
   async reactMessage(messageId: string, userId: string, emoji: string) {
-    // 3. Cập nhật emoji vào mảng reactions của tin nhắn
-    const result = await databaseService.messages.findOneAndUpdate(
-      { _id: new ObjectId(messageId) },
-      {
-        $addToSet: {
-          reactions: {
-            userId: new ObjectId(userId),
-            emoji,
-            createdAt: new Date()
-          }
-        }
-      },
-      { returnDocument: 'after' }
+    const messageObjId = new ObjectId(messageId)
+    const userObjId = new ObjectId(userId)
+
+    // 1. Tìm tin nhắn để kiểm tra cảm xúc hiện tại
+    const message = await databaseService.messages.findOne({ _id: messageObjId })
+    if (!message) {
+      throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: 404 })
+    }
+
+    // 2. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
+    // Nếu đã thả rồi -> Hủy (Pull) | Nếu chưa -> Thêm mới (Push)
+    const hasReacted = message.reactions?.find(
+      (r: { userId: ObjectId; emoji: string }) => r.userId.toString() === userId && r.emoji === emoji
     )
-    // Sau này sẽ gọi Socket ở đây: socket.emit('message_reacted', ...)
+
+    let updateQuery: any = {}
+    if (hasReacted) {
+      updateQuery = { $pull: { reactions: { userId: userObjId, emoji: emoji } } }
+    } else {
+      updateQuery = {
+        $push: { reactions: { userId: userObjId, emoji: emoji, createdAt: new Date() } }
+      }
+    }
+
+    const result = await databaseService.messages.findOneAndUpdate({ _id: messageObjId }, updateQuery, {
+      returnDocument: 'after'
+    })
+
+    // 3. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
+    const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
+    if (conversation) {
+      const targetUserIds = new Set<string>()
+
+      if (conversation.participants) {
+        conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+      }
+      if (conversation.members) {
+        conversation.members.forEach((m: any) => {
+          const mId = m.userId?.toString() || m.user_id?.toString()
+          if (mId) targetUserIds.add(mId)
+        })
+      }
+
+      // Xử lý lấy mảng reactions tương thích ngược với các phiên bản MongoDB Driver
+      const updatedReactions = result?.reactions || result?.value?.reactions || []
+
+      targetUserIds.forEach((id) => {
+        socketService.emitToUser(id, 'message_reacted', {
+          messageId: messageId,
+          reactions: updatedReactions
+        })
+      })
+    }
+
     return result
   }
   // 4. Hàm Thu hồi Reaction

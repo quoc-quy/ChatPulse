@@ -110,8 +110,17 @@ export function ChatBody({ convId }: ChatBodyProps) {
         }, 50)
       }
     }
+
+    const handleMessageReacted = ({ messageId, reactions }: { messageId: string; reactions: any[] }) => {
+      setMessages((prevMessages) => prevMessages.map((msg) => (msg._id === messageId ? { ...msg, reactions } : msg)))
+    }
+
     socket.on('receive_message', handleReceiveMessage)
-    return () => socket.off('receive_message', handleReceiveMessage)
+    socket.on('message_reacted', handleMessageReacted)
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+      socket.off('message_reacted', handleMessageReacted)
+    }
   }, [currentUserId, convId, socket])
 
   const handleScroll = () => {
