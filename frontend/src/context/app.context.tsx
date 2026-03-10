@@ -18,6 +18,7 @@ export interface ChatItem {
   isOnline?: boolean
   lastActiveAt?: string
   type: string
+  unreadCount?: number
 }
 
 interface AppContextInterface {

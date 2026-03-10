@@ -32,7 +32,7 @@ export function MessageItem({
   const isCall = message.type === 'call'
 
   return (
-    <div className='flex flex-col'>
+    <div id={`message-${message._id}`} className='flex flex-col'>
       {showTimeDivider && (
         <div className='flex justify-center my-6'>
           <span className='px-3 py-1 bg-muted/60 text-muted-foreground text-[11px] rounded-full font-medium'>
