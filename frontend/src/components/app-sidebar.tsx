@@ -297,7 +297,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       avatar: displayAvatar,
       isOnline: actualIsOnline,
       type: targetChat.type,
-      lastActiveAt: actualLastActiveAt
+      lastActiveAt: actualLastActiveAt,
+      unreadCount: targetChat.unreadCount
     })
 
     setChatList((currentChatList) =>

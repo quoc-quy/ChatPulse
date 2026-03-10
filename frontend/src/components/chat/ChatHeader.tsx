@@ -1,16 +1,17 @@
 // frontend-demo/src/components/chat/ChatHeader.tsx
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, MoreHorizontal } from 'lucide-react'
+import { Phone, Video, Search, MoreHorizontal, Sparkles } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { ChatItem } from '@/context/app.context'
 
 interface ChatHeaderProps {
   chat: ChatItem
-  onStartCall?: (type: 'video' | 'audio') => void // <-- Thêm dòng này
+  onStartCall?: (type: 'video' | 'audio') => void
+  onSummarize?: () => void
 }
 
-export function ChatHeader({ chat, onStartCall }: ChatHeaderProps) {
+export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) {
   const getInitials = (name: string) => {
     if (!name) return 'U'
     return name.charAt(0).toUpperCase()
@@ -66,6 +67,15 @@ export function ChatHeader({ chat, onStartCall }: ChatHeaderProps) {
       </div>
 
       <div className='flex items-center gap-2 text-muted-foreground'>
+        {chat.type === 'group' && ( // Chỉ hiển thị cho nhóm
+          <button
+            onClick={onSummarize}
+            title='Tóm tắt nhóm bằng AI'
+            className='p-2 hover:bg-muted hover:text-foreground hover:text-purple-500 rounded-full transition-colors'
+          >
+            <Sparkles className='h-5 w-5' />
+          </button>
+        )}
         {/* Nút Gọi Audio */}
         <button
           onClick={() => onStartCall && onStartCall('audio')}
