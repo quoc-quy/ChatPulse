@@ -52,7 +52,7 @@ export default function FriendPage() {
         <div className='mb-5'>
           {listFriends.map((friend) => {
             return (
-              <div className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-gray-900  hover:rounded-sm text-foreground cursor-pointer'>
+              <div className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-sidebar-accent  hover:rounded-sm text-foreground cursor-pointer'>
                 <div className='flex items-center'>
                   {!friend.avatar && (
                     <Avatar className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
