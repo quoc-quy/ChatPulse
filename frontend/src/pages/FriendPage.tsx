@@ -1,4 +1,5 @@
 import friendApi from '@/apis/friend.api'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import type { User } from '@/types/user.type'
 import { useQuery } from '@tanstack/react-query'
@@ -12,6 +13,11 @@ export default function FriendPage() {
   })
 
   const listFriends: User[] = data?.data.result || []
+
+  const getInitials = (name: string) => {
+    if (!name) return ''
+    return name.charAt(0).toUpperCase()
+  }
 
   useEffect(() => {}, [])
 
@@ -48,9 +54,19 @@ export default function FriendPage() {
             return (
               <div className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-gray-900  hover:rounded-sm text-foreground cursor-pointer'>
                 <div className='flex items-center'>
-                  <div className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border'>
-                    <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
-                  </div>
+                  {!friend.avatar && (
+                    <Avatar className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
+                      <AvatarImage src={friend.avatar} alt={friend.userName} />
+                      <AvatarFallback className='font-semibold bg-blue-100 text-blue-600'>
+                        {getInitials(friend.userName)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  {friend.avatar && (
+                    <div className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
+                      <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
+                    </div>
+                  )}
                   <p>{friend.userName}</p>
                 </div>
                 <svg
