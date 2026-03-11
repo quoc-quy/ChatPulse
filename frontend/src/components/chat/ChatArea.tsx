@@ -24,6 +24,11 @@ export function ChatArea({ chat }: ChatAreaProps) {
     setInitialUnread(chat.unreadCount || 0)
   }, [chat.id]) // Dependency là chat.id
 
+  useEffect(() => {
+    setSummaryData(null)
+    setIsSummarizing(false)
+  }, [chat.id])
+
   const handleSummarize = async () => {
     try {
       setIsSummarizing(true)

@@ -1,7 +1,7 @@
 // frontend-demo/src/components/chat/ChatHeader.tsx
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, MoreHorizontal, Sparkles } from 'lucide-react'
+import { Phone, Video, Search, MoreHorizontal, Sparkles, PanelLeft } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { ChatItem } from '@/context/app.context'
 
@@ -12,6 +12,8 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) {
+  const { toggleSidebar } = useSidebar()
+
   const getInitials = (name: string) => {
     if (!name) return 'U'
     return name.charAt(0).toUpperCase()
@@ -37,6 +39,15 @@ export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) 
   return (
     <header className='flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background px-4 shadow-sm'>
       <div className='flex items-center gap-3'>
+        {/* NÚT TOGGLE SIDEBAR (ĐÓNG/MỞ PANEL 2) */}
+        <button
+          onClick={toggleSidebar}
+          className='p-2 -ml-2 rounded-md hover:bg-muted text-muted-foreground transition-colors outline-none'
+          title='Đóng/Mở danh sách hội thoại'
+        >
+          <PanelLeft className='w-5 h-5' />
+        </button>
+
         <SidebarTrigger className='md:hidden -ml-2 text-foreground' />
         <Separator orientation='vertical' className='md:hidden mr-2 h-4' />
 
