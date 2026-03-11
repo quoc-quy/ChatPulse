@@ -10,7 +10,8 @@ import { LoginForm } from "./src/auth/LoginForm";
 import { SignUpForm } from "./src/auth/SignUpForm";
 import FriendRequestsScreen from "./src/screens/FriendRequestsScreen";
 import MessageScreen from "./src/screens/MessageScreen"; // <-- 1. Import màn hình chat chi tiết vào đây
-
+import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -94,6 +95,15 @@ export default function App() {
               )}
             </Stack.Screen>
             <Stack.Screen name="SignUp" component={SignUpForm} />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ResetPassword"
+              component={ResetPasswordScreen}
+            />
           </>
         )}
       </Stack.Navigator>
