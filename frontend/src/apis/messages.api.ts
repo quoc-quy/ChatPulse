@@ -49,6 +49,10 @@ export const messagesApi = {
     return http.post<{ message: string; result: any }>(`/messages/${messageId}/react`, { emoji })
   },
 
+  revokeMessage: (messageId: string) => {
+    return http.post<{ message: string; result: any }>(`/messages/${messageId}/revoke`, {})
+  },
+
   summarizeConversation: (convId: string, limit?: number, unreadCount?: number) => {
     return http.get<{ message: string; result: ConversationSummary }>(`/messages/${convId}/summary`, {
       params: { limit, unreadCount }, // Truyền thêm unreadCount

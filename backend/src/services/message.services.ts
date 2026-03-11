@@ -347,25 +347,51 @@ class MessageService {
   }
   // 4. Hàm Thu hồi Reaction
   async revokeMessage(messageId: string, userId: string) {
-    // Tìm đúng tin nhắn của người gửi và cập nhật
+    const messageObjId = new ObjectId(messageId)
+
+    // 1. Cập nhật tin nhắn thành trạng thái thu hồi
     const result = await databaseService.messages.findOneAndUpdate(
       {
-        _id: new ObjectId(messageId),
+        _id: messageObjId,
         senderId: new ObjectId(userId) // Bảo mật: Chỉ chủ nhân mới được thu hồi
       },
       {
         $set: {
-          content: '', // Xóa trắng nội dung theo yêu cầu Jira
-          type: 'revoked', // Đổi type để giao diện Mobile biết tin đã bị thu hồi
+          content: '',
+          type: 'revoked', // Đổi type để giao diện biết tin đã bị thu hồi
           updatedAt: new Date()
         }
       },
       { returnDocument: 'after' }
     )
 
-    // Nếu không tìm thấy hoặc không phải chủ tin nhắn, báo lỗi ngay
     if (!result) {
-      throw new Error('403!')
+      throw new ErrorWithStatus({ message: 'Không thể thu hồi tin nhắn này', status: 403 })
+    }
+
+    // Tùy version MongoDB, lấy document ra
+    const updatedMessage = result.value || result
+
+    // 2. EMIT SOCKET: Thông báo cho mọi người trong nhóm
+    const conversation = await databaseService.conversations.findOne({ _id: updatedMessage.conversationId })
+    if (conversation) {
+      const targetUserIds = new Set<string>()
+      if (conversation.participants) {
+        conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+      }
+      if (conversation.members) {
+        conversation.members.forEach((m: any) => {
+          const mId = m.userId?.toString() || m.user_id?.toString()
+          if (mId) targetUserIds.add(mId)
+        })
+      }
+
+      targetUserIds.forEach((id) => {
+        socketService.emitToUser(id, 'message_revoked', {
+          messageId: messageId,
+          conversationId: updatedMessage.conversationId.toString() // THÊM DÒNG NÀY
+        })
+      })
     }
 
     return result
