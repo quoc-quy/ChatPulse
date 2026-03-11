@@ -211,7 +211,22 @@ class UserService {
       message: 'Bạn đã chặn người dùng này rồi'
     }
   }
+  async checkUserBlock(user_id: string, blocked_user_id: string) {
+    const block = await databaseService.user_blocks.findOne({
+      $or: [
+        {
+          user_id: new ObjectId(user_id),
+          blocked_user_id: new ObjectId(blocked_user_id)
+        },
+        {
+          user_id: new ObjectId(blocked_user_id),
+          blocked_user_id: new ObjectId(user_id)
+        }
+      ]
+    })
 
+    return !!block
+  }
   async getListBlockUser(user_id: string) {
     const result = await databaseService.user_blocks
       .aggregate([
