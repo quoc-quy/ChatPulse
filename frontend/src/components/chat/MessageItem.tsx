@@ -78,10 +78,9 @@ export function MessageItem({
   // Lọc list reaction theo Tab đang chọn
   const usersToShow = activeTab === 'ALL' ? reactions : reactions.filter((r) => r.emoji === activeTab)
 
-  // LOGIC MỚI: Gom nhóm (Group by) các emoji theo userId để hiển thị trên 1 hàng
+  // Gom nhóm (Group by) các emoji theo userId để hiển thị trên 1 hàng[cite: 17]
   const groupedReactions = Object.values(
     usersToShow.reduce((acc: Record<string, any>, reaction) => {
-      // Nếu user này chưa có trong object tích lũy, tạo mới
       if (!acc[reaction.userId]) {
         acc[reaction.userId] = {
           userId: reaction.userId,
@@ -89,7 +88,6 @@ export function MessageItem({
           emojis: []
         }
       }
-      // Đẩy emoji vào mảng của user đó
       acc[reaction.userId].emojis.push(reaction.emoji)
       return acc
     }, {})
@@ -103,7 +101,7 @@ export function MessageItem({
     rowMarginClass = hasReactions ? 'mb-5' : 'mb-[2px]'
   }
 
-  // Render Nút Like + Bảng Emoji
+  // Render Nút Like + Bảng Emoji[cite: 17]
   const renderLikeButton = () => (
     <div
       className={`relative group/picker transition-opacity duration-200 ${hasReactions ? 'opacity-100' : 'opacity-0 group-hover/bubble:opacity-100'}`}
@@ -151,6 +149,7 @@ export function MessageItem({
       )}
 
       <div className={`flex gap-2 ${rowMarginClass} ${isMe ? 'justify-end' : 'justify-start'} group`}>
+        {/* Avatar người gửi */}
         {!isMe && (
           <div className='w-8 shrink-0'>
             {isFirstInGroup ? (
@@ -167,22 +166,38 @@ export function MessageItem({
         )}
 
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
-          <div className='flex items-center gap-2 group/bubble'>
+          <div className='flex items-center gap-2 group/bubble relative'>
             {isMe && !isCall && renderLikeButton()}
 
             {isCall ? (
               <CallMessage message={message} isMe={isMe} />
             ) : (
               <div
-                className={`px-4 py-2.5 rounded-2xl shadow-sm ${isMe ? 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm' : 'bg-background border border-border text-foreground rounded-tl-sm'}`}
+                className={`flex flex-col px-4 py-2.5 rounded-2xl shadow-sm ${isMe ? 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm' : 'bg-background border border-border text-foreground rounded-tl-sm'}`}
               >
+                {/* HIỂN THỊ TÊN NGƯỜI GỬI (Chỉ hiện ở tin nhắn đầu tiên của cụm) */}
+                {!isMe && isFirstInGroup && (
+                  <span className='text-xs font-semibold text-muted-foreground mb-1'>{senderName}</span>
+                )}
+
+                {/* NỘI DUNG TIN NHẮN */}
                 <p className='text-[15px] leading-relaxed break-words whitespace-pre-wrap'>{message.content}</p>
+
+                {/* UPDATE: CHỈ HIỂN THỊ THỜI GIAN Ở TIN NHẮN CUỐI CÙNG TRONG CỤM */}
+                {isLastInGroup && (
+                  <span
+                    className={`text-[10px] mt-1 opacity-70 ${isMe ? 'text-white/80 self-end' : 'text-muted-foreground self-start'}`}
+                  >
+                    {displayTime}
+                  </span>
+                )}
               </div>
             )}
 
             {!isMe && !isCall && renderLikeButton()}
           </div>
 
+          {/* HIỂN THỊ KẾT QUẢ CẢM XÚC[cite: 17] */}
           {hasReactions && !isCall && (
             <div
               onClick={() => setIsModalOpen(true)}
@@ -200,18 +215,10 @@ export function MessageItem({
               <span className='text-[11px] text-muted-foreground font-medium ml-0.5'>{reactions.length}</span>
             </div>
           )}
-
-          {isLastInGroup && (
-            <span
-              className={`text-[11px] text-muted-foreground px-1 transition-opacity opacity-70 group-hover:opacity-100 ${isMe ? 'text-right' : 'text-left'} ${hasReactions ? 'mt-1' : 'mt-1'}`}
-            >
-              {displayTime}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* MODAL CHI TIẾT REACTION */}
+      {/* MODAL CHI TIẾT REACTION[cite: 17] */}
       {isModalOpen && (
         <div
           className='fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center'
@@ -242,7 +249,7 @@ export function MessageItem({
               ))}
             </div>
 
-            {/* CỘT 2: Cập nhật render theo Mảng đã gom nhóm (Grouped Reactions) */}
+            {/* CỘT 2: Danh sách User theo nhóm */}
             <div className='w-2/3 p-4 overflow-y-auto'>
               <div className='flex justify-between items-center mb-4'>
                 <h3 className='font-semibold text-foreground'>Biểu tượng cảm xúc</h3>
