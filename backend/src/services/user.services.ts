@@ -212,6 +212,45 @@ class UserService {
     }
   }
 
+  async getListBlockUser(user_id: string) {
+    const result = await databaseService.user_blocks
+      .aggregate([
+        {
+          $match: {
+            user_id: new ObjectId(user_id)
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'blocked_user_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        {
+          $unwind: {
+            path: '$user'
+          }
+        },
+        {
+          $project: {
+            user: {
+              password: 0,
+              created_at: 0,
+              updated_at: 0
+            }
+          }
+        }
+      ])
+      .toArray()
+
+    return {
+      message: 'Lấy danh sách chặn thành công',
+      result
+    }
+  }
+
   async unBlockUser(user_id: string, blocked_user_id: string) {
     const user = await databaseService.user_blocks.findOne({
       user_id: new ObjectId(user_id),
@@ -233,40 +272,35 @@ class UserService {
       message: 'Bỏ chặn người dùng thất bại'
     }
   }
-// searchUser: Tìm kiếm người dùng theo userName hoặc displayName, loại bỏ những người đã bị block bởi currentUser hoặc đã block currentUser
+  // searchUser: Tìm kiếm người dùng theo userName hoặc displayName, loại bỏ những người đã bị block bởi currentUser hoặc đã block currentUser
   async searchUser(keyword: string, currentUserId: string) {
-  if (!keyword || keyword.trim() === "") return { users: [] };
+    if (!keyword || keyword.trim() === '') return { users: [] }
 
-  const blockedRecords = await databaseService.user_blocks.find({
-    $or: [
-      { user_id: new ObjectId(currentUserId) },
-      { blocked_user_id: new ObjectId(currentUserId) }
-    ]
-  }).toArray();
+    const blockedRecords = await databaseService.user_blocks
+      .find({
+        $or: [{ user_id: new ObjectId(currentUserId) }, { blocked_user_id: new ObjectId(currentUserId) }]
+      })
+      .toArray()
 
-  const blockedIds = blockedRecords.map(r => 
-    r.user_id.toString() === currentUserId ? r.blocked_user_id : r.user_id
-  );
+    const blockedIds = blockedRecords.map((r) =>
+      r.user_id.toString() === currentUserId ? r.blocked_user_id : r.user_id
+    )
 
-  const users = await databaseService.users.find({
-    $and: [
-      {
-        $or: [
-          { userName: { $regex: keyword, $options: "i" } },
-          { displayName: { $regex: keyword, $options: "i" } }
+    const users = await databaseService.users
+      .find({
+        $and: [
+          {
+            $or: [{ userName: { $regex: keyword, $options: 'i' } }, { displayName: { $regex: keyword, $options: 'i' } }]
+          },
+          { _id: { $ne: new ObjectId(currentUserId) } },
+          { _id: { $nin: blockedIds } }
         ]
-      },
-      { _id: { $ne: new ObjectId(currentUserId) } },
-      { _id: { $nin: blockedIds } } 
-    ]
-  })
-  .project({ password: 0, email: 0, verify_token: 0 })
-  .limit(10)
-  .toArray();
-  return { users };
-}
-
-
+      })
+      .project({ password: 0, email: 0, verify_token: 0 })
+      .limit(10)
+      .toArray()
+    return { users }
+  }
 }
 
 const userService = new UserService()

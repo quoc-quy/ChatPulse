@@ -30,7 +30,7 @@ export default function PhoneBook() {
       </div>
       <div className='p-2 flex items-center hover:bg-gray-900/10 text-foreground cursor-pointer'>
         <UserX size={20} className='mr-3' />
-        <Link to={'/phonebook'} className='text-base font-medium text-foreground p-2 text-center'>
+        <Link to={'/phonebook/blocking'} className='text-base font-medium text-foreground p-2 text-center'>
           Danh sách chặn
         </Link>
       </div>

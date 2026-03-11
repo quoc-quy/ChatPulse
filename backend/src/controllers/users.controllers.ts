@@ -95,11 +95,7 @@ export const blockUserController = async (
   return res.json(result)
 }
 
-export const unBlockUserController = async (
-  req: Request<UnBlockUserReqBody>,
-  res: Response,
-  next: NextFunction
-) => {
+export const unBlockUserController = async (req: Request<UnBlockUserReqBody>, res: Response, next: NextFunction) => {
   const { user_id } = req.decoded_authorization as TokenPayload
   const { user_id: blocked_user_id } = req.params
   const result = await userService.unBlockUser(user_id, blocked_user_id)
@@ -107,30 +103,37 @@ export const unBlockUserController = async (
   return res.json(result)
 }
 
+export const getListBlockUserController = async (req: Request, res: Response, next: NextFunction) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const result = await userService.getListBlockUser(user_id)
+
+  return res.json(result)
+}
+
 export const searchUserController = async (req: Request, res: Response) => {
-  const q = (req.query.q as string) || ''; 
-  const { user_id } = req.decoded_authorization as TokenPayload;
+  const q = (req.query.q as string) || ''
+  const { user_id } = req.decoded_authorization as TokenPayload
 
   // Nếu không có từ khóa
   if (!q.trim()) {
     return res.json({
       message: 'Vui lòng nhập từ khóa tìm kiếm',
       result: { users: [] }
-    });
+    })
   }
 
-  const result = await userService.searchUser(q, user_id);
-  
+  const result = await userService.searchUser(q, user_id)
+
   // KIỂM TRA TẠI ĐÂY: Nếu mảng users rỗng (có thể do không khớp hoặc đã bị block)
   if (result.users.length === 0) {
     return res.json({
       message: 'Không tìm thấy người dùng', // Thông báo đúng ý em muốn
       result: { users: [] }
-    });
+    })
   }
   // Nếu tìm thấy
   return res.json({
     message: 'Tìm kiếm người dùng thành công',
     result
-  });
-};
+  })
+}

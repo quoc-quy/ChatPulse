@@ -9,6 +9,7 @@ import { AppContext } from './context/app.context'
 import ProfilePage from './pages/ProfilePage'
 import FriendPage from './pages/FriendPage'
 import FriendInvitationPage from './pages/FriendInvitationPage'
+import BlockUserPage from './pages/BlockUserPage'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -37,15 +38,6 @@ export default function useRouteElements() {
           )
         },
         {
-          path: '/profile',
-          index: true,
-          element: (
-            <MainLayout>
-              <ProfilePage />
-            </MainLayout>
-          )
-        },
-        {
           path: '/phonebook/friend-list',
           index: true,
           element: [
@@ -60,6 +52,15 @@ export default function useRouteElements() {
           element: [
             <MainLayout>
               <FriendInvitationPage />
+            </MainLayout>
+          ]
+        },
+        {
+          path: '/phonebook/blocking',
+          index: true,
+          element: [
+            <MainLayout>
+              <BlockUserPage />
             </MainLayout>
           ]
         }
