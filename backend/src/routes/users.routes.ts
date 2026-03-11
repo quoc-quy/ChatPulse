@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   blockUserController,
   changePasswordController,
+  getListBlockUserController,
   getMeController,
   getProfileController,
   loginController,
@@ -18,6 +19,7 @@ import {
   loginValidator,
   refreshTokenValidator,
   registerValidator,
+  unBlockUserValidator,
   updateMeValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -63,10 +65,15 @@ usersRouter.post('/block', accessTokenValidator, blockUserValidator, wrapRequest
 usersRouter.delete(
   '/unblock/:user_id',
   accessTokenValidator,
-  unBlockUserController,
+  unBlockUserValidator,
   wrapRequestHandler(unBlockUserController)
 )
 
+/**
+ * Display a list of blocked user
+ * Header: {Authorization: Bearer <access_token>}
+ */
+usersRouter.get('/block', accessTokenValidator, wrapRequestHandler(getListBlockUserController))
 
 // /**
 //  * Register
@@ -83,13 +90,9 @@ usersRouter.delete(
 //  */
 // usersRouter.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
 // /**
-//  * Search user 
+//  * Search user
 //  */
-usersRouter.get(
-  '/search',
-  accessTokenValidator,
-  wrapRequestHandler(searchUserController)
-)
+usersRouter.get('/search', accessTokenValidator, wrapRequestHandler(searchUserController))
 /**
  * Get user profile
  */
