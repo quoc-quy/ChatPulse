@@ -1,12 +1,11 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Message } from '@/types/message.type'
 import { CallMessage } from './CallMessage'
-import { messagesApi } from '@/apis/messages.api'
 import { AppContext } from '@/context/app.context'
 import { useContext, useState } from 'react'
-import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { createPortal } from 'react-dom' // THÊM IMPORT NÀY
+import { ReactionModal } from './ReactionModal'
+import { ReactionBadge } from './ReactionBadge'
+import { MessageActions } from './MessageActions'
 
 interface MessageItemProps {
   message: Message
@@ -19,8 +18,6 @@ interface MessageItemProps {
   isLastInGroup?: boolean
   onDeleteForMe?: (messageId: string) => void
 }
-
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡']
 
 export function MessageItem({
   message,
@@ -37,64 +34,11 @@ export function MessageItem({
   const currentUserId = profile?._id || ''
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('ALL')
-
-  const getInitials = (name?: string) => {
-    if (!name || name.trim() === '') return 'U'
-    return name.trim().charAt(0).toUpperCase()
-  }
 
   const isCall = message.type === 'call'
   const isRevoked = message.type === 'revoked'
-
-  const handleReact = async (emoji: string) => {
-    try {
-      await messagesApi.reactMessage(message._id, emoji)
-    } catch (error) {
-      console.error('Lỗi khi thả cảm xúc:', error)
-    }
-  }
-
-  const handleRevokeAll = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    try {
-      await messagesApi.reactMessage(message._id, 'REMOVE_ALL')
-    } catch (error) {
-      console.error('Lỗi khi thu hồi cảm xúc:', error)
-    }
-  }
-
-  const handleRevokeMessage = async () => {
-    try {
-      await messagesApi.revokeMessage(message._id)
-    } catch (error) {
-      console.error('Lỗi khi thu hồi tin nhắn:', error)
-    }
-  }
-
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
-
-  const myReactions = reactions.filter((r) => r.userId === currentUserId)
-  const hasMyReaction = myReactions.length > 0
-  const myRecentEmoji = hasMyReaction ? myReactions[myReactions.length - 1].emoji : null
-
-  const reactionCounts = reactions.reduce((acc: Record<string, number>, r) => {
-    acc[r.emoji] = (acc[r.emoji] || 0) + 1
-    return acc
-  }, {})
-
-  const usersToShow = activeTab === 'ALL' ? reactions : reactions.filter((r) => r.emoji === activeTab)
-
-  const groupedReactions = Object.values(
-    usersToShow.reduce((acc: Record<string, any>, reaction) => {
-      if (!acc[reaction.userId]) {
-        acc[reaction.userId] = { userId: reaction.userId, user: reaction.user, emojis: [] }
-      }
-      acc[reaction.userId].emojis.push(reaction.emoji)
-      return acc
-    }, {})
-  )
 
   let rowMarginClass = 'mb-[2px]'
   if (isLastInGroup) {
@@ -103,84 +47,9 @@ export function MessageItem({
     rowMarginClass = hasReactions ? 'mb-5' : 'mb-[2px]'
   }
 
-  const renderMessageActions = () => {
-    if (isCall) return null
-
-    return (
-      <div
-        className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-full mr-2 flex-row-reverse' : 'left-full ml-2 flex-row'} z-20 flex items-center gap-1`}
-      >
-        {!isRevoked && (
-          <div
-            className={`relative group/picker transition-opacity duration-200 ${hasReactions ? 'opacity-100' : 'opacity-0 group-hover/bubble:opacity-100'}`}
-          >
-            <button className='flex items-center justify-center w-7 h-7 rounded-full bg-background/80 backdrop-blur-sm border border-border shadow-sm hover:bg-muted text-muted-foreground transition-all z-20'>
-              {myRecentEmoji ? (
-                <span className='text-[14px]'>{myRecentEmoji}</span>
-              ) : (
-                <ThumbsUp className='w-3.5 h-3.5' />
-              )}
-            </button>
-
-            <div
-              className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} pb-3 hidden group-hover/picker:block z-50`}
-            >
-              <div className='flex items-center w-max bg-background border border-border shadow-xl rounded-full px-2 py-1.5 gap-1.5 animate-in slide-in-from-bottom-2 fade-in'>
-                {REACTION_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleReact(emoji)}
-                    className='text-xl hover:scale-125 hover:-translate-y-1 transition-all duration-200 px-1'
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                {hasMyReaction && (
-                  <>
-                    <div className='w-[1px] h-5 bg-border mx-1'></div>
-                    <button
-                      onClick={handleRevokeAll}
-                      title='Thu hồi cảm xúc'
-                      className='p-1 rounded-full hover:bg-destructive/10 text-destructive transition-colors'
-                    >
-                      <X className='w-4 h-4' />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className='opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200'>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className='flex items-center justify-center w-7 h-7 rounded-full bg-background/80 backdrop-blur-sm border border-border shadow-sm hover:bg-muted text-muted-foreground transition-all outline-none'>
-                <MoreHorizontal className='w-4 h-4' />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align={isMe ? 'end' : 'start'} sideOffset={6} className='min-w-[170px]'>
-              {isMe && !isRevoked && (
-                <DropdownMenuItem
-                  onClick={handleRevokeMessage}
-                  className='text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-medium py-2'
-                >
-                  <RotateCcw className='w-4 h-4 mr-2 text-destructive' />
-                  Thu hồi tin nhắn
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onClick={() => onDeleteForMe && onDeleteForMe(message._id)}
-                className='text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-medium py-2'
-              >
-                <Trash2 className='w-4 h-4 mr-2 text-destructive' />
-                Xóa ở phía tôi
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    )
+  const getInitials = (name?: string) => {
+    if (!name || name.trim() === '') return 'U'
+    return name.trim().charAt(0).toUpperCase()
   }
 
   return (
@@ -211,8 +80,10 @@ export function MessageItem({
 
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
           <div className='flex items-center gap-2 group/bubble relative'>
-            {renderMessageActions()}
+            {/* COMPONENT: Thanh công cụ xử lý tương tác */}
+            <MessageActions message={message} isMe={isMe} currentUserId={currentUserId} onDeleteForMe={onDeleteForMe} />
 
+            {/* BONG BÓNG TIN NHẮN */}
             {isRevoked ? (
               <div
                 className={`flex flex-col px-4 py-2.5 rounded-2xl border border-border/60 bg-muted/30 text-muted-foreground/80 ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}
@@ -245,88 +116,13 @@ export function MessageItem({
             )}
           </div>
 
-          {hasReactions && (
-            <div
-              onClick={() => setIsModalOpen(true)}
-              className={`relative z-10 flex items-center gap-1 bg-background border border-border shadow-sm rounded-full px-1.5 py-0.5 cursor-pointer hover:bg-muted transition-colors -mt-3 ${isMe ? 'mr-4' : 'ml-4'}`}
-            >
-              <div className='flex -space-x-1'>
-                {Object.keys(reactionCounts)
-                  .slice(0, 3)
-                  .map((emoji) => (
-                    <span key={emoji} className='text-[12px] bg-background rounded-full border border-background'>
-                      {emoji}
-                    </span>
-                  ))}
-              </div>
-              <span className='text-[11px] text-muted-foreground font-medium ml-0.5'>{reactions.length}</span>
-            </div>
-          )}
+          {/* COMPONENT: Hiển thị Thẻ cảm xúc */}
+          {hasReactions && <ReactionBadge reactions={reactions} isMe={isMe} onClick={() => setIsModalOpen(true)} />}
         </div>
       </div>
 
-      {/* SỬ DỤNG CREATE PORTAL ĐỂ RENDER MODAL RA NGOÀI DOCUMENT.BODY */}
-      {isModalOpen &&
-        createPortal(
-          <div
-            className='fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center'
-            onClick={() => setIsModalOpen(false)}
-          >
-            <div
-              className='bg-background w-full max-w-md rounded-xl shadow-2xl flex overflow-hidden max-h-[60vh]'
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className='w-1/3 bg-muted/30 border-r border-border p-2 flex flex-col gap-1 overflow-y-auto'>
-                <button
-                  onClick={() => setActiveTab('ALL')}
-                  className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'ALL' ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
-                >
-                  <span>Tất cả</span>
-                  <span>{reactions.length}</span>
-                </button>
-                {Object.entries(reactionCounts).map(([emoji, count]) => (
-                  <button
-                    key={emoji}
-                    onClick={() => setActiveTab(emoji)}
-                    className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === emoji ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
-                  >
-                    <span className='text-lg'>{emoji}</span>
-                    <span>{count as React.ReactNode}</span>
-                  </button>
-                ))}
-              </div>
-              <div className='w-2/3 p-4 overflow-y-auto'>
-                <div className='flex justify-between items-center mb-4'>
-                  <h3 className='font-semibold text-foreground'>Biểu tượng cảm xúc</h3>
-                  <button onClick={() => setIsModalOpen(false)} className='p-1 rounded-full hover:bg-muted'>
-                    <X className='w-5 h-5' />
-                  </button>
-                </div>
-                <div className='flex flex-col gap-4'>
-                  {groupedReactions.map((group) => (
-                    <div key={group.userId} className='flex items-center justify-between'>
-                      <div className='flex items-center gap-3'>
-                        <Avatar className='w-10 h-10 border border-border'>
-                          <AvatarImage src={group.user?.avatar} />
-                          <AvatarFallback>{getInitials(group.user?.userName || 'U')}</AvatarFallback>
-                        </Avatar>
-                        <span className='font-medium text-sm'>{group.user?.userName || 'Người dùng'}</span>
-                      </div>
-                      <div className='flex items-center gap-1'>
-                        {group.emojis.map((emj: string, idx: number) => (
-                          <span key={idx} className='text-xl'>
-                            {emj}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body // Chỉ định render tại thẻ body của HTML
-        )}
+      {/* COMPONENT: Modal xem ai thả cảm xúc */}
+      <ReactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} reactions={reactions} />
     </div>
   )
 }
