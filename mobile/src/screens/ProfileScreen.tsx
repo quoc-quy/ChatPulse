@@ -173,7 +173,7 @@ const MenuOption = ({ icon, label, color = "#1e293b", onPress }: any) => (
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: "#f8fafc", marginTop: 50 },
   header: { alignItems: "center", paddingVertical: 30 },
   avatarContainer: { position: "relative" },
   avatar: {
