@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 
-const BASE_URL = 'http://localhost:4001/'
+const BASE_URL = `${process.env.EXPO_PUBLIC_API_URL}:4000`
+
 export const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000
+  timeout: 5000
 })
-// Thêm interceptor để tự động gắn Token
+
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('access_token')
@@ -15,7 +16,5 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
