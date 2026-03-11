@@ -1,4 +1,4 @@
-import { AppSidebar } from '@/components/app-sidebar'
+import { AppSidebar } from '@/components/sidebars/AppSidebar'
 import { GlobalCallUI } from '@/components/chat/GlobalCallUI'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
