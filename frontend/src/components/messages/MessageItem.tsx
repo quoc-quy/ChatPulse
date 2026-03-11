@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Message } from '@/types/message.type'
-import { CallMessage } from './CallMessage'
+import { CallMessage } from '../chat/CallMessage'
 import { AppContext } from '@/context/app.context'
 import { useContext, useState } from 'react'
 import { ReactionModal } from './ReactionModal'
