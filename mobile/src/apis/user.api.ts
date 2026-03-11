@@ -57,3 +57,10 @@ export const updateMeApi = (body: any) => {
 export const registerApi = (data: any) => {
   return api.post("/auth/register", data);
 };
+
+export const forgotPasswordApi = (email: string) => {
+  return api.post("/auth/forgot-password", { email });
+};
+export const resetPasswordApi = (data: any) => {
+  return api.post("/auth/reset-password", data);
+};
