@@ -115,11 +115,21 @@ export function ChatBody({ convId }: ChatBodyProps) {
       setMessages((prevMessages) => prevMessages.map((msg) => (msg._id === messageId ? { ...msg, reactions } : msg)))
     }
 
+    const handleMessageRevoked = ({ messageId, conversationId }: { messageId: string; conversationId: string }) => {
+      if (conversationId === convId) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) => (msg._id === messageId ? { ...msg, type: 'revoked', content: '' } : msg))
+        )
+      }
+    }
+
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_reacted', handleMessageReacted)
+    socket.on('message_revoked', handleMessageRevoked)
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_reacted', handleMessageReacted)
+      socket.off('message_revoked', handleMessageRevoked)
     }
   }, [currentUserId, convId, socket])
 
