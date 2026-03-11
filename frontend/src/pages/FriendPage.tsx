@@ -55,13 +55,13 @@ export default function FriendPage() {
                 <div className='flex items-center'>
                   {!friend.avatar && (
                     <Avatar className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
-                      <AvatarImage src={friend.avatar} alt={friend.userName} />
+                      <AvatarImage src={friend?.avatar} alt={friend?.userName} />
                       <AvatarFallback className='font-semibold bg-blue-100 text-blue-600'>
-                        {getInitials(friend.userName)}
+                        {getInitials(friend?.userName)}
                       </AvatarFallback>
                     </Avatar>
                   )}
-                  {friend.avatar && (
+                  {friend?.avatar && (
                     <div className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
                       <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
                     </div>
