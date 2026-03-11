@@ -3,7 +3,9 @@ export type RootStackParamList = {
   SignUp: undefined;
   Chat: undefined;
   Main: undefined;
-  FriendRequests: undefined; 
+  FriendRequests: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { email: string };
 };
 
 export interface Conversation {
