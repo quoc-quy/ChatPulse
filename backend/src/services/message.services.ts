@@ -271,24 +271,46 @@ class MessageService {
     const messageObjId = new ObjectId(messageId)
     const userObjId = new ObjectId(userId)
 
-    // 1. Tìm tin nhắn để kiểm tra cảm xúc hiện tại
-    const message = await databaseService.messages.findOne({ _id: messageObjId })
-    if (!message) {
-      throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: 404 })
-    }
+    // 1. Lấy tin nhắn và thông tin người đang thả cảm xúc
+    const [message, user] = await Promise.all([
+      databaseService.messages.findOne({ _id: messageObjId }),
+      databaseService.users.findOne({ _id: userObjId })
+    ])
 
-    // 2. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
-    // Nếu đã thả rồi -> Hủy (Pull) | Nếu chưa -> Thêm mới (Push)
-    const hasReacted = message.reactions?.find(
-      (r: { userId: ObjectId; emoji: string }) => r.userId.toString() === userId && r.emoji === emoji
-    )
+    if (!message) throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: 404 })
+    if (!user) throw new ErrorWithStatus({ message: 'User không tồn tại', status: 404 })
 
     let updateQuery: any = {}
-    if (hasReacted) {
-      updateQuery = { $pull: { reactions: { userId: userObjId, emoji: emoji } } }
+
+    // 2. Logic Xóa tất cả cảm xúc của user này (Khi bấm nút X)
+    if (emoji === 'REMOVE_ALL') {
+      updateQuery = { $pull: { reactions: { userId: userObjId } } }
     } else {
-      updateQuery = {
-        $push: { reactions: { userId: userObjId, emoji: emoji, createdAt: new Date() } }
+      // 3. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
+      const hasReactedThisEmoji = message.reactions?.find(
+        (r: { userId: { toString: () => string }; emoji: string }) =>
+          r.userId.toString() === userId && r.emoji === emoji
+      )
+
+      if (hasReactedThisEmoji) {
+        // Đã thả -> Hủy (Pull)
+        updateQuery = { $pull: { reactions: { userId: userObjId, emoji: emoji } } }
+      } else {
+        // Chưa thả -> Thêm mới (Push) kèm theo thông tin User (Denormalization để FE hiện Modal)
+        updateQuery = {
+          $push: {
+            reactions: {
+              userId: userObjId,
+              emoji: emoji,
+              user: {
+                _id: user._id,
+                userName: user.userName,
+                avatar: user.avatar
+              },
+              createdAt: new Date()
+            }
+          }
+        }
       }
     }
 
@@ -296,7 +318,7 @@ class MessageService {
       returnDocument: 'after'
     })
 
-    // 3. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
+    // 4. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
     const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
     if (conversation) {
       const targetUserIds = new Set<string>()
@@ -311,7 +333,6 @@ class MessageService {
         })
       }
 
-      // Xử lý lấy mảng reactions tương thích ngược với các phiên bản MongoDB Driver
       const updatedReactions = result?.reactions || result?.value?.reactions || []
 
       targetUserIds.forEach((id) => {

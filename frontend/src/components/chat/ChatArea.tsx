@@ -95,7 +95,7 @@ export function ChatArea({ chat }: ChatAreaProps) {
 
       {/* Cửa sổ hiển thị tóm tắt (có thể dùng dialog/sheet của shadcn) */}
       {isSummarizing && (
-        <div className='absolute top-16 right-4 z-10 bg-white p-4 shadow-lg rounded'>Đang phân tích bằng AI...</div>
+        <div className='absolute top-16 right-4 z-200 bg-white p-4 shadow-lg rounded'>Đang phân tích bằng AI...</div>
       )}
       {summaryData && (
         <div className='absolute top-16 right-4 z-10 w-96 bg-card border text-foreground shadow-xl rounded-xl p-4 overflow-y-auto max-h-[80vh]'>
@@ -131,8 +131,10 @@ export function ChatArea({ chat }: ChatAreaProps) {
         </div>
       )}
 
-      <ChatBody convId={chat.id} />
-      <ChatFooter convId={chat.id} />
+      <div className='relative z-0 flex-1 flex flex-col overflow-hidden'>
+        <ChatBody convId={chat.id} />
+        <ChatFooter convId={chat.id} />
+      </div>
     </div>
   )
 }
