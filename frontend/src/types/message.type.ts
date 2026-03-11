@@ -8,6 +8,11 @@ export interface Reaction {
   userId: string
   emoji: string
   createdAt: string
+  user?: {
+    _id: string
+    userName: string
+    avatar: string
+  }
 }
 
 export interface Message {
