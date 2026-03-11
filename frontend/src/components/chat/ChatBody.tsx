@@ -3,7 +3,7 @@ import { useSocket } from '@/context/socket.context'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
-import { MessageItem } from './MessageItem'
+import { MessageItem } from '../messages/MessageItem'
 import { formatZaloMessageTime, shouldShowTimeDivider } from '@/utils/time'
 import { ChevronDown } from 'lucide-react' // FIX 3: Import icon nút Scroll
 
