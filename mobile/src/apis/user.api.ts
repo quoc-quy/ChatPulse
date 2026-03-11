@@ -53,3 +53,7 @@ export const getMeApi = () => {
 export const updateMeApi = (body: any) => {
   return api.patch("/users/update-profile", body);
 };
+
+export const registerApi = (data: any) => {
+  return api.post("/auth/register", data);
+};
