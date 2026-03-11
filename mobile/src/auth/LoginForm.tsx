@@ -124,9 +124,7 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
                 <View style={styles.rowBetween}>
                   <View />
                   <TouchableOpacity
-                    onPress={() =>
-                      Alert.alert("Thông báo", "Tính năng đang cập nhật.")
-                    }
+                    onPress={() => navigation.navigate("ForgotPassword")}
                   >
                     <Text style={styles.link}>Forgot password?</Text>
                   </TouchableOpacity>
