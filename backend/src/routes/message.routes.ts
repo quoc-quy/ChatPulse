@@ -6,7 +6,8 @@ import {
   reactMessageController,
   revokeMessageController,
   deleteMessageController,
-  summarizeConversationController
+  summarizeConversationController,
+  deleteMessageForMeController
 } from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -63,5 +64,11 @@ messageRouter.delete('/:id', accessTokenValidator, wrapRequestHandler(deleteMess
  * Path: /messages/:convId/summary
  */
 messageRouter.get('/:convId/summary', accessTokenValidator, wrapRequestHandler(summarizeConversationController))
+
+/**
+ * Description: Xóa tin nhắn ở phía tôi
+ * Path: /messages/:messageId
+ */
+messageRouter.delete('/:messageId', accessTokenValidator, wrapRequestHandler(deleteMessageForMeController))
 
 export default messageRouter

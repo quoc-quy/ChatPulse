@@ -148,6 +148,39 @@ export function ChatBody({ convId }: ChatBodyProps) {
     }
   }
 
+  const handleDeleteForMe = async (messageId: string) => {
+    try {
+      // 1. Xác định xem đây có phải là tin nhắn cuối cùng (mới nhất) không
+      const isLastMessage = messages.length > 0 && messages[messages.length - 1]._id === messageId
+      let previousMessage = null
+
+      // Nếu là tin cuối, lấy tin nhắn áp chót (kế cuối) để gửi ra Sidebar
+      if (isLastMessage && messages.length > 1) {
+        previousMessage = messages[messages.length - 2]
+      }
+
+      // 2. Cập nhật UI ngay lập tức
+      setMessages((prev) => prev.filter((msg) => msg._id !== messageId))
+
+      // 3. Gọi API
+      await messagesApi.deleteMessageForMe(messageId)
+
+      // 4. Phát sự kiện ra cho Sidebar cập nhật (Nếu vừa xóa tin cuối cùng)
+      if (isLastMessage) {
+        window.dispatchEvent(
+          new CustomEvent('local_message_deleted', {
+            detail: {
+              conversationId: convId,
+              newLastMessage: previousMessage
+            }
+          })
+        )
+      }
+    } catch (error) {
+      console.error('Lỗi khi xóa tin nhắn ở phía tôi:', error)
+    }
+  }
+
   const scrollToBottom = () => {
     if (containerRef.current) {
       containerRef.current.scrollTo({
@@ -211,6 +244,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
                 dividerTimeStr={dividerTimeStr}
                 isFirstInGroup={isFirstInGroup}
                 isLastInGroup={isLastInGroup}
+                onDeleteForMe={handleDeleteForMe}
               />
             )
           })}

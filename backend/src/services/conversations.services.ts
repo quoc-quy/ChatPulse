@@ -27,8 +27,17 @@ class ChatService {
         {
           $lookup: {
             from: 'messages',
-            localField: 'last_message_id',
-            foreignField: '_id',
+            let: { convId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$conversationId', '$$convId'] },
+                  deletedByUsers: { $ne: userObjectId } // QUAN TRỌNG: Bỏ qua các tin nhắn user ĐÃ XÓA
+                }
+              },
+              { $sort: { createdAt: -1 } }, // Sắp xếp mới nhất lên đầu
+              { $limit: 1 } // Chỉ lấy 1 tin nhắn làm preview
+            ],
             as: 'last_message_info'
           }
         },

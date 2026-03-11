@@ -97,3 +97,15 @@ export const summarizeConversationController = async (req: Request, res: Respons
     result: summary
   })
 }
+
+export const deleteMessageForMeController = async (req: Request, res: Response) => {
+  const { messageId } = req.params.messageId as any
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  const result = await messageService.deleteMessageForMe(messageId, user_id)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Xóa tin nhắn ở phía tôi thành công',
+    result
+  })
+}
