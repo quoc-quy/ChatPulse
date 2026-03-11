@@ -412,6 +412,24 @@ class MessageService {
     return result
   }
 
+  async deleteMessageForMe(messageId: string, userId: string) {
+    const messageObjId = new ObjectId(messageId)
+    const userObjId = new ObjectId(userId)
+
+    // Cập nhật tin nhắn: Push userId vào mảng deletedByUsers
+    const result = await databaseService.messages.findOneAndUpdate(
+      { _id: messageObjId },
+      { $addToSet: { deletedByUsers: userObjId } }, // Dùng $addToSet để không bị trùng lặp
+      { returnDocument: 'after' }
+    )
+
+    if (!result) {
+      throw new ErrorWithStatus({ message: 'Không tìm thấy tin nhắn', status: 404 })
+    }
+
+    return result
+  }
+
   async summarizeConversation(convId: string, userId: string, limit: number = 30, unreadCount: number = 0) {
     try {
       // 1. Bảo vệ ở Backend: Nếu không có tin mới thì trả về rỗng ngay

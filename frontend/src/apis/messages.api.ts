@@ -53,6 +53,10 @@ export const messagesApi = {
     return http.post<{ message: string; result: any }>(`/messages/${messageId}/revoke`, {})
   },
 
+  deleteMessageForMe: (messageId: string) => {
+    return http.delete<{ message: string; result: any }>(`/messages/${messageId}`)
+  },
+
   summarizeConversation: (convId: string, limit?: number, unreadCount?: number) => {
     return http.get<{ message: string; result: ConversationSummary }>(`/messages/${convId}/summary`, {
       params: { limit, unreadCount }, // Truyền thêm unreadCount

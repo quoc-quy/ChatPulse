@@ -278,6 +278,57 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [chatList, activeChat, setActiveChat])
 
+  // --- LẮNG NGHE SỰ KIỆN XÓA TIN NHẮN PHÍA TÔI ---
+  useEffect(() => {
+    const handleLocalDelete = (e: any) => {
+      const { conversationId, newLastMessage } = e.detail
+
+      setChatList((prevChats) =>
+        prevChats.map((chat) => {
+          if (String(chat.id) === String(conversationId)) {
+            // Nếu xóa hết sạch tin nhắn trong nhóm
+            if (!newLastMessage) {
+              return { ...chat, message: 'Chưa có tin nhắn nào...', time: '', lastMessageId: null }
+            }
+
+            // Format lại nội dung tin nhắn áp chót để làm preview mới
+            const isMe = newLastMessage.sender?._id === profile?._id
+            let prefix = isMe ? 'Bạn: ' : ''
+
+            if (!isMe && chat.type === 'group') {
+              prefix = `${newLastMessage.sender?.userName || 'Thành viên'}: `
+            }
+
+            let previewContent = newLastMessage.content
+            if (newLastMessage.type === 'image' || newLastMessage.type === 'media') {
+              previewContent = '[Hình ảnh/Video]'
+            }
+            if (newLastMessage.type === 'revoked') {
+              previewContent = 'Tin nhắn đã được thu hồi'
+              prefix = '' // Ẩn tên nếu bị thu hồi
+            }
+
+            const newTime = new Date(newLastMessage.createdAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+
+            return {
+              ...chat,
+              message: newLastMessage.type === 'revoked' ? previewContent : `${prefix}${previewContent}`,
+              time: newTime,
+              lastMessageId: newLastMessage._id
+            }
+          }
+          return chat
+        })
+      )
+    }
+
+    window.addEventListener('local_message_deleted', handleLocalDelete)
+    return () => window.removeEventListener('local_message_deleted', handleLocalDelete)
+  }, [profile])
+
   const handleChatSelect = async (chatId: string) => {
     const targetChat = chatList.find((c) => String(c.id) === String(chatId))
     if (!targetChat) return
