@@ -2,6 +2,7 @@ import friendApi from '@/apis/friend.api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import type { User } from '@/types/user.type'
+import { getInitials } from '@/utils/common'
 import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { useEffect } from 'react'
@@ -13,11 +14,6 @@ export default function FriendPage() {
   })
 
   const listFriends: User[] = data?.data.result || []
-
-  const getInitials = (name: string) => {
-    if (!name) return ''
-    return name.charAt(0).toUpperCase()
-  }
 
   useEffect(() => {}, [])
 
@@ -52,7 +48,10 @@ export default function FriendPage() {
         <div className='mb-5'>
           {listFriends.map((friend) => {
             return (
-              <div className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-sidebar-accent  hover:rounded-sm text-foreground cursor-pointer'>
+              <div
+                key={friend.userName}
+                className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-sidebar-accent  hover:rounded-sm text-foreground cursor-pointer'
+              >
                 <div className='flex items-center'>
                   {!friend.avatar && (
                     <Avatar className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>

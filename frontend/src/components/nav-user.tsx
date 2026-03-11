@@ -17,10 +17,13 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/c
 import { useTheme } from '@/context/theme.context'
 import { clearLS } from '@/utils/auth'
 import { AppContext } from '@/context/app.context'
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Button } from './ui/button'
+import ProfilePage from '@/pages/ProfilePage'
 
 export function NavUser({ user }: { user: { name: string; email: string; avatar: string } }) {
+  const [open, setOpen] = useState(false)
   const { isMobile } = useSidebar()
   const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
@@ -123,7 +126,7 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
             {/* ---------------------------------- */}
 
             <DropdownMenuSeparator />
-            <Link
+            <button
               className='
                 focus:bg-accent 
                 focus:text-accent-foreground 
@@ -135,12 +138,14 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
                 [&_svg]:size-4
                 hover:bg-accent
                 cursor-pointer
+                w-full
               '
-              to={'/profile'}
+              onClick={() => setOpen(true)}
             >
               <User className='mr-2 h-4 w-4' />
               Hồ sơ của tôi
-            </Link>
+            </button>
+            <ProfilePage open={open} onOpenChange={setOpen} />
             {/* ---------------------------------- */}
 
             <DropdownMenuSeparator />
