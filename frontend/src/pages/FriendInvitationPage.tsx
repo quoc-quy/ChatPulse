@@ -1,21 +1,36 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import friendApi from '@/apis/friend.api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { UserPlus } from 'lucide-react'
-import { useEffect } from 'react'
+import { toast } from 'react-toastify'
 
 export default function FriendInvitationPage() {
   const { data, refetch } = useQuery({
     queryKey: ['ListRequest'],
     queryFn: friendApi.getListFriendRequest
   })
+  console.log(data)
+
+  const acceptFriendMutation = useMutation({
+    mutationFn: (sender_id: string) => friendApi.acceptFriend(sender_id),
+    onSuccess: (data) => {
+      refetch()
+      toast.success(data.data.message)
+    }
+  })
+
+  const handleAcceptFriend = (sender_id: string) => {
+    acceptFriendMutation.mutate(sender_id)
+    console.log(sender_id)
+  }
 
   // const listFriendRequest: User[] = data?.data.result
 
-  const listFriendRequest: User[] = data?.data.result?.map((item: any) => item.sender_info) || []
+  const listFriendRequest = data?.data.result || []
 
   return (
     <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
@@ -31,7 +46,9 @@ export default function FriendInvitationPage() {
           <div className='text-foreground rounded-sm mx-4 py-2'>
             <div className='mb-5 mt-5'>
               <div className='grid grid-cols-3 gap-6 px-4 pb-6'>
-                {listFriendRequest.map((user) => {
+                {listFriendRequest.map((request: any) => {
+                  const user = request.sender_info
+
                   return (
                     <div
                       key={user._id}
@@ -58,7 +75,9 @@ export default function FriendInvitationPage() {
                       <div className='flex gap-3 w-full'>
                         <Button className='flex-1 bg-gray-400 hover:bg-gray-500 text-white cursor-pointer'>Hủy</Button>
 
-                        <Button className='flex-1 cursor-pointer'>Đồng ý</Button>
+                        <Button className='flex-1 cursor-pointer' onClick={() => handleAcceptFriend(request._id)}>
+                          Đồng ý
+                        </Button>
                       </div>
                     </div>
                   )

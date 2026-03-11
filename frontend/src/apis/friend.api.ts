@@ -8,6 +8,10 @@ const friendApi = {
 
   getListFriendRequest() {
     return http.get('/friends/requests/received')
+  },
+
+  acceptFriend(sender_id: string) {
+    return http.patch(`/friends/requests/${sender_id}/accept`)
   }
 }
 
