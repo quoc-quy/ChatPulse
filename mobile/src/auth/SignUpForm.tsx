@@ -107,9 +107,9 @@ export function SignUpForm({ navigation }: any) {
         >
           <View style={styles.card}>
             <View style={styles.header}>
-              <Text style={styles.title}>Create account</Text>
+              <Text style={styles.title}>Create your account</Text>
               <Text style={styles.subtitle}>
-                Join the ChatPulse community today
+                Enter your email below to create your account
               </Text>
             </View>
 
@@ -250,8 +250,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    color: "#64748B",
-    fontSize: 14,
+    color: "#94A3B8",
+    marginTop: 4,
+    textAlign: "center",
   },
   formGroup: {
     marginBottom: 20, // Gom nhóm các input lại
