@@ -8,6 +8,10 @@ const userApi = {
 
   getListBlockedUser() {
     return http.get<User[]>('/users/block')
+  },
+
+  unBlockUser(user_id: string) {
+    return http.delete(`/users/unblock/${user_id}`)
   }
 }
 
