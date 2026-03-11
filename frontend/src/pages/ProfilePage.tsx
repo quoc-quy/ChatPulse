@@ -49,15 +49,15 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
         {/* Avatar */}
         <div className='flex flex-col items-center mb-6 gap-4'>
           <div className='h-28 w-28 overflow-hidden rounded-full'>
-            {!profile.avatar && (
+            {!profile?.avatar && (
               <Avatar className='h-full w-full object-cover overflow-hidden text-foreground rounded-full border-gray-500'>
-                <AvatarImage alt={profile.userName} />
+                <AvatarImage alt={profile?.userName} />
                 <AvatarFallback className='text-3xl font-semibold bg-blue-100 text-blue-600'>
-                  {getInitials(profile.userName)}
+                  {getInitials(profile?.userName)}
                 </AvatarFallback>
               </Avatar>
             )}
-            {profile.avatar && <img src={profile?.avatar} alt='avatar' className='h-full w-full object-cover' />}
+            {profile?.avatar && <img src={profile.avatar} alt='avatar' className='h-full w-full object-cover' />}
           </div>
         </div>
 
