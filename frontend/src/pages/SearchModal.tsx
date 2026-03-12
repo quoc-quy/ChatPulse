@@ -1,11 +1,14 @@
+import userApi from '@/apis/user.api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
+import { useMutation } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
 import { useEffect } from 'react'
+import { toast } from 'react-toastify'
 
 interface Props {
   open: boolean
@@ -14,9 +17,18 @@ interface Props {
 }
 
 export default function SearchModal({ open, onOpenChange, user }: Props) {
-  useEffect(() => {
-    console.log(user)
-  }, [])
+  const blockUserMutation = useMutation({
+    mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
+    onSuccess: (data) => {
+      console.log(data.data.message)
+      toast.success(data.data.message)
+    }
+  })
+
+  const handleBlockUser = (blocked_user_id: string) => {
+    blockUserMutation.mutate(blocked_user_id)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-md'>
@@ -78,6 +90,7 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
                 cursor-pointer
                 w-full
                 '
+          onClick={() => handleBlockUser(user._id)}
         >
           <UserX size={20} className='mr-3' />
           <button className='cursor-pointer'>Chặn người dùng</button>
