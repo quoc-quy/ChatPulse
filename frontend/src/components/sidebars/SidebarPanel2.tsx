@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { Plus, Loader2 } from 'lucide-react'
+import { Loader2, UserPlus } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
 import { conversationsApi } from '@/apis/conversations.api'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
+import AddFriendModal from '@/pages/AddFriendModal'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -28,6 +29,7 @@ export function SidebarPanel2({
 }: SidebarPanel2Props) {
   const navigate = useNavigate()
   const location = useLocation()
+  const [open, setOpen] = React.useState(false)
   const { setOpenMobile, isMobile } = useSidebar()
 
   const handleChatSelect = async (chatId: string) => {
@@ -76,10 +78,15 @@ export function SidebarPanel2({
       <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4 shadow-sm'>
         <div className='flex w-full items-center justify-between'>
           <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
-          <button className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 transition-colors'>
-            <Plus className='h-4 w-4' />
+          <button
+            onClick={() => setOpen(true)}
+            className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 transition-colors'
+          >
+            <UserPlus className='h-4 w-4 cursor-pointer' />
           </button>
         </div>
+        <AddFriendModal open={open} onOpenChange={setOpen} />
+
         <SidebarInput placeholder='Tìm kiếm...' />
       </SidebarHeader>
 
