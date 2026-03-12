@@ -2,19 +2,7 @@ import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
 
 class SearchService {
-  async search({
-    user_id,
-    userName,
-    phone,
-    limit,
-    page
-  }: {
-    user_id: string
-    userName: string
-    phone: string
-    limit: number
-    page: number
-  }) {
+  async search({ user_id, userName, phone }: { user_id: string; userName: string; phone: string }) {
     const $match: any = {}
 
     if (phone) {
@@ -58,12 +46,6 @@ class SearchService {
               created_at: 0,
               updated_at: 0
             }
-          },
-          {
-            $skip: limit * (page - 1)
-          },
-          {
-            $limit: limit
           }
         ])
         .toArray(),

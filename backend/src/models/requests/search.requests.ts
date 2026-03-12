@@ -5,7 +5,7 @@ export interface Pagination {
   page: string
 }
 
-export interface SearchQuery extends Pagination, Query {
+export interface SearchQuery extends Query {
   userName: string
   phone: string
 }

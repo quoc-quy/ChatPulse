@@ -18,8 +18,7 @@ import { useTheme } from '@/context/theme.context'
 import { clearLS } from '@/utils/auth'
 import { AppContext } from '@/context/app.context'
 import { useContext, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Button } from './ui/button'
+import { useNavigate } from 'react-router-dom'
 import ProfilePage from '@/pages/ProfilePage'
 
 export function NavUser({ user }: { user: { name: string; email: string; avatar: string } }) {
