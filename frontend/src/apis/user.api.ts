@@ -12,6 +12,10 @@ const userApi = {
 
   unBlockUser(user_id: string) {
     return http.delete(`/users/unblock/${user_id}`)
+  },
+
+  blockUser(body: { blocked_user_id: string }) {
+    return http.post('/users/block', body)
   }
 }
 
