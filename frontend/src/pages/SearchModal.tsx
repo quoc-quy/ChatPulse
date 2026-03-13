@@ -7,7 +7,7 @@ import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
 import { useMutation } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
-import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 
 interface Props {
@@ -17,15 +17,35 @@ interface Props {
 }
 
 export default function SearchModal({ open, onOpenChange, user }: Props) {
+  const queryClient = useQueryClient()
   const blockUserMutation = useMutation({
     mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
     onSuccess: (data) => {
       toast.success(data.data.message)
+
+      queryClient.invalidateQueries({
+        queryKey: ['blockedUsers']
+      })
     }
   })
 
-  const handleBlockUser = (blocked_user_id: string) => {
-    blockUserMutation.mutate(blocked_user_id)
+  const unBlockMutation = useMutation({
+    mutationFn: (user_id: string) => userApi.unBlockUser(user_id),
+    onSuccess: (data) => {
+      toast.success(data.data.message)
+
+      queryClient.invalidateQueries({
+        queryKey: ['blockedUsers']
+      })
+    }
+  })
+
+  const handleToggleBlock = () => {
+    if (user.isBlocked) {
+      unBlockMutation.mutate(user._id)
+    } else {
+      blockUserMutation.mutate(user._id)
+    }
   }
 
   return (
@@ -89,10 +109,10 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
                 cursor-pointer
                 w-full
                 '
-          onClick={() => handleBlockUser(user._id)}
+          onClick={handleToggleBlock}
         >
           <UserX size={20} className='mr-3' />
-          <button className='cursor-pointer'>Chặn người dùng</button>
+          <button className='cursor-pointer'>{user.isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}</button>
         </div>
       </DialogContent>
     </Dialog>
