@@ -56,7 +56,9 @@ export function SidebarPanel2({
       isOnline: actualIsOnline,
       type: targetChat.type,
       lastActiveAt: actualLastActiveAt,
-      unreadCount: targetChat.unreadCount
+      unreadCount: targetChat.unreadCount,
+      participants: targetChat.participants,
+      admin_id: targetChat.admin_id
     })
 
     setChatList((currentChatList) =>

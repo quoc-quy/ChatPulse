@@ -19,6 +19,8 @@ export interface ChatItem {
   lastActiveAt?: string
   type: string
   unreadCount?: number
+  participants?: any[]
+  admin_id?: string
 }
 
 interface AppContextInterface {
