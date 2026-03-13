@@ -223,6 +223,39 @@ class FriendService {
     }
     return { message: 'Đã hủy lời mời kết bạn' }
   }
+  async getSentFriendRequests(user_id: string) {
+    return await databaseService.friendRequests
+      .aggregate([
+        {
+          $match: {
+            sender_id: new ObjectId(user_id),
+            status: FriendStatus.Pending
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'receiver_id',
+            foreignField: '_id',
+            as: 'receiver_info'
+          }
+        },
+        { $unwind: '$receiver_info' },
+        {
+          $project: {
+            _id: 1,
+            receiver_id: 1,
+            created_at: 1,
+            receiver_info: {
+              userName: '$receiver_info.userName',
+              avatar: '$receiver_info.avatar',
+              email: '$receiver_info.email'
+            }
+          }
+        }
+      ])
+      .toArray()
+  }
 }
 
 export const friendService = new FriendService()

@@ -71,3 +71,11 @@ export const cancelFriendRequestController = async (req: Request, res: Response)
   const result = await friendService.cancelFriendRequest(user_id, id)
   res.json(result)
 }
+export const getSentFriendRequestsController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const result = await friendService.getSentFriendRequests(user_id)
+  res.json({
+    message: 'Lấy danh sách lời mời đã gửi thành công',
+    result
+  })
+}

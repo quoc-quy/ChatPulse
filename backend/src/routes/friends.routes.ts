@@ -6,7 +6,8 @@ import {
   declineFriendRequestController,
   getFriendListController,
   getReceivedFriendRequestsController,
-  unfriendController
+  unfriendController,
+  getSentFriendRequestsController
 } from '~/controllers/friends.controllers'
 import { createFriendRequestValidator, unfriendValidator } from '~/middlewares/friends.middlewares'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
@@ -41,9 +42,9 @@ friendsRouter.get('/list', accessTokenValidator, wrapRequestHandler(getFriendLis
  * Lấy danh sách lời mời đã nhận
  * Path: GET /friends/requests/received
  */
-friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
-
 friendsRouter.delete('/unfriend', accessTokenValidator, unfriendValidator, wrapRequestHandler(unfriendController))
+friendsRouter.get('/requests/pending', accessTokenValidator, wrapRequestHandler(getSentFriendRequestsController))
+friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
 friendsRouter.delete('/requests/:id/decline', accessTokenValidator, wrapRequestHandler(declineFriendRequestController))
 
 // Hủy lời mời đã gửi
