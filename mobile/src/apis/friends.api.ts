@@ -11,13 +11,22 @@ export const friendApi = {
   acceptRequest: (requestId: string) =>
     api.patch(`/friends/requests/${requestId}/accept`),
 
-  // Cập nhật theo Postman: DELETE http://localhost:4000/friends/requests/:id/decline
-  declineRequest: (requestId: string) =>
-    api.delete(`/friends/requests/${requestId}/decline`),
-  
   // Sửa lại theo đúng Postman: DELETE /friends/unfriend kèm body { friend_id }
   deleteFriend: (friendId: string) =>
     api.delete("/friends/unfriend", {
       data: { friend_id: friendId },
     }),
+
+    //Từ chối lời mời kết bạn
+  // Cập nhật theo Postman: DELETE http://localhost:4000/friends/requests/:id/decline
+  declineRequest: (requestId: string) =>
+    api.delete(`/friends/requests/${requestId}/decline`),
+
+  // Lấy toàn bộ pending requests (cả sent và received)
+  getPendingRequests: () => api.get("/friends/requests/pending"),
+
+  //Hủy lời mời đã gửi
+  // DELETE http://localhost:4000/friends/requests/:id/cancel
+  cancelRequest: (requestId: string) =>
+    api.delete(`/friends/requests/${requestId}/cancel`),
 };
