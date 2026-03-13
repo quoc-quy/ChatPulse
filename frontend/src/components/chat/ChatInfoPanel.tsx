@@ -2,8 +2,10 @@ import { useState, useContext } from 'react'
 import { AppContext } from '@/context/app.context'
 import type { ChatItem } from '@/context/app.context'
 
+// Import các sub-components đã tách
 import { InfoPanelMain } from './info-panel/InfoPanelMain'
 import { InfoPanelMembers } from './info-panel/InfoPanelMembers'
+import { AddMemberModal } from './info-panel/AddMemberModal' // IMPORT MODAL TẠI ĐÂY
 
 interface ChatInfoPanelProps {
   chat: ChatItem
@@ -17,9 +19,29 @@ export function ChatInfoPanel({ chat, onClose }: ChatInfoPanelProps) {
   // STATE: Điều hướng giữa trang chính và trang xem danh sách thành viên
   const [currentView, setCurrentView] = useState<'main' | 'members'>('main')
 
-  if (currentView === 'members') {
-    return <InfoPanelMembers chat={chat} currentUserId={currentUserId} onBack={() => setCurrentView('main')} />
-  }
+  // STATE: Quản lý hiển thị AddMemberModal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
-  return <InfoPanelMain chat={chat} onClose={onClose} onViewMembers={() => setCurrentView('members')} />
+  return (
+    <>
+      {currentView === 'members' ? (
+        <InfoPanelMembers
+          chat={chat}
+          currentUserId={currentUserId}
+          onBack={() => setCurrentView('main')}
+          onOpenAddMember={() => setIsAddModalOpen(true)}
+        />
+      ) : (
+        <InfoPanelMain
+          chat={chat}
+          onClose={onClose}
+          onViewMembers={() => setCurrentView('members')}
+          onOpenAddMember={() => setIsAddModalOpen(true)}
+        />
+      )}
+
+      {/* RENDER MODAL */}
+      <AddMemberModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} chat={chat} />
+    </>
+  )
 }

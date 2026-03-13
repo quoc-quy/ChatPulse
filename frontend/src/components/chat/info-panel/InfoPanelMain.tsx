@@ -20,9 +20,10 @@ interface InfoPanelMainProps {
   chat: ChatItem
   onClose: () => void
   onViewMembers: () => void
+  onOpenAddMember: () => void
 }
 
-export function InfoPanelMain({ chat, onClose, onViewMembers }: InfoPanelMainProps) {
+export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember }: InfoPanelMainProps) {
   const isGroup = chat.type === 'group'
 
   const getInitials = (name: string) => {
@@ -66,7 +67,7 @@ export function InfoPanelMain({ chat, onClose, onViewMembers }: InfoPanelMainPro
             <span className='text-[12px] text-foreground font-medium'>Tìm tin nhắn</span>
           </div>
           {isGroup && (
-            <div className='flex flex-col items-center gap-1.5 cursor-pointer group'>
+            <div onClick={onOpenAddMember} className='flex flex-col items-center gap-1.5 cursor-pointer group'>
               <div className='p-3 rounded-full bg-muted group-hover:bg-muted-foreground/20 transition-colors'>
                 <UserPlus className='w-5 h-5 text-foreground' />
               </div>

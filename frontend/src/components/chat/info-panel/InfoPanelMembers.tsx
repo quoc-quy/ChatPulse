@@ -8,9 +8,10 @@ interface InfoPanelMembersProps {
   chat: ChatItem
   currentUserId?: string
   onBack: () => void
+  onOpenAddMember: () => void
 }
 
-export function InfoPanelMembers({ chat, currentUserId, onBack }: InfoPanelMembersProps) {
+export function InfoPanelMembers({ chat, currentUserId, onBack, onOpenAddMember }: InfoPanelMembersProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const adminId = chat.admin_id
 
@@ -67,7 +68,10 @@ export function InfoPanelMembers({ chat, currentUserId, onBack }: InfoPanelMembe
       <div className='flex-1 overflow-y-auto scroll-smooth p-2'>
         {!searchQuery && (
           <>
-            <div className='flex items-center gap-3 px-3 py-3 hover:bg-muted/80 rounded-md cursor-pointer transition-colors'>
+            <div
+              onClick={onOpenAddMember}
+              className='flex items-center gap-3 px-3 py-3 hover:bg-muted/80 rounded-md cursor-pointer transition-colors'
+            >
               <div className='w-10 h-10 rounded-full bg-muted flex items-center justify-center border border-border/50'>
                 <PlusCircle className='w-5 h-5 text-muted-foreground' />
               </div>
