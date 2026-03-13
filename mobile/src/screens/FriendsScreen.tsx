@@ -18,6 +18,7 @@ import {
   Users,
   UserCheck,
   ChevronRight,
+  Send,
 } from "lucide-react-native";
 import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
@@ -134,6 +135,7 @@ export default function FriendsScreen({ navigation }: any) {
 
   const StaticMenu = () => (
     <View style={styles.staticMenu}>
+      {/* 1. Nút Lời mời kết bạn (Nhận) */}
       <TouchableOpacity
         style={styles.menuItem}
         onPress={() => navigation.navigate("FriendRequests")}
@@ -152,6 +154,22 @@ export default function FriendsScreen({ navigation }: any) {
         <ChevronRight size={18} color={COLORS.muted} />
       </TouchableOpacity>
 
+      {/* 2. THÊM NÚT LỜI MỜI ĐÃ GỬI VÀO ĐÂY */}
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => navigation.navigate("SentRequest")} // Chuyển hướng đúng tên bạn đã khai báo
+      >
+        <View style={[styles.iconBox, { backgroundColor: "#DCFCE7" }]}>
+          {/* Dùng màu xanh lá nhạt cho phân biệt */}
+          <Send size={22} color="#10B981" />
+        </View>
+        <View style={styles.menuTextContainer}>
+          <Text style={styles.menuText}>Lời mời đã gửi</Text>
+        </View>
+        <ChevronRight size={18} color={COLORS.muted} />
+      </TouchableOpacity>
+
+      {/* 3. Nút Danh sách chặn */}
       <TouchableOpacity style={styles.menuItem}>
         <View style={[styles.iconBox, { backgroundColor: "#F3E8FF" }]}>
           <Users size={22} color={COLORS.secondary} />
