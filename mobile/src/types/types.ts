@@ -6,6 +6,7 @@ export type RootStackParamList = {
   FriendRequests: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
+  SentRequest: undefined;
 };
 
 export interface Conversation {

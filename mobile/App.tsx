@@ -12,6 +12,7 @@ import FriendRequestsScreen from "./src/screens/FriendRequestsScreen";
 import MessageScreen from "./src/screens/MessageScreen"; // <-- 1. Import màn hình chat chi tiết vào đây
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
+import SentRequestsScreen from "./src/screens/SentRequestsScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -71,6 +72,14 @@ export default function App() {
             <Stack.Screen
               name="FriendRequests"
               component={FriendRequestsScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="SentRequest"
+              component={SentRequestsScreen}
               options={{
                 headerShown: false,
                 animation: "slide_from_right",
