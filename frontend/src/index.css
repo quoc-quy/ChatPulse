@@ -169,6 +169,45 @@
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
 }
 
+/* Base body styles */
 body {
   letter-spacing: var(--tracking-normal);
+  /* Sửa lỗi text/background: Đảm bảo body lấy màu từ theme hiện tại */
+  background-color: var(--background);
+  color: var(--foreground);
+
+  /* Cấu hình scrollbar cho Firefox */
+  scrollbar-width: thin; /* Làm thanh cuộn nhỏ gọn */
+  scrollbar-color: var(--border) transparent; /* Màu ngón tay cuộn và màu nền trong suốt */
+}
+
+/* =========================================
+   SCROLLBAR STYLING (Chrome, Edge, Safari) 
+   ========================================= */
+
+/* 1. Kích thước thanh cuộn nhỏ gọn lại */
+::-webkit-scrollbar {
+  width: 6px; /* Độ rộng scrollbar dọc */
+  height: 6px; /* Độ cao scrollbar ngang */
+}
+
+/* 2. Loại bỏ 2 nút mũi tên ở hai đầu */
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* 3. Nền (track) của thanh cuộn trong suốt */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 4. Màu sắc ngón tay cuộn (thumb) tương thích tự động Dark/Light mode */
+::-webkit-scrollbar-thumb {
+  background-color: var(--border); /* Lấy màu border của theme làm màu cuộn */
+  border-radius: 10px; /* Bo tròn thanh cuộn */
+}
+
+/* 5. Hiệu ứng hover khi di chuột vào ngón tay cuộn */
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
 }
