@@ -55,10 +55,26 @@ export default function FriendRequestsScreen({ navigation }: any) {
 
   const handleDecline = async (id: string) => {
     try {
-      await friendApi.declineRequest(id); //
+      // Gọi API decline đã định nghĩa
+      await friendApi.declineRequest(id);
+
+      // Cập nhật lại danh sách hiển thị trên UI
       setRequests((prev) => prev.filter((req) => req._id !== id));
     } catch (error) {
-      Alert.alert("Lỗi", "Thao tác thất bại");
+      Alert.alert("Lỗi", "Không thể từ chối lời mời lúc này");
+    }
+  };
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      // Gọi API cancel theo đúng Postman
+      const response = await friendApi.cancelRequest(requestId);
+
+      if (response.status === 200) {
+        Alert.alert("Thành công", "Đã thu hồi lời mời kết bạn");
+        // Logic để cập nhật lại danh sách trên UI sau khi xóa
+      }
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể hủy lời mời");
     }
   };
 

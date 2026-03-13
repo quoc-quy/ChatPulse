@@ -3,10 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 interface FriendItemProps {
   item: any;
-  type: "friend" | "request";
+  type: "friend" | "request" | "sent";
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onCancel?: (id: string) => void;
 }
 
 const COLORS = {
@@ -19,7 +20,14 @@ const COLORS = {
 };
 
 export const FriendItem = React.memo(
-  ({ item, type, onAccept, onDecline, onDelete }: FriendItemProps) => {
+  ({
+    item,
+    type,
+    onAccept,
+    onDecline,
+    onDelete,
+    onCancel,
+  }: FriendItemProps) => {
     // ===== LẤY USER DATA AN TOÀN =====
     const userData =
       item?.sender_info || item?.sender || item?.user || item || {};
@@ -78,12 +86,23 @@ export const FriendItem = React.memo(
             >
               <Text style={styles.btnTextWhite}>Đồng ý</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.btnDecline}
               onPress={() => onDecline?.(requestId)}
             >
               <Text style={styles.btnTextBlack}>Từ chối</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* THÊM KHỐI NÀY CHO LỜI MỜI ĐÃ GỬI */}
+        {type === "sent" && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.btnDecline}
+              onPress={() => onCancel?.(requestId)}
+            >
+              <Text style={styles.btnTextBlack}>Thu hồi</Text>
             </TouchableOpacity>
           </View>
         )}
