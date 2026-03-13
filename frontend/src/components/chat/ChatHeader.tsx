@@ -1,7 +1,6 @@
-// frontend-demo/src/components/chat/ChatHeader.tsx
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, MoreHorizontal, Sparkles, PanelLeft } from 'lucide-react'
+import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { ChatItem } from '@/context/app.context'
 
@@ -9,9 +8,11 @@ interface ChatHeaderProps {
   chat: ChatItem
   onStartCall?: (type: 'video' | 'audio') => void
   onSummarize?: () => void
+  onToggleInfoPanel: () => void // THÊM PROP MỚI Ở ĐÂY
+  isInfoPanelOpen: boolean // THÊM PROP MỚI Ở ĐÂY
 }
 
-export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) {
+export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, isInfoPanelOpen }: ChatHeaderProps) {
   const { toggleSidebar } = useSidebar()
 
   const getInitials = (name: string) => {
@@ -37,9 +38,8 @@ export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) 
   }
 
   return (
-    <header className='flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background px-4 shadow-sm'>
+    <header className='flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background px-4 shadow-sm relative z-10'>
       <div className='flex items-center gap-3'>
-        {/* NÚT TOGGLE SIDEBAR (ĐÓNG/MỞ PANEL 2) */}
         <button
           onClick={toggleSidebar}
           className='p-2 -ml-2 rounded-md hover:bg-muted text-muted-foreground transition-colors outline-none'
@@ -78,7 +78,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) 
       </div>
 
       <div className='flex items-center gap-2 text-muted-foreground'>
-        {chat.type === 'group' && ( // Chỉ hiển thị cho nhóm
+        {chat.type === 'group' && (
           <button
             onClick={onSummarize}
             title='Tóm tắt nhóm bằng AI'
@@ -87,14 +87,12 @@ export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) 
             <Sparkles className='h-5 w-5' />
           </button>
         )}
-        {/* Nút Gọi Audio */}
         <button
           onClick={() => onStartCall && onStartCall('audio')}
           className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
         >
           <Phone className='h-5 w-5' />
         </button>
-        {/* Nút Gọi Video */}
         <button
           onClick={() => onStartCall && onStartCall('video')}
           className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
@@ -105,8 +103,14 @@ export function ChatHeader({ chat, onStartCall, onSummarize }: ChatHeaderProps) 
         <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors hidden sm:block'>
           <Search className='h-5 w-5' />
         </button>
-        <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors'>
-          <MoreHorizontal className='h-5 w-5' />
+
+        {/* NÚT TOGGLE THÔNG TIN HỘI THOẠI BÊN PHẢI */}
+        <button
+          onClick={onToggleInfoPanel}
+          className={`p-2 rounded-full transition-colors ${isInfoPanelOpen ? 'bg-muted text-foreground' : 'hover:bg-muted hover:text-foreground'}`}
+          title='Thông tin hội thoại'
+        >
+          <PanelRight className='h-5 w-5' />
         </button>
       </div>
     </header>
