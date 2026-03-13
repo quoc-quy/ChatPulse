@@ -34,6 +34,7 @@ export default function AddFriendModal({ open, onOpenChange }: Props) {
   const onSubmit = (data: any) => {
     searchUserMutation.mutate(data.phone, {
       onSuccess: (res) => {
+        console.log(res)
         const users = res.data.result.users
 
         if (users.length > 0) {

@@ -20,7 +20,6 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
   const blockUserMutation = useMutation({
     mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
     onSuccess: (data) => {
-      console.log(data.data.message)
       toast.success(data.data.message)
     }
   })

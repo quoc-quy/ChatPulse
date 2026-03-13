@@ -13,4 +13,6 @@ export interface User {
   forgot_password_token?: string
   last_active_at?: string
   fcm_token?: string
+  isBlocked?: boolean
+  isFriend?: boolean
 }
