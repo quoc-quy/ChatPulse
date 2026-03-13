@@ -73,7 +73,9 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
         <div className='flex flex-col items-center gap-4'>
           <div className='text-lg font-semibold'>{user.userName}</div>
 
-          <Button className='px-10 cursor-pointer'>Kết bạn</Button>
+          <Button className={`px-10 cursor-pointer ${user.isFriend ? 'bg-red-700 hover:bg-red-900' : ''}`}>
+            {user.isFriend ? 'Hủy kết bạn' : 'Kết bạn'}
+          </Button>
         </div>
         <div className='bg-gray-300 h-2 w-[calc(100%+3rem)] -mx-6' />
         <div className='p-2 flex gap-5 flex-col'>

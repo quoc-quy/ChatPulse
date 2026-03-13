@@ -64,11 +64,7 @@ class SearchService {
                 {
                   $match: {
                     $expr: {
-                      $and: [
-                        { $eq: ['$user_id', new ObjectId(user_id)] },
-                        { $eq: ['$friend_id', '$$target_id'] },
-                        { $eq: ['$status', 'accepted'] }
-                      ]
+                      $and: [{ $eq: ['$user_id', new ObjectId(user_id)] }, { $eq: ['$friend_id', '$$target_id'] }]
                     }
                   }
                 }
