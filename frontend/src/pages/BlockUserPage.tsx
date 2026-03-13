@@ -7,9 +7,11 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
 import { toast } from 'react-toastify'
 
+
 export default function BlockUserPage() {
+
   const { data, refetch } = useQuery({
-    queryKey: ['list'],
+    queryKey: ['blockedUsers'],
     queryFn: userApi.getListBlockedUser
   })
 
