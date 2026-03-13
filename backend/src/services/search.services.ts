@@ -41,6 +41,48 @@ class SearchService {
             $match
           },
           {
+            $lookup: {
+              from: 'user_blocks',
+              let: { target_id: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [{ $eq: ['$user_id', new ObjectId(user_id)] }, { $eq: ['$blocked_user_id', '$$target_id'] }]
+                    }
+                  }
+                }
+              ],
+              as: 'blockInfo'
+            }
+          },
+          {
+            $lookup: {
+              from: 'friends',
+              let: { target_id: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$user_id', new ObjectId(user_id)] },
+                        { $eq: ['$friend_id', '$$target_id'] },
+                        { $eq: ['$status', 'accepted'] }
+                      ]
+                    }
+                  }
+                }
+              ],
+              as: 'friendInfo'
+            }
+          },
+          {
+            $addFields: {
+              isBlocked: { $gt: [{ $size: '$blockInfo' }, 0] },
+              isFriend: { $gt: [{ $size: '$friendInfo' }, 0] }
+            }
+          },
+          {
             $project: {
               password: 0,
               created_at: 0,
