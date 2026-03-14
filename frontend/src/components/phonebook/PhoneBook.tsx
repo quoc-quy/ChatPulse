@@ -12,20 +12,14 @@ export default function PhoneBook() {
       </div>
       <div className='p-2 flex items-center hover:bg-gray-900/10 text-foreground cursor-pointer'>
         <GroupIcon size={20} className='mr-3' />
-        <Link to={'/phonebook'} className='text-base font-medium text-foreground p-2 text-center'>
-          Danh sách nhóm và cộng đồng
+        <Link to={'/phonebook/friend-request'} className='text-base font-medium text-foreground p-2 text-center'>
+          Lời mời kết bạn đã gửi
         </Link>
       </div>
       <div className='p-2 flex items-center hover:bg-gray-900/10 text-foreground cursor-pointer'>
         <UserPlus size={20} className='mr-3' />
         <Link to={'/phonebook/friend-invitation'} className='text-base font-medium text-foreground p-2 text-center'>
           Lời mời kết bạn
-        </Link>
-      </div>
-      <div className='p-2 flex items-center hover:bg-gray-900/10 text-foreground cursor-pointer'>
-        <MailPlus size={20} className='mr-3' />
-        <Link to={'/phonebook'} className='text-base font-medium text-foreground p-2 text-center'>
-          Lời mời vào nhóm
         </Link>
       </div>
       <div className='p-2 flex items-center hover:bg-gray-900/10 text-foreground cursor-pointer'>
