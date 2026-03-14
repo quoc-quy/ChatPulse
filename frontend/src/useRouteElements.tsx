@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage'
 import FriendPage from './pages/FriendPage'
 import FriendInvitationPage from './pages/FriendInvitationPage'
 import BlockUserPage from './pages/BlockUserPage'
+import FriendRequest from './pages/FriendRequest'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -52,6 +53,15 @@ export default function useRouteElements() {
           element: [
             <MainLayout>
               <FriendInvitationPage />
+            </MainLayout>
+          ]
+        },
+        {
+          path: '/phonebook/friend-request',
+          index: true,
+          element: [
+            <MainLayout>
+              <FriendRequest />
             </MainLayout>
           ]
         },

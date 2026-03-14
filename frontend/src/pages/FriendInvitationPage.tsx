@@ -23,9 +23,20 @@ export default function FriendInvitationPage() {
     }
   })
 
+  const declineRequestFriend = useMutation({
+    mutationFn: (user_id: string) => friendApi.declineRequestFriend(user_id),
+    onSuccess: (data) => {
+      refetch()
+      toast.success(data.data.message)
+    }
+  })
+
   const handleAcceptFriend = (sender_id: string) => {
     acceptFriendMutation.mutate(sender_id)
-    console.log(sender_id)
+  }
+
+  const handleDeclineRequestFriend = (user_id: string) => {
+    declineRequestFriend.mutate(user_id)
   }
 
   // const listFriendRequest: User[] = data?.data.result
@@ -73,7 +84,12 @@ export default function FriendInvitationPage() {
 
                       {/* Buttons */}
                       <div className='flex gap-3 w-full'>
-                        <Button className='flex-1 bg-gray-400 hover:bg-gray-500 text-white cursor-pointer'>Hủy</Button>
+                        <Button
+                          className='flex-1 bg-gray-400 hover:bg-gray-500 text-white cursor-pointer'
+                          onClick={() => handleDeclineRequestFriend(request._id)}
+                        >
+                          Từ chối
+                        </Button>
 
                         <Button className='flex-1 cursor-pointer' onClick={() => handleAcceptFriend(request._id)}>
                           Đồng ý
