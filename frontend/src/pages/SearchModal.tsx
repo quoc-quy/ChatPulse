@@ -9,6 +9,7 @@ import { useMutation } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
+import friendApi from '@/apis/friend.api'
 
 interface Props {
   open: boolean
@@ -39,6 +40,36 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
       })
     }
   })
+
+  const requestFriendMutation = useMutation({
+    mutationFn: (receiver_id: string) => friendApi.requestFriend({ receiver_id }),
+    onSuccess: () => {
+      toast.success('Gửi lời mời kết bạn thành công')
+
+      queryClient.invalidateQueries({
+        queryKey: ['ListRequest']
+      })
+    }
+  })
+
+  const unFriendMutation = useMutation({
+    mutationFn: (friend_id: string) => friendApi.unFriend({ friend_id }),
+    onSuccess: () => {
+      toast.success('Hủy kết bạn thành công')
+
+      queryClient.invalidateQueries({
+        queryKey: ['friendList']
+      })
+    }
+  })
+
+  const handleRequestFriend = () => {
+    if (user.isFriend) {
+      unFriendMutation.mutate(user._id)
+    } else {
+      requestFriendMutation.mutate(user._id)
+    }
+  }
 
   const handleToggleBlock = () => {
     if (user.isBlocked) {
@@ -73,7 +104,10 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
         <div className='flex flex-col items-center gap-4'>
           <div className='text-lg font-semibold'>{user.userName}</div>
 
-          <Button className={`px-10 cursor-pointer ${user.isFriend ? 'bg-red-700 hover:bg-red-900' : ''}`}>
+          <Button
+            onClick={handleRequestFriend}
+            className={`px-10 cursor-pointer ${user.isFriend ? 'bg-red-700 hover:bg-red-900' : ''}`}
+          >
             {user.isFriend ? 'Hủy kết bạn' : 'Kết bạn'}
           </Button>
         </div>

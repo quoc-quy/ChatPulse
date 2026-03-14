@@ -12,6 +12,14 @@ const friendApi = {
 
   acceptFriend(sender_id: string) {
     return http.patch(`/friends/requests/${sender_id}/accept`)
+  },
+
+  requestFriend(body: { receiver_id: string }) {
+    return http.post(`/friends/request`, body)
+  },
+
+  unFriend(body: { friend_id: string }) {
+    return http.delete(`/friends/unfriend`, { data: body })
   }
 }
 

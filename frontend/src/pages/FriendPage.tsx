@@ -9,7 +9,7 @@ import { useEffect } from 'react'
 
 export default function FriendPage() {
   const { data } = useQuery({
-    queryKey: ['friend'],
+    queryKey: ['friendList'],
     queryFn: friendApi.getListFriend
   })
 
