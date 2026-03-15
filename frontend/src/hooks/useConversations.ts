@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useContext, useMemo } from 'react'
+import { useState, useEffect, useRef, useContext, useMemo, useCallback } from 'react'
 import { useSocket } from '@/context/socket.context'
 import { AppContext } from '@/context/app.context'
 import { conversationsApi } from '@/apis/conversations.api'
@@ -18,108 +18,109 @@ export function useConversations() {
   }, [activeChat])
 
   // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN ---
-  useEffect(() => {
-    if (profile) {
-      const fetchChats = async () => {
-        setIsLoading(true)
-        try {
-          const res = await conversationsApi.getConversations()
-          let rawData = res.data?.result || res.data?.data || res.data
-          if (!Array.isArray(rawData)) rawData = []
+  // // Bọc trong useCallback để tránh re-create hàm liên tục
+  const fetchChats = useCallback(async () => {
+    if (!profile) return
+    setIsLoading(true)
+    try {
+      const res = await conversationsApi.getConversations()
+      let rawData = res.data?.result || res.data?.data || res.data
+      if (!Array.isArray(rawData)) rawData = []
 
-          const formattedChats = rawData.map((conv: any) => {
-            let chatName = 'Cuộc trò chuyện'
-            let isOnline = false
-            let lastActiveAt = undefined
+      const formattedChats = rawData.map((conv: any) => {
+        let chatName = 'Cuộc trò chuyện'
+        let isOnline = false
+        let lastActiveAt = undefined
 
-            if (conv.type === 'direct') {
-              const otherUser = conv.participants?.find((p: any) => String(p._id) !== String(profile._id))
-              if (otherUser) {
-                chatName = otherUser.userName || otherUser.fullName || 'Người dùng'
-                isOnline = otherUser.isOnline === true
-                lastActiveAt = otherUser.last_active_at || otherUser.lastActiveAt
-              }
-            } else if (conv.type === 'group') {
-              if (conv.name) {
-                chatName = conv.name
-              } else if (conv.participants) {
-                const otherUsers = conv.participants.filter((p: any) => String(p._id) !== String(profile._id))
-                chatName = otherUsers.map((u: any) => u.userName || u.fullName).join(', ')
-                if (!chatName) chatName = 'Nhóm trò chuyện'
-              }
-            }
-
-            const timeString = conv.updated_at
-              ? new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : ''
-
-            let lastMessageContent = 'Chưa có tin nhắn nào...'
-            let prefix = ''
-
-            if (conv.lastMessage && (conv.lastMessage.content || conv.lastMessage.type)) {
-              let content = conv.lastMessage.content
-
-              if (conv.lastMessage.type === 'revoked') {
-                content = 'Tin nhắn đã được thu hồi'
-                prefix = ''
-              } else if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
-                content = '[Hình ảnh/Video]'
-              } else if (!content) {
-                content = 'Tin nhắn'
-              }
-
-              if (conv.lastMessage.type !== 'revoked' && (conv.lastMessage.sender_id || conv.lastMessage.senderId)) {
-                const senderId = conv.lastMessage.sender_id || conv.lastMessage.senderId
-                const isMe = String(senderId) === String(profile._id)
-                if (isMe) {
-                  prefix = 'Bạn: '
-                } else if (conv.type === 'group') {
-                  const sender = conv.participants?.find((p: any) => String(p._id) === String(senderId))
-                  if (sender) {
-                    const senderName = sender.userName || sender.fullName || 'Thành viên'
-                    prefix = `${senderName}: `
-                  }
-                }
-              }
-              lastMessageContent = prefix ? `${prefix}${content}` : content
-            }
-
-            const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0
-
-            return {
-              id: conv._id,
-              name: chatName,
-              message: lastMessageContent,
-              lastMessageId: conv.last_message_id,
-              time: timeString,
-              timestamp: new Date(conv.updated_at || 0).getTime(),
-              type: conv.type,
-              avatarUrl: conv.avatarUrl,
-              participants: conv.participants || [],
-              admin_id: conv.admin_id,
-              isOnline,
-              lastActiveAt,
-              unreadCount
-            }
-          })
-
-          const uniqueChatsMap = new Map()
-          formattedChats.forEach((chat: any) => {
-            if (!uniqueChatsMap.has(chat.id)) uniqueChatsMap.set(chat.id, chat)
-          })
-
-          const uniqueChats = Array.from(uniqueChatsMap.values())
-          uniqueChats.sort((a, b) => b.timestamp - a.timestamp)
-          setChatList(uniqueChats)
-        } catch (error) {
-          console.error('Lỗi khi tải danh sách:', error)
-        } finally {
-          setIsLoading(false)
+        if (conv.type === 'direct') {
+          const otherUser = conv.participants?.find((p: any) => String(p._id) !== String(profile._id))
+          if (otherUser) {
+            chatName = otherUser.userName || otherUser.fullName || 'Người dùng'
+            isOnline = otherUser.isOnline === true
+            lastActiveAt = otherUser.last_active_at || otherUser.lastActiveAt
+          }
+        } else if (conv.type === 'group') {
+          if (conv.name) {
+            chatName = conv.name
+          } else if (conv.participants) {
+            const otherUsers = conv.participants.filter((p: any) => String(p._id) !== String(profile._id))
+            chatName = otherUsers.map((u: any) => u.userName || u.fullName).join(', ')
+            if (!chatName) chatName = 'Nhóm trò chuyện'
+          }
         }
-      }
-      fetchChats()
+
+        const timeString = conv.updated_at
+          ? new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : ''
+
+        let lastMessageContent = 'Chưa có tin nhắn nào...'
+        let prefix = ''
+
+        if (conv.lastMessage && (conv.lastMessage.content || conv.lastMessage.type)) {
+          let content = conv.lastMessage.content
+
+          if (conv.lastMessage.type === 'revoked') {
+            content = 'Tin nhắn đã được thu hồi'
+            prefix = ''
+          } else if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
+            content = '[Hình ảnh/Video]'
+          } else if (!content) {
+            content = 'Tin nhắn'
+          }
+
+          if (conv.lastMessage.type !== 'revoked' && (conv.lastMessage.sender_id || conv.lastMessage.senderId)) {
+            const senderId = conv.lastMessage.sender_id || conv.lastMessage.senderId
+            const isMe = String(senderId) === String(profile._id)
+            if (isMe) {
+              prefix = 'Bạn: '
+            } else if (conv.type === 'group') {
+              const sender = conv.participants?.find((p: any) => String(p._id) === String(senderId))
+              if (sender) {
+                const senderName = sender.userName || sender.fullName || 'Thành viên'
+                prefix = `${senderName}: `
+              }
+            }
+          }
+          lastMessageContent = prefix ? `${prefix}${content}` : content
+        }
+
+        const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0
+
+        return {
+          id: conv._id,
+          name: chatName,
+          message: lastMessageContent,
+          lastMessageId: conv.last_message_id,
+          time: timeString,
+          timestamp: new Date(conv.updated_at || 0).getTime(),
+          type: conv.type,
+          avatarUrl: conv.avatarUrl,
+          participants: conv.participants || [],
+          admin_id: conv.admin_id,
+          isOnline,
+          lastActiveAt,
+          unreadCount
+        }
+      })
+
+      const uniqueChatsMap = new Map()
+      formattedChats.forEach((chat: any) => {
+        if (!uniqueChatsMap.has(chat.id)) uniqueChatsMap.set(chat.id, chat)
+      })
+
+      const uniqueChats = Array.from(uniqueChatsMap.values())
+      uniqueChats.sort((a, b) => b.timestamp - a.timestamp)
+      setChatList(uniqueChats)
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách:', error)
+    } finally {
+      setIsLoading(false)
     }
-  }, [profile, refetchTrigger])
+  }, [profile])
+
+  useEffect(() => {
+    fetchChats()
+  }, [fetchChats, refetchTrigger])
 
   // --- 2. LẮNG NGHE SOCKET REALTIME ---
   useEffect(() => {
@@ -300,6 +301,7 @@ export function useConversations() {
     hasUnreadMessages,
     profile,
     activeChat,
-    setActiveChat
+    setActiveChat,
+    fetchChats
   }
 }

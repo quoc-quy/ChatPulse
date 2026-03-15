@@ -6,15 +6,23 @@ import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChatItem } from '@/context/app.context'
 import { groupApi } from '@/apis/group.api'
+import { toast } from 'sonner'
 
 interface InfoPanelMembersProps {
   chat: ChatItem
   currentUserId?: string
   onBack: () => void
   onOpenAddMember: () => void
+  onMemberUpdate?: () => void
 }
 
-export function InfoPanelMembers({ chat, currentUserId, onBack, onOpenAddMember }: InfoPanelMembersProps) {
+export function InfoPanelMembers({
+  chat,
+  currentUserId,
+  onBack,
+  onOpenAddMember,
+  onMemberUpdate
+}: InfoPanelMembersProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const adminId = chat.admin_id
 
@@ -47,10 +55,15 @@ export function InfoPanelMembers({ chat, currentUserId, onBack, onOpenAddMember 
     try {
       const targetId = String(memberToRemove._id || memberToRemove.user_id)
       await groupApi.kickMember(chat.id, targetId)
-      // Thành công, đóng Modal. UI có thể được cập nhật thông qua Socket hoặc cần Refetch.
+
+      // HIỂN THỊ TOAST VÀ CẬP NHẬT DATA
+      toast.success(`Đã xóa ${memberToRemove.userName || memberToRemove.fullName} khỏi nhóm!`)
+      if (onMemberUpdate) onMemberUpdate()
+
       setMemberToRemove(null)
     } catch (error) {
       console.error('Lỗi khi xóa thành viên:', error)
+      toast.error('Không thể xóa thành viên lúc này.')
     } finally {
       setIsRemoving(false)
     }
