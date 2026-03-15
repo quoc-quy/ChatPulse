@@ -62,7 +62,7 @@ export default function App() {
 
   return (
     <NavigationContainer key={navKey}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator  screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
           <>
             <Stack.Screen name="Main">
