@@ -7,6 +7,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AppContext } from '@/context/app.context'
 import { useSocket } from '@/context/socket.context'
 import { messagesApi, type ConversationSummary } from '@/apis/messages.api'
+import { conversationsApi } from '@/apis/conversations.api' // Nhớ import API này
 
 interface ChatAreaProps {
   chat: ChatItem
@@ -14,7 +15,7 @@ interface ChatAreaProps {
 
 export function ChatArea({ chat }: ChatAreaProps) {
   const { socket } = useSocket()
-  const { setActiveCall } = useContext(AppContext)
+  const { setActiveCall, setActiveChat } = useContext(AppContext)
 
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [summaryData, setSummaryData] = useState<ConversationSummary | null>(null)
@@ -31,6 +32,30 @@ export function ChatArea({ chat }: ChatAreaProps) {
     setIsSummarizing(false)
     setIsInfoPanelOpen(true)
   }, [chat.id])
+
+  // HÀM MỚI: Tự động fetch lại thông tin chi tiết của đoạn chat hiện tại để cập nhật Participants
+  const handleMemberUpdate = async () => {
+    try {
+      // Giả sử backend trả về danh sách các conversation, ta lấy lại cái hiện tại
+      const res = await conversationsApi.getConversations()
+      const rawData = res.data?.result || res.data?.data || res.data
+      if (Array.isArray(rawData)) {
+        const updatedConversation = rawData.find((c: any) => c._id === chat.id)
+        if (updatedConversation) {
+          setActiveChat((prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              participants: updatedConversation.participants,
+              name: updatedConversation.name // Update lại tên nếu cần
+            }
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi khi fetch lại conversation:', error)
+    }
+  }
 
   const handleSummarize = async () => {
     try {
@@ -142,7 +167,13 @@ export function ChatArea({ chat }: ChatAreaProps) {
         </div>
       </div>
 
-      {isInfoPanelOpen && <ChatInfoPanel chat={chat} onClose={() => setIsInfoPanelOpen(false)} />}
+      {isInfoPanelOpen && (
+        <ChatInfoPanel
+          chat={chat}
+          onClose={() => setIsInfoPanelOpen(false)}
+          onMemberUpdate={handleMemberUpdate} // TRUYỀN HÀM XUỐNG DƯỚI
+        />
+      )}
     </div>
   )
 }

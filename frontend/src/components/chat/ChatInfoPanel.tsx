@@ -5,14 +5,15 @@ import type { ChatItem } from '@/context/app.context'
 // Import các sub-components đã tách
 import { InfoPanelMain } from './info-panel/InfoPanelMain'
 import { InfoPanelMembers } from './info-panel/InfoPanelMembers'
-import { AddMemberModal } from './info-panel/AddMemberModal' // IMPORT MODAL TẠI ĐÂY
+import { AddMemberModal } from './info-panel/AddMemberModal'
 
 interface ChatInfoPanelProps {
   chat: ChatItem
   onClose: () => void
+  onMemberUpdate?: () => void // THÊM PROP MỚI
 }
 
-export function ChatInfoPanel({ chat, onClose }: ChatInfoPanelProps) {
+export function ChatInfoPanel({ chat, onClose, onMemberUpdate }: ChatInfoPanelProps) {
   const { profile } = useContext(AppContext)
   const currentUserId = profile?._id
 
@@ -30,6 +31,7 @@ export function ChatInfoPanel({ chat, onClose }: ChatInfoPanelProps) {
           currentUserId={currentUserId}
           onBack={() => setCurrentView('main')}
           onOpenAddMember={() => setIsAddModalOpen(true)}
+          onMemberUpdate={onMemberUpdate}
         />
       ) : (
         <InfoPanelMain
@@ -41,7 +43,12 @@ export function ChatInfoPanel({ chat, onClose }: ChatInfoPanelProps) {
       )}
 
       {/* RENDER MODAL */}
-      <AddMemberModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} chat={chat} />
+      <AddMemberModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        chat={chat}
+        onMemberUpdate={onMemberUpdate}
+      />
     </>
   )
 }

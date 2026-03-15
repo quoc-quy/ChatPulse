@@ -5,14 +5,16 @@ import { createPortal } from 'react-dom'
 import type { ChatItem } from '@/context/app.context'
 import http from '@/utils/http'
 import { groupApi } from '@/apis/group.api'
+import { toast } from 'sonner'
 
 interface AddMemberModalProps {
   isOpen: boolean
   onClose: () => void
   chat: ChatItem
+  onMemberUpdate?: () => void
 }
 
-export function AddMemberModal({ isOpen, onClose, chat }: AddMemberModalProps) {
+export function AddMemberModal({ isOpen, onClose, chat, onMemberUpdate }: AddMemberModalProps) {
   const [friends, setFriends] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -67,9 +69,15 @@ export function AddMemberModal({ isOpen, onClose, chat }: AddMemberModalProps) {
     try {
       const userIds = selectedUsers.map((u) => String(u._id || u.user_id))
       await groupApi.addMembers(chat.id, userIds)
+
+      // HIỂN THỊ TOAST VÀ CẬP NHẬT DATA
+      toast.success('Đã thêm thành viên vào nhóm thành công!')
+      if (onMemberUpdate) onMemberUpdate()
+
       onClose()
     } catch (error) {
       console.error('Lỗi khi thêm thành viên:', error)
+      toast.error('Thêm thành viên thất bại. Vui lòng thử lại.')
     } finally {
       setIsSubmitting(false)
     }
