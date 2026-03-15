@@ -9,10 +9,16 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 
-import { getMessages, sendMessage } from '../apis/chat.api';
+import { 
+  getMessages, 
+  sendMessage, 
+  reactMessage as reactMessageApi,  
+  recallMessage as recallMessageApi, 
+  deleteMessageForMe as deleteMessageForMeApi 
+} from '../apis/chat.api';
 
 // ==========================================
-// 1. CẤU HÌNH MÀU SẮC (GIỮ NGUYÊN)
+// 1. CẤU HÌNH MÀU SÁC (GIỮ NGUYÊN)
 // ==========================================
 const lightColors = {
   headerBg: "#0091FF", background: "#E2E9F1", surface: "#FFFFFF",
@@ -71,7 +77,7 @@ const MessageScreen = () => {
       setLoading(true);
       const res = await getMessages(conversationId, null, 20);
       const rawData = res.data.result || res.data.data || [];
-      const visibleData = rawData.filter((m: any) => !m.deleted_by_users?.includes(currentUserId));
+      const visibleData = rawData;
       if (visibleData.length > 0) setCursor(visibleData[visibleData.length - 1]._id);
       if (visibleData.length < 20) setHasMore(false);
       setMessages([...visibleData].reverse());
@@ -83,38 +89,69 @@ const MessageScreen = () => {
     fetchCurrentUserId().then(() => fetchInitialMessages());
   }, [conversationId]);
 
-  // --- LOGIC THẢ/GỠ REACTION ---
-  const handleToggleReact = (message: any, emoji: string) => {
-    if (!message || message.type === 'revoked') return; // Chặn thả react vào tin nhắn thu hồi
+  // --- LOGIC THẢ/GỠ REACTION (ĐÃ GẮN API THIỆT) ---
+  const handleToggleReact = async (message: any, emoji: string) => {
+    if (!message || message.type === 'revoked') return;
 
-    setMessages(prev => prev.map(msg => {
-      if (msg._id === message._id) {
-        const isExist = msg.reactions?.some((r: any) => r.user_id === currentUserId && r.emoji === emoji);
-        return { 
-          ...msg, 
-          reactions: isExist ? [] : [{ emoji, user_id: currentUserId }] 
-        };
-      }
-      return msg;
-    }));
+    try {
+      // 1. Gọi API gửi lên Server
+      await reactMessageApi(message._id, emoji);
+
+      // 2. Cập nhật State giao diện
+      setMessages(prev => prev.map(msg => {
+        if (msg._id === message._id) {
+          const isExist = msg.reactions?.some((r: any) => {
+            const reactionUserId = r?.userId || r?.user_id;
+            return reactionUserId?.toString?.() === currentUserId?.toString?.() && r?.emoji === emoji;
+          });
+          // Zalo logic: Nếu đã thả đúng icon đó rồi thì gỡ, chưa thì thả mới
+          return { 
+            ...msg, 
+            reactions: isExist ? [] : [{ emoji, user_id: currentUserId }] 
+          };
+        }
+        return msg;
+      }));
+    } catch (error) {
+      console.log("Lỗi thả react :", error);
+    }
     setShowMenu(false);
   };
 
-  // --- TASK 15: THU HỒI (FIXED: RESET LUÔN REACTION) ---
-  const handleRevoke = () => {
-    setMessages(prev => prev.map(msg => 
-      msg._id === selectedMsg._id ? { ...msg, type: 'revoked', content: '', reactions: [] } : msg
-    ));
+  // --- TASK 15: THU HỒI (ĐÃ GẮN API ) ---
+  const handleRevoke = async () => {
+    if (!selectedMsg) return;
+    try {
+      // 1. Gọi API thu hồi 
+      await recallMessageApi(selectedMsg._id);
+
+      // 2. Cập nhật UI
+      setMessages(prev => prev.map(msg => 
+        msg._id === selectedMsg._id ? { ...msg, type: 'revoked', content: '', reactions: [] } : msg
+      ));
+    } catch (error) {
+      console.log("Lỗi thu hồi:", error);
+    }
     setShowMenu(false);
   };
 
-  const handleDeleteForMe = () => {
-    setMessages(prev => prev.filter(msg => msg._id !== selectedMsg._id));
+  // --- TASK 16: XÓA PHÍA TÔI (ĐÃ GẮN API ) ---
+  const handleDeleteForMe = async () => {
+    if (!selectedMsg) return;
+    try {
+      // 1. Gọi API xóa phía tôi 
+      await deleteMessageForMeApi(selectedMsg._id);
+
+      // 2. Cập nhật UI: lọc bỏ tin nhắn này khỏi danh sách đang hiện
+      setMessages(prev => prev.filter(msg => msg._id !== selectedMsg._id));
+    } catch (error) {
+      console.log("Lỗi xóa phía tôi :", error);
+    }
     setShowMenu(false);
   };
 
   const handleDoubleTap = (message: any) => {
-    if (message.type === 'revoked') return; // Chặn double tap thả tim tin nhắn thu hồi
+    if (message.type === 'revoked') return;
     const now = Date.now();
     if (now - lastTap.current < 300) handleToggleReact(message, '❤️');
     else lastTap.current = now;
@@ -177,16 +214,12 @@ const MessageScreen = () => {
               isMe ? styles.bubbleMe : styles.bubbleOther,
               isRevoked && { backgroundColor: isDarkMode ? '#222' : '#EEE', opacity: 0.6 }
             ]}>
-              <Text style={[
-                styles.messageText, 
-                { color: isMe ? COLORS.myBubbleText : COLORS.otherBubbleText },
-                isRevoked && { fontStyle: 'italic' }
-              ]}>
+              <Text style={[styles.messageText, { color: isMe ? COLORS.myBubbleText : COLORS.otherBubbleText }, isRevoked && { fontStyle: 'italic' }]}>
                 {isRevoked ? 'Tin nhắn đã được thu hồi' : item.content}
               </Text>
               {!isSameSenderAsNext && !isRevoked && <Text style={styles.messageTime}>{formatTime(item.createdAt)}</Text>}
 
-              {/* FIXED: CHỈ HIỂN THỊ REACTION NẾU KHÔNG PHẢI TIN THU HỒI */}
+              {/* Reaction Badge */}
               {!isRevoked && (
                 <View style={styles.reactionContainer}>
                   {hasReactions ? (

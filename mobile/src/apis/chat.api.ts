@@ -21,4 +21,20 @@ export const sendMessage = (conversationId: string, content: string, type = "tex
     content: content, 
     type: type 
   });
+  
+};
+
+// API Thả hoặc Gỡ cảm xúc (React)
+export const reactMessage = (messageId: string, emoji: string) => {
+  return api.post(`/messages/${messageId}/react`, { emoji });
+};
+
+// API Thu hồi tin nhắn (Recall)
+export const recallMessage = (messageId: string) => {
+  return api.post(`/messages/${messageId}/revoke`);
+};
+
+// API Xóa tin nhắn phía tôi
+export const deleteMessageForMe = (messageId: string) => {
+  return api.delete(`/messages/${messageId}/delete-for-me`);
 };

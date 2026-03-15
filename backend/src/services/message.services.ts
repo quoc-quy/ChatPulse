@@ -50,8 +50,8 @@ class MessageService {
     // 2. Xây dựng điều kiện truy vấn ($match)
     const matchCondition: any = {
       conversationId: convObjectId,
-      // Tính năng Soft Delete: Bỏ qua tin nhắn user đã xóa
-      deletedByUsers: { $ne: userObjectId }
+      // Tính năng Soft Delete: Bỏ qua tin nhắn user đã xóa (hỗ trợ cả 2 schema cũ/mới)
+      $and: [{ deletedByUsers: { $ne: userObjectId } }, { deleted_by_users: { $ne: userObjectId } }]
     }
 
     // Tính năng Clear History: Chỉ lấy tin nhắn sau thời điểm dọn lịch sử
@@ -284,23 +284,36 @@ class MessageService {
 
     // 2. Logic Xóa tất cả cảm xúc của user này (Khi bấm nút X)
     if (emoji === 'REMOVE_ALL') {
-      updateQuery = { $pull: { reactions: { userId: userObjId } } }
+      updateQuery = {
+        $pull: {
+          reactions: {
+            $or: [{ user_id: userObjId }, { userId: userObjId }]
+          }
+        }
+      }
     } else {
       // 3. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
-      const hasReactedThisEmoji = message.reactions?.find(
-        (r: { userId: { toString: () => string }; emoji: string }) =>
-          r.userId.toString() === userId && r.emoji === emoji
-      )
+      const hasReactedThisEmoji = message.reactions?.find((r: any) => {
+        const reactionUserId = r?.user_id || r?.userId
+        return reactionUserId?.toString?.() === userId && r?.emoji === emoji
+      })
 
       if (hasReactedThisEmoji) {
         // Đã thả -> Hủy (Pull)
-        updateQuery = { $pull: { reactions: { userId: userObjId, emoji: emoji } } }
+        updateQuery = {
+          $pull: {
+            reactions: {
+              emoji: emoji,
+              $or: [{ user_id: userObjId }, { userId: userObjId }]
+            }
+          }
+        }
       } else {
         // Chưa thả -> Thêm mới (Push) kèm theo thông tin User (Denormalization để FE hiện Modal)
         updateQuery = {
           $push: {
             reactions: {
-              userId: userObjId,
+              user_id: userObjId, // Đổi userId -> user_id cho khớp với FE
               emoji: emoji,
               user: {
                 _id: user._id,
@@ -359,6 +372,7 @@ class MessageService {
         $set: {
           content: '',
           type: 'revoked', // Đổi type để giao diện biết tin đã bị thu hồi
+          reactions: [], // Thu hồi cũng sẽ xóa hết reaction đi
           updatedAt: new Date()
         }
       },
@@ -419,7 +433,12 @@ class MessageService {
     // Cập nhật tin nhắn: Push userId vào mảng deletedByUsers
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: messageObjId },
-      { $addToSet: { deletedByUsers: userObjId } }, // Dùng $addToSet để không bị trùng lặp
+      {
+        $addToSet: {
+          deletedByUsers: userObjId,
+          deleted_by_users: userObjId
+        }
+      }, // Dùng $addToSet để không bị trùng lặp
       { returnDocument: 'after' }
     )
 
