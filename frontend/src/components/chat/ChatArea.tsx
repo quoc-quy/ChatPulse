@@ -23,6 +23,11 @@ export function ChatArea({ chat }: ChatAreaProps) {
 
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(true)
 
+  const handleLeaveSuccess = () => {
+    setActiveChat(null) // Đóng màn hình chat hiện tại
+    window.dispatchEvent(new Event('refresh_chat_list')) // Gọi Sidebar tải lại danh sách
+  }
+
   useEffect(() => {
     setInitialUnread(chat.unreadCount || 0)
   }, [chat.id])
@@ -171,7 +176,8 @@ export function ChatArea({ chat }: ChatAreaProps) {
         <ChatInfoPanel
           chat={chat}
           onClose={() => setIsInfoPanelOpen(false)}
-          onMemberUpdate={handleMemberUpdate} // TRUYỀN HÀM XUỐNG DƯỚI
+          onMemberUpdate={handleMemberUpdate}
+          onLeaveSuccess={handleLeaveSuccess}
         />
       )}
     </div>

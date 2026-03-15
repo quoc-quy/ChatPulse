@@ -2,18 +2,16 @@ import { ObjectId } from 'mongodb'
 import databaseService from '~/services/database.services'
 
 class GroupService {
-
   async addMembers(conversationId: string, memberIds: string[]) {
     const conversationObjectId = new ObjectId(conversationId)
-    const objectMemberIds = memberIds.map(id => new ObjectId(id))
+    const objectMemberIds = memberIds.map((id) => new ObjectId(id))
 
-    const newMembers = objectMemberIds.map(id => ({
+    const newMembers = objectMemberIds.map((id) => ({
       userId: id,
       role: 'member' as const,
       joinedAt: new Date()
     }))
 
-    // Thay đổi ở đây: Dùng findOneAndUpdate thay vì updateOne
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       {
@@ -21,13 +19,10 @@ class GroupService {
         $push: { members: { $each: newMembers } }
       },
       {
-        returnDocument: 'after' // Trả về document SAU khi đã update
+        returnDocument: 'after'
       }
     )
 
-    // Tùy thuộc vào version của thư viện mongodb bạn đang dùng:
-    // Bản mới (v6 trở lên) thì result chính là document.
-    // Bản cũ (v5 trở xuống) thì document nằm trong result.value.
     return result
   }
 
@@ -46,11 +41,10 @@ class GroupService {
   async togglePin(userId: string, conversationId: string, isPin: boolean) {
     const conversationObjectId = new ObjectId(conversationId)
 
-    // Đổi updateOne thành findOneAndUpdate
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       {
-        $set: { is_pin: isPin } // ✅ ĐÚNG: Phải có $set
+        $set: { is_pin: isPin }
       },
       { returnDocument: 'after' }
     )
@@ -65,14 +59,13 @@ class GroupService {
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       {
-        // Dùng $pull để xóa user khỏi mảng participants và mảng members
         $pull: {
           participants: memberObjectId,
           members: { userId: memberObjectId }
         }
       },
       {
-        returnDocument: 'after' // Trả về document sau khi đã xóa member
+        returnDocument: 'after'
       }
     )
 
@@ -83,27 +76,24 @@ class GroupService {
     const conversationObjectId = new ObjectId(conversationId)
     const targetMemberObjectId = new ObjectId(targetMemberId)
 
-    // BƯỚC 1: "Reset" toàn bộ nhóm. Đưa TẤT CẢ mọi người về quyền 'member'
-    await databaseService.conversations.updateOne(
+    // 1. Cập nhật thẳng trường admin_id ở ngoài document (Frontend đang đọc trường này)
+    const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       {
-        $set: { 'members.$[].role': 'member' } // Toán tử $[] giúp update toàn bộ mảng
-      }
+        $set: { admin_id: targetMemberObjectId }
+      },
+      { returnDocument: 'after' }
     )
 
-    // BƯỚC 2: Thăng cấp duy nhất người được chọn lên làm 'admin'
-    const result = await databaseService.conversations.findOneAndUpdate(
-      {
-        _id: conversationObjectId,
-        'members.userId': targetMemberObjectId
-      },
-      {
-        $set: { 'members.$.role': 'admin' } // Toán tử $ chỉ update đúng ông được tìm thấy
-      },
-      {
-        returnDocument: 'after'
-      }
-    )
+    // 2. Cố gắng update role trong mảng members cho đồng bộ (try-catch để tránh lỗi 500 nếu data cũ bị thiếu mảng)
+    try {
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId, 'members.userId': targetMemberObjectId },
+        { $set: { 'members.$.role': 'admin' } }
+      )
+    } catch (error) {
+      console.log('Ignored member role array update error')
+    }
 
     return result
   }
@@ -118,50 +108,42 @@ class GroupService {
 
     if (!conversation) return null
 
-    const leavingMember = conversation.members.find(
-      m => m.userId.toString() === userId
-    )
-
-    const isAdmin = leavingMember?.role === 'admin'
-
-    // 1. Bước 1: Xóa user hiện tại khỏi nhóm
+    // 1. Xóa user hiện tại khỏi mảng participants và members (dùng pull rất an toàn, không sợ lỗi)
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       {
         $pull: {
-          members: { userId: userObjectId },
-          participants: userObjectId
+          participants: userObjectId,
+          members: { userId: userObjectId }
         }
       }
     )
 
-    // 2. Bước 2: Nếu người rời là admin → tìm member khác để thăng cấp
+    // 2. Kiểm tra xem người rời đi có phải là admin không (dựa vào admin_id thay vì chọc vào mảng members)
+    const isAdmin = conversation.admin_id && conversation.admin_id.toString() === userId
+
     if (isAdmin) {
-      const remainingMembers = conversation.members.filter(
-        m => m.userId.toString() !== userId
-      )
+      // Lấy danh sách participants còn lại
+      const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
 
-      if (remainingMembers.length > 0) {
-        const nextAdminId = remainingMembers[0].userId
+      if (remainingParticipants.length > 0) {
+        const nextAdminId = remainingParticipants[0]
 
+        // Gán admin_id mới cho người đầu tiên
         await databaseService.conversations.updateOne(
+          { _id: conversationObjectId },
           {
-            _id: conversationObjectId,
-            'members.userId': nextAdminId
-          },
-          {
-            $set: { 'members.$.role': 'admin' }
+            $set: { admin_id: nextAdminId }
           }
         )
       }
     }
 
-    // 3. BƯỚC QUAN TRỌNG NHẤT: Lấy lại thông tin document mới nhất từ DB
+    // 3. Lấy lại thông tin document mới nhất từ DB trả về
     const updatedConversation = await databaseService.conversations.findOne({
       _id: conversationObjectId
     })
 
-    // Trả về dữ liệu này để Controller show ra Postman
     return updatedConversation
   }
 }
