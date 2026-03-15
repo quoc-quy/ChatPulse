@@ -6,22 +6,25 @@ import type { ChatItem } from '@/context/app.context'
 import { InfoPanelMain } from './info-panel/InfoPanelMain'
 import { InfoPanelMembers } from './info-panel/InfoPanelMembers'
 import { AddMemberModal } from './info-panel/AddMemberModal'
+import { LeaveGroupModal } from './info-panel/LeaveGroupModal'
 
 interface ChatInfoPanelProps {
   chat: ChatItem
   onClose: () => void
-  onMemberUpdate?: () => void // THÊM PROP MỚI
+  onMemberUpdate?: () => void
+  onLeaveSuccess?: () => void // NHẬN THÊM PROP NÀY TỪ ChatArea
 }
 
-export function ChatInfoPanel({ chat, onClose, onMemberUpdate }: ChatInfoPanelProps) {
+export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }: ChatInfoPanelProps) {
   const { profile } = useContext(AppContext)
   const currentUserId = profile?._id
 
-  // STATE: Điều hướng giữa trang chính và trang xem danh sách thành viên
+  // STATE Điều khiển View
   const [currentView, setCurrentView] = useState<'main' | 'members'>('main')
 
-  // STATE: Quản lý hiển thị AddMemberModal
+  // STATES Điều khiển Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
 
   return (
     <>
@@ -39,15 +42,24 @@ export function ChatInfoPanel({ chat, onClose, onMemberUpdate }: ChatInfoPanelPr
           onClose={onClose}
           onViewMembers={() => setCurrentView('members')}
           onOpenAddMember={() => setIsAddModalOpen(true)}
+          onLeaveGroup={() => setIsLeaveModalOpen(true)}
         />
       )}
 
-      {/* RENDER MODAL */}
       <AddMemberModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         chat={chat}
         onMemberUpdate={onMemberUpdate}
+      />
+
+      {/* RENDER LEAVE MODAL */}
+      <LeaveGroupModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        chat={chat}
+        currentUserId={currentUserId!}
+        onLeaveSuccess={onLeaveSuccess!}
       />
     </>
   )

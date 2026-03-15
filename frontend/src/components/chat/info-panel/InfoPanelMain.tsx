@@ -21,9 +21,10 @@ interface InfoPanelMainProps {
   onClose: () => void
   onViewMembers: () => void
   onOpenAddMember: () => void
+  onLeaveGroup: () => void
 }
 
-export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember }: InfoPanelMainProps) {
+export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, onLeaveGroup }: InfoPanelMainProps) {
   const isGroup = chat.type === 'group'
 
   const getInitials = (name: string) => {
@@ -124,7 +125,10 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember }:
 
         <div className='flex flex-col py-2 mt-1'>
           {isGroup ? (
-            <button className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'>
+            <button
+              onClick={onLeaveGroup}
+              className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'
+            >
               <LogOut className='w-5 h-5' />
               <span className='text-[15px] font-medium'>Rời nhóm</span>
             </button>

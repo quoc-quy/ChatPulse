@@ -55,15 +55,10 @@ export const kickMemberController = async (req: Request, res: Response) => {
 // Thăng cấp Admin
 export const promoteAdminController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  // Lấy memberId từ Body thay vì params
-  const { memberId } = req.body
+  const memberId = req.params.memberId as string // Lấy từ URL Params thay vì Body
 
   const updatedGroup = await groupService.promoteToAdmin(id, memberId)
-
-  return res.status(httpStatus.OK).json({
-    message: 'Chuyển giao quyền Admin thành công',
-    result: updatedGroup
-  })
+  return res.status(httpStatus.OK).json({ message: 'Chuyển giao quyền Admin thành công', result: updatedGroup })
 }
 
 // Ghim hội thoại

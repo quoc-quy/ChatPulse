@@ -290,6 +290,14 @@ export function useConversations() {
     return () => window.removeEventListener('local_message_deleted', handleLocalDelete)
   }, [profile])
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchChats()
+    }
+    window.addEventListener('refresh_chat_list', handleRefresh)
+    return () => window.removeEventListener('refresh_chat_list', handleRefresh)
+  }, [fetchChats])
+
   const hasUnreadMessages = useMemo(() => {
     return chatList.some((chat) => chat.unreadCount > 0)
   }, [chatList])
