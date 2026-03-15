@@ -41,8 +41,8 @@ export const leaveGroupController = async (req: Request, res: Response) => {
 // Xóa thành viên (Kick)
 export const kickMemberController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  // Lấy memberId từ Body thay vì params
-  const { memberId } = req.body
+  // Lấy memberId từ req.params thay vì req.body để khớp với route /:id/members/:memberId
+  const memberId = req.params.memberId as string
 
   const updatedGroup = await groupService.kickMember(id, memberId)
 
