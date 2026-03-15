@@ -67,8 +67,8 @@ messageRouter.get('/:convId/summary', accessTokenValidator, wrapRequestHandler(s
 
 /**
  * Description: Xóa tin nhắn ở phía tôi
- * Path: /messages/:messageId
+ * Path: /messages/:messageId/delete-for-me
  */
-messageRouter.delete('/:messageId', accessTokenValidator, wrapRequestHandler(deleteMessageForMeController))
+messageRouter.delete('/:messageId/delete-for-me', accessTokenValidator, wrapRequestHandler(deleteMessageForMeController))
 
 export default messageRouter
