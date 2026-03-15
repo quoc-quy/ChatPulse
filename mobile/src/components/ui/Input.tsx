@@ -7,20 +7,34 @@ import {
   StyleSheet,
   TextInputProps,
   TouchableOpacity,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
 } from "react-native";
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   isPassword?: boolean;
+  labelStyle?: StyleProp<TextStyle>;
+  inputStyle?: StyleProp<TextStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
-export const Input = ({ label, error, isPassword, ...props }: InputProps) => {
+export const Input = ({
+  label,
+  error,
+  isPassword,
+  labelStyle,
+  inputStyle,
+  containerStyle,
+  ...props
+}: InputProps) => {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
+    <View style={[styles.container, containerStyle]}>
+      {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -29,8 +43,10 @@ export const Input = ({ label, error, isPassword, ...props }: InputProps) => {
             styles.input,
             error ? styles.inputError : null,
             isPassword ? { paddingRight: 40 } : null,
+            inputStyle,
+            props.style,
           ]}
-          placeholderTextColor="#a1a1aa"
+          placeholderTextColor={props.placeholderTextColor || "#a1a1aa"}
           // Kiểm soát chặt chẽ thuộc tính ẩn mật khẩu
           secureTextEntry={isPassword ? !showPassword : props.secureTextEntry}
         />

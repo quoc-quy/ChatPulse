@@ -39,7 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-
+# Update this if you have custom native code or assets that need to be included in version control
 # --- MOBILE SPECIFIC ---
 ios/build/
 android/app/build/

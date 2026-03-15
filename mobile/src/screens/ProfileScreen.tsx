@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,15 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Platform,
+  Switch,
+  StatusBar,
+  Modal,
+  Pressable,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Card, Input } from "../components/ui";
+import { LinearGradient } from "expo-linear-gradient";
+import { Button, Input } from "../components/ui";
 import { getMeApi, updateMeApi } from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,14 +26,48 @@ interface Props {
   onLogout: () => void;
 }
 
+const darkTheme = {
+  background: "#070B1A",
+  card: "#11182D",
+  cardSoft: "#0D1428",
+  border: "#1E2946",
+  textPrimary: "#F8FAFC",
+  textSecondary: "#9CA3AF",
+  accent: "#7C3AED",
+  accentAlt: "#A855F7",
+  danger: "#EF4444",
+};
+
+const lightTheme = {
+  background: "#F5F7FB",
+  card: "#FFFFFF",
+  cardSoft: "#EEF2FF",
+  border: "#E2E8F0",
+  textPrimary: "#0F172A",
+  textSecondary: "#64748B",
+  accent: "#6366F1",
+  accentAlt: "#8B5CF6",
+  danger: "#EF4444",
+};
+
 const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [profile, setProfile] = useState({
     displayName: "",
     userName: "",
     bio: "",
     avatar: "https://via.placeholder.com/150",
   });
+  const [editDraft, setEditDraft] = useState({
+    displayName: "",
+    bio: "",
+    avatar: "https://via.placeholder.com/150",
+    dateOfBirth: "",
+  });
+
+  const colors = useMemo(() => (darkMode ? darkTheme : lightTheme), [darkMode]);
 
   useEffect(() => {
     fetchData();
@@ -40,13 +78,19 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       const res = await getMeApi();
       if (res.data.result) {
         setProfile(res.data.result);
+        setEditDraft({
+          displayName: res.data.result.displayName || "",
+          bio: res.data.result.bio || "",
+          avatar: res.data.result.avatar || "https://via.placeholder.com/150",
+          dateOfBirth: res.data.result.dateOfBirth || "",
+        });
       }
     } catch (error) {
       console.error("Lỗi load profile:", error);
     }
   };
 
-  const pickImage = async () => {
+  const pickImage = async (target: "profile" | "edit" = "profile") => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -55,14 +99,19 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     });
 
     if (!result.canceled) {
-      setProfile({ ...profile, avatar: result.assets[0].uri });
+      const newAvatar = result.assets[0].uri;
+      if (target === "edit") {
+        setEditDraft((prev) => ({ ...prev, avatar: newAvatar }));
+      } else {
+        setProfile({ ...profile, avatar: newAvatar });
+      }
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (payload?: any) => {
     setLoading(true);
     try {
-      await updateMeApi(profile);
+      await updateMeApi(payload || profile);
       Alert.alert("Thành công", "Đã cập nhật Profile!");
     } catch (error) {
       Alert.alert("Lỗi", "Cập nhật thất bại!");
@@ -99,116 +148,426 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     ]);
   };
 
+  const openEditModal = () => {
+    setEditDraft({
+      displayName: profile.displayName || "",
+      bio: profile.bio || "",
+      avatar: profile.avatar || "https://via.placeholder.com/150",
+      dateOfBirth: (profile as any).dateOfBirth || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveFromModal = async () => {
+    const nextProfile = {
+      ...profile,
+      displayName: editDraft.displayName,
+      bio: editDraft.bio,
+      avatar: editDraft.avatar,
+      dateOfBirth: editDraft.dateOfBirth,
+    };
+    await handleSave(nextProfile);
+    setProfile(nextProfile);
+    setShowEditModal(false);
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Header & Avatar Wrapper */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
-          <Image source={{ uri: profile.avatar }} style={styles.avatar} />
-          <View style={styles.cameraBadge}>
-            <Ionicons name="camera" size={16} color="white" />
+    <View style={[styles.root, { backgroundColor: colors.background }]}> 
+      <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
+      <View style={[styles.hero, { backgroundColor: darkMode ? "#080D1F" : "#EDE9FE" }]}>
+        <View style={[styles.heroGlowOne, { backgroundColor: colors.accent, opacity: darkMode ? 0.35 : 0.2 }]} />
+        <View style={[styles.heroGlowTwo, { backgroundColor: colors.accentAlt, opacity: darkMode ? 0.28 : 0.2 }]} />
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => pickImage("profile")} style={styles.avatarContainer}>
+            <View style={[styles.avatarRing, { borderColor: colors.accent }]}>
+              <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+            </View>
+            <View style={[styles.cameraBadge, { backgroundColor: colors.accentAlt }]}> 
+              <Ionicons name="camera" size={16} color="white" />
+            </View>
+          </TouchableOpacity>
+
+          <Text style={[styles.nameText, { color: colors.textPrimary }]}>
+            {profile.displayName || "Alex Morgan"}
+          </Text>
+          <Text style={[styles.handleText, { color: colors.textSecondary }]}>@{profile.userName || "alexmorgan"}</Text>
+          <Text style={[styles.bioText, { color: colors.textSecondary }]}>{profile.bio || "Living the dream ✨"}</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}
+            onPress={openEditModal}
+          >
+            <Ionicons name="create-outline" size={18} color={colors.accentAlt} />
+            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Edit Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}>
+            <Ionicons name="search-outline" size={18} color={colors.accentAlt} />
+            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Find Users</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>248</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Friends</Text>
           </View>
-        </TouchableOpacity>
-        <Text style={styles.nameText}>
-          {profile.displayName || "User Name"}
-        </Text>
-        <Text style={styles.handleText}>@{profile.userName || "username"}</Text>
-      </View>
+          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>12</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Groups</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>1.2K</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Media</Text>
+          </View>
+        </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsRow}>
-        <Card style={styles.statBox}>
-          <Text style={styles.statCount}>248</Text>
-          <Text style={styles.statLabel}>Friends</Text>
-        </Card>
-        <Card style={styles.statBox}>
-          <Text style={styles.statCount}>12</Text>
-          <Text style={styles.statLabel}>Groups</Text>
-        </Card>
-      </View>
+        <View style={[styles.darkModeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.menuLeft}>
+            <View style={[styles.iconBadge, { backgroundColor: colors.cardSoft }]}>
+              <Ionicons name="moon-outline" size={18} color={colors.accentAlt} />
+            </View>
+            <View>
+              <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
+              <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>
+                {darkMode ? "Currently dark" : "Currently light"}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={darkMode}
+            onValueChange={setDarkMode}
+            trackColor={{ false: "#94A3B8", true: colors.accentAlt }}
+            thumbColor={darkMode ? "#0F172A" : "#FFFFFF"}
+          />
+        </View>
 
-      {/* Input Section */}
-      <View style={styles.form}>
-        <Input
-          label="Display Name"
-          value={profile.displayName}
-          onChangeText={(text) => setProfile({ ...profile, displayName: text })}
-        />
-        <Input
-          label="Bio"
-          value={profile.bio}
-          onChangeText={(text) => setProfile({ ...profile, bio: text })}
-          multiline
-        />
-        <Button title="Save Profile" onPress={handleSave} loading={loading} />
-      </View>
+        <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <MenuOption
+            icon="notifications-outline"
+            label="Notifications"
+            subtitle="Message & call alerts"
+            color={colors.textPrimary}
+            subtitleColor={colors.textSecondary}
+            iconBg={colors.cardSoft}
+            iconColor={colors.accentAlt}
+            borderColor={colors.border}
+          />
+          <MenuOption
+            icon="shield-checkmark-outline"
+            label="Privacy & Security"
+            subtitle="Blocked users, 2FA"
+            color={colors.textPrimary}
+            subtitleColor={colors.textSecondary}
+            iconBg={colors.cardSoft}
+            iconColor={colors.accentAlt}
+            borderColor={colors.border}
+          />
+          <MenuOption
+            icon="log-out-outline"
+            label="Log Out"
+            subtitle="Sign out from this device"
+            color={colors.danger}
+            subtitleColor={colors.textSecondary}
+            iconBg={colors.cardSoft}
+            iconColor={colors.danger}
+            borderColor={colors.border}
+            onPress={handleLogout}
+            isLast
+          />
+        </View>
 
-      {/* Menu List Section */}
-      <View style={styles.menuList}>
-        <MenuOption icon="notifications-outline" label="Notifications" />
-        <MenuOption
-          icon="shield-checkmark-outline"
-          label="Privacy & Security"
-        />
-        <MenuOption
-          icon="log-out-outline"
-          label="Log Out"
-          color="#ef4444"
-          onPress={handleLogout} // ✅ This now works because MenuOption accepts & uses onPress
-        />
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowEditModal(false)}>
+          <Pressable style={styles.modalCard} onPress={() => undefined}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowEditModal(false)}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>Edit Profile</Text>
+
+            <TouchableOpacity style={styles.modalAvatarWrap} onPress={() => pickImage("edit")}> 
+              <View style={styles.modalAvatarRing}>
+                <Image source={{ uri: editDraft.avatar }} style={styles.modalAvatar} />
+              </View>
+              <View style={styles.modalCameraBadge}>
+                <Ionicons name="camera" size={15} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+
+            <Input
+              label="Display Name"
+              value={editDraft.displayName}
+              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, displayName: text }))}
+              labelStyle={styles.modalLabel}
+              inputStyle={styles.modalInput}
+              placeholder="Your name"
+              placeholderTextColor="#7A8699"
+            />
+
+            <Input
+              label="Bio"
+              value={editDraft.bio}
+              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, bio: text }))}
+              labelStyle={styles.modalLabel}
+              inputStyle={[styles.modalInput, styles.modalBioInput]}
+              placeholder="Tell us about yourself..."
+              placeholderTextColor="#7A8699"
+              multiline
+            />
+
+            <Input
+              label="Date of Birth"
+              value={editDraft.dateOfBirth}
+              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, dateOfBirth: text }))}
+              labelStyle={styles.modalLabel}
+              inputStyle={styles.modalInput}
+              placeholder="dd/mm/yyyy"
+              placeholderTextColor="#7A8699"
+            />
+
+            <TouchableOpacity onPress={handleSaveFromModal} activeOpacity={0.9} disabled={loading}>
+              <LinearGradient
+                colors={["#3B82F6", "#A855F7", "#D946EF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalSaveButton}
+              >
+                <Text style={styles.modalSaveText}>{loading ? "Saving..." : "Save Changes"}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 };
 
-// ✅ FIX: Added `onPress` to props and passed it to TouchableOpacity
-const MenuOption = ({ icon, label, color = "#1e293b", onPress }: any) => (
-  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+const MenuOption = ({
+  icon,
+  label,
+  subtitle,
+  color = "#1e293b",
+  subtitleColor = "#64748b",
+  iconBg = "#EEF2FF",
+  iconColor = "#6366f1",
+  borderColor = "#f1f5f9",
+  onPress,
+  isLast = false,
+}: any) => (
+  <TouchableOpacity style={[styles.menuItem, { borderBottomColor: borderColor }, isLast && { borderBottomWidth: 0 }]} onPress={onPress}>
     <View style={styles.menuLeft}>
-      <Ionicons name={icon} size={22} color={color} />
-      <Text style={[styles.menuLabel, { color }]}>{label}</Text>
+      <View style={[styles.iconBadge, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <View>
+        <Text style={[styles.menuLabel, { color }]}>{label}</Text>
+        {!!subtitle && <Text style={[styles.menuSubLabel, { color: subtitleColor }]}>{subtitle}</Text>}
+      </View>
     </View>
     <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
   </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", marginTop: 50 },
-  header: { alignItems: "center", paddingVertical: 30 },
+  root: { flex: 1 },
+  hero: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroGlowOne: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: 10,
+    right: 10,
+  },
+  heroGlowTwo: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    top: 70,
+    left: -20,
+  },
+  container: { flex: 1 },
+  content: { paddingTop: 54, paddingBottom: 36 },
+  header: { alignItems: "center", paddingVertical: 22 },
   avatarContainer: { position: "relative" },
+  avatarRing: {
+    borderWidth: 2,
+    borderRadius: 58,
+    padding: 3,
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: "#6366f1",
+    width: 108,
+    height: 108,
+    borderRadius: 54,
   },
   cameraBadge: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: "#6366f1",
     padding: 6,
     borderRadius: 15,
   },
-  nameText: { fontSize: 22, fontWeight: "bold", marginTop: 10 },
-  handleText: { color: "#64748b", fontSize: 14 },
-  statsRow: { flexDirection: "row", paddingHorizontal: 20, gap: 15 },
-  statBox: { flex: 1, alignItems: "center" },
-  statCount: { fontSize: 18, fontWeight: "bold", color: "#6366f1" },
-  statLabel: { color: "#64748b", fontSize: 12 },
-  form: { padding: 20 },
-  menuList: { paddingHorizontal: 20, paddingBottom: 40 },
+  nameText: { fontSize: 38, fontWeight: "800", marginTop: 12 },
+  handleText: { fontSize: 15, marginTop: 2 },
+  bioText: { fontSize: 13, marginTop: 8 },
+  actionRow: { flexDirection: "row", gap: 12, paddingHorizontal: 18, marginTop: 12 },
+  actionButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 24,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  actionText: { fontSize: 18, fontWeight: "700" },
+  statsRow: { flexDirection: "row", paddingHorizontal: 18, gap: 12, marginTop: 14 },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: 26,
+    borderWidth: 1,
+    paddingVertical: 16,
+  },
+  statCount: { fontSize: 20, fontWeight: "800" },
+  statLabel: { fontSize: 14, marginTop: 4 },
+  darkModeCard: {
+    marginTop: 14,
+    marginHorizontal: 18,
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  menuList: {
+    marginHorizontal: 18,
+    marginTop: 14,
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
   },
-  menuLeft: { flexDirection: "row", alignItems: "center", gap: 15 },
-  menuLabel: { fontSize: 16, fontWeight: "500" },
+  menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuLabel: { fontSize: 16, fontWeight: "700" },
+  menuSubLabel: { fontSize: 13, marginTop: 2 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  modalCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 26,
+    padding: 20,
+  },
+  closeButton: {
+    position: "absolute",
+    right: 14,
+    top: 12,
+    zIndex: 2,
+    padding: 4,
+  },
+  modalTitle: {
+    textAlign: "center",
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#7C3AED",
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  modalAvatarWrap: {
+    alignSelf: "center",
+    marginBottom: 12,
+    position: "relative",
+  },
+  modalAvatarRing: {
+    borderWidth: 3,
+    borderColor: "#4F46E5",
+    padding: 2,
+    borderRadius: 45,
+  },
+  modalAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+  },
+  modalCameraBadge: {
+    position: "absolute",
+    right: -4,
+    bottom: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#A855F7",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#F8FAFC",
+  },
+  modalLabel: {
+    color: "#1F2937",
+    fontWeight: "600",
+  },
+  modalInput: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#D1D5DB",
+    color: "#111827",
+    borderRadius: 24,
+    height: 50,
+    fontSize: 16,
+  },
+  modalBioInput: {
+    minHeight: 92,
+    textAlignVertical: "top",
+    paddingTop: 14,
+  },
+  modalSaveButton: {
+    marginTop: 6,
+    borderRadius: 28,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSaveText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+  },
 });
 
 export default ProfileScreen;
