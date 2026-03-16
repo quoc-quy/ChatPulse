@@ -28,12 +28,26 @@ export const FriendItem = React.memo(
     onDelete,
     onCancel,
   }: FriendItemProps) => {
-    // ===== LẤY USER DATA AN TOÀN =====
-    const userData =
-      item?.sender_info || item?.sender || item?.user || item || {};
+    // ===== LẤY USER DATA THEO ĐÚNG TYPE =====
+    // - "sent"    → hiển thị RECEIVER (người được gửi lời mời)
+    // - "request" → hiển thị SENDER   (người gửi lời mời đến mình)
+    // - "friend"  → chính item là user
+    const userData = (() => {
+      if (type === "sent") {
+        // Thử tất cả các field receiver có thể có
+        return (
+          item?.receiver_info || item?.receiver || item?.receiverInfo || {}
+        );
+      }
+      if (type === "request") {
+        return item?.sender_info || item?.sender || item?.senderInfo || {};
+      }
+      // type === "friend": item chính là user object
+      return item?.user || item || {};
+    })();
 
-    // ===== ID AN TOÀN =====
-    const requestId = item?.id || item?._id;
+    // ===== ID CỦA REQUEST (dùng để cancel/accept/decline) =====
+    const requestId = item?._id || item?.id;
 
     // ===== TÊN HIỂN THỊ =====
     const displayName =
@@ -45,6 +59,14 @@ export const FriendItem = React.memo(
 
     // ===== AVATAR LETTER =====
     const initials = displayName?.charAt(0)?.toUpperCase() || "?";
+
+    // ===== SUB TEXT =====
+    const subText = (() => {
+      if (type === "request") return "Muốn kết bạn với bạn";
+      if (type === "sent")
+        return userData?.phone || userData?.bio || "Đang chờ xác nhận...";
+      return userData?.bio || "Living my best life ✨";
+    })();
 
     return (
       <TouchableOpacity
@@ -60,7 +82,6 @@ export const FriendItem = React.memo(
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-
           <View style={styles.onlineBadge} />
         </View>
 
@@ -69,15 +90,12 @@ export const FriendItem = React.memo(
           <Text style={styles.name} numberOfLines={1}>
             {displayName}
           </Text>
-
           <Text style={styles.status} numberOfLines={1}>
-            {type === "request"
-              ? "Muốn kết bạn với bạn"
-              : userData?.bio || "Living my best life ✨"}
+            {subText}
           </Text>
         </View>
 
-        {/* ACTION BUTTONS */}
+        {/* ACTION BUTTONS - request */}
         {type === "request" && (
           <View style={styles.actions}>
             <TouchableOpacity
@@ -95,7 +113,7 @@ export const FriendItem = React.memo(
           </View>
         )}
 
-        {/* THÊM KHỐI NÀY CHO LỜI MỜI ĐÃ GỬI */}
+        {/* ACTION BUTTONS - sent */}
         {type === "sent" && (
           <View style={styles.actions}>
             <TouchableOpacity
@@ -119,11 +137,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.white,
   },
-
   avatarWrapper: {
     position: "relative",
   },
-
   avatar: {
     width: 52,
     height: 52,
@@ -132,13 +148,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   avatarText: {
     color: COLORS.white,
     fontSize: 18,
     fontWeight: "bold",
   },
-
   onlineBadge: {
     position: "absolute",
     right: 2,
@@ -150,50 +164,42 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-
   info: {
     flex: 1,
     marginLeft: 14,
     justifyContent: "center",
   },
-
   name: {
     fontSize: 16,
     fontWeight: "600",
     color: COLORS.foreground,
   },
-
   status: {
     fontSize: 13,
     color: COLORS.muted,
     marginTop: 2,
   },
-
   actions: {
     flexDirection: "row",
     gap: 8,
   },
-
   btnAccept: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 15,
   },
-
   btnDecline: {
     backgroundColor: COLORS.grayBtn,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 15,
   },
-
   btnTextWhite: {
     color: COLORS.white,
     fontSize: 12,
     fontWeight: "bold",
   },
-
   btnTextBlack: {
     color: COLORS.foreground,
     fontSize: 12,
