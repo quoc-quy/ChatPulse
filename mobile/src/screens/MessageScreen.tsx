@@ -375,11 +375,10 @@ const MessageScreen = () => {
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() =>
-              navigation.navigate("ChatDetailsScreen", {
-                conversationId,
-                chatName,
-                isGroup,
-                targetUserId, 
+              navigation.navigate("ConversationDetail", {
+                id: conversationId, // ← "id" không phải "conversationId"
+                name: chatName,
+                isGroup: isGroup,
               })
             }
           >
