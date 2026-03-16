@@ -15,7 +15,8 @@ import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import SentRequestsScreen from "./src/screens/SentRequestsScreen";
 // import ChatDetailsScreen from "./src/screens/ChatDetailsScreen";
 import ConversationDetailScreen from "./src/screens/ConversationDetail";
-import MembersScreen from "./src/screens/Membersscreen";
+import MembersScreen from "./src/screens/MembersScreen";
+import AddMemberScreen from "./src/screens/AddMembersScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -99,6 +100,14 @@ export default function App() {
             <Stack.Screen
               name="MembersScreen"
               component={MembersScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="AddMemberScreen"
+              component={AddMemberScreen}
               options={{
                 headerShown: false,
                 animation: "slide_from_right",
