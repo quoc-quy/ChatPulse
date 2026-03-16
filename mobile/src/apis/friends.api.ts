@@ -17,7 +17,7 @@ export const friendApi = {
       data: { friend_id: friendId },
     }),
 
-    //Từ chối lời mời kết bạn
+  //Từ chối lời mời kết bạn
   // Cập nhật theo Postman: DELETE http://localhost:4000/friends/requests/:id/decline
   declineRequest: (requestId: string) =>
     api.delete(`/friends/requests/${requestId}/decline`),
@@ -29,4 +29,11 @@ export const friendApi = {
   // DELETE http://localhost:4000/friends/requests/:id/cancel
   cancelRequest: (requestId: string) =>
     api.delete(`/friends/requests/${requestId}/cancel`),
+  // Tìm kiếm người dùng theo userName hoặc số điện thoại
+  searchUsers: (keyword: string) =>
+    api.get("/users/search", { params: { q: keyword } }),
+
+  // Gửi lời mời kết bạn
+  sendFriendRequest: (receiverId: string) =>
+    api.post("/friends/request", { receiver_id: receiverId }),
 };
