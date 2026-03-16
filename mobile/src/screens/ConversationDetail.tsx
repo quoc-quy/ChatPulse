@@ -10,6 +10,7 @@ import {
   Alert,
   Switch,
   useColorScheme,
+  RefreshControl,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -218,6 +219,7 @@ export default function ConversationDetailScreen() {
 
   const [conversation, setConversation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [muteEnabled, setMuteEnabled] = useState(false);
 
@@ -232,17 +234,24 @@ export default function ConversationDetailScreen() {
     });
   }, []);
 
-  const fetchDetail = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await getConversationDetail(conversationId);
-      setConversation(res.data.result);
-    } catch {
-      Alert.alert("Lỗi", "Không thể tải thông tin hội thoại");
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId]);
+  const fetchDetail = useCallback(
+    async (isRefreshing = false) => {
+      try {
+        if (isRefreshing) setRefreshing(true);
+        else setLoading(true);
+        const res = await getConversationDetail(conversationId);
+        setConversation(res.data.result);
+      } catch {
+        Alert.alert("Lỗi", "Không thể tải thông tin hội thoại");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [conversationId],
+  );
+
+  const onRefresh = useCallback(() => fetchDetail(true), [fetchDetail]);
 
   useEffect(() => {
     fetchDetail();
@@ -384,6 +393,14 @@ export default function ConversationDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         {/* ── Hero ── */}
         <View
@@ -461,7 +478,12 @@ export default function ConversationDetailScreen() {
             <TouchableOpacity
               style={styles.quickBtn}
               onPress={() =>
-                navigation.navigate("AddMemberScreen", { conversationId })
+                navigation.navigate("AddMemberScreen", {
+                  conversationId,
+                  existingMemberIds: members.map((m: any) =>
+                    (m._id || m.userId || "").toString(),
+                  ),
+                })
               }
             >
               <View
@@ -595,7 +617,12 @@ export default function ConversationDetailScreen() {
                 label="Thêm thành viên"
                 COLORS={COLORS}
                 onPress={() =>
-                  navigation.navigate("AddMemberScreen", { conversationId })
+                  navigation.navigate("AddMemberScreen", {
+                    conversationId,
+                    existingMemberIds: members.map((m: any) =>
+                      (m._id || m.userId || "").toString(),
+                    ),
+                  })
                 }
               />
               <MenuRow
