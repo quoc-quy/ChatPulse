@@ -185,7 +185,14 @@ class ChatService {
     const conversations = await databaseService.conversations
       .aggregate([
         { $match: { _id: convObjectId } },
-        { $lookup: { from: 'users', localField: 'participants', foreignField: '_id', as: 'participants_info' } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'participants',
+            foreignField: '_id',
+            as: 'participants_info'
+          }
+        },
         {
           $project: {
             _id: 1,
@@ -197,15 +204,18 @@ class ChatService {
             last_message_id: 1,
             participants: 1,
             members: 1,
+            // ✅ FIX: map đúng field + thêm userName, phone
             participants_info: {
               $map: {
                 input: '$participants_info',
-                as: 'participant',
+                as: 'p',
                 in: {
-                  _id: '$$participant._id',
-                  username: '$$participant.username',
-                  avatar: '$$participant.avatar',
-                  email: '$$participant.email'
+                  _id: '$$p._id',
+                  userName: '$$p.userName', // ✅ chữ N hoa, đúng schema
+                  fullName: '$$p.fullName', // ✅ thêm fullName
+                  phone: '$$p.phone', // ✅ thêm phone để hiện sub text
+                  avatar: '$$p.avatar',
+                  email: '$$p.email'
                 }
               }
             }
