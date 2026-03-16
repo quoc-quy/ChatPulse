@@ -305,7 +305,7 @@ class UserService {
       .find({
         $and: [
           {
-            $or: [{ userName: { $regex: keyword, $options: 'i' } }, { displayName: { $regex: keyword, $options: 'i' } }]
+            $or: [{ userName: { $regex: keyword, $options: 'i' } }, { phone: { $regex: keyword, $options: 'i' } }]
           },
           { _id: { $ne: new ObjectId(currentUserId) } },
           { _id: { $nin: blockedIds } }
