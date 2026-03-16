@@ -13,7 +13,9 @@ import MessageScreen from "./src/screens/MessageScreen"; // <-- 1. Import màn h
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import SentRequestsScreen from "./src/screens/SentRequestsScreen";
-import ChatDetailsScreen from "./src/screens/ChatDetailsScreen";
+// import ChatDetailsScreen from "./src/screens/ChatDetailsScreen";
+import ConversationDetailScreen from "./src/screens/ConversationDetail";
+import MembersScreen from "./src/screens/Membersscreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -87,8 +89,16 @@ export default function App() {
               }}
             />
             <Stack.Screen
-              name="ChatDetailsScreen"
-              component={ChatDetailsScreen}
+              name="ConversationDetail"
+              component={ConversationDetailScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="MembersScreen"
+              component={MembersScreen}
               options={{
                 headerShown: false,
                 animation: "slide_from_right",
