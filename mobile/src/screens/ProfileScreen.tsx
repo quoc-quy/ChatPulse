@@ -11,10 +11,13 @@ import {
   StatusBar,
   Modal,
   Pressable,
+  TextInput,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Button, Input } from "../components/ui";
 import { getMeApi, updateMeApi } from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
@@ -54,6 +57,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempDate, setTempDate] = useState<Date>(new Date());
   const [profile, setProfile] = useState({
     displayName: "",
     userName: "",
@@ -155,6 +160,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       avatar: profile.avatar || "https://via.placeholder.com/150",
       dateOfBirth: (profile as any).dateOfBirth || "",
     });
+    setShowDatePicker(false);
     setShowEditModal(true);
   };
 
@@ -168,7 +174,38 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     };
     await handleSave(nextProfile);
     setProfile(nextProfile);
+    setShowDatePicker(false);
     setShowEditModal(false);
+  };
+
+  const formatDate = (date: Date) => {
+    const day = `${date.getDate()}`.padStart(2, "0");
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDateString = (value: string) => {
+    const match = value?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return new Date();
+    const [, dd, mm, yyyy] = match;
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    return Number.isNaN(date.getTime()) ? new Date() : date;
+  };
+
+  const openDatePicker = () => {
+    setTempDate(parseDateString(editDraft.dateOfBirth));
+    setShowDatePicker(true);
+  };
+
+  const onChangeDate = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (event.type === "set" && selectedDate) {
+      setTempDate(selectedDate);
+      setEditDraft((prev) => ({ ...prev, dateOfBirth: formatDate(selectedDate) }));
+    }
   };
 
   return (
@@ -283,10 +320,30 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
       </ScrollView>
 
-      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowEditModal(false)}>
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDatePicker(false);
+          setShowEditModal(false);
+        }}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setShowDatePicker(false);
+            setShowEditModal(false);
+          }}
+        >
           <Pressable style={styles.modalCard} onPress={() => undefined}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowEditModal(false)}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowDatePicker(false);
+                setShowEditModal(false);
+              }}
+            >
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
 
@@ -322,15 +379,47 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               multiline
             />
 
-            <Input
-              label="Date of Birth"
-              value={editDraft.dateOfBirth}
-              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, dateOfBirth: text }))}
-              labelStyle={styles.modalLabel}
-              inputStyle={styles.modalInput}
-              placeholder="dd/mm/yyyy"
-              placeholderTextColor="#7A8699"
-            />
+            <View style={styles.dateBlock}>
+              <Text style={styles.modalLabel}>Date of Birth</Text>
+              <TouchableOpacity style={styles.dateInputWrap} onPress={openDatePicker} activeOpacity={0.85}>
+                <TextInput
+                  value={editDraft.dateOfBirth}
+                  placeholder="dd/mm/yyyy"
+                  placeholderTextColor="#7A8699"
+                  style={styles.dateInput}
+                  editable={false}
+                  pointerEvents="none"
+                />
+                <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {showDatePicker && Platform.OS === "ios" && (
+              <View style={styles.inlineDatePickerWrap}>
+                <View style={styles.inlineDatePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.datePickerText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditDraft((prev) => ({ ...prev, dateOfBirth: formatDate(tempDate) }));
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={[styles.datePickerText, styles.datePickerDone]}>Xong</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={(_, selectedDate) => {
+                    if (selectedDate) setTempDate(selectedDate);
+                  }}
+                  maximumDate={new Date()}
+                />
+              </View>
+            )}
 
             <TouchableOpacity onPress={handleSaveFromModal} activeOpacity={0.9} disabled={loading}>
               <LinearGradient
@@ -345,6 +434,16 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {showDatePicker && Platform.OS === "android" && (
+        <DateTimePicker
+          value={tempDate}
+          mode="date"
+          display="default"
+          onChange={onChangeDate}
+          maximumDate={new Date()}
+        />
+      )}
     </View>
   );
 };
@@ -548,13 +647,60 @@ const styles = StyleSheet.create({
     borderColor: "#D1D5DB",
     color: "#111827",
     borderRadius: 24,
-    height: 50,
+    height: 54,
     fontSize: 16,
   },
   modalBioInput: {
-    minHeight: 92,
+    height: 120,
     textAlignVertical: "top",
     paddingTop: 14,
+    paddingBottom: 12,
+  },
+  dateBlock: {
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  dateInputWrap: {
+    height: 54,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateInput: {
+    flex: 1,
+    color: "#111827",
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  inlineDatePickerWrap: {
+    marginTop: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  inlineDatePickerHeader: {
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  datePickerDone: {
+    color: "#7C3AED",
+    fontWeight: "700",
   },
   modalSaveButton: {
     marginTop: 6,
