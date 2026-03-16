@@ -13,6 +13,7 @@ import MessageScreen from "./src/screens/MessageScreen"; // <-- 1. Import màn h
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import SentRequestsScreen from "./src/screens/SentRequestsScreen";
+import ChatDetailsScreen from "./src/screens/ChatDetailsScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -62,7 +63,7 @@ export default function App() {
 
   return (
     <NavigationContainer key={navKey}>
-      <Stack.Navigator  screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
           <>
             <Stack.Screen name="Main">
@@ -80,6 +81,14 @@ export default function App() {
             <Stack.Screen
               name="SentRequest"
               component={SentRequestsScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="ChatDetailsScreen"
+              component={ChatDetailsScreen}
               options={{
                 headerShown: false,
                 animation: "slide_from_right",
