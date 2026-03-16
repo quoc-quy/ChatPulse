@@ -76,24 +76,38 @@ class GroupService {
     const conversationObjectId = new ObjectId(conversationId)
     const targetMemberObjectId = new ObjectId(targetMemberId)
 
-    // 1. Cập nhật thẳng trường admin_id ở ngoài document (Frontend đang đọc trường này)
+    // 1. Lấy conversation để biết admin_id hiện tại
+    const conversation = await databaseService.conversations.findOne({
+      _id: conversationObjectId
+    })
+    if (!conversation) return null
+
+    const oldAdminId = conversation.admin_id
+
+    // 2. Cập nhật admin_id sang người mới
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
-      {
-        $set: { admin_id: targetMemberObjectId }
-      },
+      { $set: { admin_id: targetMemberObjectId } },
       { returnDocument: 'after' }
     )
 
-    // 2. Cố gắng update role trong mảng members cho đồng bộ (try-catch để tránh lỗi 500 nếu data cũ bị thiếu mảng)
+    // 3. ✅ Reset role admin cũ → member (tránh 2 admin)
+    if (oldAdminId) {
+      try {
+        await databaseService.conversations.updateOne(
+          { _id: conversationObjectId, 'members.userId': oldAdminId },
+          { $set: { 'members.$.role': 'member' } }
+        )
+      } catch {}
+    }
+
+    // 4. ✅ Set role admin cho người mới
     try {
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId, 'members.userId': targetMemberObjectId },
         { $set: { 'members.$.role': 'admin' } }
       )
-    } catch (error) {
-      console.log('Ignored member role array update error')
-    }
+    } catch {}
 
     return result
   }
