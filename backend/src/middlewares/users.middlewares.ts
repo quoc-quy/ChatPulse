@@ -325,6 +325,12 @@ export const updateMeValidator = validate(
         },
         errorMessage: 'Date_of_birth phải là ISO8601'
       }
+    },
+    show_date_of_birth: {
+      optional: true,
+      isBoolean: {
+        errorMessage: 'show_date_of_birth phải là boolean'
+      }
     }
   })
 )

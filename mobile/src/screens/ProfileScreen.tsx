@@ -14,6 +14,9 @@ import {
   TextInput,
   Platform,
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -66,12 +69,15 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     userName: "",
     bio: "",
     avatar: "https://via.placeholder.com/150",
+    date_of_birth: "",
+    show_date_of_birth: true,
   });
   const [editDraft, setEditDraft] = useState({
     displayName: "",
     bio: "",
     avatar: "https://via.placeholder.com/150",
     dateOfBirth: "",
+    showDateOfBirth: true,
   });
 
   const colors = useMemo(() => (darkMode ? darkTheme : lightTheme), [darkMode]);
@@ -109,14 +115,16 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       userName: data.userName || "",
       bio: data.bio || "",
       avatar: data.avatar || "https://via.placeholder.com/150",
-      date_of_birth: data.date_of_birth || undefined,
+      date_of_birth: data.date_of_birth || "",
+      show_date_of_birth: data.show_date_of_birth ?? true,
     };
-    setProfile(nextProfile as any);
+    setProfile(nextProfile);
     setEditDraft({
       displayName: nextProfile.displayName,
       bio: nextProfile.bio,
       avatar: nextProfile.avatar,
       dateOfBirth: formatDateFromApi(nextProfile.date_of_birth),
+      showDateOfBirth: nextProfile.show_date_of_birth,
     });
   };
 
@@ -185,6 +193,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         bio: finalPayload.bio,
         avatar: finalPayload.avatar,
         ...(finalPayload.dateOfBirth ? { date_of_birth: toIsoDate(finalPayload.dateOfBirth) } : {}),
+        show_date_of_birth: finalPayload.showDateOfBirth ?? profile.show_date_of_birth,
       };
 
       const res = await updateMeApi(body);
@@ -233,19 +242,36 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       displayName: profile.displayName || "",
       bio: profile.bio || "",
       avatar: profile.avatar || "https://via.placeholder.com/150",
-      dateOfBirth: formatDateFromApi((profile as any).date_of_birth),
+      dateOfBirth: formatDateFromApi(profile.date_of_birth),
+      showDateOfBirth: profile.show_date_of_birth,
     });
     setShowDatePicker(false);
     setShowEditModal(true);
   };
 
+  const toggleDobVisibility = async () => {
+    const nextVisibility = !profile.show_date_of_birth;
+    setProfile((prev) => ({ ...prev, show_date_of_birth: nextVisibility }));
+    setEditDraft((prev) => ({ ...prev, showDateOfBirth: nextVisibility }));
+
+    try {
+      await updateMeApi({ show_date_of_birth: nextVisibility });
+    } catch (error) {
+      setProfile((prev) => ({ ...prev, show_date_of_birth: !nextVisibility }));
+      setEditDraft((prev) => ({ ...prev, showDateOfBirth: !nextVisibility }));
+      Alert.alert("Lỗi", "Không cập nhật được quyền hiển thị ngày sinh");
+    }
+  };
+
   const handleSaveFromModal = async () => {
+    Keyboard.dismiss();
     const nextProfile = {
       ...profile,
       displayName: editDraft.displayName,
       bio: editDraft.bio,
       avatar: editDraft.avatar,
       dateOfBirth: editDraft.dateOfBirth,
+      showDateOfBirth: editDraft.showDateOfBirth,
     };
     await handleSave(nextProfile);
     setShowDatePicker(false);
@@ -303,6 +329,21 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           </Text>
           <Text style={[styles.handleText, { color: colors.textSecondary }]}>@{profile.userName || "alexmorgan"}</Text>
           <Text style={[styles.bioText, { color: colors.textSecondary }]}>{profile.bio || "Living the dream ✨"}</Text>
+          <View style={styles.birthRow}>
+            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.birthText, { color: colors.textSecondary }]}>
+              {profile.show_date_of_birth
+                ? formatDateFromApi(profile.date_of_birth) || "Chưa cập nhật ngày sinh"
+                : "Ngày sinh đã ẩn"}
+            </Text>
+            <TouchableOpacity onPress={toggleDobVisibility} style={styles.birthEyeBtn}>
+              <Ionicons
+                name={profile.show_date_of_birth ? "eye-outline" : "eye-off-outline"}
+                size={16}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.actionRow}>
@@ -396,6 +437,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         transparent
         animationType="fade"
         onRequestClose={() => {
+          Keyboard.dismiss();
           setShowDatePicker(false);
           setShowEditModal(false);
         }}
@@ -403,14 +445,21 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         <Pressable
           style={styles.modalOverlay}
           onPress={() => {
+            Keyboard.dismiss();
             setShowDatePicker(false);
             setShowEditModal(false);
           }}
         >
-          <Pressable style={styles.modalCard} onPress={() => undefined}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardWrap}
+          >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <Pressable style={styles.modalCard} onPress={() => Keyboard.dismiss()}>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => {
+                Keyboard.dismiss();
                 setShowDatePicker(false);
                 setShowEditModal(false);
               }}
@@ -469,6 +518,23 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               </TouchableOpacity>
             </View>
 
+            <View style={styles.visibilityRow}>
+              <View style={styles.visibilityLabelWrap}>
+                <Ionicons
+                  name={editDraft.showDateOfBirth ? "eye-outline" : "eye-off-outline"}
+                  size={18}
+                  color="#6B7280"
+                />
+                <Text style={styles.visibilityLabel}>Hiển thị ngày sinh cho người khác</Text>
+              </View>
+              <Switch
+                value={editDraft.showDateOfBirth}
+                onValueChange={(value) => setEditDraft((prev) => ({ ...prev, showDateOfBirth: value }))}
+                trackColor={{ false: "#CBD5E1", true: "#A855F7" }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
             {showDatePicker && Platform.OS === "ios" && (
               <View style={styles.inlineDatePickerWrap}>
                 <View style={styles.inlineDatePickerHeader}>
@@ -507,6 +573,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               </LinearGradient>
             </TouchableOpacity>
           </Pressable>
+          </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 
@@ -600,6 +668,19 @@ const styles = StyleSheet.create({
   nameText: { fontSize: 38, fontWeight: "800", marginTop: 12 },
   handleText: { fontSize: 15, marginTop: 2 },
   bioText: { fontSize: 13, marginTop: 8 },
+  birthRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  birthText: {
+    fontSize: 13,
+  },
+  birthEyeBtn: {
+    marginLeft: 4,
+    padding: 2,
+  },
   actionRow: { flexDirection: "row", gap: 12, paddingHorizontal: 18, marginTop: 12 },
   actionButton: {
     flex: 1,
@@ -663,6 +744,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
     paddingHorizontal: 12,
+  },
+  modalKeyboardWrap: {
+    width: "100%",
   },
   modalCard: {
     backgroundColor: "#F8FAFC",
@@ -734,6 +818,25 @@ const styles = StyleSheet.create({
   dateBlock: {
     marginTop: 2,
     marginBottom: 6,
+  },
+  visibilityRow: {
+    marginTop: 8,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  visibilityLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    paddingRight: 12,
+  },
+  visibilityLabel: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
   },
   dateInputWrap: {
     height: 54,

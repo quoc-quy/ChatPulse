@@ -21,6 +21,7 @@ export interface TokenPayload extends JwtPayload {
 export interface UpdateMeReqBody {
   userName?: string
   date_of_birth?: string
+  show_date_of_birth?: boolean
   avatar?: string
   bio?: string
   phone?: string
