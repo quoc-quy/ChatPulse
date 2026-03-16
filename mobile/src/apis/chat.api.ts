@@ -63,7 +63,9 @@ export const updateGroup = (
 
 // Thêm thành viên vào nhóm
 export const addMembers = (conversationId: string, members: string[]) => {
-  return api.post(`/conversations/${conversationId}/members`, { members });
+  return api.post(`/conversations/${conversationId}/members`, {
+    member_ids: members,
+  });
 };
 
 // Kick thành viên khỏi nhóm (admin)
