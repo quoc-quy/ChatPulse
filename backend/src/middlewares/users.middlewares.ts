@@ -293,6 +293,7 @@ export const updateMeValidator = validate(
       }
     },
     phone: {
+      optional: true,
       notEmpty: {
         errorMessage: 'Số điện thoại không được để trống'
       },
@@ -316,6 +317,7 @@ export const updateMeValidator = validate(
       }
     },
     date_of_birth: {
+      optional: true,
       isISO8601: {
         options: {
           strict: true,

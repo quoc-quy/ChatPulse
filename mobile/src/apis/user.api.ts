@@ -54,6 +54,17 @@ export const updateMeApi = (body: any) => {
   return api.patch("/users/update-profile", body);
 };
 
+/**
+ * Upload avatar file (multipart/form-data)
+ */
+export const uploadAvatarApi = (formData: FormData) => {
+  return api.post("/users/upload-avatar", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 export const registerApi = (data: any) => {
   return api.post("/auth/register", data);
 };

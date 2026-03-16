@@ -13,13 +13,14 @@ import {
   Pressable,
   TextInput,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Button, Input } from "../components/ui";
-import { getMeApi, updateMeApi } from "../apis/user.api";
+import { getMeApi, updateMeApi, uploadAvatarApi } from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
@@ -55,6 +56,7 @@ const lightTheme = {
 
 const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -78,17 +80,52 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     fetchData();
   }, []);
 
+  const formatDate = (date: Date) => {
+    const day = `${date.getDate()}`.padStart(2, "0");
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const toIsoDate = (value?: string) => {
+    if (!value) return undefined;
+    const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return undefined;
+    const [, dd, mm, yyyy] = match;
+    return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).toISOString();
+  };
+
+  const formatDateFromApi = (value?: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return formatDate(date);
+  };
+
+  const applyProfileFromApi = (data: any) => {
+    if (!data) return;
+    const nextProfile = {
+      displayName: data.displayName || "",
+      userName: data.userName || "",
+      bio: data.bio || "",
+      avatar: data.avatar || "https://via.placeholder.com/150",
+      date_of_birth: data.date_of_birth || undefined,
+    };
+    setProfile(nextProfile as any);
+    setEditDraft({
+      displayName: nextProfile.displayName,
+      bio: nextProfile.bio,
+      avatar: nextProfile.avatar,
+      dateOfBirth: formatDateFromApi(nextProfile.date_of_birth),
+    });
+  };
+
   const fetchData = async () => {
     try {
       const res = await getMeApi();
-      if (res.data.result) {
-        setProfile(res.data.result);
-        setEditDraft({
-          displayName: res.data.result.displayName || "",
-          bio: res.data.result.bio || "",
-          avatar: res.data.result.avatar || "https://via.placeholder.com/150",
-          dateOfBirth: res.data.result.dateOfBirth || "",
-        });
+      const user = res.data?.result || res.data?.user;
+      if (user) {
+        applyProfileFromApi(user);
       }
     } catch (error) {
       console.error("Lỗi load profile:", error);
@@ -104,11 +141,37 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     });
 
     if (!result.canceled) {
-      const newAvatar = result.assets[0].uri;
-      if (target === "edit") {
-        setEditDraft((prev) => ({ ...prev, avatar: newAvatar }));
-      } else {
-        setProfile({ ...profile, avatar: newAvatar });
+      try {
+        setUploadingAvatar(true);
+        const asset = result.assets[0];
+        const formData = new FormData();
+        formData.append("avatar", {
+          uri: asset.uri,
+          name: asset.fileName || `avatar-${Date.now()}.jpg`,
+          type: asset.mimeType || "image/jpeg",
+        } as any);
+
+        const uploadRes = await uploadAvatarApi(formData);
+        const avatarUrl = uploadRes.data?.result?.avatar || uploadRes.data?.avatar;
+
+        if (!avatarUrl) {
+          throw new Error("Không lấy được URL avatar sau khi upload");
+        }
+
+        await updateMeApi({ avatar: avatarUrl });
+
+        setProfile((prev: any) => ({ ...prev, avatar: avatarUrl }));
+        setEditDraft((prev) => ({ ...prev, avatar: avatarUrl }));
+
+        if (target === "profile") {
+          Alert.alert("Thành công", "Đã cập nhật ảnh đại diện");
+        }
+      } catch (error) {
+        console.error("Lỗi upload avatar:", error);
+        const errMsg = (error as any)?.response?.data?.message || "Upload ảnh thất bại, vui lòng thử lại";
+        Alert.alert("Lỗi", errMsg);
+      } finally {
+        setUploadingAvatar(false);
       }
     }
   };
@@ -116,7 +179,19 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const handleSave = async (payload?: any) => {
     setLoading(true);
     try {
-      await updateMeApi(payload || profile);
+      const finalPayload = payload || profile;
+      const body = {
+        displayName: finalPayload.displayName,
+        bio: finalPayload.bio,
+        avatar: finalPayload.avatar,
+        ...(finalPayload.dateOfBirth ? { date_of_birth: toIsoDate(finalPayload.dateOfBirth) } : {}),
+      };
+
+      const res = await updateMeApi(body);
+      const user = res.data?.result || res.data?.user;
+      if (user) {
+        applyProfileFromApi(user);
+      }
       Alert.alert("Thành công", "Đã cập nhật Profile!");
     } catch (error) {
       Alert.alert("Lỗi", "Cập nhật thất bại!");
@@ -158,7 +233,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       displayName: profile.displayName || "",
       bio: profile.bio || "",
       avatar: profile.avatar || "https://via.placeholder.com/150",
-      dateOfBirth: (profile as any).dateOfBirth || "",
+      dateOfBirth: formatDateFromApi((profile as any).date_of_birth),
     });
     setShowDatePicker(false);
     setShowEditModal(true);
@@ -173,16 +248,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       dateOfBirth: editDraft.dateOfBirth,
     };
     await handleSave(nextProfile);
-    setProfile(nextProfile);
     setShowDatePicker(false);
     setShowEditModal(false);
-  };
-
-  const formatDate = (date: Date) => {
-    const day = `${date.getDate()}`.padStart(2, "0");
-    const month = `${date.getMonth() + 1}`.padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
   };
 
   const parseDateString = (value: string) => {
@@ -223,7 +290,11 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               <Image source={{ uri: profile.avatar }} style={styles.avatar} />
             </View>
             <View style={[styles.cameraBadge, { backgroundColor: colors.accentAlt }]}> 
-              <Ionicons name="camera" size={16} color="white" />
+              {uploadingAvatar ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="white" />
+              )}
             </View>
           </TouchableOpacity>
 
@@ -354,7 +425,11 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 <Image source={{ uri: editDraft.avatar }} style={styles.modalAvatar} />
               </View>
               <View style={styles.modalCameraBadge}>
-                <Ionicons name="camera" size={15} color="#FFFFFF" />
+                {uploadingAvatar ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="camera" size={15} color="#FFFFFF" />
+                )}
               </View>
             </TouchableOpacity>
 
