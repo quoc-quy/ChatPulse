@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,16 @@ import {
   Alert,
   useColorScheme,
   TextInput,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
-import { kickMember, promoteAdmin } from "../apis/chat.api";
+import {
+  kickMember,
+  promoteAdmin,
+  getConversationDetail,
+} from "../apis/chat.api";
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const lightColors = {
@@ -92,23 +98,66 @@ export default function MembersScreen() {
     [isDarkMode],
   );
 
-  const [searchText, setSearchText] = useState("");
   const [memberList, setMemberList] = useState<any[]>(members);
+  const [adminIdState, setAdminIdState] = useState<string>(adminId || "");
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchText, setSearchText] = useState("");
 
-  // Filter theo search
+  // Fetch danh sách thành viên mới nhất từ API
+  const fetchMembers = useCallback(
+    async (isRefreshing = false) => {
+      if (!conversationId) return;
+      if (isRefreshing) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const res = await getConversationDetail(conversationId);
+        const conv = res.data.result;
+        const infos: any[] = conv?.participants_info || [];
+        const membersMeta: any[] = conv?.members || [];
+        const newAdminId = conv?.admin_id?.toString?.() || "";
+        setAdminIdState(newAdminId);
+        setMemberList(
+          infos.map((p: any) => {
+            const pid = (p._id || "").toString();
+            const meta = membersMeta.find(
+              (m: any) =>
+                (m.userId?.toString?.() || m._id?.toString?.()) === pid,
+            );
+            return {
+              ...p,
+              role: meta?.role || (pid === newAdminId ? "admin" : "member"),
+            };
+          }),
+        );
+      } catch {
+        // fallback: giữ nguyên data cũ nếu fetch lỗi
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [conversationId],
+  );
+
+  // Fetch khi mount
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  const onRefresh = () => fetchMembers(true);
+
+  // Sort + Filter: nhóm trưởng luôn đầu, còn lại A-Z
   const filtered = useMemo(() => {
     const getName = (m: any) =>
       (m.fullName || m.userName || m.username || "").toLowerCase();
+
     const sorted = [...memberList].sort((a, b) => {
-      const aIsAdmin =
-        a.role === "admin" || (a._id || a.userId || "").toString() === adminId;
-      const bIsAdmin =
-        b.role === "admin" || (b._id || b.userId || "").toString() === adminId;
-      // Admin luôn lên đầu
+      const aIsAdmin = (a._id || a.userId || "").toString() === adminIdState;
+      const bIsAdmin = (b._id || b.userId || "").toString() === adminIdState;
+
       if (aIsAdmin && !bIsAdmin) return -1;
       if (!aIsAdmin && bIsAdmin) return 1;
-
-      // Còn lại sắp xếp A-Z theo tên
       return getName(a).localeCompare(getName(b), "vi");
     });
 
@@ -119,9 +168,9 @@ export default function MembersScreen() {
       const phone = (m.phone || "").toLowerCase();
       return name.includes(q) || phone.includes(q);
     });
-  }, [memberList, searchText, adminId]);
+  }, [memberList, searchText, adminIdState]);
 
-  const currentUserIsAdmin = adminId === currentUserId;
+  const currentUserIsAdmin = adminIdState === currentUserId;
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const handleLongPress = (member: any) => {
@@ -130,10 +179,11 @@ export default function MembersScreen() {
     if (memberId === currentUserId) return;
 
     const name = member.fullName || member.userName || "Thành viên";
-    const role = member.role;
+    // ✅ Dùng adminIdState — không cho kick/promote admin hiện tại
+    const isTargetAdmin = memberId === adminIdState;
 
     const options: any[] = [];
-    if (role !== "admin") {
+    if (!isTargetAdmin) {
       options.push({
         text: "👑 Thăng lên Admin",
         onPress: () => handlePromote(memberId),
@@ -161,11 +211,7 @@ export default function MembersScreen() {
         onPress: async () => {
           try {
             await kickMember(conversationId, memberId);
-            setMemberList((prev) =>
-              prev.filter(
-                (m) => (m._id || m.userId || "").toString() !== memberId,
-              ),
-            );
+            fetchMembers(); // ✅ Refetch từ API
           } catch {
             Alert.alert("Lỗi", "Không thể xóa thành viên.");
           }
@@ -182,14 +228,7 @@ export default function MembersScreen() {
         onPress: async () => {
           try {
             await promoteAdmin(conversationId, memberId);
-            // Cập nhật role local
-            setMemberList((prev) =>
-              prev.map((m) =>
-                (m._id || m.userId || "").toString() === memberId
-                  ? { ...m, role: "admin" }
-                  : m,
-              ),
-            );
+            fetchMembers(); // ✅ Refetch từ API
           } catch {
             Alert.alert("Lỗi", "Không thể thăng cấp.");
           }
@@ -202,10 +241,11 @@ export default function MembersScreen() {
   const renderItem = ({ item }: any) => {
     const memberId = (item._id || item.userId || "").toString();
     const isMe = memberId === currentUserId;
-    const isAdmin = item.role === "admin" || memberId === adminId;
+    // ✅ Chỉ dùng adminIdState làm source of truth — tránh 2 admin
+    const isAdmin = memberId === adminIdState;
     const name =
       item.fullName || item.userName || item.username || "Thành viên";
-    const sub = isAdmin ? "Trưởng nhóm" : "";
+    const sub = item.phone || item.bio || "";
 
     return (
       <TouchableOpacity
@@ -350,23 +390,41 @@ export default function MembersScreen() {
       </View>
 
       {/* List */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item, index) =>
-          (item._id || item.userId || index).toString()
-        }
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={48} color={COLORS.border} />
-            <Text style={[styles.emptyText, { color: COLORS.mutedForeground }]}>
-              Không tìm thấy thành viên
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <ActivityIndicator
+          color={COLORS.primary}
+          size="large"
+          style={{ marginTop: 40 }}
+        />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item, index) =>
+            (item._id || item.userId || index).toString()
+          }
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="people-outline" size={48} color={COLORS.border} />
+              <Text
+                style={[styles.emptyText, { color: COLORS.mutedForeground }]}
+              >
+                Không tìm thấy thành viên
+              </Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
