@@ -9,6 +9,7 @@ interface UserType {
   phone: string
   avatar?: string
   bio?: string
+  show_date_of_birth?: boolean
   gender?: string
   forgot_password_token?: string
   last_active_at?: Date
@@ -25,6 +26,7 @@ export default class User {
   email: string
   avatar: string
   bio: string
+  show_date_of_birth: boolean
   phone: string
   gender: string
   forgot_password_token: string
@@ -41,6 +43,7 @@ export default class User {
     email,
     avatar,
     bio,
+    show_date_of_birth,
     phone,
     gender,
     forgot_password_token,
@@ -57,6 +60,7 @@ export default class User {
     this.email = email
     this.avatar = avatar || ''
     this.bio = bio || ''
+    this.show_date_of_birth = show_date_of_birth ?? true
     this.phone = phone || ''
     this.gender = gender || ''
     this.forgot_password_token = forgot_password_token || ''
