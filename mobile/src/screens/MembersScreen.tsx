@@ -245,7 +245,7 @@ export default function MembersScreen() {
     const isAdmin = memberId === adminIdState;
     const name =
       item.fullName || item.userName || item.username || "Thành viên";
-    const sub = item.phone || item.bio || "";
+    const roleText = isAdmin ? "Trưởng nhóm" : "Thành viên";
 
     return (
       <TouchableOpacity
@@ -283,12 +283,12 @@ export default function MembersScreen() {
               </View>
             )}
           </View>
-          {sub ? (
+          {roleText ? (
             <Text
               style={[styles.sub, { color: COLORS.mutedForeground }]}
               numberOfLines={1}
             >
-              {sub}
+              {roleText}
             </Text>
           ) : null}
         </View>
