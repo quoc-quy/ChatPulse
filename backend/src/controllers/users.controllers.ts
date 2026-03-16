@@ -12,6 +12,9 @@ import {
 } from '~/models/requests/users.requests'
 import User from '~/models/schemas/user.schema'
 import userService from '~/services/user.services'
+import { uploadImageBufferToCloudinary } from '~/utils/cloudinary'
+import { ErrorWithStatus } from '~/models/errors'
+import httpStatus from '~/constants/httpStatus'
 export const loginController = async (req: Request, res: Response) => {
   const user = req.user as User
   const user_id = user._id as ObjectId
@@ -135,5 +138,23 @@ export const searchUserController = async (req: Request, res: Response) => {
   return res.json({
     message: 'Tìm kiếm người dùng thành công',
     result
+  })
+}
+
+export const uploadAvatarController = async (req: Request, res: Response) => {
+  if (!req.file?.buffer) {
+    throw new ErrorWithStatus({
+      message: 'Không tìm thấy file avatar',
+      status: httpStatus.BAD_REQUEST
+    })
+  }
+
+  const avatarUrl = await uploadImageBufferToCloudinary(req.file.buffer)
+
+  return res.json({
+    message: 'Upload avatar thành công',
+    result: {
+      avatar: avatarUrl
+    }
   })
 }

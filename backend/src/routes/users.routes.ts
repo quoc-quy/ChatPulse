@@ -9,6 +9,7 @@ import {
   logoutController,
   registerController,
   searchUserController,
+  uploadAvatarController,
   unBlockUserController,
   updateMeController
 } from '~/controllers/users.controllers'
@@ -23,8 +24,10 @@ import {
   updateMeValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
+import multer from 'multer'
 
 const usersRouter = Router()
+const upload = multer({ storage: multer.memoryStorage() })
 
 /**
  * Get me
@@ -37,6 +40,18 @@ usersRouter.get('/me', accessTokenValidator, wrapRequestHandler(getMeController)
  * Header: {Authorization: Bearer <access_token>}
  */
 usersRouter.patch('/update-profile', accessTokenValidator, updateMeValidator, wrapRequestHandler(updateMeController))
+
+/**
+ * Upload avatar image
+ * Header: {Authorization: Bearer <access_token>}
+ * Body form-data: avatar=<file>
+ */
+usersRouter.post(
+  '/upload-avatar',
+  accessTokenValidator,
+  upload.single('avatar'),
+  wrapRequestHandler(uploadAvatarController)
+)
 
 /**
  * Change password
