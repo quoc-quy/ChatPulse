@@ -7,6 +7,7 @@ import { getInitials } from '@/utils/common'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { toast } from 'react-toastify'
+import userApi from '@/apis/user.api'
 
 export default function FriendPage() {
   const queryClient = useQueryClient()
@@ -15,7 +16,57 @@ export default function FriendPage() {
     queryFn: friendApi.getListFriend
   })
 
+  const { data: blockedData, refetch } = useQuery({
+    queryKey: ['blockedUsers'],
+    queryFn: userApi.getListBlockedUser
+  })
+
+  const blockedIds = blockedData?.data.result?.map((item: any) => item.blocked_user_id) || []
+
   const listFriends: User[] = data?.data.result || []
+
+  const unFriendMutation = useMutation({
+    mutationFn: (friend_id: string) => friendApi.unFriend({ friend_id }),
+    onSuccess: () => {
+      toast.success('Hủy kết bạn thành công')
+
+      queryClient.invalidateQueries({
+        queryKey: ['friendList']
+      })
+    }
+  })
+
+  const blockUserMutation = useMutation({
+    mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
+    onSuccess: (data) => {
+      toast.success(data.data.message)
+
+      queryClient.invalidateQueries({ queryKey: ['blockedUsers'] })
+      queryClient.invalidateQueries({ queryKey: ['friendList'] })
+    }
+  })
+
+  const unBlockMutation = useMutation({
+    mutationFn: (user_id: string) => userApi.unBlockUser(user_id),
+    onSuccess: (data) => {
+      toast.success(data.data.message)
+
+      queryClient.invalidateQueries({ queryKey: ['blockedUsers'] })
+      queryClient.invalidateQueries({ queryKey: ['friendList'] })
+    }
+  })
+
+  const handleUnfriend = (user_id: string) => {
+    unFriendMutation.mutate(user_id)
+  }
+
+  const handleBlock = (friend_id: string) => {
+    blockUserMutation.mutate(friend_id)
+  }
+
+  const handleUnBlock = (friend_id: string) => {
+    unBlockMutation.mutate(friend_id)
+  }
 
   return (
     <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
@@ -47,6 +98,7 @@ export default function FriendPage() {
         </div>
         <div className='mb-5'>
           {listFriends.map((friend) => {
+            const isBlocked = blockedIds.includes(friend._id)
             return (
               <div
                 key={friend.userName}
@@ -95,13 +147,26 @@ export default function FriendPage() {
 
                         <div className='border border-gray-200' />
 
-                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'>
-                          Chặn người dùng
+                        <button
+                          onClick={() => {
+                            if (isBlocked) {
+                              handleUnBlock(friend._id)
+                            } else {
+                              handleBlock(friend._id)
+                            }
+                          }}
+                          className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'
+                          disabled={blockUserMutation.isPending || unBlockMutation.isPending}
+                        >
+                          {isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}
                         </button>
 
                         <div className='border border-gray-200' />
 
-                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer'>
+                        <button
+                          onClick={() => handleUnfriend(friend._id)}
+                          className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer'
+                        >
                           Hủy kết bạn
                         </button>
                       </div>
