@@ -1,21 +1,21 @@
 import friendApi from '@/apis/friend.api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
-import { useEffect } from 'react'
+import { toast } from 'react-toastify'
 
 export default function FriendPage() {
+  const queryClient = useQueryClient()
   const { data } = useQuery({
     queryKey: ['friendList'],
     queryFn: friendApi.getListFriend
   })
 
   const listFriends: User[] = data?.data.result || []
-
-  useEffect(() => {}, [])
 
   return (
     <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
@@ -68,20 +68,46 @@ export default function FriendPage() {
                   )}
                   <p>{friend.userName}</p>
                 </div>
-                <svg
-                  xmlns='http://www.w3.org/2000/svg'
-                  fill='none'
-                  viewBox='0 0 24 24'
-                  stroke-width='1.5'
-                  stroke='currentColor'
-                  className='size-7'
-                >
-                  <path
-                    stroke-linecap='round'
-                    stroke-linejoin='round'
-                    d='M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z'
-                  />
-                </svg>
+                <div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className='p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 cursor-pointer'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          viewBox='0 0 24 24'
+                          fill='currentColor'
+                          className='size-7'
+                        >
+                          <path
+                            fill-rule='evenodd'
+                            d='M4.5 12a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z'
+                            clip-rule='evenodd'
+                          />
+                        </svg>
+                      </button>
+                    </PopoverTrigger>
+
+                    <PopoverContent align='end' className='w-48 p-2 border-gray-200'>
+                      <div className='flex flex-col gap-1'>
+                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'>
+                          Xem thông tin
+                        </button>
+
+                        <div className='border border-gray-200' />
+
+                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'>
+                          Chặn người dùng
+                        </button>
+
+                        <div className='border border-gray-200' />
+
+                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer'>
+                          Hủy kết bạn
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             )
           })}
