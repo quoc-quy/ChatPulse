@@ -33,7 +33,7 @@ const lightColors = {
   textLight: "#64748B",  // Khớp với lightTheme textSecondary
   border: "#E2E8F0",     // Khớp với lightTheme border
   primary: "#6366F1",    // Khớp với lightTheme accent
-  accent: "#8B5CF6",     // Khớp với lightTheme accentAlt
+  accent: "#711cc1",     // Khớp với lightTheme accentAlt
   success: "#10B981",    
   badge: "#EF4444",      // Khớp với danger
   headerText: "#FFFFFF", 
@@ -46,8 +46,8 @@ const darkColors = {
   text: "#F8FAFC",       // Khớp với darkTheme textPrimary
   textLight: "#9CA3AF",  // Khớp với darkTheme textSecondary
   border: "#1E2946",     // Khớp với darkTheme border
-  primary: "#7C3AED",    // Khớp với darkTheme accent
-  accent: "#A855F7",     // Khớp với darkTheme accentAlt
+  primary: "#1c0249",    // Khớp với darkTheme accent
+  accent: "#711cc1",     // Khớp với darkTheme accentAlt
   success: "#10B981",    
   badge: "#EF4444",      // Khớp với danger
   headerText: "#FFFFFF", 
@@ -310,7 +310,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     title: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginLeft: 20 },
     subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginLeft: 20 },
-    headerIcons: { flexDirection: "row" },
+    headerIcons: { flexDirection: "row", right: 20 },
     iconBtn: {
       width: 40,
       height: 40,
@@ -340,7 +340,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     tabText: { fontSize: 14, color: COLORS.textLight, fontWeight: "600" },
     tabTextActive: { color: "#FFFFFF" },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
-    listContent: { paddingHorizontal: 16, paddingBottom: 20 },
+    listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
     chatCard: {
       flexDirection: "row",
       backgroundColor: COLORS.surface, 
