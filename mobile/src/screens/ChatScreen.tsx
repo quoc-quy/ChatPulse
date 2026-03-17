@@ -201,6 +201,7 @@ const ChatScreen = () => {
               {messageContent}
             </Text>
             {unread > 0 && (
+
               <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.badge}>
                 <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
               </LinearGradient>
@@ -310,8 +311,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginTop: 10,
       marginBottom: 15,
     },
-    title: { fontSize: 28, fontWeight: "800", color: "#FFFFFF" },
-    subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)" },
+    title: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginLeft: 20 },
+    subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginLeft: 20 },
     headerIcons: { flexDirection: "row" },
     iconBtn: {
       width: 40,
@@ -334,6 +335,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       paddingHorizontal: 16,
       borderRadius: 20,
       marginRight: 10,
+      bottom: -7,
       backgroundColor: isDarkMode ? "#2A2A30" : "#E5E7EB",
     },
     tabButtonActive: { backgroundColor: COLORS.primary },
