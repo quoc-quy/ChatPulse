@@ -17,6 +17,7 @@ import SentRequestsScreen from "./src/screens/SentRequestsScreen";
 import ConversationDetailScreen from "./src/screens/ConversationDetail";
 import MembersScreen from "./src/screens/MembersScreen";
 import AddMemberScreen from "./src/screens/AddMembersScreen";
+import UserProfileScreen from "./src/screens/UserProfileScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -92,6 +93,14 @@ export default function App() {
             <Stack.Screen
               name="ConversationDetail"
               component={ConversationDetailScreen}
+              options={{
+                headerShown: false,
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="UserProfile"
+              component={UserProfileScreen}
               options={{
                 headerShown: false,
                 animation: "slide_from_right",
