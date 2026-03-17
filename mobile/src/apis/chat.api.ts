@@ -84,3 +84,19 @@ export const leaveGroup = (conversationId: string) => {
 export const promoteAdmin = (conversationId: string, memberId: string) => {
   return api.patch(`/conversations/${conversationId}/admin`, { memberId });
 };
+
+// Gửi mảng tin nhắn lên Backend thật để xử lý qua Groq AI
+export const summarizeChatApi = (messages: any[]) => {
+  // Thay đổi đường dẫn '/conversations/summarize' cho khớp với route bạn đã khai báo bên backend
+  return api.post(`/conversations/summarize`, { 
+    messages: messages 
+  });
+};
+
+// API để chat liên tục với AI (gửi kèm bối cảnh chat và câu hỏi mới)
+export const askChatPulseAIApi = (chatContext: any[], prompt: string) => {
+  return api.post(`/conversations/ask-ai`, { 
+    context: chatContext,
+    question: prompt 
+  });
+};  

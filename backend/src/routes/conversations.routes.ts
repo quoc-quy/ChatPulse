@@ -6,7 +6,9 @@ import {
   markConversationAsSeenController,
   updateGroupController
 } from '~/controllers/conversations.controllers'
+import { summarizeChatController } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
+import { askAiController } from '~/controllers/conversations.controllers'
 import { wrapRequestHandler } from '~/utils/handlers'
 import { addMembersController, kickMemberController, pinController, leaveGroupController, promoteAdminController } from '~/controllers/group.controllers'
 
@@ -95,6 +97,10 @@ chatRouter.patch('/:id/admin', accessTokenValidator, wrapRequestHandler(promoteA
  * Body: { is_pin: boolean }
  */
 chatRouter.patch('/:id/pin', accessTokenValidator, wrapRequestHandler(pinController))
+
+chatRouter.post('/summarize', accessTokenValidator, wrapRequestHandler(summarizeChatController)) // Nhớ thêm middleware accessTokenValidator nếu cần bảo mật nhé
+
+chatRouter.post('/ask-ai', askAiController)
 
 
 export default chatRouter
