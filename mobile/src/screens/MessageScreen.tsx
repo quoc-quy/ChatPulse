@@ -15,12 +15,14 @@ import {
   Modal,
   Pressable,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from 'expo-blur';
 
 import {
   getMessages,
@@ -29,7 +31,6 @@ import {
   recallMessage as recallMessageApi,
   deleteMessageForMe as deleteMessageForMeApi,
   summarizeChatApi,
-  askChatPulseAIApi, // <-- Nhớ khai báo hàm này trong chat.api.ts
 } from "../apis/chat.api";
 
 // ==========================================
@@ -67,7 +68,6 @@ const MessageScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const flatListRef = useRef<FlatList>(null);
-  const aiFlatListRef = useRef<FlatList>(null); // Ref cho danh sách chat với AI
   const lastTap = useRef(0);
 
   const isDarkMode = useColorScheme() === "dark";
@@ -79,6 +79,7 @@ const MessageScreen = () => {
     name: chatName,
     isGroup,
     targetUserId,
+    unreadCount = 0, // <-- Hứng biến số tin chưa đọc từ ChatScreen truyền sang
   } = route.params || {};
 
   const [messages, setMessages] = useState<any[]>([]);
@@ -87,18 +88,18 @@ const MessageScreen = () => {
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+
 
   // --- STATE REACTION & MENU ---
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
-  // --- STATE CHO CHỨC NĂNG AI CHAT TƯƠNG TÁC ---
+  // --- STATE CHO CHỨC NĂNG AI SUMMARY ---
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-  const [aiMessages, setAiMessages] = useState<any[]>([]); // Lưu các đoạn chat với AI
-  const [aiInputText, setAiInputText] = useState(""); // Ô nhập liệu để hỏi AI
-  const [isAiReplying, setIsAiReplying] = useState(false); // Trạng thái AI đang suy nghĩ
+  const [aiSummaryText, setAiSummaryText] = useState("");
 
   const fetchCurrentUserId = async () => {
     try {
@@ -134,65 +135,51 @@ const MessageScreen = () => {
     fetchCurrentUserId().then(() => fetchInitialMessages());
   }, [conversationId]);
 
-  // --- LOGIC GỌI AI TÓM TẮT BAN ĐẦU ---
+
   const handleSummarizeChat = async () => {
-    if (messages.length === 0) {
-      Alert.alert("Chưa có dữ liệu", "Đoạn chat hiện tại chưa có tin nhắn nào để AI tổng hợp.");
+    if (unreadCount === 0) {
+      Alert.alert("Thông báo", "Bạn đã đọc hết tin nhắn rồi!");
       return;
     }
 
-    setIsSummarizing(true);
+    setShowAiModal(true); // Mở modal ngay lập tức
+    setIsAiProcessing(true); // Bật trạng thái chờ
+    setAiSummaryText(""); // Xóa text cũ
+
     try {
-      const messagesToSend = [...messages].reverse().slice(-20);
+      const messagesToSend = messages.slice(-unreadCount);
       const response = await summarizeChatApi(messagesToSend);
 
-      if (response.data && response.data.result) {
-        // Mở modal và đưa lời tóm tắt vào làm tin nhắn đầu tiên của AI
-        setAiMessages([
-          { id: Date.now().toString(), role: "ai", text: response.data.result }
-        ]);
-        setShowAiModal(true);
-      }
-    } catch (error) {
-      console.log("CHI TIẾT LỖI AI:", error);
-      Alert.alert("Lỗi", "Không thể gọi AI lúc này. Vui lòng thử lại sau.");
-    } finally {
-      setIsSummarizing(false);
-    }
-  };
-
-  // --- LOGIC HỎI ĐÁP TIẾP THEO VỚI AI ---
-  const handleSendAi = async () => {
-    if (aiInputText.trim().length === 0) return;
-    
-    const userQuestion = aiInputText.trim();
-    setAiInputText("");
-    
-    // Thêm câu hỏi của mình vào màn hình AI
-    const newUserMsg = { id: Date.now().toString(), role: "user", text: userQuestion };
-    setAiMessages((prev) => [...prev, newUserMsg]);
-    setIsAiReplying(true);
-
-    try {
-      const chatContext = [...messages].reverse().slice(-20); 
-      // Gọi API hỏi đáp (Bạn cần làm API này ở Backend)
-      const response = await askChatPulseAIApi(chatContext, userQuestion);
-      
-      if (response.data && response.data.result) {
-        const newAiMsg = { id: (Date.now() + 1).toString(), role: "ai", text: response.data.result };
-        setAiMessages((prev) => [...prev, newAiMsg]);
-      }
-    } catch (error) {
-      console.log("Lỗi hỏi AI:", error);
-      const errorMsg = { id: (Date.now() + 1).toString(), role: "ai", text: "Xin lỗi, AI đang gặp sự cố kết nối." };
-      setAiMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsAiReplying(false);
+      // Tạo hiệu ứng delay giả lập để người dùng thấy AI đang "suy nghĩ"
       setTimeout(() => {
-        aiFlatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+        if (response.data?.result) {
+          setAiSummaryText(response.data.result);
+          setIsAiProcessing(false);
+        }
+      }, 1500);
+
+    } catch (error) {
+      setShowAiModal(false);
+      Alert.alert("Lỗi", "AI đang bận, thử lại sau nhé!");
     }
   };
+
+  const scrollToMessage = (messageId: string) => {
+    const index = messages.findIndex((m) => m._id === messageId);
+    if (index !== -1) {
+      setShowAiModal(false); // Đóng modal tóm tắt
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index,
+          animated: true,
+          viewPosition: 0.5, // Đưa tin nhắn ra giữa màn hình
+        });
+      }, 300);
+    }
+  };
+
+
+
 
   const handleToggleReact = async (message: any, emoji: string) => {
     if (!message || message.type === "revoked") return;
@@ -317,7 +304,45 @@ const MessageScreen = () => {
     });
   };
 
-  // --- RENDER TIN NHẮN BÌNH THƯỜNG ---
+const renderAiText = (text: string) => {
+  if (!text) return null;
+
+  // Regex bắt được cả [xem:ID] và **Text**
+  const parts = text.split(/(\[xem:.*?\]|\*\*.*?\*\*)/g);
+
+  return (
+    <Text style={styles.aiText}>
+      {parts.map((part, index) => {
+        // 1. Xử lý Link [xem:ID]
+        if (part.startsWith("[xem:") && part.endsWith("]")) {
+          const msgId = part.slice(5, -1);
+          return (
+            <Text
+              key={index}
+              style={styles.aiLink}
+              onPress={() => scrollToMessage(msgId)}
+            >
+              {" "}(Xem){" "}
+            </Text>
+          );
+        }
+
+        // 2. Xử lý In đậm tên người chat **Tên**
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return (
+            <Text key={index} style={{ fontWeight: "900", color: "#A78BFA" }}>
+              {part.slice(2, -2)}
+            </Text>
+          );
+        }
+
+        // 3. Văn bản bình thường
+        return <Text key={index}>{part}</Text>;
+      })}
+    </Text>
+  );
+};
+
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
@@ -445,25 +470,6 @@ const MessageScreen = () => {
     );
   };
 
-  // --- RENDER BONG BÓNG CHAT TRONG MODAL AI ---
-  const renderAiMessage = ({ item }: { item: any }) => {
-    const isUser = item.role === "user";
-    return (
-      <View style={[styles.aiMsgWrapper, isUser ? styles.aiMsgUserWrapper : styles.aiMsgBotWrapper]}>
-        {!isUser && (
-          <View style={styles.aiBotIcon}>
-            <Ionicons name="sparkles" size={16} color="#FFD700" />
-          </View>
-        )}
-        <View style={[styles.aiBubble, isUser ? styles.aiBubbleUser : styles.aiBubbleBot]}>
-          <Text style={[styles.aiMsgText, { color: isUser ? "#FFF" : COLORS.text }]}>
-            {item.text}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
@@ -477,7 +483,6 @@ const MessageScreen = () => {
           </View>
         </View>
         <View style={styles.headerRight}>
-          {/* NÚT AI */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={handleSummarizeChat}
@@ -511,7 +516,6 @@ const MessageScreen = () => {
         </View>
       </LinearGradient>
 
-      {/* KHU VỰC CHAT CHÍNH */}
       <KeyboardAvoidingView
         style={styles.chatArea}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -542,7 +546,6 @@ const MessageScreen = () => {
         </View>
       </KeyboardAvoidingView>
 
-      {/* --- MENU MODAL (THU HỒI, XOÁ) --- */}
       <Modal visible={showMenu} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowMenu(false)}>
           <View style={[styles.menuBox, { top: menuPos.y }]}>
@@ -573,68 +576,51 @@ const MessageScreen = () => {
         </Pressable>
       </Modal>
 
-      {/* --- MODAL AI TƯƠNG TÁC XỊN XÒ --- */}
-      <Modal visible={showAiModal} transparent animationType="slide">
-        <KeyboardAvoidingView 
-          style={styles.aiOverlay} 
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+      {/* --- MODAL AI SUMMARY ĐẸP MẮT (CHỈ HIỂN THỊ TÓM TẮT TĨNH) --- */}
+      <Modal visible={showAiModal} transparent animationType="fade">
+        <View style={styles.aiOverlay}>
+          {/* Lớp nền mờ huyền bí */}
+          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+
           <View style={styles.aiContainer}>
-            {/* Header của Modal AI */}
-            <LinearGradient colors={["#6D28D9", "#312E81"]} style={styles.aiHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Ionicons name="sparkles" size={24} color="#FFD700" style={{ marginRight: 8 }} />
-                <Text style={styles.aiTitle}>Hỏi đáp cùng AI</Text>
+            <LinearGradient
+              colors={["#1e1b4b", "#0f172a"]}
+              style={styles.aiHeader}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={20} color="#A78BFA" style={{ marginRight: 8 }} />
+                <Text style={styles.aiTitle}>AI TỔNG HỢP</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowAiModal(false)} style={{ padding: 4 }}>
-                <Ionicons name="close" size={26} color="#FFFFFF" />
+              <TouchableOpacity onPress={() => setShowAiModal(false)}>
+                <Ionicons name="close-circle" size={24} color="#475569" />
               </TouchableOpacity>
             </LinearGradient>
 
-            {/* Danh sách trò chuyện với AI */}
-            <FlatList
-              ref={aiFlatListRef}
-              data={aiMessages}
-              keyExtractor={(item) => item.id}
-              renderItem={renderAiMessage}
-              contentContainerStyle={styles.aiChatContent}
-              showsVerticalScrollIndicator={false}
-            />
+            <ScrollView style={styles.aiContent} showsVerticalScrollIndicator={false}>
+              {isAiProcessing ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#8B5CF6" />
+                  <Text style={styles.loadingText}>Đang giải mã bối cảnh...</Text>
+                </View>
+              ) : (
+                <Text style={styles.aiText}>
+                  {renderAiText(aiSummaryText)}
+                </Text>
+              )}
+            </ScrollView>
 
-            {/* Hiệu ứng Loading khi AI đang nghĩ */}
-            {isAiReplying && (
-              <View style={styles.aiLoadingContainer}>
-                <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 8 }} />
-                <Text style={{ color: COLORS.textLight, fontSize: 13 }}>AI đang suy nghĩ...</Text>
+            {!isAiProcessing && (
+              <View style={styles.aiFooter}>
+                <TouchableOpacity onPress={() => setShowAiModal(false)} activeOpacity={0.8}>
+                  <LinearGradient colors={["#5b21b6", "#1e1b4b"]} style={styles.aiBtn}>
+                    <Text style={styles.aiBtnText}>Đã hiểu</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             )}
-
-            {/* Khung nhập liệu hỏi AI */}
-            <View style={styles.aiInputArea}>
-              <TextInput
-                style={styles.aiInput}
-                placeholder="Hỏi AI thêm về đoạn chat..."
-                placeholderTextColor={COLORS.textLight}
-                value={aiInputText}
-                onChangeText={setAiInputText}
-                onSubmitEditing={handleSendAi}
-              />
-              <TouchableOpacity 
-                onPress={handleSendAi} 
-                disabled={isAiReplying || !aiInputText.trim()}
-              >
-                <LinearGradient 
-                  colors={aiInputText.trim() ? [COLORS.primary, COLORS.accent] : ["#9CA3AF", "#9CA3AF"]} 
-                  style={styles.aiSendBtn}
-                >
-                  <Ionicons name="arrow-up" size={20} color="white" />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
-
     </SafeAreaView>
   );
 };
@@ -665,6 +651,75 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       alignItems: "flex-end",
       marginBottom: 10,
+    },
+    aiOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.85)", // Tối hơn để tạo chiều sâu
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 25,
+    },
+    aiContainer: {
+      width: "100%",
+      backgroundColor: "#0F172A", // Màu xanh đen cực tối
+      borderRadius: 30,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: "#1E293B", // Viền mỏng tinh tế
+      shadowColor: "#8B5CF6",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 20,
+      elevation: 20,
+    },
+    aiHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingVertical: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: "#1E293B",
+    },
+    aiTitle: {
+      color: "#F8FAFC",
+      fontSize: 14,
+      fontWeight: "800",
+      letterSpacing: 2, // Tạo cảm giác hiện đại
+    },
+    aiText: {
+      color: "#E2E8F0", // Chữ sáng trên nền tối
+      fontSize: 16,
+      lineHeight: 28,
+      textAlign: "left",
+    },
+    loadingContainer: {
+      paddingVertical: 40,
+      alignItems: "center",
+    },
+    loadingText: {
+      marginTop: 15,
+      color: "#94A3B8",
+      fontSize: 14,
+      fontStyle: "italic",
+    },
+    aiBtn: {
+      paddingVertical: 15,
+      borderRadius: 20,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: "#4C1D95",
+    },
+    aiBtnText: {
+      color: "#DDD6FE",
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: 1,
+    },
+    aiLink: {
+      color: "#8B5CF6", // Màu tím neon cho Link
+      textDecorationLine: "underline",
+      fontWeight: "bold",
     },
     messageWrapperMe: { justifyContent: "flex-end" },
     messageWrapperOther: { justifyContent: "flex-start" },
@@ -794,109 +849,19 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
 
     // ==========================================
-    // STYLES CHO MODAL AI CHAT TƯƠNG TÁC
+    // STYLES CHO MODAL AI SUMMARY 
     // ==========================================
-    aiOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.6)",
-      justifyContent: "flex-end", // Ép modal nằm dưới cùng màn hình
-    },
-    aiContainer: {
-      height: "85%", // Kích thước bằng 85% chiều cao màn hình
-      backgroundColor: COLORS.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      overflow: "hidden",
-      elevation: 20,
-    },
-    aiHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+
+    aiContent: {
+      maxHeight: 350,
       paddingHorizontal: 20,
-      paddingVertical: 16,
-    },
-    aiTitle: {
-      color: "#FFFFFF",
-      fontSize: 18,
-      fontWeight: "700",
-    },
-    aiChatContent: {
-      paddingHorizontal: 16,
       paddingVertical: 20,
     },
-    aiMsgWrapper: {
-      flexDirection: "row",
-      marginBottom: 16,
-      alignItems: "flex-end",
-    },
-    aiMsgUserWrapper: {
-      justifyContent: "flex-end",
-    },
-    aiMsgBotWrapper: {
-      justifyContent: "flex-start",
-      paddingRight: 40,
-    },
-    aiBotIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: "rgba(109, 40, 217, 0.1)",
-      justifyContent: "center",
-      alignItems: "center",
-      marginRight: 8,
-    },
-    aiBubble: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 18,
-      maxWidth: "85%",
-    },
-    aiBubbleUser: {
-      backgroundColor: COLORS.primary,
-      borderBottomRightRadius: 4,
-    },
-    aiBubbleBot: {
-      backgroundColor: isDarkMode ? "#2A2A30" : "#F3F4F6",
-      borderBottomLeftRadius: 4,
-    },
-    aiMsgText: {
-      fontSize: 15,
-      lineHeight: 24,
-    },
-    aiLoadingContainer: {
-      flexDirection: "row",
-      alignItems: "center",
+
+    aiFooter: {
       paddingHorizontal: 20,
-      paddingBottom: 15,
-    },
-    aiInputArea: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 15,
-      paddingVertical: 12,
-      borderTopWidth: 1,
-      borderColor: COLORS.border,
-      backgroundColor: COLORS.surface,
-    },
-    aiInput: {
-      flex: 1,
-      backgroundColor: COLORS.background,
-      color: COLORS.text,
-      borderRadius: 24,
-      paddingHorizontal: 18,
-      paddingVertical: Platform.OS === "ios" ? 12 : 8,
-      fontSize: 15,
-      maxHeight: 100,
-    },
-    aiSendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: "center",
-      alignItems: "center",
-      marginLeft: 10,
-      elevation: 2,
+      paddingBottom: 20,
+      paddingTop: 10,
     },
   });
 

@@ -171,6 +171,7 @@ const ChatScreen = () => {
             name: chatName,
             isGroup: item.type === "group",
             targetUserId: targetUserId,
+            unreadCount: item.unread_count || 0,
           })
         }
       >

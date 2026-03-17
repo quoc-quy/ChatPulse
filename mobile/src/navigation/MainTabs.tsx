@@ -1,71 +1,445 @@
-import React from "react";
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { MessageCircle, Users, User } from "lucide-react-native"; // Dùng thư viện icon bạn đã cài
+import { MessageCircle, Users, User, Sparkles, X, ArrowUpCircle, Phone } from "lucide-react-native"; 
+import { LinearGradient } from "expo-linear-gradient";
 
-// Import các màn hình của bạn
+// Import API
+import { askChatPulseAIApi } from "../apis/chat.api";
+
+// Import các màn hình thực tế của bạn
 import ChatScreen from "../screens/ChatScreen";
 import FriendsScreen from "../screens/FriendsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
-// Nếu chưa tạo ProfileScreen, bạn có thể tạo 1 file tạm hoặc comment dòng này lại
-// import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
+
 interface MainTabsProps {
   onLogout: () => void;
   navigation: any;
   route: any;
 }
-const MainTabs = ({ onLogout }: MainTabsProps) => {
+
+const DummyScreen = () => <View style={{ flex: 1, backgroundColor: '#111111' }} />;
+
+const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
+  const [isAiVisible, setIsAiVisible] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [aiMessages, setAiMessages] = useState<any[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  
+  const flatListRef = useRef<FlatList>(null);
+  const tabNavRef = useRef<any>(null); 
+
+  const openAiPulse = () => {
+    setIsAiVisible(true);
+    setIsConnecting(true);
+
+    if (aiMessages.length === 0) {
+      setTimeout(() => {
+        setIsConnecting(false);
+        setAiMessages([
+          {
+            id: Date.now().toString(),
+            role: "ai",
+            text: "Xin chào. Tôi là AI Pulse. Không gian tĩnh lặng này là dành cho bạn. Bạn cần tôi giúp gì?",
+          },
+        ]);
+      }, 2000);
+    } else {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleSendAi = async () => {
+    if (!inputText.trim()) return;
+
+    const userQuestion = inputText.trim();
+    const userMsg = { id: Date.now().toString(), role: "user", text: userQuestion };
+
+    const currentHistory = [...aiMessages];
+
+    setAiMessages((prev) => [...prev, userMsg]);
+    setInputText("");
+    setIsAiTyping(true);
+
+    try {
+      const formattedContext = currentHistory.map(msg => ({
+        sender: { userName: msg.role === 'ai' ? 'AI Pulse' : 'Tôi' },
+        content: msg.text
+      }));
+
+      const response = await askChatPulseAIApi(formattedContext, userQuestion);
+
+      if (response.data && response.data.result) {
+        const aiResponse = {
+          id: (Date.now() + 1).toString(),
+          role: "ai",
+          text: response.data.result, 
+        };
+        setAiMessages((prev) => [...prev, aiResponse]);
+      }
+    } catch (error) {
+      console.log("Lỗi gọi AI Pulse:", error);
+      const errorMsg = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        text: "Đường truyền thần giao cách cảm đang bị nhiễu. Vui lòng thử lại sau nhé!",
+      };
+      setAiMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsAiTyping(false);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
+
+  // ==========================================
+  // HÀM DỊCH LINK ĐÃ ĐƯỢC LÀM ĐẸP
+  // ==========================================
+  const renderAiTextWithLinks = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(\[[^\]]+\]\(nav:[^)]+\))/g);
+
+    return parts.map((part, index) => {
+      const match = part.match(/\[([^\]]+)\]\(nav:([^)]+)\)/);
+      if (match) {
+        const linkText = match[1];   
+        const screenName = match[2]; 
+        return (
+          <Text
+            key={index}
+            style={{
+              color: "#C084FC", // Màu tím sáng
+              fontWeight: "700", // Đậm vừa phải, thanh lịch hơn
+              // ĐÃ XÓA gạch chân (underline) để không bị lỗi nét đứt
+            }}
+            onPress={() => {
+              setIsAiVisible(false);
+              if (tabNavRef.current) {
+                tabNavRef.current.navigate(screenName); 
+              } else {
+                navigation.navigate(screenName);
+              }
+            }}
+          >
+            {/* Dùng \u00A0 (Non-breaking space) để mũi tên dính chặt vào chữ cuối, không bị rớt dòng */}
+            {linkText}{"\u00A0"}➔
+          </Text>
+        );
+      }
+      return <Text key={index}>{part}</Text>;
+    });
+  };
+
+  const renderAiMessage = ({ item }: { item: any }) => {
+    const isUser = item.role === "user";
+    return (
+      <View style={[styles.aiMsgWrapper, isUser ? styles.aiMsgUser : styles.aiMsgBot]}>
+        {!isUser && (
+          <View style={styles.aiAvatarGlow}>
+            <Sparkles size={14} color="#C084FC" />
+          </View>
+        )}
+        <View style={[styles.aiBubble, isUser ? styles.aiBubbleUser : styles.aiBubbleBot]}>
+          <Text style={styles.aiMsgText}>
+            {isUser ? item.text : renderAiTextWithLinks(item.text)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        // Cấu hình Icon cho từng Tab
-        tabBarIcon: ({ focused, color, size }) => {
-          let IconComponent = MessageCircle; // Set default icon
+    <>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: {
+            height: Platform.OS === 'ios' ? 90 : 70,
+            backgroundColor: "#161618",
+            borderTopWidth: 1,
+            borderTopColor: "#2A2A2A",
+            elevation: 0,
+          },
+        }}
+      >
+        <Tab.Screen
+          name="Chat"
+          component={ChatScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.tabItemContainer}>
+                <View>
+                  <MessageCircle size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
+                  <View style={styles.badgeContainer}>
+                    <Text style={styles.badgeText}>3</Text>
+                  </View>
+                </View>
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Chats</Text>
+                {focused && (
+                  <LinearGradient
+                    colors={['#3B82F6', '#8B5CF6', '#EC4899']}
+                    style={styles.activeLine}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  />
+                )}
+              </View>
+            ),
+          }}
+        />
 
-          if (route.name === "Chat") {
-            IconComponent = MessageCircle;
-          } else if (route.name === "Friends") {
-            IconComponent = Users;
-          } else if (route.name === "Profile") {
-            IconComponent = User;
-          }
+        <Tab.Screen
+          name="Contacts"
+          component={FriendsScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.tabItemContainer}>
+                <Users size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Contacts</Text>
+                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
+              </View>
+            ),
+          }}
+        />
 
-          // Trả về Icon tương ứng (có thể phóng to một chút nếu đang được focus)
-          return <IconComponent size={focused ? 28 : 24} color={color} />;
-        },
-        tabBarActiveTintColor: "#3B82F6", // Màu xanh dương khi tab được chọn
-        tabBarInactiveTintColor: "#9CA3AF", // Màu xám khi tab không được chọn
-        headerShown: false, // Ẩn cái tiêu đề mặc định của React Navigation ở trên cùng (Vì các trang của bạn tự vẽ Header riêng rồi)
-        tabBarStyle: {
-          height: 65, // Tăng chiều cao thanh tab lên một chút cho dễ bấm
-          paddingBottom: 10,
-          paddingTop: 10,
-          backgroundColor: "#ffffff",
-          borderTopWidth: 1,
-          borderTopColor: "#F3F4F6", // Đường viền mỏng ngăn cách với nội dung
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
-        },
-      })}
-    >
-      <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ tabBarLabel: "Tin nhắn" }}
-      />
-      <Tab.Screen
-        name="Friends"
-        component={FriendsScreen}
-        options={{ tabBarLabel: "Bạn bè" }}
-      />
-      <Tab.Screen name="Profile">
-        {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
-      </Tab.Screen>
-    </Tab.Navigator>
+        <Tab.Screen
+          name="AIPulse"
+          component={DummyScreen}
+          options={{
+            tabBarIcon: () => (
+              <View style={styles.tabItemContainer}>
+                <View style={styles.aiIconCircle}>
+                  <Sparkles size={24} color="#D1D5DB" />
+                </View>
+                <Text style={[styles.tabLabel, { color: "#9CA3AF", marginTop: 4 }]}>AI Pulse</Text>
+              </View>
+            ),
+          }}
+          listeners={({ navigation: tabNavigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              tabNavRef.current = tabNavigation; 
+              openAiPulse();
+            },
+          })}
+        />
+
+        <Tab.Screen
+          name="Calls"
+          component={DummyScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.tabItemContainer}>
+                <Phone size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Calls</Text>
+                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
+              </View>
+            ),
+          }}
+        />
+
+        <Tab.Screen
+          name="Profile"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.tabItemContainer}>
+                <User size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Profile</Text>
+                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
+              </View>
+            ),
+          }}
+        >
+          {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+        </Tab.Screen>
+      </Tab.Navigator>
+
+      <Modal visible={isAiVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalContent}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <LinearGradient
+              colors={["#1A1A1D", "#000000"]}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <View style={{ width: 30 }} />
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Sparkles size={20} color="#C084FC" style={{ marginRight: 6 }} />
+                  <Text style={styles.modalTitle}>AI Pulse</Text>
+                </View>
+                <TouchableOpacity onPress={() => setIsAiVisible(false)} style={styles.closeBtn}>
+                  <X size={26} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              {isConnecting ? (
+                <View style={styles.connectingContainer}>
+                  <ActivityIndicator size="large" color="#C084FC" />
+                  <Text style={styles.connectingText}>Đang kết nối thần giao cách cảm...</Text>
+                </View>
+              ) : (
+                <>
+                  <FlatList
+                    ref={flatListRef}
+                    data={aiMessages}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderAiMessage}
+                    contentContainerStyle={styles.chatList}
+                    showsVerticalScrollIndicator={false}
+                  />
+
+                  {isAiTyping && (
+                    <View style={styles.typingContainer}>
+                      <ActivityIndicator size="small" color="#C084FC" />
+                      <Text style={styles.typingText}>AI Pulse đang suy nghĩ...</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.inputArea}>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Hỏi AI bất cứ điều gì..."
+                        placeholderTextColor="#6B7280"
+                        value={inputText}
+                        onChangeText={setInputText}
+                        onSubmitEditing={handleSendAi}
+                      />
+                      <TouchableOpacity
+                        style={styles.sendBtn}
+                        onPress={handleSendAi}
+                        disabled={isAiTyping || !inputText.trim()}
+                      >
+                        <ArrowUpCircle
+                          size={32}
+                          color={inputText.trim() ? "#C084FC" : "#4B5563"}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              )}
+            </LinearGradient>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </>
   );
 };
+
+const styles = StyleSheet.create({
+  tabItemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 10,
+    width: 60,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  activeLine: {
+    height: 3,
+    width: 20,
+    borderRadius: 2,
+    position: 'absolute',
+    bottom: -10,
+  },
+  aiIconCircle: {
+    width: 65,
+    height: 65,
+    borderRadius: 50,
+    backgroundColor: '#262626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#161618',
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  modalOverlay: { flex: 1, backgroundColor: "#000000" },
+  modalContent: { flex: 1 },
+  modalGradient: { flex: 1 },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 60 : 30,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  modalTitle: { color: "#F9FAFB", fontSize: 18, fontWeight: "700", letterSpacing: 1 },
+  closeBtn: { padding: 4 },
+  connectingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  connectingText: { color: "#9CA3AF", marginTop: 15, fontSize: 15, fontStyle: "italic" },
+  chatList: { paddingHorizontal: 16, paddingVertical: 20 },
+  aiMsgWrapper: { flexDirection: "row", alignItems: "flex-end", marginBottom: 20 },
+  aiMsgUser: { justifyContent: "flex-end" },
+  aiMsgBot: { justifyContent: "flex-start", paddingRight: 40 },
+  aiAvatarGlow: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "rgba(192, 132, 252, 0.1)",
+    borderWidth: 1, borderColor: "rgba(192, 132, 252, 0.3)",
+    justifyContent: "center", alignItems: "center", marginRight: 10,
+  },
+  aiBubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, maxWidth: "85%" },
+  aiBubbleUser: {
+    backgroundColor: "rgba(192, 132, 252, 0.15)",
+    borderWidth: 1, borderColor: "rgba(192, 132, 252, 0.3)",
+    borderBottomRightRadius: 4,
+  },
+  aiBubbleBot: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomLeftRadius: 4,
+  },
+  aiMsgText: { color: "#E5E7EB", fontSize: 15, lineHeight: 24 },
+  typingContainer: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 10 },
+  typingText: { color: "#6B7280", fontSize: 12, marginLeft: 10 },
+  inputArea: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: Platform.OS === "ios" ? 30 : 16, backgroundColor: "transparent" },
+  inputWrapper: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 30, paddingLeft: 20, paddingRight: 6,
+    borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  input: { flex: 1, color: "#F9FAFB", fontSize: 15, paddingVertical: Platform.OS === "ios" ? 14 : 10, maxHeight: 100 },
+  sendBtn: { padding: 4 },
+});
 
 export default MainTabs;
