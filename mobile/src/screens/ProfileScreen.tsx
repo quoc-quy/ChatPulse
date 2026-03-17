@@ -28,6 +28,9 @@ import { clearAuthData } from "../utils/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
 
+// BƯỚC QUAN TRỌNG: Import useTheme từ Context
+import { useTheme } from "../contexts/ThemeContext";
+
 interface Props {
   navigation: any;
   onLogout: () => void;
@@ -58,9 +61,11 @@ const lightTheme = {
 };
 
 const ProfileScreen = ({ navigation, onLogout }: Props) => {
+  // Lấy trạng thái Theme từ Global Context thay vì useState
+  const { isDarkMode, setIsDarkMode } = useTheme();
+
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(new Date());
@@ -80,7 +85,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     showDateOfBirth: true,
   });
 
-  const colors = useMemo(() => (darkMode ? darkTheme : lightTheme), [darkMode]);
+  const colors = useMemo(() => (isDarkMode ? darkTheme : lightTheme), [isDarkMode]);
 
   useEffect(() => {
     fetchData();
@@ -303,10 +308,10 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}> 
-      <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
-      <View style={[styles.hero, { backgroundColor: darkMode ? "#080D1F" : "#EDE9FE" }]}>
-        <View style={[styles.heroGlowOne, { backgroundColor: colors.accent, opacity: darkMode ? 0.35 : 0.2 }]} />
-        <View style={[styles.heroGlowTwo, { backgroundColor: colors.accentAlt, opacity: darkMode ? 0.28 : 0.2 }]} />
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+      <View style={[styles.hero, { backgroundColor: isDarkMode ? "#080D1F" : "#EDE9FE" }]}>
+        <View style={[styles.heroGlowOne, { backgroundColor: colors.accent, opacity: isDarkMode ? 0.35 : 0.2 }]} />
+        <View style={[styles.heroGlowTwo, { backgroundColor: colors.accentAlt, opacity: isDarkMode ? 0.28 : 0.2 }]} />
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -383,15 +388,15 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             <View>
               <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
               <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>
-                {darkMode ? "Currently dark" : "Currently light"}
+                {isDarkMode ? "Currently dark" : "Currently light"}
               </Text>
             </View>
           </View>
           <Switch
-            value={darkMode}
-            onValueChange={setDarkMode}
+            value={isDarkMode}
+            onValueChange={setIsDarkMode} // Kích hoạt đổi Global Theme
             trackColor={{ false: "#94A3B8", true: colors.accentAlt }}
-            thumbColor={darkMode ? "#0F172A" : "#FFFFFF"}
+            thumbColor={isDarkMode ? "#0F172A" : "#FFFFFF"}
           />
         </View>
 

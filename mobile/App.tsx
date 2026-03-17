@@ -4,20 +4,22 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StyleSheet, ActivityIndicator, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+// Import ThemeProvider từ thư mục contexts
+import { ThemeProvider } from './src/contexts/ThemeContext'; 
 
 import MainTabs from "./src/navigation/MainTabs";
 import { LoginForm } from "./src/auth/LoginForm";
 import { SignUpForm } from "./src/auth/SignUpForm";
 import FriendRequestsScreen from "./src/screens/FriendRequestsScreen";
-import MessageScreen from "./src/screens/MessageScreen"; // <-- 1. Import màn hình chat chi tiết vào đây
+import MessageScreen from "./src/screens/MessageScreen";
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import SentRequestsScreen from "./src/screens/SentRequestsScreen";
-// import ChatDetailsScreen from "./src/screens/ChatDetailsScreen";
 import ConversationDetailScreen from "./src/screens/ConversationDetail";
 import MembersScreen from "./src/screens/MembersScreen";
 import AddMemberScreen from "./src/screens/AddMembersScreen";
 import UserProfileScreen from "./src/screens/UserProfileScreen";
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -28,9 +30,6 @@ export default function App() {
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
-        // Đã comment lại dòng này để app không tự động xóa Token mỗi khi reload
-        // await AsyncStorage.clear();
-
         const token = await AsyncStorage.getItem("access_token");
         if (token) {
           setIsLoggedIn(true);
@@ -66,94 +65,96 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer key={navKey}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isLoggedIn ? (
-          <>
-            <Stack.Screen name="Main">
-              {(props) => <MainTabs {...props} onLogout={handleLogout} />}
-            </Stack.Screen>
+    // Bọc ThemeProvider ra ngoài cùng để mọi màn hình đều có thể gọi useTheme()
+    <ThemeProvider>
+      <NavigationContainer key={navKey}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {isLoggedIn ? (
+            <>
+              <Stack.Screen name="Main">
+                {(props) => <MainTabs {...props} onLogout={handleLogout} />}
+              </Stack.Screen>
 
-            <Stack.Screen
-              name="FriendRequests"
-              component={FriendRequestsScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
-            <Stack.Screen
-              name="SentRequest"
-              component={SentRequestsScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
-            <Stack.Screen
-              name="ConversationDetail"
-              component={ConversationDetailScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
-            <Stack.Screen
-              name="UserProfile"
-              component={UserProfileScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
-            <Stack.Screen
-              name="MembersScreen"
-              component={MembersScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
-            <Stack.Screen
-              name="AddMemberScreen"
-              component={AddMemberScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right",
-              }}
-            />
+              <Stack.Screen
+                name="FriendRequests"
+                component={FriendRequestsScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="SentRequest"
+                component={SentRequestsScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="ConversationDetail"
+                component={ConversationDetailScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="UserProfile"
+                component={UserProfileScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="MembersScreen"
+                component={MembersScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="AddMemberScreen"
+                component={AddMemberScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
 
-            {/* 2. ĐĂNG KÝ MÀN HÌNH MESSAGE SCREEN Ở ĐÂY */}
-            <Stack.Screen
-              name="MessageScreen"
-              component={MessageScreen}
-              options={{
-                headerShown: false,
-                animation: "slide_from_right", // Hiệu ứng trượt từ phải sang giống Zalo
-              }}
-            />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Login">
-              {(props) => (
-                <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="SignUp" component={SignUpForm} />
-            <Stack.Screen
-              name="ForgotPassword"
-              component={ForgotPasswordScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="ResetPassword"
-              component={ResetPasswordScreen}
-            />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+              <Stack.Screen
+                name="MessageScreen"
+                component={MessageScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Login">
+                {(props) => (
+                  <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="SignUp" component={SignUpForm} />
+              <Stack.Screen
+                name="ForgotPassword"
+                component={ForgotPasswordScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="ResetPassword"
+                component={ResetPasswordScreen}
+              />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ThemeProvider>
   );
 }
 
