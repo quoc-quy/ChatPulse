@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,18 +11,21 @@ import {
   SafeAreaView,
   Keyboard,
   ActivityIndicator,
-  useColorScheme,
   Modal,
   Pressable,
   Alert,
   ScrollView,
+  StatusBar,
 } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from 'expo-blur';
+
+// IMPORT USE THEME Ở ĐÂY
+import { useTheme } from "../contexts/ThemeContext";
 
 import {
   getMessages,
@@ -34,29 +37,31 @@ import {
 } from "../apis/chat.api";
 
 // ==========================================
-// 1. CẤU HÌNH BẢNG MÀU DYNAMIC (GIỐNG 100% CHATSCREEN)
+// 1. CẤU HÌNH BẢNG MÀU ĐỒNG BỘ 100% TOÀN APP
 // ==========================================
 const lightColors = {
-  background: "#F9FAFB",
+  background: "#F5F7FB",
   surface: "#FFFFFF",
-  text: "#111827",
-  textLight: "#6B7280",
-  border: "#E5E7EB",
-  primary: "#312E81",
-  accent: "#581C87",
+  surfaceSoft: "#EEF2FF",
+  text: "#0F172A",
+  textLight: "#64748B",
+  border: "#E2E8F0",
+  primary: "#6366F1",
+  accent: "#8B5CF6",
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
 };
 
 const darkColors = {
-  background: "#111111",
-  surface: "#1E1E22",
-  text: "#FFFFFF",
-  textLight: "#A1A1AA",
-  border: "#2A2A30",
-  primary: "#312E81",
-  accent: "#581C87",
+  background: "#070B1A",
+  surface: "#11182D",
+  surfaceSoft: "#0D1428",
+  text: "#F8FAFC",
+  textLight: "#9CA3AF",
+  border: "#1E2946",
+  primary: "#7C3AED",
+  accent: "#A855F7",
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
@@ -70,7 +75,8 @@ const MessageScreen = () => {
   const flatListRef = useRef<FlatList>(null);
   const lastTap = useRef(0);
 
-  const isDarkMode = useColorScheme() === "dark";
+  // --- LẤY THEME TỪ CONTEXT (CÔNG TẮC CỦA PROFILE) ---
+  const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
   const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
 
@@ -79,7 +85,7 @@ const MessageScreen = () => {
     name: chatName,
     isGroup,
     targetUserId,
-    unreadCount = 0, // <-- Hứng biến số tin chưa đọc từ ChatScreen truyền sang
+    unreadCount = 0,
   } = route.params || {};
 
   const [messages, setMessages] = useState<any[]>([]);
@@ -89,7 +95,6 @@ const MessageScreen = () => {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
-
 
   // --- STATE REACTION & MENU ---
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
@@ -135,22 +140,20 @@ const MessageScreen = () => {
     fetchCurrentUserId().then(() => fetchInitialMessages());
   }, [conversationId]);
 
-
   const handleSummarizeChat = async () => {
     if (unreadCount === 0) {
       Alert.alert("Thông báo", "Bạn đã đọc hết tin nhắn rồi!");
       return;
     }
 
-    setShowAiModal(true); // Mở modal ngay lập tức
-    setIsAiProcessing(true); // Bật trạng thái chờ
-    setAiSummaryText(""); // Xóa text cũ
+    setShowAiModal(true);
+    setIsAiProcessing(true);
+    setAiSummaryText("");
 
     try {
       const messagesToSend = messages.slice(-unreadCount);
       const response = await summarizeChatApi(messagesToSend);
 
-      // Tạo hiệu ứng delay giả lập để người dùng thấy AI đang "suy nghĩ"
       setTimeout(() => {
         if (response.data?.result) {
           setAiSummaryText(response.data.result);
@@ -167,19 +170,16 @@ const MessageScreen = () => {
   const scrollToMessage = (messageId: string) => {
     const index = messages.findIndex((m) => m._id === messageId);
     if (index !== -1) {
-      setShowAiModal(false); // Đóng modal tóm tắt
+      setShowAiModal(false); 
       setTimeout(() => {
         flatListRef.current?.scrollToIndex({
           index,
           animated: true,
-          viewPosition: 0.5, // Đưa tin nhắn ra giữa màn hình
+          viewPosition: 0.5, 
         });
       }, 300);
     }
   };
-
-
-
 
   const handleToggleReact = async (message: any, emoji: string) => {
     if (!message || message.type === "revoked") return;
@@ -304,44 +304,37 @@ const MessageScreen = () => {
     });
   };
 
-const renderAiText = (text: string) => {
-  if (!text) return null;
+  const renderAiText = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(\[xem:.*?\]|\*\*.*?\*\*)/g);
 
-  // Regex bắt được cả [xem:ID] và **Text**
-  const parts = text.split(/(\[xem:.*?\]|\*\*.*?\*\*)/g);
-
-  return (
-    <Text style={styles.aiText}>
-      {parts.map((part, index) => {
-        // 1. Xử lý Link [xem:ID]
-        if (part.startsWith("[xem:") && part.endsWith("]")) {
-          const msgId = part.slice(5, -1);
-          return (
-            <Text
-              key={index}
-              style={styles.aiLink}
-              onPress={() => scrollToMessage(msgId)}
-            >
-              {" "}(Xem){" "}
-            </Text>
-          );
-        }
-
-        // 2. Xử lý In đậm tên người chat **Tên**
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return (
-            <Text key={index} style={{ fontWeight: "900", color: "#A78BFA" }}>
-              {part.slice(2, -2)}
-            </Text>
-          );
-        }
-
-        // 3. Văn bản bình thường
-        return <Text key={index}>{part}</Text>;
-      })}
-    </Text>
-  );
-};
+    return (
+      <Text style={styles.aiText}>
+        {parts.map((part, index) => {
+          if (part.startsWith("[xem:") && part.endsWith("]")) {
+            const msgId = part.slice(5, -1);
+            return (
+              <Text
+                key={index}
+                style={styles.aiLink}
+                onPress={() => scrollToMessage(msgId)}
+              >
+                {" "}(Xem){" "}
+              </Text>
+            );
+          }
+          if (part.startsWith("**") && part.endsWith("**")) {
+            return (
+              <Text key={index} style={{ fontWeight: "900", color: "#A78BFA" }}>
+                {part.slice(2, -2)}
+              </Text>
+            );
+          }
+          return <Text key={index}>{part}</Text>;
+        })}
+      </Text>
+    );
+  };
 
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
@@ -412,7 +405,7 @@ const renderAiText = (text: string) => {
                   styles.bubble,
                   isMe ? styles.bubbleMe : styles.bubbleOther,
                   isRevoked && {
-                    backgroundColor: isDarkMode ? "#222" : "#EEE",
+                    backgroundColor: isDarkMode ? "#1E2946" : "#E2E8F0",
                     opacity: 0.6,
                   },
                 ]}
@@ -423,7 +416,7 @@ const renderAiText = (text: string) => {
                     {
                       color: isMe ? COLORS.headerText : COLORS.text,
                     },
-                    isRevoked && { fontStyle: "italic" },
+                    isRevoked && { fontStyle: "italic", color: COLORS.textLight },
                   ]}
                 >
                   {isRevoked ? "Tin nhắn đã được thu hồi" : item.content}
@@ -472,6 +465,7 @@ const renderAiText = (text: string) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
       <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -576,10 +570,9 @@ const renderAiText = (text: string) => {
         </Pressable>
       </Modal>
 
-      {/* --- MODAL AI SUMMARY ĐẸP MẮT (CHỈ HIỂN THỊ TÓM TẮT TĨNH) --- */}
+      {/* MODAL AI GIỮ NGUYÊN ĐEN HUYỀN BÍ */}
       <Modal visible={showAiModal} transparent animationType="fade">
         <View style={styles.aiOverlay}>
-          {/* Lớp nền mờ huyền bí */}
           <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
 
           <View style={styles.aiContainer}>
@@ -626,7 +619,7 @@ const renderAiText = (text: string) => {
 };
 
 // ==========================================
-// 2. STYLES CHI TIẾT
+// 2. STYLES CHI TIẾT VÀ HOÀN CHỈNH THEO THEME
 // ==========================================
 const getStyles = (COLORS: any, isDarkMode: boolean) =>
   StyleSheet.create({
@@ -652,20 +645,21 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       alignItems: "flex-end",
       marginBottom: 10,
     },
+    // --- KHỐI AI SUMMARY (Giữ màu tối sang trọng không phụ thuộc theme) ---
     aiOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.85)", // Tối hơn để tạo chiều sâu
+      backgroundColor: "rgba(0,0,0,0.85)", 
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 25,
     },
     aiContainer: {
       width: "100%",
-      backgroundColor: "#0F172A", // Màu xanh đen cực tối
+      backgroundColor: "#0F172A", 
       borderRadius: 30,
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: "#1E293B", // Viền mỏng tinh tế
+      borderColor: "#1E293B", 
       shadowColor: "#8B5CF6",
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.5,
@@ -685,10 +679,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       color: "#F8FAFC",
       fontSize: 14,
       fontWeight: "800",
-      letterSpacing: 2, // Tạo cảm giác hiện đại
+      letterSpacing: 2, 
     },
     aiText: {
-      color: "#E2E8F0", // Chữ sáng trên nền tối
+      color: "#E2E8F0", 
       fontSize: 16,
       lineHeight: 28,
       textAlign: "left",
@@ -717,10 +711,11 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       letterSpacing: 1,
     },
     aiLink: {
-      color: "#8B5CF6", // Màu tím neon cho Link
+      color: "#8B5CF6", 
       textDecorationLine: "underline",
       fontWeight: "bold",
     },
+    // --- KẾT THÚC KHỐI AI ---
     messageWrapperMe: { justifyContent: "flex-end" },
     messageWrapperOther: { justifyContent: "flex-start" },
     avatarPlaceholder: { width: 35, marginRight: 8 },
@@ -748,7 +743,9 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderBottomRightRadius: 2,
     },
     bubbleOther: {
-      backgroundColor: COLORS.surface,
+      backgroundColor: COLORS.surface, // Dùng surface để nổi lên trên nền
+      borderWidth: isDarkMode ? 1 : 1,
+      borderColor: COLORS.border,
       borderBottomLeftRadius: 2,
     },
     messageText: { fontSize: 16, lineHeight: 22, paddingRight: 5 },
@@ -763,7 +760,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginVertical: 15,
     },
     dateDividerText: {
-      backgroundColor: isDarkMode ? "#2A2A30" : "#E5E7EB",
+      backgroundColor: COLORS.border,
       color: COLORS.textLight,
       fontSize: 12,
       fontWeight: "600",
@@ -847,17 +844,11 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
-
-    // ==========================================
-    // STYLES CHO MODAL AI SUMMARY 
-    // ==========================================
-
     aiContent: {
       maxHeight: 350,
       paddingHorizontal: 20,
       paddingVertical: 20,
     },
-
     aiFooter: {
       paddingHorizontal: 20,
       paddingBottom: 20,

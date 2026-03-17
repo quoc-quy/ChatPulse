@@ -9,57 +9,57 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
-  useColorScheme,
   StatusBar,
   Platform,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTheme } from "../contexts/ThemeContext";
 import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient"; // Đảm bảo đã cài expo-linear-gradient
+import { LinearGradient } from "expo-linear-gradient"; 
 
 import SearchComponent from "../components/ui/SearchComponent";
 import { getConversations } from "../apis/chat.api";
 
 // ==========================================
-// 1. CẤU HÌNH BẢNG MÀU DYNAMIC - MÀU TÍM ĐẬM HƠN
+// 1. BẢNG MÀU ĐỒNG BỘ 100% VỚI PROFILE SCREEN
 // ==========================================
 const lightColors = {
-  background: "#F9FAFB", // Xám siêu nhạt cho nền
-  surface: "#FFFFFF",    // Trắng cho các thẻ Card, nền Header
-  text: "#111827",       // Đen cho văn bản chính
-  textLight: "#6B7280",  // Xám cho văn bản phụ
-  border: "#E5E7EB",     // Xám nhạt cho viền
-  // Tông màu chủ đạo (Màu tím đậm hơn)
-  primary: "#312E81",    // Indigo 900 (Tím đậm)
-  accent: "#581C87",     // Purple 900 (Tím đậm hơn)
-  success: "#10B981",    // Xanh lá cho Online status
-  badge: "#EF4444",      // Đỏ cho số tin nhắn
-  headerText: "#FFFFFF", // Màu chữ trên nền tím
+  background: "#F5F7FB", // Khớp với lightTheme background
+  surface: "#FFFFFF",    // Khớp với lightTheme card
+  surfaceSoft: "#EEF2FF",// Khớp với lightTheme cardSoft
+  text: "#0F172A",       // Khớp với lightTheme textPrimary
+  textLight: "#64748B",  // Khớp với lightTheme textSecondary
+  border: "#E2E8F0",     // Khớp với lightTheme border
+  primary: "#6366F1",    // Khớp với lightTheme accent
+  accent: "#8B5CF6",     // Khớp với lightTheme accentAlt
+  success: "#10B981",    
+  badge: "#EF4444",      // Khớp với danger
+  headerText: "#FFFFFF", 
 };
 
 const darkColors = {
-  background: "#111111", // Đen sâu cho nền (OLED friendly)
-  surface: "#1E1E22",    // Xám rất tối cho Card, nền Header
-  text: "#FFFFFF",       // Trắng cho văn bản chính
-  textLight: "#A1A1AA",  // Xám nhạt cho văn bản phụ
-  border: "#2A2A30",     // Xám tối cho viền
-  // Tông màu chủ đạo (Màu tím đậm hơn)
-  primary: "#312E81",    // Indigo 900 (Tím đậm)
-  accent: "#581C87",     // Purple 900 (Tím đậm hơn)
-  success: "#10B981",    // Xanh lá cho Online status
-  badge: "#EF4444",      // Đỏ cho số tin nhắn
-  headerText: "#FFFFFF", // Màu chữ trên nền tím
+  background: "#070B1A", // Khớp với darkTheme background
+  surface: "#11182D",    // Khớp với darkTheme card
+  surfaceSoft: "#0D1428",// Khớp với darkTheme cardSoft
+  text: "#F8FAFC",       // Khớp với darkTheme textPrimary
+  textLight: "#9CA3AF",  // Khớp với darkTheme textSecondary
+  border: "#1E2946",     // Khớp với darkTheme border
+  primary: "#7C3AED",    // Khớp với darkTheme accent
+  accent: "#A855F7",     // Khớp với darkTheme accentAlt
+  success: "#10B981",    
+  badge: "#EF4444",      // Khớp với danger
+  headerText: "#FFFFFF", 
 };
 
 const ChatScreen = () => {
   const navigation = useNavigation<any>();
   
   // --- LẤY THEME HIỆN TẠI TỪ HỆ THỐNG ---
-  const isDarkMode = useColorScheme() === "dark";
+  const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
-  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode]);
+  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +176,6 @@ const ChatScreen = () => {
         }
       >
         <View style={styles.avatarWrapper}>
-          {/* Thêm vòng Ring bao quanh avatar, sử dụng màu Primary tím đậm */}
           <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
             {chatAvatarUrl ? (
               <Image source={{ uri: chatAvatarUrl }} style={styles.avatar} />
@@ -202,7 +201,6 @@ const ChatScreen = () => {
               {messageContent}
             </Text>
             {unread > 0 && (
-
               <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.badge}>
                 <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
               </LinearGradient>
@@ -220,10 +218,8 @@ const ChatScreen = () => {
 
   return (
     <View style={styles.root}>
-      {/* Đặt StatusBar tương ứng với Theme */}
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={isDarkMode ? darkColors.background : lightColors.background} translucent={false} />
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={COLORS.primary} translucent={false} />
       
-      {/* Hero Header với màu tím tối đậm */}
       <View style={styles.heroContainer}>
         <LinearGradient
           colors={[COLORS.primary, COLORS.accent]}
@@ -337,7 +333,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 20,
       marginRight: 10,
       bottom: -7,
-      backgroundColor: isDarkMode ? "#2A2A30" : "#E5E7EB",
+      // Nền tab ăn theo viền/cardSoft để hòa quyện với theme Profile
+      backgroundColor: isDarkMode ? COLORS.border : COLORS.border,
     },
     tabButtonActive: { backgroundColor: COLORS.primary },
     tabText: { fontSize: 14, color: COLORS.textLight, fontWeight: "600" },
@@ -346,12 +343,11 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     listContent: { paddingHorizontal: 16, paddingBottom: 20 },
     chatCard: {
       flexDirection: "row",
-      backgroundColor: COLORS.card,
+      backgroundColor: COLORS.surface, 
       padding: 12,
       borderRadius: 24,
       marginBottom: 12,
       alignItems: "center",
-      // Hiệu ứng đổ bóng nhẹ
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.05,
@@ -383,7 +379,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 7,
       backgroundColor: COLORS.success,
       borderWidth: 2,
-      borderColor: COLORS.card,
+      borderColor: COLORS.surface, 
     },
     chatContent: { flex: 1, marginLeft: 14 },
     chatHeader: {
