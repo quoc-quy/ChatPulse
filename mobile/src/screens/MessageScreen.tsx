@@ -20,6 +20,7 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
+import { LinearGradient } from "expo-linear-gradient";
 
 import {
   getMessages,
@@ -30,36 +31,40 @@ import {
 } from "../apis/chat.api";
 
 // ==========================================
-// 1. CẤU HÌNH MÀU SÁC (GIỮ NGUYÊN)
+// 1. CẤU HÌNH MÀU SẮC (Đồng bộ với ChatScreen)
+// ==========================================
+// ==========================================
+// 1. CẤU HÌNH BẢNG MÀU DYNAMIC - ĐỒNG BỘ CHATSCREEN
+// ==========================================
+// ==========================================
+// 1. CẤU HÌNH BẢNG MÀU DYNAMIC (GIỐNG 100% CHATSCREEN)
 // ==========================================
 const lightColors = {
-  headerBg: "#0091FF",
-  background: "#E2E9F1",
-  surface: "#FFFFFF",
-  text: "#000000",
-  textLight: "#8E8E93",
-  border: "#E5E5EA",
-  myBubble: "#D8EBFD",
-  myBubbleText: "#000000",
-  otherBubble: "#FFFFFF",
-  otherBubbleText: "#000000",
-  senderName: "#0068FF",
-  iconText: "#FFFFFF",
+  background: "#F9FAFB", // Xám siêu nhạt cho nền
+  surface: "#FFFFFF",    // Trắng cho các thẻ Card, nền Header
+  text: "#111827",       // Đen cho văn bản chính
+  textLight: "#6B7280",  // Xám cho văn bản phụ
+  border: "#E5E7EB",     // Xám nhạt cho viền
+  // Tông màu chủ đạo (Màu tím đậm hơn)
+  primary: "#312E81",    // Indigo 900 (Tím đậm)
+  accent: "#581C87",     // Purple 900 (Tím đậm hơn)
+  success: "#10B981",    // Xanh lá cho Online status
+  badge: "#EF4444",      // Đỏ cho số tin nhắn
+  headerText: "#FFFFFF", // Màu chữ trên nền tím
 };
 
 const darkColors = {
-  headerBg: "#1C1C1E",
-  background: "#000000",
-  surface: "#1C1C1E",
-  text: "#FFFFFF",
-  textLight: "#A1A1AA",
-  border: "#2C2C2E",
-  myBubble: "#005CC8",
-  myBubbleText: "#FFFFFF",
-  otherBubble: "#2C2C2E",
-  otherBubbleText: "#FFFFFF",
-  senderName: "#66B2FF",
-  iconText: "#FFFFFF",
+  background: "#111111", // Đen sâu cho nền (OLED friendly)
+  surface: "#1E1E22",    // Xám rất tối cho Card, nền Header
+  text: "#FFFFFF",       // Trắng cho văn bản chính
+  textLight: "#A1A1AA",  // Xám nhạt cho văn bản phụ
+  border: "#2A2A30",     // Xám tối cho viền
+  // Tông màu chủ đạo (Màu tím đậm hơn)
+  primary: "#312E81",    // Indigo 900 (Tím đậm)
+  accent: "#581C87",     // Purple 900 (Tím đậm hơn)
+  success: "#10B981",    // Xanh lá cho Online status
+  badge: "#EF4444",      // Đỏ cho số tin nhắn
+  headerText: "#FFFFFF", // Màu chữ trên nền tím
 };
 
 const REACTION_LIST = ["👍", "❤️", "🤣", "😮", "😭", "😡"];
@@ -72,7 +77,7 @@ const MessageScreen = () => {
 
   const isDarkMode = useColorScheme() === "dark";
   const COLORS = isDarkMode ? darkColors : lightColors;
-  const styles = useMemo(() => getStyles(COLORS), [isDarkMode]);
+  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
 
   const {
     id: conversationId,
@@ -128,15 +133,13 @@ const MessageScreen = () => {
     fetchCurrentUserId().then(() => fetchInitialMessages());
   }, [conversationId]);
 
-  // --- LOGIC THẢ/GỠ REACTION (ĐÃ GẮN API THIỆT) ---
+  // --- LOGIC THẢ/GỠ REACTION (GIỮ NGUYÊN) ---
   const handleToggleReact = async (message: any, emoji: string) => {
     if (!message || message.type === "revoked") return;
 
     try {
-      // 1. Gọi API gửi lên Server
       await reactMessageApi(message._id, emoji);
 
-      // 2. Cập nhật State giao diện
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg._id === message._id) {
@@ -147,14 +150,13 @@ const MessageScreen = () => {
                 r?.emoji === emoji
               );
             });
-            // Zalo logic: Nếu đã thả đúng icon đó rồi thì gỡ, chưa thì thả mới
             return {
               ...msg,
               reactions: isExist ? [] : [{ emoji, user_id: currentUserId }],
             };
           }
           return msg;
-        }),
+        })
       );
     } catch (error) {
       console.log("Lỗi thả react :", error);
@@ -162,20 +164,18 @@ const MessageScreen = () => {
     setShowMenu(false);
   };
 
-  // --- TASK 15: THU HỒI (ĐÃ GẮN API ) ---
+  // --- TASK 15: THU HỒI (GIỮ NGUYÊN) ---
   const handleRevoke = async () => {
     if (!selectedMsg) return;
     try {
-      // 1. Gọi API thu hồi
       await recallMessageApi(selectedMsg._id);
 
-      // 2. Cập nhật UI
       setMessages((prev) =>
         prev.map((msg) =>
           msg._id === selectedMsg._id
             ? { ...msg, type: "revoked", content: "", reactions: [] }
-            : msg,
-        ),
+            : msg
+        )
       );
     } catch (error) {
       console.log("Lỗi thu hồi:", error);
@@ -183,14 +183,11 @@ const MessageScreen = () => {
     setShowMenu(false);
   };
 
-  // --- TASK 16: XÓA PHÍA TÔI (ĐÃ GẮN API ) ---
+  // --- TASK 16: XÓA PHÍA TÔI (GIỮ NGUYÊN) ---
   const handleDeleteForMe = async () => {
     if (!selectedMsg) return;
     try {
-      // 1. Gọi API xóa phía tôi
       await deleteMessageForMeApi(selectedMsg._id);
-
-      // 2. Cập nhật UI: lọc bỏ tin nhắn này khỏi danh sách đang hiện
       setMessages((prev) => prev.filter((msg) => msg._id !== selectedMsg._id));
     } catch (error) {
       console.log("Lỗi xóa phía tôi :", error);
@@ -232,7 +229,7 @@ const MessageScreen = () => {
       const realMessage = res.data.result || res.data;
       if (realMessage)
         setMessages((prev) =>
-          prev.map((msg) => (msg._id === tempId ? realMessage : msg)),
+          prev.map((msg) => (msg._id === tempId ? realMessage : msg))
         );
     } catch (error) {
       console.log(error);
@@ -248,103 +245,155 @@ const MessageScreen = () => {
     });
   };
 
+  // --- HÀM MỚI: Format thứ/ngày/tháng ---
+  const formatMessageDate = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return "Hôm nay";
+    if (date.toDateString() === yesterday.toDateString()) return "Hôm qua";
+
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
     const hasReactions = item.reactions && item.reactions.length > 0;
+
+    // Tìm tin nhắn liền trước và liền sau
+    const prevItem = index > 0 ? messages[index - 1] : null;
     const nextItem = index < messages.length - 1 ? messages[index + 1] : null;
+
+    // Kiểm tra tách ngày
+    const currentDate = new Date(item.createdAt).toDateString();
+    const prevDate = prevItem ? new Date(prevItem.createdAt).toDateString() : null;
+    const showDateDivider = currentDate !== prevDate;
+
+    // Logic gộp giờ (Zalo)
     const isSameSenderAsNext =
       nextItem &&
       (nextItem.sender?._id || nextItem.senderId) ===
-        (item.sender?._id || item.senderId);
+      (item.sender?._id || item.senderId);
+
+    let isCloseInTime = false;
+    if (nextItem) {
+      const diff = new Date(nextItem.createdAt).getTime() - new Date(item.createdAt).getTime();
+      isCloseInTime = diff < 60000; // Cùng người gửi và gửi cách nhau dưới 1 phút
+    }
+
+    // Chỉ hiện giờ nếu tin nhắn đó bị thu hồi hoặc nó là tin nhắn cuối cùng trong cụm gửi liên tiếp
+    const showTime = !isRevoked && !(isSameSenderAsNext && isCloseInTime);
+
+    // Vẫn hiện avatar theo logic cũ
     const showAvatar = !isMe && !isSameSenderAsNext;
 
     return (
-      <View
-        style={[
-          styles.messageWrapper,
-          isMe ? styles.messageWrapperMe : styles.messageWrapperOther,
-        ]}
-      >
-        {!isMe && (
-          <View style={styles.avatarPlaceholder}>
-            {showAvatar && (
-              <View style={styles.avatarSmall}>
-                <Text style={styles.avatarText}>
-                  {item.sender?.userName?.charAt(0).toUpperCase() || "U"}
-                </Text>
-              </View>
-            )}
+      <View>
+        {/* THANH PHÂN CÁCH NGÀY */}
+        {showDateDivider && (
+          <View style={styles.dateDivider}>
+            <Text style={styles.dateDividerText}>
+              {formatMessageDate(item.createdAt)}
+            </Text>
           </View>
         )}
+
         <View
           style={[
-            styles.messageContent,
-            isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" },
+            styles.messageWrapper,
+            isMe ? styles.messageWrapperMe : styles.messageWrapperOther,
           ]}
         >
-          <TouchableOpacity
-            onPress={() => handleDoubleTap(item)}
-            onLongPress={(e) => handleLongPress(e, item)}
-            activeOpacity={0.9}
-          >
-            <View
-              style={[
-                styles.bubble,
-                isMe ? styles.bubbleMe : styles.bubbleOther,
-                isRevoked && {
-                  backgroundColor: isDarkMode ? "#222" : "#EEE",
-                  opacity: 0.6,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.messageText,
-                  {
-                    color: isMe ? COLORS.myBubbleText : COLORS.otherBubbleText,
-                  },
-                  isRevoked && { fontStyle: "italic" },
-                ]}
-              >
-                {isRevoked ? "Tin nhắn đã được thu hồi" : item.content}
-              </Text>
-              {!isSameSenderAsNext && !isRevoked && (
-                <Text style={styles.messageTime}>
-                  {formatTime(item.createdAt)}
-                </Text>
-              )}
-
-              {/* Reaction Badge */}
-              {!isRevoked && (
-                <View style={styles.reactionContainer}>
-                  {hasReactions ? (
-                    <TouchableOpacity
-                      style={styles.miniReact}
-                      onPress={() =>
-                        handleToggleReact(item, item.reactions[0].emoji)
-                      }
-                    >
-                      <Text style={{ fontSize: 11 }}>
-                        {item.reactions[0].emoji}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.defaultLike}
-                      onPress={() => handleToggleReact(item, "👍")}
-                    >
-                      <Ionicons
-                        name="thumbs-up-outline"
-                        size={12}
-                        color={COLORS.textLight}
-                      />
-                    </TouchableOpacity>
-                  )}
+          {!isMe && (
+            <View style={styles.avatarPlaceholder}>
+              {showAvatar && (
+                <View style={styles.avatarSmall}>
+                  <Text style={styles.avatarText}>
+                    {item.sender?.userName?.charAt(0).toUpperCase() || "U"}
+                  </Text>
                 </View>
               )}
             </View>
-          </TouchableOpacity>
+          )}
+          <View
+            style={[
+              styles.messageContent,
+              isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" },
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() => handleDoubleTap(item)}
+              onLongPress={(e) => handleLongPress(e, item)}
+              activeOpacity={0.9}
+            >
+              <View
+                style={[
+                  styles.bubble,
+                  isMe ? styles.bubbleMe : styles.bubbleOther,
+                  isRevoked && {
+                    backgroundColor: isDarkMode ? "#222" : "#EEE",
+                    opacity: 0.6,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.messageText,
+                    {
+                      color: isMe ? COLORS.headerText : COLORS.text,
+                    },
+                    isRevoked && { fontStyle: "italic" },
+                  ]}
+                >
+                  {isRevoked ? "Tin nhắn đã được thu hồi" : item.content}
+                </Text>
+
+                {/* HIỂN THỊ GIỜ ĐÃ ÁP DỤNG LOGIC GỘP */}
+                {showTime && (
+                  <Text style={[styles.messageTime, isMe && { color: "rgba(255,255,255,0.7)" }]}>
+                    {formatTime(item.createdAt)}
+                  </Text>
+                )}
+
+                {/* Reaction Badge */}
+                {!isRevoked && (
+                  <View style={styles.reactionContainer}>
+                    {hasReactions ? (
+                      <TouchableOpacity
+                        style={styles.miniReact}
+                        onPress={() =>
+                          handleToggleReact(item, item.reactions[0].emoji)
+                        }
+                      >
+                        <Text style={{ fontSize: 11 }}>
+                          {item.reactions[0].emoji}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.defaultLike}
+                        onPress={() => handleToggleReact(item, "👍")}
+                      >
+                        <Ionicons
+                          name="thumbs-up-outline"
+                          size={12}
+                          color={COLORS.textLight}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -352,7 +401,11 @@ const MessageScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      {/* THAY VIEW BẰNG LINEAR GRADIENT CHO HEADER ĐỂ GIỐNG CHATSCREEN */}
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.accent]}
+        style={styles.header}
+      >
         <View style={styles.headerLeft}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -376,7 +429,7 @@ const MessageScreen = () => {
             style={styles.iconBtn}
             onPress={() =>
               navigation.navigate("ConversationDetail", {
-                id: conversationId, // ← "id" không phải "conversationId"
+                id: conversationId,
                 name: chatName,
                 isGroup: isGroup,
               })
@@ -385,7 +438,7 @@ const MessageScreen = () => {
             <Ionicons name="menu" size={28} color="white" />
           </TouchableOpacity>
         </View>
-      </View>
+      </LinearGradient>
 
       <KeyboardAvoidingView
         style={styles.chatArea}
@@ -409,8 +462,11 @@ const MessageScreen = () => {
             value={inputText}
             onChangeText={setInputText}
           />
-          <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-            <Ionicons name="send" size={20} color="white" />
+          <TouchableOpacity onPress={handleSend}>
+            {/* THÊM GRADIENT CHO NÚT GỬI */}
+            <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.sendBtn}>
+              <Ionicons name="send" size={18} color="white" style={{ marginLeft: 3 }} />
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -435,8 +491,8 @@ const MessageScreen = () => {
                   style={styles.menuItem}
                   onPress={handleRevoke}
                 >
-                  <Ionicons name="refresh-outline" size={20} color="red" />
-                  <Text style={{ color: "red", marginLeft: 12, fontSize: 16 }}>
+                  <Ionicons name="refresh-outline" size={20} color={COLORS.badge} />
+                  <Text style={{ color: COLORS.badge, marginLeft: 12, fontSize: 16 }}>
                     Thu hồi
                   </Text>
                 </TouchableOpacity>
@@ -460,9 +516,9 @@ const MessageScreen = () => {
   );
 };
 
-const getStyles = (COLORS: any) =>
+const getStyles = (COLORS: any, isDarkMode: boolean) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.headerBg },
+    container: { flex: 1, backgroundColor: COLORS.background }, // Đồng bộ màu nền
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -470,11 +526,12 @@ const getStyles = (COLORS: any) =>
       paddingHorizontal: 15,
       paddingVertical: 12,
       paddingTop: Platform.OS === "android" ? 40 : 10,
+      // Đã xóa backgroundColor để nhường chỗ cho LinearGradient
     },
     headerLeft: { flexDirection: "row", alignItems: "center" },
     backBtn: { marginRight: 10 },
-    headerName: { color: "white", fontSize: 18, fontWeight: "600" },
-    headerStatus: { color: "white", fontSize: 12, opacity: 0.8 },
+    headerName: { color: COLORS.headerText, fontSize: 18, fontWeight: "600" },
+    headerStatus: { color: "rgba(255,255,255,0.7)", fontSize: 12 }, // Giống subTitle bên ChatScreen
     headerRight: { flexDirection: "row", alignItems: "center" },
     iconBtn: { marginLeft: 16 },
     chatArea: { flex: 1, backgroundColor: COLORS.background },
@@ -482,7 +539,7 @@ const getStyles = (COLORS: any) =>
     messageWrapper: {
       flexDirection: "row",
       alignItems: "flex-end",
-      marginBottom: 15,
+      marginBottom: 10,
     },
     messageWrapperMe: { justifyContent: "flex-end" },
     messageWrapperOther: { justifyContent: "flex-start" },
@@ -491,11 +548,11 @@ const getStyles = (COLORS: any) =>
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: "#A855F7",
+      backgroundColor: COLORS.accent,
       justifyContent: "center",
       alignItems: "center",
     },
-    avatarText: { color: "#FFF", fontSize: 14, fontWeight: "bold" },
+    avatarText: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
     messageContent: { maxWidth: "75%" },
     bubble: {
       paddingHorizontal: 12,
@@ -504,11 +561,14 @@ const getStyles = (COLORS: any) =>
       borderRadius: 18,
       position: "relative",
       minWidth: 60,
-      marginBottom: 10,
+      marginBottom: 5,
     },
-    bubbleMe: { backgroundColor: COLORS.myBubble, borderBottomRightRadius: 2 },
+    bubbleMe: {
+      backgroundColor: COLORS.primary,
+      borderBottomRightRadius: 2
+    },
     bubbleOther: {
-      backgroundColor: COLORS.otherBubble,
+      backgroundColor: COLORS.surface,
       borderBottomLeftRadius: 2,
     },
     messageText: { fontSize: 16, lineHeight: 22, paddingRight: 5 },
@@ -518,11 +578,27 @@ const getStyles = (COLORS: any) =>
       marginTop: 4,
       alignSelf: "flex-end",
     },
+    dateDivider: {
+      alignItems: "center",
+      marginVertical: 15,
+    },
+    dateDividerText: {
+      backgroundColor: isDarkMode ? "#2A2A30" : "#E5E7EB", // Giống màu nút Tab
+      color: COLORS.textLight,
+      fontSize: 12,
+      fontWeight: "600",
+      paddingHorizontal: 14,
+      paddingVertical: 4,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
     inputContainer: {
       flexDirection: "row",
       padding: 10,
       backgroundColor: COLORS.surface,
       alignItems: "center",
+      borderTopWidth: 1,
+      borderColor: COLORS.border,
     },
     attachBtn: { padding: 8 },
     textInput: {
@@ -534,7 +610,6 @@ const getStyles = (COLORS: any) =>
       height: 40,
     },
     sendBtn: {
-      backgroundColor: "#0091FF",
       width: 36,
       height: 36,
       borderRadius: 18,
@@ -580,6 +655,8 @@ const getStyles = (COLORS: any) =>
       borderRadius: 25,
       padding: 10,
       elevation: 10,
+      borderWidth: isDarkMode ? 1 : 0,
+      borderColor: COLORS.border,
     },
     emojiRow: {
       flexDirection: "row",
@@ -591,5 +668,4 @@ const getStyles = (COLORS: any) =>
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
   });
-
 export default MessageScreen;
