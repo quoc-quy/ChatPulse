@@ -502,7 +502,32 @@ export default function ConversationDetailScreen() {
               </Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.quickBtn}>
+            <TouchableOpacity
+              style={styles.quickBtn}
+              onPress={() => {
+                // Lấy thông tin người kia (không phải currentUser)
+                const otherUser = members.find(
+                  (m: any) =>
+                    (m._id || m.userId || "").toString() !== currentUserId,
+                );
+                if (otherUser) {
+                  navigation.navigate("UserProfile", {
+                    userId: (
+                      otherUser._id ||
+                      otherUser.userId ||
+                      ""
+                    ).toString(),
+                    userName:
+                      otherUser.fullName ||
+                      otherUser.userName ||
+                      otherUser.username ||
+                      "Người dùng",
+                    userPhone: otherUser.phone || "",
+                    userEmail: otherUser.email || "",
+                  });
+                }
+              }}
+            >
               <View
                 style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}
               >
