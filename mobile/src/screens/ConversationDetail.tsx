@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
   Alert,
   Switch,
-  useColorScheme,
   RefreshControl,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
+import { useTheme } from "../contexts/ThemeContext";
 import {
   getConversationDetail,
   leaveGroup,
@@ -211,7 +211,7 @@ export default function ConversationDetailScreen() {
   const route = useRoute<any>();
   const { id: conversationId, name: routeName, isGroup } = route.params || {};
 
-  const isDarkMode = useColorScheme() === "dark";
+  const { isDarkMode } = useTheme();
   const COLORS = useMemo(
     () => (isDarkMode ? darkColors : lightColors),
     [isDarkMode],
