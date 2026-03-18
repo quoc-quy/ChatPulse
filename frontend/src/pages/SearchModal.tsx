@@ -10,6 +10,7 @@ import { UserX } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-toastify'
 import friendApi from '@/apis/friend.api'
+import { useEffect, useState } from 'react'
 
 interface Props {
   open: boolean
@@ -18,7 +19,13 @@ interface Props {
 }
 
 export default function SearchModal({ open, onOpenChange, user }: Props) {
+  const [localUser, setLocalUser] = useState(user)
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    setLocalUser(user)
+  }, [user])
+
   const blockUserMutation = useMutation({
     mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
     onSuccess: (data) => {
@@ -64,18 +71,46 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
   })
 
   const handleRequestFriend = () => {
-    if (user.isFriend) {
-      unFriendMutation.mutate(user._id)
+    if (localUser.isFriend) {
+      unFriendMutation.mutate(localUser._id, {
+        onSuccess: () => {
+          setLocalUser((prev) => ({
+            ...prev,
+            isFriend: false
+          }))
+        }
+      })
     } else {
-      requestFriendMutation.mutate(user._id)
+      requestFriendMutation.mutate(localUser._id, {
+        onSuccess: () => {
+          setLocalUser((prev) => ({
+            ...prev,
+            isFriend: true
+          }))
+        }
+      })
     }
   }
 
   const handleToggleBlock = () => {
-    if (user.isBlocked) {
-      unBlockMutation.mutate(user._id)
+    if (localUser.isBlocked) {
+      unBlockMutation.mutate(localUser._id, {
+        onSuccess: () => {
+          setLocalUser((prev) => ({
+            ...prev,
+            isBlocked: false
+          }))
+        }
+      })
     } else {
-      blockUserMutation.mutate(user._id)
+      blockUserMutation.mutate(localUser._id, {
+        onSuccess: () => {
+          setLocalUser((prev) => ({
+            ...prev,
+            isBlocked: true
+          }))
+        }
+      })
     }
   }
 
@@ -89,26 +124,26 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
         {/* Avatar */}
         <div className='flex flex-col items-center gap-4'>
           <div className='h-28 w-28 overflow-hidden rounded-full'>
-            {!user?.avatar && (
+            {!localUser?.avatar && (
               <Avatar className='h-full w-full object-cover overflow-hidden text-foreground rounded-full border-gray-500'>
-                <AvatarImage alt={user?.userName} />
+                <AvatarImage alt={localUser?.userName} />
                 <AvatarFallback className='text-3xl font-semibold bg-blue-100 text-blue-600'>
-                  {getInitials(user?.userName)}
+                  {getInitials(localUser?.userName)}
                 </AvatarFallback>
               </Avatar>
             )}
-            {user?.avatar && <img src={user.avatar} alt='avatar' className='h-full w-full object-cover' />}
+            {localUser?.avatar && <img src={localUser.avatar} alt='avatar' className='h-full w-full object-cover' />}
           </div>
         </div>
 
         <div className='flex flex-col items-center gap-4'>
-          <div className='text-lg font-semibold'>{user.userName}</div>
+          <div className='text-lg font-semibold'>{localUser.userName}</div>
 
           <Button
             onClick={handleRequestFriend}
-            className={`px-10 cursor-pointer ${user.isFriend ? 'bg-red-700 hover:bg-red-900' : ''}`}
+            className={`px-10 cursor-pointer ${localUser.isFriend ? 'bg-red-700 hover:bg-red-900' : ''}`}
           >
-            {user.isFriend ? 'Hủy kết bạn' : 'Kết bạn'}
+            {localUser.isFriend ? 'Hủy kết bạn' : 'Kết bạn'}
           </Button>
         </div>
         <div className='bg-gray-300 h-2 w-[calc(100%+3rem)] -mx-6' />
@@ -116,19 +151,21 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
           <h1 className='font-semibold text-left text-xl'>Thông tin cá nhân</h1>
           <div className='flex'>
             <Label className='w-1/3 text-gray-400'>Bio</Label>
-            <div className='text-sm'>{user.bio}</div>
+            <div className='text-sm'>{localUser.bio}</div>
           </div>
           <div className='flex'>
             <Label className='w-1/3 text-gray-400'>Số điện thoại</Label>
-            <div className='text-sm'>{user.phone}</div>
+            <div className='text-sm'>{localUser.phone}</div>
           </div>
           <div className='flex'>
             <Label className='w-1/3 text-gray-400'>Giới tính</Label>
-            <div className='text-sm'>{user.gender}</div>
+            <div className='text-sm'>{localUser.gender}</div>
           </div>
           <div className='flex'>
             <Label className='w-1/3 text-gray-400'>Ngày sinh</Label>
-            <div className='text-sm'>{user.date_of_birth ? user.date_of_birth.slice(0, 10) : 'Chưa cập nhật'}</div>
+            <div className='text-sm'>
+              {localUser.date_of_birth ? localUser.date_of_birth.slice(0, 10) : 'Chưa cập nhật'}
+            </div>
           </div>
         </div>
         <div className='bg-gray-300 h-2 w-[calc(100%+3rem)] -mx-6' />
@@ -148,7 +185,7 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
           onClick={handleToggleBlock}
         >
           <UserX size={20} className='mr-3' />
-          <button className='cursor-pointer'>{user.isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}</button>
+          <button className='cursor-pointer'>{localUser.isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}</button>
         </div>
       </DialogContent>
     </Dialog>
