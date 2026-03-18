@@ -20,7 +20,15 @@ interface Props {
 
 export default function ProfilePage({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient()
-  const { register, handleSubmit, reset, watch, setValue } = useForm()
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    setError,
+    formState: { errors }
+  } = useForm()
   const { data: userData } = useQuery({
     queryKey: ['profile'],
     queryFn: userApi.getMe
@@ -40,6 +48,18 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
         })
 
         onOpenChange(false)
+      },
+      onError: (error: any) => {
+        const errorsFromBE = error?.response?.data?.errors
+
+        if (errorsFromBE) {
+          Object.keys(errorsFromBE).forEach((key) => {
+            setError(key as any, {
+              type: 'server',
+              message: errorsFromBE[key].msg
+            })
+          })
+        }
       }
     })
   })
@@ -86,6 +106,7 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
             <div>
               <Label>User Name</Label>
               <Input {...register('userName')} />
+              {errors.userName && <p className='text-red-500 text-sm mt-1'>{errors.userName.message as string}</p>}
             </div>
 
             <div>
@@ -96,11 +117,15 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
             <div>
               <Label>Date of Birth</Label>
               <Input {...register('date_of_birth')} type='date' />
+              {errors.date_of_birth && (
+                <p className='text-red-500 text-sm mt-1'>{errors.date_of_birth.message as string}</p>
+              )}
             </div>
 
             <div>
               <Label>Phone</Label>
               <Input {...register('phone')} />
+              {errors.phone && <p className='text-red-500 text-sm mt-1'>{errors.phone.message as string}</p>}
             </div>
 
             <div>
