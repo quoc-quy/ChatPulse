@@ -117,7 +117,11 @@ class FriendService {
             _id: '$friend_info._id',
             userName: '$friend_info.userName',
             avatar: '$friend_info.avatar',
-            email: '$friend_info.email'
+            email: '$friend_info.email',
+            date_of_birth: '$friend_info.date_of_birth',
+            bio: '$friend_info.bio',
+            phone: '$friend_info.phone',
+            gender: '$friend_info.gender'
           }
         }
       ])
