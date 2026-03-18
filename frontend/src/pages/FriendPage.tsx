@@ -139,9 +139,9 @@ export default function FriendPage() {
                       </button>
                     </PopoverTrigger>
 
-                    <PopoverContent align='end' className='w-48 p-2 border-gray-200'>
+                    <PopoverContent align='end' className='w-48 p-2 border-gray-200 dark:border-gray-700/50'>
                       <div className='flex flex-col gap-1'>
-                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'>
+                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'>
                           Xem thông tin
                         </button>
 
@@ -155,7 +155,7 @@ export default function FriendPage() {
                               handleBlock(friend._id)
                             }
                           }}
-                          className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer'
+                          className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'
                           disabled={blockUserMutation.isPending || unBlockMutation.isPending}
                         >
                           {isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}
@@ -165,7 +165,7 @@ export default function FriendPage() {
 
                         <button
                           onClick={() => handleUnfriend(friend._id)}
-                          className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer'
+                          className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer dark:hover:bg-sidebar-accent'
                         >
                           Hủy kết bạn
                         </button>
