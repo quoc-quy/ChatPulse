@@ -257,11 +257,18 @@ export const updateMeValidator = validate(
       },
       custom: {
         options: async (value, { req }) => {
-          const userName = await databaseService.users.findOne({ userName: value })
+          const { user_id } = req.decoded_authorization as TokenPayload
 
-          if (userName != null) {
+          const user = await databaseService.users.findOne({
+            userName: value,
+            _id: { $ne: new ObjectId(user_id) }
+          })
+
+          if (user) {
             throw new Error('Username đã tồn tại trong hệ thống')
           }
+
+          return true
         }
       }
     },
@@ -306,12 +313,18 @@ export const updateMeValidator = validate(
         errorMessage: 'Số điện thoại phải đủ 10 ký tự số'
       },
       custom: {
-        options: async (value) => {
-          const existedPhone = await userService.checkExistedPhone(value)
+        options: async (value, { req }) => {
+          const { user_id } = req.decoded_authorization as TokenPayload
+
+          const existedPhone = await databaseService.users.findOne({
+            phone: value,
+            _id: { $ne: new ObjectId(user_id) }
+          })
 
           if (existedPhone) {
             throw new Error('Số điện thoại đã tồn tại')
           }
+
           return true
         }
       }
