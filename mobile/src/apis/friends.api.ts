@@ -36,4 +36,10 @@ export const friendApi = {
   // Gửi lời mời kết bạn
   sendFriendRequest: (receiverId: string) =>
     api.post("/friends/request", { receiver_id: receiverId }),
+  //block
+  blockUser: (userId: string) => api.post(`/friends/block/${userId}`),
+
+  unblockUser: (userId: string) => api.delete(`/friends/block/${userId}`),
+
+  getBlockedUsers: () => api.get("/friends/blocked"),
 };

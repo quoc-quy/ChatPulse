@@ -19,6 +19,7 @@ import ConversationDetailScreen from "./src/screens/ConversationDetail";
 import MembersScreen from "./src/screens/MembersScreen";
 import AddMemberScreen from "./src/screens/AddMembersScreen";
 import UserProfileScreen from "./src/screens/UserProfileScreen";
+import BlockedUsersScreen from "./src/screens/BlockUserScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -127,6 +128,14 @@ export default function App() {
               <Stack.Screen
                 name="MessageScreen"
                 component={MessageScreen}
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_right",
+                }}
+              />
+              <Stack.Screen
+                name="BlockedUsers"
+                component={BlockedUsersScreen}
                 options={{
                   headerShown: false,
                   animation: "slide_from_right",

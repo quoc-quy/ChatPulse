@@ -17,49 +17,53 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../contexts/ThemeContext";
 import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient"; 
+import { LinearGradient } from "expo-linear-gradient";
 
 import SearchComponent from "../components/ui/SearchComponent";
 import { getConversations } from "../apis/chat.api";
+import { friendApi } from "../apis/friends.api";
 
 // ==========================================
 // 1. BẢNG MÀU ĐỒNG BỘ 100% VỚI PROFILE SCREEN
 // ==========================================
 const lightColors = {
   background: "#F5F7FB", // Khớp với lightTheme background
-  surface: "#FFFFFF",    // Khớp với lightTheme card
-  surfaceSoft: "#EEF2FF",// Khớp với lightTheme cardSoft
-  text: "#0F172A",       // Khớp với lightTheme textPrimary
-  textLight: "#64748B",  // Khớp với lightTheme textSecondary
-  border: "#E2E8F0",     // Khớp với lightTheme border
-  primary: "#6366F1",    // Khớp với lightTheme accent
-  accent: "#711cc1",     // Khớp với lightTheme accentAlt
-  success: "#10B981",    
-  badge: "#EF4444",      // Khớp với danger
-  headerText: "#FFFFFF", 
+  surface: "#FFFFFF", // Khớp với lightTheme card
+  surfaceSoft: "#EEF2FF", // Khớp với lightTheme cardSoft
+  text: "#0F172A", // Khớp với lightTheme textPrimary
+  textLight: "#64748B", // Khớp với lightTheme textSecondary
+  border: "#E2E8F0", // Khớp với lightTheme border
+  primary: "#6366F1", // Khớp với lightTheme accent
+  accent: "#711cc1", // Khớp với lightTheme accentAlt
+  success: "#10B981",
+  badge: "#EF4444", // Khớp với danger
+  headerText: "#FFFFFF",
 };
 
 const darkColors = {
   background: "#070B1A", // Khớp với darkTheme background
-  surface: "#11182D",    // Khớp với darkTheme card
-  surfaceSoft: "#0D1428",// Khớp với darkTheme cardSoft
-  text: "#F8FAFC",       // Khớp với darkTheme textPrimary
-  textLight: "#9CA3AF",  // Khớp với darkTheme textSecondary
-  border: "#1E2946",     // Khớp với darkTheme border
-  primary: "#1c0249",    // Khớp với darkTheme accent
-  accent: "#711cc1",     // Khớp với darkTheme accentAlt
-  success: "#10B981",    
-  badge: "#EF4444",      // Khớp với danger
-  headerText: "#FFFFFF", 
+  surface: "#11182D", // Khớp với darkTheme card
+  surfaceSoft: "#0D1428", // Khớp với darkTheme cardSoft
+  text: "#F8FAFC", // Khớp với darkTheme textPrimary
+  textLight: "#9CA3AF", // Khớp với darkTheme textSecondary
+  border: "#1E2946", // Khớp với darkTheme border
+  primary: "#1c0249", // Khớp với darkTheme accent
+  accent: "#711cc1", // Khớp với darkTheme accentAlt
+  success: "#10B981",
+  badge: "#EF4444", // Khớp với danger
+  headerText: "#FFFFFF",
 };
 
 const ChatScreen = () => {
   const navigation = useNavigation<any>();
-  
+
   // --- LẤY THEME HIỆN TẠI TỪ HỆ THỐNG ---
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
-  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
+  const styles = useMemo(
+    () => getStyles(COLORS, isDarkMode),
+    [isDarkMode, COLORS],
+  );
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +72,7 @@ const ChatScreen = () => {
   const [hasMore, setHasMore] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
   const fetchCurrentUserId = async () => {
     try {
@@ -102,10 +107,23 @@ const ChatScreen = () => {
     }
   };
 
+  const fetchBlockedUsers = async () => {
+    try {
+      const res = await friendApi.getBlockedUsers();
+      const ids = (res.data?.result || []).map((u: any) =>
+        (u._id || "").toString(),
+      );
+      setBlockedUserIds(new Set(ids));
+    } catch {
+      // silent fail
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchCurrentUserId().then(() => {
         fetchConversations(1, true);
+        fetchBlockedUsers();
       });
     }, []),
   );
@@ -131,7 +149,10 @@ const ChatScreen = () => {
     if (diffMins < 60) return `${diffMins}p`;
     if (Math.floor(diffMins / 60) < 24 && date.getDate() === now.getDate())
       return `${Math.floor(diffMins / 60)}g`;
-    return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+    });
   };
 
   const getChatDetails = (item: any) => {
@@ -145,9 +166,15 @@ const ChatScreen = () => {
       chatAvatarUrl = item.avatarUrl || "";
     } else {
       if (item.participants?.length > 0 && currentUserId) {
-        const partner = item.participants.find((p: any) => p._id !== currentUserId);
+        const partner = item.participants.find(
+          (p: any) => p._id !== currentUserId,
+        );
         if (partner) {
-          chatName = partner.displayName || partner.fullName || partner.userName || "Người dùng";
+          chatName =
+            partner.displayName ||
+            partner.fullName ||
+            partner.userName ||
+            "Người dùng";
           chatAvatarUrl = partner.avatar || "";
           isOnline = partner.isOnline;
           targetUserId = partner._id;
@@ -158,7 +185,8 @@ const ChatScreen = () => {
   };
 
   const renderItem = ({ item }: any) => {
-    const { chatName, chatAvatarUrl, isOnline, targetUserId } = getChatDetails(item);
+    const { chatName, chatAvatarUrl, isOnline, targetUserId } =
+      getChatDetails(item);
     let messageContent = item.lastMessage?.content || "Chưa có tin nhắn";
     const unread = item.unread_count || 0;
 
@@ -181,7 +209,9 @@ const ChatScreen = () => {
               <Image source={{ uri: chatAvatarUrl }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
-                <Text style={styles.avatarText}>{chatName.charAt(0).toUpperCase()}</Text>
+                <Text style={styles.avatarText}>
+                  {chatName.charAt(0).toUpperCase()}
+                </Text>
               </View>
             )}
           </View>
@@ -190,19 +220,29 @@ const ChatScreen = () => {
 
         <View style={styles.chatContent}>
           <View style={styles.chatHeader}>
-            <Text style={styles.name} numberOfLines={1}>{chatName}</Text>
+            <Text style={styles.name} numberOfLines={1}>
+              {chatName}
+            </Text>
             <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
               {formatTimeZalo(item.updated_at)}
             </Text>
           </View>
 
           <View style={styles.chatFooter}>
-            <Text style={[styles.message, unread > 0 && styles.unreadMessage]} numberOfLines={1}>
+            <Text
+              style={[styles.message, unread > 0 && styles.unreadMessage]}
+              numberOfLines={1}
+            >
               {messageContent}
             </Text>
             {unread > 0 && (
-              <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.badge}>
-                <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+              <LinearGradient
+                colors={[COLORS.primary, COLORS.accent]}
+                style={styles.badge}
+              >
+                <Text style={styles.badgeText}>
+                  {unread > 9 ? "9+" : unread}
+                </Text>
               </LinearGradient>
             )}
           </View>
@@ -211,15 +251,29 @@ const ChatScreen = () => {
     );
   };
 
+  // Lọc bỏ conversation với người bị chặn
+  const filteredConversations = conversations.filter((c) => {
+    if (c.type === "group") return true;
+    const partner = c.participants?.find(
+      (p: any) => p._id?.toString() !== currentUserId,
+    );
+    if (!partner) return true;
+    return !blockedUserIds.has(partner._id?.toString() || "");
+  });
+
   const displayConversations =
     activeTab === "all"
-      ? conversations
-      : conversations.filter((c) => (c.unread_count || 0) > 0);
+      ? filteredConversations
+      : filteredConversations.filter((c) => (c.unread_count || 0) > 0);
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={COLORS.primary} translucent={false} />
-      
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={COLORS.primary}
+        translucent={false}
+      />
+
       <View style={styles.heroContainer}>
         <LinearGradient
           colors={[COLORS.primary, COLORS.accent]}
@@ -229,7 +283,9 @@ const ChatScreen = () => {
             <View style={styles.headerTop}>
               <View>
                 <Text style={styles.title}>Tin nhắn</Text>
-                <Text style={styles.subtitle}>{conversations.length} cuộc hội thoại</Text>
+                <Text style={styles.subtitle}>
+                  {conversations.length} cuộc hội thoại
+                </Text>
               </View>
               <View style={styles.headerIcons}>
                 <TouchableOpacity style={styles.iconBtn}>
@@ -240,7 +296,7 @@ const ChatScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             <View style={styles.searchWrapper}>
               <SearchComponent />
             </View>
@@ -251,16 +307,36 @@ const ChatScreen = () => {
       <View style={styles.contentContainer}>
         <View style={styles.tabsContainer}>
           <TouchableOpacity
-            style={[styles.tabButton, activeTab === "all" && styles.tabButtonActive]}
+            style={[
+              styles.tabButton,
+              activeTab === "all" && styles.tabButtonActive,
+            ]}
             onPress={() => setActiveTab("all")}
           >
-            <Text style={[styles.tabText, activeTab === "all" && styles.tabTextActive]}>Tất cả</Text>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "all" && styles.tabTextActive,
+              ]}
+            >
+              Tất cả
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tabButton, activeTab === "unread" && styles.tabButtonActive]}
+            style={[
+              styles.tabButton,
+              activeTab === "unread" && styles.tabButtonActive,
+            ]}
             onPress={() => setActiveTab("unread")}
           >
-            <Text style={[styles.tabText, activeTab === "unread" && styles.tabTextActive]}>Chưa đọc</Text>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "unread" && styles.tabTextActive,
+              ]}
+            >
+              Chưa đọc
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -276,7 +352,11 @@ const ChatScreen = () => {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={COLORS.primary}
+              />
             }
             onEndReached={onLoadMore}
             onEndReachedThreshold={0.5}
@@ -308,7 +388,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginTop: 10,
       marginBottom: 15,
     },
-    title: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginLeft: 20 },
+    title: {
+      fontSize: 30,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      marginLeft: 20,
+    },
     subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginLeft: 20 },
     headerIcons: { flexDirection: "row", right: 20 },
     iconBtn: {
@@ -343,7 +428,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
     chatCard: {
       flexDirection: "row",
-      backgroundColor: COLORS.surface, 
+      backgroundColor: COLORS.surface,
       padding: 12,
       borderRadius: 24,
       marginBottom: 12,
@@ -379,7 +464,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 7,
       backgroundColor: COLORS.success,
       borderWidth: 2,
-      borderColor: COLORS.surface, 
+      borderColor: COLORS.surface,
     },
     chatContent: { flex: 1, marginLeft: 14 },
     chatHeader: {
@@ -395,7 +480,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       justifyContent: "space-between",
       alignItems: "center",
     },
-    message: { color: COLORS.textLight, fontSize: 14, flex: 1, marginRight: 10 },
+    message: {
+      color: COLORS.textLight,
+      fontSize: 14,
+      flex: 1,
+      marginRight: 10,
+    },
     unreadMessage: { color: COLORS.text, fontWeight: "600" },
     badge: {
       minWidth: 22,
