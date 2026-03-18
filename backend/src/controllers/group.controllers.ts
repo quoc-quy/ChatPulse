@@ -86,3 +86,16 @@ export const readController = async (req: Request, res: Response) => {
   await groupService.markAsRead(id, userId, last_message_id)
   return res.status(httpStatus.OK).json({ message: 'Đánh dấu đã xem thành công' })
 }
+
+export const renameGroupController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const { name } = req.body
+  const userId = req.decoded_authorization?.user_id as string
+
+  if (!name || name.trim() === '') {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Tên nhóm không được để trống' })
+  }
+
+  const updatedGroup = await groupService.renameGroup(id, userId, name.trim())
+  return res.status(httpStatus.OK).json({ message: 'Đổi tên nhóm thành công', result: updatedGroup })
+}
