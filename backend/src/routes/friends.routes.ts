@@ -7,7 +7,10 @@ import {
   getFriendListController,
   getReceivedFriendRequestsController,
   unfriendController,
-  getSentFriendRequestsController
+  getSentFriendRequestsController,
+  blockUserController,
+  unblockUserController,
+  getBlockedUsersController
 } from '~/controllers/friends.controllers'
 import { createFriendRequestValidator, unfriendValidator } from '~/middlewares/friends.middlewares'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
@@ -15,39 +18,23 @@ import { wrapRequestHandler } from '~/utils/handlers'
 
 const friendsRouter = Router()
 
-/**
- * Gửi lời mời kết bạn
- * Path: POST /friends/request
- */
 friendsRouter.post(
   '/request',
   accessTokenValidator,
   createFriendRequestValidator,
   wrapRequestHandler(createFriendRequestController)
 )
-
-/**
- * Chấp nhận lời mời kết bạn
- * Path: POST /friends/accept
- */
 friendsRouter.patch('/requests/:id/accept', accessTokenValidator, wrapRequestHandler(acceptFriendRequestController))
-
-/**
- * Lấy danh sách bạn bè
- * Path: GET /friends/list
- */
 friendsRouter.get('/list', accessTokenValidator, wrapRequestHandler(getFriendListController))
-
-/**
- * Lấy danh sách lời mời đã nhận
- * Path: GET /friends/requests/received
- */
 friendsRouter.delete('/unfriend', accessTokenValidator, unfriendValidator, wrapRequestHandler(unfriendController))
 friendsRouter.get('/requests/pending', accessTokenValidator, wrapRequestHandler(getSentFriendRequestsController))
 friendsRouter.get('/requests/received', accessTokenValidator, wrapRequestHandler(getReceivedFriendRequestsController))
 friendsRouter.delete('/requests/:id/decline', accessTokenValidator, wrapRequestHandler(declineFriendRequestController))
-
-// Hủy lời mời đã gửi
 friendsRouter.delete('/requests/:id/cancel', accessTokenValidator, wrapRequestHandler(cancelFriendRequestController))
+
+// ── Block / Unblock ──────────────────────────────────────────────────────────
+friendsRouter.post('/block/:userId', accessTokenValidator, wrapRequestHandler(blockUserController))
+friendsRouter.delete('/block/:userId', accessTokenValidator, wrapRequestHandler(unblockUserController))
+friendsRouter.get('/blocked', accessTokenValidator, wrapRequestHandler(getBlockedUsersController))
 
 export default friendsRouter
