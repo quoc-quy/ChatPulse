@@ -243,6 +243,34 @@ const MessageScreen = () => {
     setShowMenu(false);
   };
 
+  const handleRemoveAllReactions = async (message: any) => {
+    if (!message || message.type === "revoked") return;
+    try {
+      const response = await reactMessageApi(message._id, "REMOVE_ALL");
+      const apiReactions =
+        response?.data?.result?.reactions ||
+        response?.data?.result?.value?.reactions ||
+        [];
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === message._id ? { ...msg, reactions: apiReactions } : msg
+        )
+      );
+
+      setReactionDetailMessage((prev: any) => {
+        if (!prev || prev._id !== message._id) return prev;
+        return {
+          ...prev,
+          reactions: apiReactions,
+        };
+      });
+    } catch (error) {
+      console.log("Lỗi xoá tất cả reaction:", error);
+    }
+    setShowMenu(false);
+  };
+
   const getReactionUserId = (reaction: any) =>
     (
       reaction?.user?._id ||
@@ -734,6 +762,12 @@ const MessageScreen = () => {
                   <Text style={{ fontSize: 30 }}>{e}</Text>
                 </TouchableOpacity>
               ))}
+              <TouchableOpacity
+                onPress={() => handleRemoveAllReactions(selectedMsg)}
+                style={styles.removeAllReactionBtn}
+              >
+                <Ionicons name="heart-dislike-outline" size={24} color={COLORS.textLight} />
+              </TouchableOpacity>
             </View>
             <View style={styles.actionRow}>
               {selectedMsg?.sender?._id === currentUserId && (
@@ -1248,9 +1282,21 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     emojiRow: {
       flexDirection: "row",
       justifyContent: "space-around",
+      alignItems: "center",
       paddingVertical: 15,
       borderBottomWidth: 0.5,
       borderBottomColor: COLORS.border,
+    },
+    removeAllReactionBtn: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor: COLORS.background,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: 4,
     },
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
