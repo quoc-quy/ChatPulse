@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   TextInput,
   TouchableOpacity,
   FlatList,
@@ -100,6 +101,9 @@ const MessageScreen = () => {
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const [showReactionDetails, setShowReactionDetails] = useState(false);
+  const [reactionDetailMessage, setReactionDetailMessage] = useState<any>(null);
+  const [reactionFilter, setReactionFilter] = useState<string>("ALL");
 
   // --- STATE CHO CHỨC NĂNG AI SUMMARY ---
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -184,30 +188,199 @@ const MessageScreen = () => {
   const handleToggleReact = async (message: any, emoji: string) => {
     if (!message || message.type === "revoked") return;
     try {
-      await reactMessageApi(message._id, emoji);
+      const response = await reactMessageApi(message._id, emoji);
+      const apiReactions =
+        response?.data?.result?.reactions ||
+        response?.data?.result?.value?.reactions ||
+        null;
+
       setMessages((prev) =>
         prev.map((msg) => {
-          if (msg._id === message._id) {
-            const isExist = msg.reactions?.some((r: any) => {
-              const reactionUserId = r?.userId || r?.user_id;
-              return (
-                reactionUserId?.toString?.() === currentUserId?.toString?.() &&
-                r?.emoji === emoji
-              );
-            });
+          if (msg._id !== message._id) return msg;
+
+          if (Array.isArray(apiReactions)) {
             return {
               ...msg,
-              reactions: isExist ? [] : [{ emoji, user_id: currentUserId }],
+              reactions: apiReactions,
             };
           }
-          return msg;
+
+          const currentReactions = Array.isArray(msg.reactions)
+            ? msg.reactions
+            : [];
+
+          const nextReactions = [
+            ...currentReactions,
+            {
+              emoji,
+              user_id: currentUserId,
+              user: {
+                _id: currentUserId,
+                userName: "Bạn",
+              },
+            },
+          ];
+
+          return {
+            ...msg,
+            reactions: nextReactions,
+          };
         })
       );
+
+      setReactionDetailMessage((prev: any) => {
+        if (!prev || prev._id !== message._id) return prev;
+        return {
+          ...prev,
+          reactions: Array.isArray(apiReactions)
+            ? apiReactions
+            : prev.reactions,
+        };
+      });
     } catch (error) {
       console.log("Lỗi thả react :", error);
     }
     setShowMenu(false);
   };
+
+  const getReactionUserId = (reaction: any) =>
+    (
+      reaction?.user?._id ||
+      reaction?.userId ||
+      reaction?.user_id ||
+      ""
+    )
+      ?.toString?.()
+      ?.trim?.() || "";
+
+  const getReactionUserName = (reaction: any) => {
+    const reactionUserId = getReactionUserId(reaction);
+    if (reactionUserId && reactionUserId === currentUserId?.toString?.()) {
+      return "Bạn";
+    }
+    return (
+      reaction?.user?.userName ||
+      reaction?.user?.displayName ||
+      reaction?.userName ||
+      "Người dùng"
+    );
+  };
+
+  const getReactionUserAvatar = (reaction: any) => reaction?.user?.avatar || "";
+
+  const buildReactionGroups = (reactions: any[] = []) => {
+    const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>();
+
+    reactions.forEach((reaction: any) => {
+      const emoji = reaction?.emoji;
+      if (!emoji) return;
+
+      if (!groupMap.has(emoji)) {
+        groupMap.set(emoji, { emoji, count: 0, users: [] });
+      }
+
+      const group = groupMap.get(emoji)!;
+      group.count += 1;
+      group.users.push(reaction);
+    });
+
+    return Array.from(groupMap.values()).sort((a, b) => b.count - a.count);
+  };
+
+  const openReactionDetails = (message: any) => {
+    setReactionDetailMessage(message);
+    setReactionFilter("ALL");
+    setShowReactionDetails(true);
+  };
+
+  const reactionGroupsForModal = useMemo(
+    () => buildReactionGroups(reactionDetailMessage?.reactions || []),
+    [reactionDetailMessage, currentUserId]
+  );
+
+  const reactionUsersForModal = useMemo(() => {
+    const groupByUserAndEmoji = (reactions: any[]) => {
+      const grouped = new Map<
+        string,
+        { userId: string; userName: string; avatar: string; emoji: string; count: number }
+      >();
+
+      reactions.forEach((reaction: any) => {
+        const emoji = reaction?.emoji;
+        if (!emoji) return;
+
+        const userId = getReactionUserId(reaction) || "unknown";
+        const key = `${userId}-${emoji}`;
+
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            userId,
+            userName: getReactionUserName(reaction),
+            avatar: getReactionUserAvatar(reaction),
+            emoji,
+            count: 0,
+          });
+        }
+
+        grouped.get(key)!.count += 1;
+      });
+
+      return Array.from(grouped.values()).sort((a, b) => b.count - a.count);
+    };
+
+    const groupByUserAllEmojis = (reactions: any[]) => {
+      const grouped = new Map<
+        string,
+        {
+          userId: string;
+          userName: string;
+          avatar: string;
+          totalCount: number;
+          emojiCounts: Record<string, number>;
+        }
+      >();
+
+      reactions.forEach((reaction: any) => {
+        const emoji = reaction?.emoji;
+        if (!emoji) return;
+
+        const userId = getReactionUserId(reaction) || "unknown";
+        if (!grouped.has(userId)) {
+          grouped.set(userId, {
+            userId,
+            userName: getReactionUserName(reaction),
+            avatar: getReactionUserAvatar(reaction),
+            totalCount: 0,
+            emojiCounts: {},
+          });
+        }
+
+        const row = grouped.get(userId)!;
+        row.totalCount += 1;
+        row.emojiCounts[emoji] = (row.emojiCounts[emoji] || 0) + 1;
+      });
+
+      return Array.from(grouped.values())
+        .map((row) => ({
+          ...row,
+          emojis: Object.entries(row.emojiCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([emoji]) => emoji),
+        }))
+        .sort((a, b) => b.totalCount - a.totalCount);
+    };
+
+    if (reactionFilter !== "ALL") {
+      const selectedGroup = reactionGroupsForModal.find(
+        (group) => group.emoji === reactionFilter
+      );
+      return groupByUserAndEmoji(selectedGroup?.users || []);
+    }
+
+    return groupByUserAllEmojis(
+      reactionGroupsForModal.flatMap((group) => group.users)
+    );
+  }, [reactionFilter, reactionGroupsForModal, currentUserId]);
 
   const handleRevoke = async () => {
     if (!selectedMsg) return;
@@ -339,7 +512,16 @@ const MessageScreen = () => {
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
-    const hasReactions = item.reactions && item.reactions.length > 0;
+    const reactionGroups = buildReactionGroups(item.reactions || []);
+    const totalReactions = reactionGroups.reduce(
+      (acc, group) => acc + group.count,
+      0
+    );
+    const hasReactions = totalReactions > 0;
+    const reactionPreview = reactionGroups
+      .slice(0, 3)
+      .map((group) => group.emoji)
+      .join(" ");
 
     const prevItem = index > 0 ? messages[index - 1] : null;
     const nextItem = index < messages.length - 1 ? messages[index + 1] : null;
@@ -432,14 +614,13 @@ const MessageScreen = () => {
                   <View style={styles.reactionContainer}>
                     {hasReactions ? (
                       <TouchableOpacity
-                        style={styles.miniReact}
-                        onPress={() =>
-                          handleToggleReact(item, item.reactions[0].emoji)
-                        }
+                        style={styles.reactionSummary}
+                        onPress={() => openReactionDetails(item)}
                       >
-                        <Text style={{ fontSize: 11 }}>
-                          {item.reactions[0].emoji}
+                        <Text style={styles.reactionEmojiPreview}>
+                          {reactionPreview}
                         </Text>
+                        <Text style={styles.reactionCountText}>{totalReactions}</Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity
@@ -567,6 +748,99 @@ const MessageScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={showReactionDetails} transparent animationType="fade">
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setShowReactionDetails(false)}
+        >
+          <Pressable style={styles.reactionDetailBox}>
+            <View style={styles.reactionDetailHeader}>
+              <Text style={styles.reactionDetailTitle}>Biểu cảm</Text>
+              <TouchableOpacity onPress={() => setShowReactionDetails(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.reactionDetailBody}>
+              <View style={styles.reactionFilterCol}>
+                <TouchableOpacity
+                  style={[
+                    styles.reactionFilterItem,
+                    reactionFilter === "ALL" && styles.reactionFilterItemActive,
+                  ]}
+                  onPress={() => setReactionFilter("ALL")}
+                >
+                  <Text style={styles.reactionFilterLabel}>Tất cả</Text>
+                  <Text style={styles.reactionFilterCount}>
+                    {reactionGroupsForModal.reduce((acc, group) => acc + group.count, 0)}
+                  </Text>
+                </TouchableOpacity>
+
+                {reactionGroupsForModal.map((group) => (
+                  <TouchableOpacity
+                    key={group.emoji}
+                    style={[
+                      styles.reactionFilterItem,
+                      reactionFilter === group.emoji &&
+                        styles.reactionFilterItemActive,
+                    ]}
+                    onPress={() => setReactionFilter(group.emoji)}
+                  >
+                    <Text style={styles.reactionFilterLabel}>{group.emoji}</Text>
+                    <Text style={styles.reactionFilterCount}>{group.count}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.reactionUsersCol}>
+                <FlatList
+                  data={reactionUsersForModal}
+                  keyExtractor={(reaction: any, index) =>
+                    `${reaction.userId}-${reaction.emoji || "ALL"}-${index}`
+                  }
+                  renderItem={({ item: reaction }: { item: any }) => {
+                    const userName = reaction.userName;
+                    const avatar = reaction.avatar;
+                    const isAllFilter = reactionFilter === "ALL";
+                    const rightEmojiText = isAllFilter
+                      ? (reaction.emojis || []).join(" ")
+                      : reaction?.emoji;
+                    const rightCountText = isAllFilter
+                      ? reaction.totalCount
+                      : reaction?.count;
+
+                    return (
+                      <View style={styles.reactionUserRow}>
+                        {avatar ? (
+                          <Image
+                            source={{ uri: avatar }}
+                            style={styles.reactionUserAvatar}
+                          />
+                        ) : (
+                          <View style={styles.reactionUserAvatarFallback}>
+                            <Text style={styles.reactionUserAvatarText}>
+                              {userName.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.reactionUserName}>{userName}</Text>
+                        <View style={styles.reactionUserRight}>
+                          <Text style={styles.reactionUserEmoji}>{rightEmojiText}</Text>
+                          <Text style={styles.reactionUserCount}>{rightCountText}</Text>
+                        </View>
+                      </View>
+                    );
+                  }}
+                  ListEmptyComponent={
+                    <Text style={styles.reactionEmptyText}>Chưa có biểu cảm</Text>
+                  }
+                />
+              </View>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -812,6 +1086,28 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       alignItems: "center",
       elevation: 2,
     },
+    reactionSummary: {
+      minHeight: 24,
+      minWidth: 40,
+      paddingHorizontal: 8,
+      backgroundColor: COLORS.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      elevation: 2,
+    },
+    reactionEmojiPreview: {
+      fontSize: 11,
+    },
+    reactionCountText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: COLORS.text,
+    },
     defaultLike: {
       width: 24,
       height: 24,
@@ -824,6 +1120,120 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       opacity: 0.75,
     },
     overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+    reactionDetailBox: {
+      position: "absolute",
+      top: "20%",
+      alignSelf: "center",
+      width: "92%",
+      maxHeight: 430,
+      backgroundColor: COLORS.surface,
+      borderRadius: 16,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    reactionDetailHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    reactionDetailTitle: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: COLORS.text,
+    },
+    reactionDetailBody: {
+      flexDirection: "row",
+      minHeight: 260,
+      maxHeight: 360,
+    },
+    reactionFilterCol: {
+      width: 115,
+      backgroundColor: isDarkMode ? "#0F172A" : "#F3F4F6",
+    },
+    reactionFilterItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    reactionFilterItemActive: {
+      backgroundColor: isDarkMode ? "#11182D" : "#E5E7EB",
+    },
+    reactionFilterLabel: {
+      color: COLORS.text,
+      fontSize: 20,
+      fontWeight: "500",
+    },
+    reactionFilterCount: {
+      color: COLORS.text,
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    reactionUsersCol: {
+      flex: 1,
+      backgroundColor: COLORS.surface,
+      paddingVertical: 8,
+    },
+    reactionUserRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    reactionUserAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      marginRight: 10,
+    },
+    reactionUserAvatarFallback: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      marginRight: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: COLORS.surfaceSoft,
+    },
+    reactionUserAvatarText: {
+      color: COLORS.text,
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    reactionUserName: {
+      flex: 1,
+      color: COLORS.text,
+      fontSize: 20,
+      fontWeight: "500",
+    },
+    reactionUserRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      maxWidth: "48%",
+    },
+    reactionUserEmoji: {
+      color: COLORS.text,
+      fontSize: 22,
+      marginRight: 8,
+      textAlign: "right",
+      flexShrink: 1,
+    },
+    reactionUserCount: {
+      color: COLORS.text,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    reactionEmptyText: {
+      textAlign: "center",
+      color: COLORS.textLight,
+      paddingVertical: 20,
+    },
     menuBox: {
       position: "absolute",
       alignSelf: "center",
