@@ -2,54 +2,41 @@
 import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
-import Friend from '~/models/schemas/friend.schema' // Import schema mới cho KAN-42
+import Friend from '~/models/schemas/friend.schema'
+import UserBlocks from '~/models/schemas/userBlocks.schema'
 import { FriendStatus } from '~/constants/friendStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 
 class FriendService {
-  /**
-   * Gửi lời mời kết bạn
-   */
   async createFriendRequest(sender_id: string, receiver_id: string) {
     const isFriend = await databaseService.friends.findOne({
       user_id: new ObjectId(sender_id),
       friend_id: new ObjectId(receiver_id)
     })
-
     if (isFriend) {
-      throw new ErrorWithStatus({
-        message: 'Hai người đã là bạn bè',
-        status: httpStatus.BAD_REQUEST // 400 theo DoD
-      })
+      throw new ErrorWithStatus({ message: 'Hai người đã là bạn bè', status: httpStatus.BAD_REQUEST })
     }
-    // 1. Kiểm tra xem bạn đã gửi lời mời cho người này chưa (hoặc đã là bạn bè chưa)
     const existedRequest = await databaseService.friendRequests.findOne({
       sender_id: new ObjectId(sender_id),
       receiver_id: new ObjectId(receiver_id)
     })
-
     if (existedRequest) {
       throw new ErrorWithStatus({
         message: 'Lời mời kết bạn đã tồn tại hoặc bạn đã là bạn bè với người này',
         status: httpStatus.UNPROCESSABLE_ENTITY
       })
     }
-
-    // 2. Kiểm tra ngược lại: Nếu đối phương đã gửi lời mời cho bạn rồi, yêu cầu người dùng kiểm tra danh sách lời mời
     const reverseRequest = await databaseService.friendRequests.findOne({
       sender_id: new ObjectId(receiver_id),
       receiver_id: new ObjectId(sender_id)
     })
-
     if (reverseRequest) {
       throw new ErrorWithStatus({
         message: 'Người này đã gửi lời mời kết bạn cho bạn trước đó, vui lòng kiểm tra danh sách lời mời',
         status: httpStatus.UNPROCESSABLE_ENTITY
       })
     }
-
-    // 3. Tiến hành gửi lời mời
     await databaseService.friendRequests.insertOne(
       new FriendRequest({
         sender_id: new ObjectId(sender_id),
@@ -57,31 +44,22 @@ class FriendService {
         status: FriendStatus.Pending
       })
     )
-
     return { message: 'Gửi lời mời kết bạn thành công' }
   }
 
-  /**
-   * Chấp nhận kết bạn (Cập nhật cho KAN-42: Tách bảng bạn bè riêng)
-   */
   async acceptFriendRequest(user_id: string, request_id: string) {
-    // 1. Tìm đúng bản ghi lời mời bằng _id truyền từ URL
     const friendRequest = await databaseService.friendRequests.findOne({
       _id: new ObjectId(request_id),
-      receiver_id: new ObjectId(user_id), // Bảo mật: Chỉ người nhận mới được chấp nhận
+      receiver_id: new ObjectId(user_id),
       status: FriendStatus.Pending
     })
-
     if (!friendRequest) {
       throw new ErrorWithStatus({
         message: 'Lời mời kết bạn không tồn tại hoặc bạn không có quyền...',
         status: httpStatus.NOT_FOUND
       })
     }
-
-    // 2. Lấy sender_id từ bản ghi vừa tìm được để tạo quan hệ bạn bè
     const { sender_id } = friendRequest
-
     await Promise.all([
       databaseService.friendRequests.updateOne(
         { _id: friendRequest._id },
@@ -92,25 +70,14 @@ class FriendService {
         new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
       ])
     ])
-
     return { message: 'Đã trở thành bạn bè' }
   }
 
-  /**
-   * Lấy danh sách bạn bè chính thức (Truy vấn từ collection friends)
-   */
   async getFriendList(user_id: string) {
     return await databaseService.friends
       .aggregate([
-        { $match: { user_id: new ObjectId(user_id) } }, // Tìm tất cả quan hệ của người dùng này
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'friend_id',
-            foreignField: '_id',
-            as: 'friend_info'
-          }
-        },
+        { $match: { user_id: new ObjectId(user_id) } },
+        { $lookup: { from: 'users', localField: 'friend_id', foreignField: '_id', as: 'friend_info' } },
         { $unwind: '$friend_info' },
         {
           $project: {
@@ -128,26 +95,11 @@ class FriendService {
       .toArray()
   }
 
-  /**
-   * Lấy danh sách lời mời kết bạn đang chờ xử lý
-   */
   async getReceivedFriendRequests(user_id: string) {
     return await databaseService.friendRequests
       .aggregate([
-        {
-          $match: {
-            receiver_id: new ObjectId(user_id),
-            status: FriendStatus.Pending
-          }
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'sender_id',
-            foreignField: '_id',
-            as: 'sender_info'
-          }
-        },
+        { $match: { receiver_id: new ObjectId(user_id), status: FriendStatus.Pending } },
+        { $lookup: { from: 'users', localField: 'sender_id', foreignField: '_id', as: 'sender_info' } },
         { $unwind: '$sender_info' },
         {
           $project: {
@@ -165,12 +117,8 @@ class FriendService {
       .toArray()
   }
 
-  /**
-   * Hủy kết bạn (Xóa dữ liệu ở cả 2 bảng friends và friend_requests)
-   */
   async unfriend(user_id: string, friend_id: string) {
-    // Thực hiện xóa và nhận về kết quả từ MongoDB
-    const [friendsDeleted, requestDeleted] = await Promise.all([
+    const [friendsDeleted] = await Promise.all([
       databaseService.friends.deleteMany({
         $or: [
           { user_id: new ObjectId(user_id), friend_id: new ObjectId(friend_id) },
@@ -184,25 +132,21 @@ class FriendService {
         ]
       })
     ])
-
-    // KIỂM TRA: Nếu không có bản ghi nào trong bảng friends bị xóa (deletedCount === 0)
     if (friendsDeleted.deletedCount === 0) {
       throw new ErrorWithStatus({
         message: 'Hai người hiện không phải là bạn bè hoặc đã hủy kết bạn trước đó',
-        status: httpStatus.NOT_FOUND // Trả về lỗi 404 thay vì 200
+        status: httpStatus.NOT_FOUND
       })
     }
-
     return { message: 'Đã hủy kết bạn thành công' }
   }
-  // 1. Từ chối lời mời (Dành cho người nhận)
+
   async declineFriendRequest(user_id: string, request_id: string) {
     const result = await databaseService.friendRequests.deleteOne({
       _id: new ObjectId(request_id),
-      receiver_id: new ObjectId(user_id), // Chỉ người nhận mới có quyền từ chối
+      receiver_id: new ObjectId(user_id),
       status: FriendStatus.Pending
     })
-
     if (result.deletedCount === 0) {
       throw new ErrorWithStatus({
         message: 'Lời mời không tồn tại hoặc bạn không có quyền từ chối',
@@ -211,14 +155,13 @@ class FriendService {
     }
     return { message: 'Đã từ chối lời mời kết bạn' }
   }
-  // 2. Hủy lời mời đã gửi (Dành cho người gửi)
+
   async cancelFriendRequest(user_id: string, request_id: string) {
     const result = await databaseService.friendRequests.deleteOne({
       _id: new ObjectId(request_id),
-      sender_id: new ObjectId(user_id), // Chỉ người gửi mới có quyền hủy
+      sender_id: new ObjectId(user_id),
       status: FriendStatus.Pending
     })
-
     if (result.deletedCount === 0) {
       throw new ErrorWithStatus({
         message: 'Lời mời không tồn tại hoặc bạn không có quyền hủy',
@@ -227,23 +170,12 @@ class FriendService {
     }
     return { message: 'Đã hủy lời mời kết bạn' }
   }
+
   async getSentFriendRequests(user_id: string) {
     return await databaseService.friendRequests
       .aggregate([
-        {
-          $match: {
-            sender_id: new ObjectId(user_id),
-            status: FriendStatus.Pending
-          }
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'receiver_id',
-            foreignField: '_id',
-            as: 'receiver_info'
-          }
-        },
+        { $match: { sender_id: new ObjectId(user_id), status: FriendStatus.Pending } },
+        { $lookup: { from: 'users', localField: 'receiver_id', foreignField: '_id', as: 'receiver_info' } },
         { $unwind: '$receiver_info' },
         {
           $project: {
@@ -257,6 +189,77 @@ class FriendService {
             }
           }
         }
+      ])
+      .toArray()
+  }
+
+  // ── Block / Unblock ─────────────────────────────────────────────────────────
+
+  async blockUser(user_id: string, blocked_id: string) {
+    const userObjectId = new ObjectId(user_id)
+    const blockedObjectId = new ObjectId(blocked_id)
+
+    if (user_id === blocked_id) {
+      throw new ErrorWithStatus({ message: 'Không thể tự chặn chính mình', status: httpStatus.BAD_REQUEST })
+    }
+
+    const alreadyBlocked = await databaseService.user_blocks.findOne({
+      user_id: userObjectId,
+      blocked_user_id: blockedObjectId
+    })
+    if (alreadyBlocked) {
+      throw new ErrorWithStatus({ message: 'Bạn đã chặn người dùng này rồi', status: httpStatus.BAD_REQUEST })
+    }
+
+    await Promise.all([
+      databaseService.user_blocks.insertOne(
+        new UserBlocks({ user_id: userObjectId, blocked_user_id: blockedObjectId })
+      ),
+      databaseService.friends.deleteMany({
+        $or: [
+          { user_id: userObjectId, friend_id: blockedObjectId },
+          { user_id: blockedObjectId, friend_id: userObjectId }
+        ]
+      }),
+      databaseService.friendRequests.deleteMany({
+        $or: [
+          { sender_id: userObjectId, receiver_id: blockedObjectId },
+          { sender_id: blockedObjectId, receiver_id: userObjectId }
+        ]
+      })
+    ])
+
+    return { message: 'Đã chặn người dùng thành công' }
+  }
+
+  async unblockUser(user_id: string, blocked_id: string) {
+    const result = await databaseService.user_blocks.deleteOne({
+      user_id: new ObjectId(user_id),
+      blocked_user_id: new ObjectId(blocked_id)
+    })
+    if (result.deletedCount === 0) {
+      throw new ErrorWithStatus({ message: 'Bạn chưa chặn người dùng này', status: httpStatus.NOT_FOUND })
+    }
+    return { message: 'Đã bỏ chặn người dùng thành công' }
+  }
+
+  async getBlockedUsers(user_id: string) {
+    return await databaseService.user_blocks
+      .aggregate([
+        { $match: { user_id: new ObjectId(user_id) } },
+        { $lookup: { from: 'users', localField: 'blocked_user_id', foreignField: '_id', as: 'blocked_info' } },
+        { $unwind: '$blocked_info' },
+        {
+          $project: {
+            _id: '$blocked_info._id',
+            userName: '$blocked_info.userName',
+            fullName: '$blocked_info.fullName',
+            phone: '$blocked_info.phone',
+            avatar: '$blocked_info.avatar',
+            blocked_at: '$created_at'
+          }
+        },
+        { $sort: { blocked_at: -1 } }
       ])
       .toArray()
   }
