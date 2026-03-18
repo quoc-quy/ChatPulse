@@ -17,6 +17,8 @@ groupRouter.delete('/:id/members/me', groupController.leaveGroupController)
 // Xóa 1 thành viên cụ thể (Route động phải đặt sau)
 groupRouter.delete('/:id/members/:memberId', groupController.kickMemberController)
 
+groupRouter.patch('/:id/name', groupController.renameGroupController)
+
 // Thăng quyền cho 1 member cụ thể
 groupRouter.patch('/:id/members/:memberId/admin', groupController.promoteAdminController)
 

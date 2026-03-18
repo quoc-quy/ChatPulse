@@ -9,12 +9,18 @@ import {
   Trash2,
   LogOut,
   UserPlus,
-  ChevronRight
+  ChevronRight,
+  Loader2,
+  Check,
+  Pencil
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import type { ChatItem } from '@/context/app.context'
 import { MediaCollapsible } from './MediaCollapsible'
+import { useState } from 'react'
+import { groupApi } from '@/apis/group.api'
+import { toast } from 'sonner'
 
 interface InfoPanelMainProps {
   chat: ChatItem
@@ -26,6 +32,28 @@ interface InfoPanelMainProps {
 
 export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, onLeaveGroup }: InfoPanelMainProps) {
   const isGroup = chat.type === 'group'
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [tempName, setTempName] = useState(chat.name || '')
+  const [isSavingName, setIsSavingName] = useState(false)
+
+  const handleSaveName = async () => {
+    if (!tempName.trim() || tempName.trim() === chat.name) {
+      setIsEditingName(false)
+      setTempName(chat.name)
+      return
+    }
+    setIsSavingName(true)
+    try {
+      await groupApi.renameGroup(chat.id, tempName.trim())
+      toast.success('Đổi tên nhóm thành công')
+      setIsEditingName(false)
+    } catch (error) {
+      console.error(error)
+      toast.error('Lỗi khi đổi tên nhóm')
+    } finally {
+      setIsSavingName(false)
+    }
+  }
 
   const getInitials = (name: string) => {
     if (!name) return 'U'
@@ -52,7 +80,50 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
               {getInitials(chat.name)}
             </AvatarFallback>
           </Avatar>
-          <h3 className='text-lg font-semibold text-center leading-tight'>{chat.name}</h3>
+          {isGroup && isEditingName ? (
+            <div className='flex items-center justify-center gap-2 mt-1 w-full animate-in fade-in'>
+              <input
+                autoFocus
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                className='text-[17px] font-semibold text-center border-b-2 border-primary focus:outline-none bg-transparent w-full max-w-[200px] px-1 py-0.5'
+              />
+              <button
+                onClick={handleSaveName}
+                disabled={isSavingName}
+                className='p-1.5 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors'
+              >
+                {isSavingName ? <Loader2 className='w-4 h-4 animate-spin' /> : <Check className='w-4 h-4' />}
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditingName(false)
+                  setTempName(chat.name)
+                }}
+                disabled={isSavingName}
+                className='p-1.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          ) : (
+            <div className='flex items-center gap-2 justify-center group/name mt-1 relative w-full px-6'>
+              <h3 className='text-lg font-semibold text-center leading-tight truncate'>{chat.name}</h3>
+              {isGroup && (
+                <button
+                  onClick={() => {
+                    setIsEditingName(true)
+                    setTempName(chat.name)
+                  }}
+                  className='absolute right-0 opacity-0 group-hover/name:opacity-100 p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-all'
+                  title='Đổi tên nhóm'
+                >
+                  <Pencil className='w-4 h-4' />
+                </button>
+              )}
+            </div>
+          )}
           {!isGroup && (
             <span className={`text-sm mt-1 ${chat.isOnline ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
               {chat.isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}

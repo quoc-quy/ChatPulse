@@ -14,5 +14,9 @@ export const groupApi = {
   // Chuyển quyền Admin
   promoteAdmin: (groupId: string, memberId: string) => {
     return http.patch<{ message: string; result: any }>(`/groups/${groupId}/members/${memberId}/admin`)
+  },
+  // Đổi tên nhóm
+  renameGroup: (groupId: string, name: string) => {
+    return http.patch<{ message: string; result: any }>(`/groups/${groupId}/name`, { name })
   }
 }

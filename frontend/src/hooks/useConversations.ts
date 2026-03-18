@@ -210,6 +210,20 @@ export function useConversations() {
       )
     }
 
+    const handleConvUpdated = ({ conversationId, name }: { conversationId: string; name: string }) => {
+      // 1. Đổi tên ở Sidebar Panel
+      setChatList((prev) => prev.map((c) => (c.id === conversationId ? { ...c, name } : c)))
+      // 2. Đổi tên ở màn hình Chat hiện tại
+      setActiveChat((prev) => {
+        if (prev && prev.id === conversationId) {
+          return { ...prev, name }
+        }
+        return prev
+      })
+    }
+
+    socket.on('conversation_updated', handleConvUpdated)
+
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('user_status_change', handleUserStatusChange)
@@ -218,6 +232,7 @@ export function useConversations() {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_revoked', handleMessageRevoked)
       socket.off('user_status_change', handleUserStatusChange)
+      socket.off('conversation_updated', handleConvUpdated)
     }
   }, [profile, socket])
 

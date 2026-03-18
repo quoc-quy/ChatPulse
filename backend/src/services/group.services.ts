@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import databaseService from '~/services/database.services'
+import socketService from './socket.services'
 
 class GroupService {
   async addMembers(conversationId: string, memberIds: string[]) {
@@ -156,6 +157,80 @@ class GroupService {
     // 3. Lấy lại thông tin document mới nhất từ DB trả về
     const updatedConversation = await databaseService.conversations.findOne({
       _id: conversationObjectId
+    })
+
+    return updatedConversation
+  }
+
+  async renameGroup(conversationId: string, userId: string, newName: string) {
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    // 1. Cập nhật tên nhóm trong Database
+    const updatedConversation = await databaseService.conversations.findOneAndUpdate(
+      { _id: conversationObjectId },
+      { $set: { name: newName, updated_at: new Date() } },
+      { returnDocument: 'after' }
+    )
+
+    if (!updatedConversation) throw new Error('Không tìm thấy cuộc hội thoại')
+
+    // 2. Lấy thông tin user để tạo câu thông báo
+    const user = await databaseService.users.findOne({ _id: userObjectId })
+    const userName = user?.userName || 'Một thành viên'
+
+    // 3. Tạo tin nhắn hệ thống (System Message)
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: userObjectId,
+      type: 'system',
+      content: `${userName} đã đổi tên nhóm thành "${newName}"`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await databaseService.messages.insertOne(systemMessage as any)
+
+    // Cập nhật last_message_id cho hội thoại
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      { $set: { last_message_id: systemMessageId } }
+    )
+
+    // 4. Bắn Socket cho mọi người
+    const populatedMessage = {
+      ...systemMessage,
+      sender: {
+        _id: user?._id?.toString(),
+        userName: userName,
+        avatar: user?.avatar
+      }
+    }
+
+    const targetUserIds = new Set<string>()
+
+    if (updatedConversation.participants) {
+      updatedConversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+    }
+    if (updatedConversation.members) {
+      updatedConversation.members.forEach((m: any) => {
+        const mId = m.userId?.toString() || m.user_id?.toString()
+        if (mId) targetUserIds.add(mId)
+      })
+    }
+
+    targetUserIds.forEach((id) => {
+      // Gửi tin nhắn hệ thống
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+      // Gửi lệnh cập nhật tên UI
+      socketService.emitToUser(id, 'conversation_updated', { conversationId, name: newName })
     })
 
     return updatedConversation

@@ -70,6 +70,25 @@ export function MessageItem({
     )
   }
 
+  if (message.type === 'system') {
+    return (
+      <div id={`message-${message._id}`} className='flex flex-col w-full my-3'>
+        {showTimeDivider && (
+          <div className='flex justify-center mb-3'>
+            <span className='px-3 py-1 bg-muted/60 text-muted-foreground text-[11px] rounded-full font-medium'>
+              {dividerTimeStr}
+            </span>
+          </div>
+        )}
+        <div className='flex justify-center w-full animate-in fade-in zoom-in-95 duration-300'>
+          <span className='px-4 py-1.5 bg-muted/60 text-muted-foreground text-[12px] font-medium rounded-full shadow-sm text-center max-w-[85%] break-words'>
+            {message.content}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div id={`message-${message._id}`} className='flex flex-col'>
       {showTimeDivider && (
