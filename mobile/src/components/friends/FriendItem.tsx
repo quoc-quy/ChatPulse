@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface FriendItemProps {
   item: any;
@@ -10,13 +11,28 @@ interface FriendItemProps {
   onCancel?: (id: string) => void;
 }
 
-const COLORS = {
+const lightColors = {
   primary: "#4F46E5",
   secondary: "#A855F7",
   foreground: "#1E293B",
   muted: "#64748B",
   white: "#FFFFFF",
+  card: "#FFFFFF",
   grayBtn: "#F1F5F9",
+  grayBtnText: "#1E293B",
+  onlineBorder: "#FFFFFF",
+};
+
+const darkColors = {
+  primary: "#818CF8",
+  secondary: "#A855F7",
+  foreground: "#F8FAFC",
+  muted: "#94A3B8",
+  white: "#FFFFFF",
+  card: "#11182D",
+  grayBtn: "#1E2946",
+  grayBtnText: "#F8FAFC",
+  onlineBorder: "#11182D",
 };
 
 export const FriendItem = React.memo(
@@ -28,13 +44,11 @@ export const FriendItem = React.memo(
     onDelete,
     onCancel,
   }: FriendItemProps) => {
-    // ===== LẤY USER DATA THEO ĐÚNG TYPE =====
-    // - "sent"    → hiển thị RECEIVER (người được gửi lời mời)
-    // - "request" → hiển thị SENDER   (người gửi lời mời đến mình)
-    // - "friend"  → chính item là user
+    const { isDarkMode } = useTheme();
+    const COLORS = isDarkMode ? darkColors : lightColors;
+
     const userData = (() => {
       if (type === "sent") {
-        // Thử tất cả các field receiver có thể có
         return (
           item?.receiver_info || item?.receiver || item?.receiverInfo || {}
         );
@@ -42,14 +56,11 @@ export const FriendItem = React.memo(
       if (type === "request") {
         return item?.sender_info || item?.sender || item?.senderInfo || {};
       }
-      // type === "friend": item chính là user object
       return item?.user || item || {};
     })();
 
-    // ===== ID CỦA REQUEST (dùng để cancel/accept/decline) =====
     const requestId = item?._id || item?.id;
 
-    // ===== TÊN HIỂN THỊ =====
     const displayName =
       userData?.fullName ||
       userData?.userName ||
@@ -57,10 +68,8 @@ export const FriendItem = React.memo(
       userData?.name ||
       "Người dùng";
 
-    // ===== AVATAR LETTER =====
     const initials = displayName?.charAt(0)?.toUpperCase() || "?";
 
-    // ===== SUB TEXT =====
     const subText = (() => {
       if (type === "request") return "Muốn kết bạn với bạn";
       if (type === "sent")
@@ -70,7 +79,7 @@ export const FriendItem = React.memo(
 
     return (
       <TouchableOpacity
-        style={styles.container}
+        style={[styles.container, { backgroundColor: COLORS.card }]}
         activeOpacity={0.7}
         delayLongPress={500}
         onLongPress={() =>
@@ -79,18 +88,26 @@ export const FriendItem = React.memo(
       >
         {/* AVATAR */}
         <View style={styles.avatarWrapper}>
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, { backgroundColor: COLORS.secondary }]}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <View style={styles.onlineBadge} />
+          <View
+            style={[styles.onlineBadge, { borderColor: COLORS.onlineBorder }]}
+          />
         </View>
 
         {/* INFO */}
         <View style={styles.info}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text
+            style={[styles.name, { color: COLORS.foreground }]}
+            numberOfLines={1}
+          >
             {displayName}
           </Text>
-          <Text style={styles.status} numberOfLines={1}>
+          <Text
+            style={[styles.status, { color: COLORS.muted }]}
+            numberOfLines={1}
+          >
             {subText}
           </Text>
         </View>
@@ -99,16 +116,18 @@ export const FriendItem = React.memo(
         {type === "request" && (
           <View style={styles.actions}>
             <TouchableOpacity
-              style={styles.btnAccept}
+              style={[styles.btnAccept, { backgroundColor: COLORS.primary }]}
               onPress={() => onAccept?.(requestId)}
             >
               <Text style={styles.btnTextWhite}>Đồng ý</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.btnDecline}
+              style={[styles.btnDecline, { backgroundColor: COLORS.grayBtn }]}
               onPress={() => onDecline?.(requestId)}
             >
-              <Text style={styles.btnTextBlack}>Từ chối</Text>
+              <Text style={[styles.btnTextGray, { color: COLORS.grayBtnText }]}>
+                Từ chối
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -117,10 +136,12 @@ export const FriendItem = React.memo(
         {type === "sent" && (
           <View style={styles.actions}>
             <TouchableOpacity
-              style={styles.btnDecline}
+              style={[styles.btnDecline, { backgroundColor: COLORS.grayBtn }]}
               onPress={() => onCancel?.(requestId)}
             >
-              <Text style={styles.btnTextBlack}>Thu hồi</Text>
+              <Text style={[styles.btnTextGray, { color: COLORS.grayBtnText }]}>
+                Thu hồi
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -135,7 +156,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     alignItems: "center",
-    backgroundColor: COLORS.white,
   },
   avatarWrapper: {
     position: "relative",
@@ -144,12 +164,11 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: COLORS.secondary,
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    color: COLORS.white,
+    color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -162,7 +181,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#22C55E",
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: COLORS.white,
   },
   info: {
     flex: 1,
@@ -172,11 +190,9 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.foreground,
   },
   status: {
     fontSize: 13,
-    color: COLORS.muted,
     marginTop: 2,
   },
   actions: {
@@ -184,24 +200,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnAccept: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 15,
   },
   btnDecline: {
-    backgroundColor: COLORS.grayBtn,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 15,
   },
   btnTextWhite: {
-    color: COLORS.white,
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "bold",
   },
-  btnTextBlack: {
-    color: COLORS.foreground,
+  btnTextGray: {
     fontSize: 12,
     fontWeight: "600",
   },
