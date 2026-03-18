@@ -473,7 +473,10 @@ export default function FriendsScreen({ navigation }: any) {
         <ChevronRight size={18} color={COLORS.muted} />
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.menuItem}>
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => navigation.navigate("BlockedUsers")}
+      >
         <View style={[styles.iconBox, { backgroundColor: "#F3E8FF" }]}>
           <Users size={22} color={COLORS.secondary} />
         </View>
