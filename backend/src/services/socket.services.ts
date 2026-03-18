@@ -4,6 +4,7 @@ import Call from '~/models/schemas/call.schema'
 import Message from '~/models/schemas/message.schema'
 import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
+import messageService from './message.services'
 
 class SocketService {
   public io!: Server
@@ -271,6 +272,54 @@ class SocketService {
         if (sockets.length === 0) {
           this.usersOnline.delete(userId)
           this.io.emit('user_status_change', { userId, isOnline: false, lastActiveAt: new Date().toISOString() })
+        }
+      })
+
+      socket.on('message_delivered', async (data: { messageId: string; conversationId: string }) => {
+        try {
+          await messageService.markMessageDelivered(data.messageId, userId) // <-- không cần dynamic import nữa
+
+          const conversation = await databaseService.conversations.findOne({
+            _id: new ObjectId(data.conversationId)
+          })
+
+          if (conversation && conversation.participants) {
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'message_status_update', {
+                  messageId: data.messageId,
+                  status: 'DELIVERED',
+                  userId: userId
+                })
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Lỗi mark delivered:', error)
+        }
+      })
+
+      socket.on('message_seen', async (data: { messageId: string; conversationId: string }) => {
+        try {
+          await messageService.markMessageSeen(data.messageId, userId) // <-- tương tự
+
+          const conversation = await databaseService.conversations.findOne({
+            _id: new ObjectId(data.conversationId)
+          })
+
+          if (conversation && conversation.participants) {
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'message_status_update', {
+                  messageId: data.messageId,
+                  status: 'SEEN',
+                  userId: userId
+                })
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Lỗi mark seen:', error)
         }
       })
     })

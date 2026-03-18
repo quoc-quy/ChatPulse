@@ -22,13 +22,15 @@ export interface Message {
   content: string
   replyToId?: string
   reactions?: Reaction[]
-
-  // CHI TIẾT CUỘC GỌI
   callInfo?: {
     status: 'completed' | 'missed' | 'rejected' | 'cancelled'
     duration?: number
     type: 'video' | 'audio'
   }
+
+  status?: 'SENDING' | 'SENT' | 'DELIVERED' | 'SEEN' | 'FAILED'
+  deliveredTo?: string[]
+  seenBy?: string[]
 
   createdAt: string
   updatedAt: string

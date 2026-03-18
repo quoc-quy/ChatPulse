@@ -1,13 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useContext } from 'react'
 import { Smile, Send, Paperclip, ImageIcon } from 'lucide-react'
 import EmojiPicker, { Theme } from 'emoji-picker-react'
 import { messagesApi } from '@/apis/messages.api'
+import { AppContext } from '@/context/app.context'
 
 interface ChatFooterProps {
   convId: string
 }
 
 export function ChatFooter({ convId }: ChatFooterProps) {
+  const { profile } = useContext(AppContext)
   const [content, setContent] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -16,29 +18,18 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
 
-  // ĐỒNG BỘ THEME TỪ TAILWIND (Không phụ thuộc vào React Context)
   useEffect(() => {
-    const checkTheme = () => {
-      const isDark = document.documentElement.classList.contains('dark')
-      setEmojiTheme(isDark ? Theme.DARK : Theme.LIGHT)
-    }
-
-    // Kiểm tra theme ngay lần đầu render
+    const checkTheme = () =>
+      setEmojiTheme(document.documentElement.classList.contains('dark') ? Theme.DARK : Theme.LIGHT)
     checkTheme()
-
-    // Lắng nghe sự thay đổi class 'dark' trên thẻ HTML (khi user switch mode)
     const observer = new MutationObserver(checkTheme)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-
     return () => observer.disconnect()
   }, [])
 
-  // Xử lý click ra ngoài để đóng popup Emoji
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(event.target as Node)) {
-        setShowEmoji(false)
-      }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -47,17 +38,51 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const handleSend = async () => {
     if (!content.trim() || !convId || isSending) return
 
+    const messageContent = content.trim()
+    setContent('')
+    setShowEmoji(false)
+
+    // BƯỚC 1: TẠO TIN NHẮN ẢO (OPTIMISTIC UI) VỚI TRẠNG THÁI 'SENDING'
+    const tempId = `temp-${Date.now()}`
+    const tempMessage = {
+      _id: tempId,
+      conversationId: convId,
+      type: 'text',
+      content: messageContent,
+      status: 'SENDING',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      sender: {
+        _id: profile?._id || '',
+        userName: profile?.userName || '',
+        avatar: profile?.avatar || ''
+      },
+      deliveredTo: [],
+      seenBy: []
+    }
+
+    // Bắn sự kiện ra cho ChatBody nhận và hiển thị ngay lập tức
+    window.dispatchEvent(new CustomEvent('optimistic_send', { detail: tempMessage }))
+
     try {
       setIsSending(true)
-      await messagesApi.sendMessage({
+      // BƯỚC 2: GỌI API THẬT
+      const response = await messagesApi.sendMessage({
         convId,
         type: 'text',
-        content: content.trim()
+        content: messageContent
       })
-      setContent('')
-      setShowEmoji(false)
+
+      // BƯỚC 3: BÁO CHO CHATBODY THAY THẾ TIN NHẮN ẢO = TIN NHẮN THẬT
+      window.dispatchEvent(
+        new CustomEvent('optimistic_success', {
+          detail: { tempId, realMessage: response.data.result }
+        })
+      )
     } catch (error) {
       console.error('Lỗi khi gửi tin nhắn:', error)
+      // NẾU LỖI, BÁO FAILED
+      window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId } }))
     } finally {
       setIsSending(false)
     }
@@ -72,20 +97,15 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
   const onEmojiClick = (emojiObject: any) => {
     const cursor = inputRef.current?.selectionStart || content.length
-    const textBefore = content.slice(0, cursor)
-    const textAfter = content.slice(cursor)
-
-    setContent(textBefore + emojiObject.emoji + textAfter)
-
+    setContent(content.slice(0, cursor) + emojiObject.emoji + content.slice(cursor))
     setTimeout(() => {
       inputRef.current?.focus()
-      const newCursorPos = cursor + emojiObject.emoji.length
-      inputRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+      inputRef.current?.setSelectionRange(cursor + emojiObject.emoji.length, cursor + emojiObject.emoji.length)
     }, 10)
   }
 
   return (
-    <div className='p-4 bg-background  flex items-center gap-2 relative border-t border-border/40  px-4 shadow-sm'>
+    <div className='p-4 bg-background flex items-center gap-2 relative border-t border-border/40 px-4 shadow-sm'>
       <button className='p-2 text-muted-foreground hover:text-foreground transition-colors'>
         <Paperclip className='w-5 h-5' />
       </button>
@@ -103,7 +123,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-
         <button
           onClick={() => setShowEmoji(!showEmoji)}
           className={`absolute right-3 p-1 transition-colors ${showEmoji ? 'text-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
@@ -114,11 +133,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
       {showEmoji && (
         <div ref={emojiRef} className='absolute bottom-full right-16 mb-2 z-50 shadow-xl rounded-lg'>
-          <EmojiPicker
-            onEmojiClick={onEmojiClick}
-            theme={emojiTheme} // Truyền Theme đã tự động detect vào đây
-            searchPlaceHolder='Tìm kiếm cảm xúc...'
-          />
+          <EmojiPicker onEmojiClick={onEmojiClick} theme={emojiTheme} searchPlaceHolder='Tìm kiếm cảm xúc...' />
         </div>
       )}
 
