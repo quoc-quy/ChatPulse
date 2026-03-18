@@ -17,6 +17,7 @@ import {
   Alert,
   ScrollView,
   StatusBar,
+  PanResponder,
 } from "react-native";
 import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -101,6 +102,8 @@ const MessageScreen = () => {
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const [hoveredReaction, setHoveredReaction] = useState<string | null>(null);
+  const [emojiStripWidth, setEmojiStripWidth] = useState(0);
   const [showReactionDetails, setShowReactionDetails] = useState(false);
   const [reactionDetailMessage, setReactionDetailMessage] = useState<any>(null);
   const [reactionFilter, setReactionFilter] = useState<string>("ALL");
@@ -453,6 +456,52 @@ const MessageScreen = () => {
     setShowMenu(true);
   };
 
+  useEffect(() => {
+    if (!showMenu) {
+      setHoveredReaction(null);
+    }
+  }, [showMenu]);
+
+  const getReactionFromX = useCallback(
+    (x: number) => {
+      if (emojiStripWidth <= 0) return null;
+      const clampedX = Math.max(0, Math.min(x, emojiStripWidth - 1));
+      const cellWidth = emojiStripWidth / REACTION_LIST.length;
+      const index = Math.floor(clampedX / cellWidth);
+      if (index < 0 || index >= REACTION_LIST.length) return null;
+      return REACTION_LIST[index];
+    },
+    [emojiStripWidth]
+  );
+
+  const emojiPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          const emoji = getReactionFromX(event.nativeEvent.locationX);
+          setHoveredReaction(emoji);
+        },
+        onPanResponderMove: (event) => {
+          const emoji = getReactionFromX(event.nativeEvent.locationX);
+          setHoveredReaction(emoji);
+        },
+        onPanResponderRelease: () => {
+          if (hoveredReaction && selectedMsg) {
+            handleToggleReact(selectedMsg, hoveredReaction);
+          } else {
+            setShowMenu(false);
+          }
+          setHoveredReaction(null);
+        },
+        onPanResponderTerminate: () => {
+          setHoveredReaction(null);
+        },
+      }),
+    [getReactionFromX, hoveredReaction, selectedMsg]
+  );
+
   const handleSend = async () => {
     if (inputText.trim().length === 0) return;
     const contentToSend = inputText.trim();
@@ -753,15 +802,35 @@ const MessageScreen = () => {
         <Pressable style={styles.overlay} onPress={() => setShowMenu(false)}>
           <View style={[styles.menuBox, { top: menuPos.y }]}>
             <View style={styles.emojiRow}>
-              {REACTION_LIST.map((e) => (
-                <TouchableOpacity
-                  key={e}
-                  onPress={() => handleToggleReact(selectedMsg, e)}
-                  style={{ padding: 10 }}
-                >
-                  <Text style={{ fontSize: 30 }}>{e}</Text>
-                </TouchableOpacity>
-              ))}
+              <View
+                style={styles.emojiStrip}
+                onLayout={(event) =>
+                  setEmojiStripWidth(event.nativeEvent.layout.width)
+                }
+                {...emojiPanResponder.panHandlers}
+              >
+                {REACTION_LIST.map((e) => {
+                  const isHovered = hoveredReaction === e;
+                  return (
+                    <View
+                      key={e}
+                      style={[
+                        styles.reactionEmojiWrap,
+                        isHovered && styles.reactionEmojiWrapHovered,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.reactionEmojiText,
+                          isHovered && styles.reactionEmojiTextHovered,
+                        ]}
+                      >
+                        {e}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
               <TouchableOpacity
                 onPress={() => handleRemoveAllReactions(selectedMsg)}
                 style={styles.removeAllReactionBtn}
@@ -1281,11 +1350,36 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     emojiRow: {
       flexDirection: "row",
-      justifyContent: "space-around",
       alignItems: "center",
       paddingVertical: 15,
       borderBottomWidth: 0.5,
       borderBottomColor: COLORS.border,
+      paddingHorizontal: 8,
+    },
+    emojiStrip: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 4,
+      marginRight: 6,
+    },
+    reactionEmojiWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reactionEmojiWrapHovered: {
+      backgroundColor: COLORS.surfaceSoft,
+      transform: [{ translateY: -6 }],
+    },
+    reactionEmojiText: {
+      fontSize: 33,
+    },
+    reactionEmojiTextHovered: {
+      fontSize: 40,
     },
     removeAllReactionBtn: {
       width: 54,
