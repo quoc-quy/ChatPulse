@@ -13,6 +13,7 @@ import { ChevronLeft } from "lucide-react-native";
 import { friendApi } from "../apis/friends.api";
 import { FriendItem } from "../components/friends/FriendItem";
 import { useTheme } from "../contexts/ThemeContext";
+import { profileStatsEvents } from "../utils/profileStats.events";
 
 const lightColors = {
   foreground: "#1E293B",
@@ -63,6 +64,7 @@ export default function FriendRequestsScreen({ navigation }: any) {
       const response = await friendApi.acceptRequest(id);
       if (response.status === 200) {
         setRequests((prev) => prev.filter((req) => req._id !== id));
+        profileStatsEvents.emit({ type: "friends_delta", delta: 1 });
         Alert.alert("Thành công", "Đã trở thành bạn bè");
       }
     } catch (error) {

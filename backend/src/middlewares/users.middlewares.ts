@@ -48,36 +48,50 @@ export const loginValidator = validate(
   checkSchema(
     {
       email: {
-        notEmpty: {
-          errorMessage: 'Email không được để trống'
-        },
+        optional: true,
         isString: true,
-        trim: true,
-        isEmail: true,
-        isLength: {
-          options: {
-            min: 10,
-            max: 100
-          },
-          errorMessage: 'Email có độ dài từ 10 đến 100 ký tự'
+        trim: true
+      },
+      identifier: {
+        optional: true,
+        isString: {
+          errorMessage: 'Tài khoản phải là chuỗi'
         },
+        trim: true
+      },
+      password: {
+        ...passwordSchema,
         custom: {
-          options: async (value, { req }) => {
+          options: async (_, { req }) => {
+            const identifier = String(req.body.identifier || req.body.email || '').trim()
+
+            if (!identifier) {
+              throw new Error('Email hoặc username không được để trống')
+            }
+
+            const loginQuery =
+              identifier.includes('@')
+                ? {
+                    $or: [{ email: identifier }, { email: identifier.toLowerCase() }]
+                  }
+                : {
+                    userName: identifier
+                  }
+
             const user = await databaseService.users.findOne({
-              email: value,
+              ...loginQuery,
               password: hashPassword(req.body.password)
             })
 
             if (user == null) {
-              throw new Error('Email hoặc password không đúng')
+              throw new Error('Email/username hoặc password không đúng')
             }
-            req.user = user
 
+            req.user = user
             return true
           }
         }
-      },
-      password: passwordSchema
+      }
     },
     ['body']
   )

@@ -17,7 +17,10 @@ import { Input } from "../components/ui/Input";
 import { SocialButtons } from "../components/auth/SocialButtons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
-import { validateEmail, validatePassword } from "../utils/validations";
+import {
+  validateLoginIdentifier,
+  validatePassword,
+} from "../utils/validations";
 
 // Bảng màu đồng bộ với index.css
 const COLORS = {
@@ -35,20 +38,21 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {},
-  );
+  const [errors, setErrors] = useState<{
+    identifier?: string;
+    password?: string;
+  }>({});
 
   const handleLogin = async () => {
-    const emailError = validateEmail(email);
+    const identifierError = validateLoginIdentifier(identifier);
     const passwordError = validatePassword(password);
 
-    if (emailError || passwordError) {
+    if (identifierError || passwordError) {
       setErrors({
-        email: emailError || undefined,
+        identifier: identifierError || undefined,
         password: passwordError || undefined,
       });
       return;
@@ -59,7 +63,8 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
 
     try {
       const response = await api.post("/auth/login", {
-        email: email.trim(),
+        identifier: identifier.trim(),
+        email: identifier.trim(),
         password: password,
       });
 
@@ -78,9 +83,20 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
       }
     } catch (error: any) {
       console.log("Lỗi đăng nhập:", error.response?.data);
+      const responseData = error?.response?.data;
+      const firstFieldError = responseData?.errors
+        ? Object.values(responseData.errors)[0] as any
+        : null;
+      const backendMessage =
+        responseData?.message || firstFieldError?.msg || firstFieldError?.message;
+      const networkMessage =
+        error?.message === "Network Error"
+          ? "Không thể kết nối tới backend. Kiểm tra EXPO_PUBLIC_API_URL, cùng mạng Wi-Fi, và backend đang chạy cổng 4000."
+          : null;
+
       Alert.alert(
         "Đăng nhập thất bại",
-        error.response?.data?.message || "Email hoặc mật khẩu không chính xác.",
+        backendMessage || networkMessage || "Email/username hoặc mật khẩu không chính xác.",
       );
     } finally {
       setLoading(false);
@@ -108,15 +124,15 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
               </View>
 
               <Input
-                label="Email"
-                placeholder="m@example.com"
-                value={email}
-                error={errors.email}
+                label="Email hoặc username"
+                placeholder="m@example.com hoặc username"
+                value={identifier}
+                error={errors.identifier}
                 onChangeText={(text) => {
-                  setEmail(text);
-                  if (errors.email) setErrors({ ...errors, email: undefined });
+                  setIdentifier(text);
+                  if (errors.identifier)
+                    setErrors({ ...errors, identifier: undefined });
                 }}
-                keyboardType="email-address"
                 autoCapitalize="none"
               />
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,10 @@ import { getMeApi, updateMeApi, uploadAvatarApi } from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
+import { friendApi } from "../apis/friends.api";
+import { getConversations } from "../apis/chat.api";
+import { useFocusEffect } from "@react-navigation/native";
+import { profileStatsEvents } from "../utils/profileStats.events";
 
 // BƯỚC QUAN TRỌNG: Import useTheme từ Context
 import { useTheme } from "../contexts/ThemeContext";
@@ -84,12 +88,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     dateOfBirth: "",
     showDateOfBirth: true,
   });
+  const [stats, setStats] = useState({
+    friends: 0,
+    groups: 0,
+  });
 
   const colors = useMemo(() => (isDarkMode ? darkTheme : lightTheme), [isDarkMode]);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const formatDate = (date: Date) => {
     const day = `${date.getDate()}`.padStart(2, "0");
@@ -133,17 +137,86 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     });
   };
 
-  const fetchData = async () => {
+  const fetchGroupCount = async () => {
+    const limit = 50;
+    let page = 1;
+    let totalGroups = 0;
+
+    while (true) {
+      const res = await getConversations(page, limit);
+      const conversations = Array.isArray(res.data?.result) ? res.data.result : [];
+
+      totalGroups += conversations.filter((item: any) => item?.type === "group").length;
+
+      if (conversations.length < limit) {
+        break;
+      }
+      page += 1;
+      if (page > 20) {
+        break;
+      }
+    }
+
+    return totalGroups;
+  };
+
+  const fetchData = useCallback(async () => {
     try {
-      const res = await getMeApi();
-      const user = res.data?.result || res.data?.user;
+      const [meRes, friendsRes, groupsCount] = await Promise.all([
+        getMeApi(),
+        friendApi.getFriends(),
+        fetchGroupCount(),
+      ]);
+
+      const user = meRes.data?.result || meRes.data?.user;
+      const friends = Array.isArray(friendsRes.data?.result) ? friendsRes.data.result : [];
+
       if (user) {
         applyProfileFromApi(user);
       }
+
+      setStats({
+        friends: friends.length,
+        groups: groupsCount,
+      });
     } catch (error) {
       console.error("Lỗi load profile:", error);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData]),
+  );
+
+  useEffect(() => {
+    const unsubscribe = profileStatsEvents.subscribe((event) => {
+      if (event.type === "friends_delta") {
+        setStats((prev) => ({
+          ...prev,
+          friends: Math.max(0, prev.friends + event.delta),
+        }));
+        return;
+      }
+
+      if (event.type === "groups_delta") {
+        setStats((prev) => ({
+          ...prev,
+          groups: Math.max(0, prev.groups + event.delta),
+        }));
+        return;
+      }
+
+      if (event.type === "stats_refresh") {
+        fetchData();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [fetchData]);
 
   const pickImage = async (target: "profile" | "edit" = "profile") => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -367,11 +440,11 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
         <View style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
-            <Text style={[styles.statCount, { color: colors.accentAlt }]}>248</Text>
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>{stats.friends}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Friends</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
-            <Text style={[styles.statCount, { color: colors.accentAlt }]}>12</Text>
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>{stats.groups}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Groups</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
