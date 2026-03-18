@@ -35,8 +35,9 @@ import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
 import { friendApi } from "../apis/friends.api";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTheme } from "../contexts/ThemeContext";
 
-const COLORS = {
+const lightColors = {
   primary: "#4F46E5",
   secondary: "#A855F7",
   background: "#F8FAFC",
@@ -47,6 +48,27 @@ const COLORS = {
   border: "#E2E8F0",
   success: "#22C55E",
   danger: "#EF4444",
+  card: "#FFFFFF",
+  searchBg: "#F1F5F9",
+  searchFocusedBg: "#EEF2FF",
+  sectionHeaderBg: "#F8FAFC",
+};
+
+const darkColors = {
+  primary: "#818CF8",
+  secondary: "#C084FC",
+  background: "#070B1A",
+  foreground: "#F8FAFC",
+  muted: "#64748B",
+  mutedDark: "#94A3B8",
+  white: "#11182D",
+  border: "#1E2946",
+  success: "#4ADE80",
+  danger: "#F87171",
+  card: "#11182D",
+  searchBg: "#1E2946",
+  searchFocusedBg: "#1E2040",
+  sectionHeaderBg: "#0D1428",
 };
 
 // ─── Debounce hook ───────────────────────────────────────────────────────────
@@ -84,6 +106,8 @@ const SearchResultItem = React.memo(
     onCancelRequest,
     sendingId,
   }: SearchResultItemProps) => {
+    const { isDarkMode } = useTheme();
+    const COLORS = isDarkMode ? darkColors : lightColors;
     const initials = (user.userName || "U").charAt(0).toUpperCase();
     const isSending = sendingId === user._id;
 
@@ -137,7 +161,12 @@ const SearchResultItem = React.memo(
     };
 
     return (
-      <View style={searchStyles.item}>
+      <View
+        style={[
+          searchStyles.item,
+          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+        ]}
+      >
         {/* Avatar */}
         <View style={searchStyles.avatar}>
           <Text style={searchStyles.avatarText}>{initials}</Text>
@@ -145,7 +174,10 @@ const SearchResultItem = React.memo(
 
         {/* Info */}
         <View style={searchStyles.info}>
-          <Text style={searchStyles.name} numberOfLines={1}>
+          <Text
+            style={[searchStyles.name, { color: COLORS.foreground }]}
+            numberOfLines={1}
+          >
             {user.userName}
           </Text>
           {user.phone ? (
@@ -168,6 +200,8 @@ const SearchResultItem = React.memo(
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function FriendsScreen({ navigation }: any) {
+  const { isDarkMode } = useTheme();
+  const COLORS = isDarkMode ? darkColors : lightColors;
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
@@ -385,7 +419,7 @@ export default function FriendsScreen({ navigation }: any) {
 
   // ── Static Menu ────────────────────────────────────────────────────────────
   const StaticMenu = () => (
-    <View style={styles.staticMenu}>
+    <View style={[styles.staticMenu, { backgroundColor: COLORS.card }]}>
       <TouchableOpacity
         style={styles.menuItem}
         onPress={() => navigation.navigate("FriendRequests")}
@@ -394,7 +428,9 @@ export default function FriendsScreen({ navigation }: any) {
           <UserPlus size={22} color={COLORS.primary} />
         </View>
         <View style={styles.menuTextContainer}>
-          <Text style={styles.menuText}>Lời mời kết bạn</Text>
+          <Text style={[styles.menuText, { color: COLORS.foreground }]}>
+            Lời mời kết bạn
+          </Text>
           {requests.length > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{requests.length}</Text>
@@ -412,7 +448,9 @@ export default function FriendsScreen({ navigation }: any) {
           <Send size={22} color="#10B981" />
         </View>
         <View style={styles.menuTextContainer}>
-          <Text style={styles.menuText}>Lời mời đã gửi</Text>
+          <Text style={[styles.menuText, { color: COLORS.foreground }]}>
+            Lời mời đã gửi
+          </Text>
         </View>
         <ChevronRight size={18} color={COLORS.muted} />
       </TouchableOpacity>
@@ -421,7 +459,9 @@ export default function FriendsScreen({ navigation }: any) {
         <View style={[styles.iconBox, { backgroundColor: "#F3E8FF" }]}>
           <Users size={22} color={COLORS.secondary} />
         </View>
-        <Text style={styles.menuText}>Danh sách chặn</Text>
+        <Text style={[styles.menuText, { color: COLORS.foreground }]}>
+          Danh sách chặn
+        </Text>
         <ChevronRight size={18} color={COLORS.muted} />
       </TouchableOpacity>
     </View>
@@ -429,11 +469,25 @@ export default function FriendsScreen({ navigation }: any) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: COLORS.background }]}
+    >
       {/* Header — luôn hiển thị, không bao giờ bị che */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+        ]}
+      >
         <View
-          style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}
+          style={[
+            styles.searchBar,
+            { backgroundColor: COLORS.searchBg },
+            isSearchFocused && {
+              backgroundColor: COLORS.searchFocusedBg,
+              borderColor: COLORS.primary,
+            },
+          ]}
         >
           <Search
             size={18}
@@ -443,7 +497,7 @@ export default function FriendsScreen({ navigation }: any) {
             ref={inputRef}
             placeholder="Tìm kiếm bạn bè..."
             placeholderTextColor={COLORS.muted}
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: COLORS.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
             onFocus={() => setIsSearchFocused(true)}
@@ -463,7 +517,9 @@ export default function FriendsScreen({ navigation }: any) {
         {/* Nút Hủy — thoát hẳn search mode */}
         {isSearchFocused ? (
           <TouchableOpacity style={styles.cancelBtn} onPress={clearSearch}>
-            <Text style={styles.cancelText}>Hủy</Text>
+            <Text style={[styles.cancelText, { color: COLORS.primary }]}>
+              Hủy
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.addBtn}>
@@ -481,7 +537,7 @@ export default function FriendsScreen({ navigation }: any) {
       {/* ── Search Panel ── */}
       {isSearchFocused ? (
         <KeyboardAvoidingView
-          style={styles.searchPanel}
+          style={[styles.searchPanel, { backgroundColor: COLORS.card }]}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
@@ -519,7 +575,7 @@ export default function FriendsScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.searchResultsContent}
             >
-              <Text style={styles.resultHeader}>
+              <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
                 {searchResults.length} kết quả
               </Text>
               {searchResults.map((user) => (
@@ -557,8 +613,15 @@ export default function FriendsScreen({ navigation }: any) {
                 />
               }
               renderSectionHeader={({ section: { title } }) => (
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{title}</Text>
+                <View
+                  style={[
+                    styles.sectionHeader,
+                    { backgroundColor: COLORS.sectionHeaderBg },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: COLORS.muted }]}>
+                    {title}
+                  </Text>
                 </View>
               )}
               renderItem={({ item }) => (
@@ -569,7 +632,9 @@ export default function FriendsScreen({ navigation }: any) {
                 />
               )}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>Chưa có bạn bè nào</Text>
+                <Text style={[styles.emptyText, { color: COLORS.muted }]}>
+                  Chưa có bạn bè nào
+                </Text>
               }
               contentContainerStyle={styles.listContent}
             />
@@ -582,7 +647,7 @@ export default function FriendsScreen({ navigation }: any) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1 },
 
   // Header
   header: {
@@ -590,15 +655,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   searchBar: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
@@ -606,20 +668,17 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   searchBarFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
+    borderWidth: 1.5,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 15,
-    color: COLORS.foreground,
   },
   addBtn: { marginLeft: 12 },
   cancelBtn: { marginLeft: 12 },
   cancelText: {
     fontSize: 15,
-    color: COLORS.primary,
     fontWeight: "600",
   },
 
@@ -640,31 +699,29 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   menuTextContainer: { flex: 1, flexDirection: "row", alignItems: "center" },
-  menuText: { fontSize: 16, fontWeight: "500", color: COLORS.foreground },
+  menuText: { fontSize: 16, fontWeight: "500" },
   badge: {
-    backgroundColor: COLORS.danger,
+    backgroundColor: "#EF4444",
     borderRadius: 10,
     paddingHorizontal: 6,
     height: 18,
     justifyContent: "center",
     marginLeft: 8,
   },
-  badgeText: { color: COLORS.white, fontSize: 11, fontWeight: "bold" },
+  badgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "bold" },
 
   // Section list
   sectionHeader: {
-    backgroundColor: COLORS.background,
     paddingHorizontal: 16,
     paddingVertical: 4,
   },
-  sectionTitle: { fontSize: 13, fontWeight: "700", color: COLORS.muted },
+  sectionTitle: { fontSize: 13, fontWeight: "700" },
   listContent: { paddingBottom: 20 },
-  emptyText: { textAlign: "center", color: COLORS.muted, marginTop: 40 },
+  emptyText: { textAlign: "center", marginTop: 40 },
 
   // Search panel (flex, nằm dưới header)
   searchPanel: {
     flex: 1,
-    backgroundColor: COLORS.white,
   },
   searchResultsContent: {
     paddingBottom: 32,
@@ -678,18 +735,18 @@ const styles = StyleSheet.create({
   },
   searchPlaceholderText: {
     fontSize: 14,
-    color: COLORS.muted,
+    color: "#94A3B8",
     textAlign: "center",
     paddingHorizontal: 40,
   },
   searchLoadingText: {
     fontSize: 14,
-    color: COLORS.mutedDark,
+    color: "#64748B",
     marginTop: 8,
   },
   resultHeader: {
     fontSize: 12,
-    color: COLORS.muted,
+    color: "#94A3B8",
     fontWeight: "600",
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -707,19 +764,17 @@ const searchStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.white,
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: "#A855F7",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    color: COLORS.white,
+    color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -730,11 +785,10 @@ const searchStyles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.foreground,
   },
   sub: {
     fontSize: 13,
-    color: COLORS.muted,
+    color: "#94A3B8",
     marginTop: 2,
   },
   // Buttons
@@ -742,7 +796,7 @@ const searchStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: COLORS.primary,
+    backgroundColor: "#4F46E5",
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 16,
@@ -750,7 +804,7 @@ const searchStyles = StyleSheet.create({
     justifyContent: "center",
   },
   btnAddText: {
-    color: COLORS.white,
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -763,7 +817,7 @@ const searchStyles = StyleSheet.create({
     alignItems: "center",
   },
   btnPendingText: {
-    color: COLORS.mutedDark,
+    color: "#64748B",
     fontSize: 13,
     fontWeight: "600",
   },
@@ -779,7 +833,7 @@ const searchStyles = StyleSheet.create({
     justifyContent: "center",
   },
   btnFriendText: {
-    color: COLORS.success,
+    color: "#22C55E",
     fontSize: 13,
     fontWeight: "600",
   },
