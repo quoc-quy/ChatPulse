@@ -191,13 +191,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                   </View>
                 </View>
                 <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Chats</Text>
-                {focused && (
-                  <LinearGradient
-                    colors={['#3B82F6', '#8B5CF6', '#EC4899']}
-                    style={styles.activeLine}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  />
-                )}
               </View>
             ),
           }}
@@ -211,7 +204,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
               <View style={styles.tabItemContainer}>
                 <Users size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
                 <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Contacts</Text>
-                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
               </View>
             ),
           }}
@@ -247,7 +239,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
               <View style={styles.tabItemContainer}>
                 <Phone size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
                 <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Calls</Text>
-                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
               </View>
             ),
           }}
@@ -260,7 +251,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
               <View style={styles.tabItemContainer}>
                 <User size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
                 <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Profile</Text>
-                {focused && <LinearGradient colors={['#3B82F6', '#8B5CF6', '#EC4899']} style={styles.activeLine} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} />}
               </View>
             ),
           }}
