@@ -18,6 +18,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useChatContext } from "../contexts/ChatContext"; // <-- THÊM DÒNG NÀY
 
 import SearchComponent from "../components/ui/SearchComponent";
 import { getConversations } from "../apis/chat.api";
@@ -57,6 +58,8 @@ const darkColors = {
 const ChatScreen = () => {
   const navigation = useNavigation<any>();
 
+  const { setTotalUnreadCount } = useChatContext();
+
   // --- LẤY THEME HIỆN TẠI TỪ HỆ THỐNG ---
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
@@ -73,6 +76,18 @@ const ChatScreen = () => {
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // <-- THÊM ĐOẠN USEEFFECT NÀY VÀO ĐÂY -->
+  React.useEffect(() => {
+    // Tính tổng số unread_count của tất cả các cuộc hội thoại hiện có
+    const totalUnread = conversations.reduce(
+      (sum, chat) => sum + (chat.unread_count || 0),
+      0
+    );
+    // Đẩy con số này lên Context để MainTabs đọc được
+    setTotalUnreadCount(totalUnread);
+  }, [conversations, setTotalUnreadCount]);
+  // <-------------------------------------->
 
   const fetchCurrentUserId = async () => {
     try {
