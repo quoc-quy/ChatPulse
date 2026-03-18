@@ -9,6 +9,7 @@ interface FriendItemProps {
   onDecline?: (id: string) => void;
   onDelete?: (id: string, name: string) => void;
   onCancel?: (id: string) => void;
+  onChat?: (userId: string, userName: string) => void;
 }
 
 const lightColors = {
@@ -43,6 +44,7 @@ export const FriendItem = React.memo(
     onDecline,
     onDelete,
     onCancel,
+    onChat,
   }: FriendItemProps) => {
     const { isDarkMode } = useTheme();
     const COLORS = isDarkMode ? darkColors : lightColors;
@@ -60,6 +62,9 @@ export const FriendItem = React.memo(
     })();
 
     const requestId = item?._id || item?.id;
+
+    // userId của người bạn bè (dùng cho chat 1-1)
+    const friendUserId = (userData?._id || userData?.id || "").toString();
 
     const displayName =
       userData?.fullName ||
@@ -82,6 +87,7 @@ export const FriendItem = React.memo(
         style={[styles.container, { backgroundColor: COLORS.card }]}
         activeOpacity={0.7}
         delayLongPress={500}
+        onPress={() => type === "friend" && onChat?.(friendUserId, displayName)}
         onLongPress={() =>
           type === "friend" && onDelete?.(requestId, displayName)
         }
