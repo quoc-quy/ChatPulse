@@ -12,7 +12,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { MessageCircle, Users, User, Sparkles, X, ArrowUpCircle, Phone } from "lucide-react-native"; 
+import { useChatContext } from '../contexts/ChatContext';
+import { MessageCircle, Users, User, Sparkles, X, ArrowUpCircle, Phone } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Import API
@@ -39,9 +40,10 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
   const [isAiTyping, setIsAiTyping] = useState(false);
-  
+  const { totalUnreadCount } = useChatContext();
+
   const flatListRef = useRef<FlatList>(null);
-  const tabNavRef = useRef<any>(null); 
+  const tabNavRef = useRef<any>(null);
 
   const openAiPulse = () => {
     setIsAiVisible(true);
@@ -87,7 +89,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
         const aiResponse = {
           id: (Date.now() + 1).toString(),
           role: "ai",
-          text: response.data.result, 
+          text: response.data.result,
         };
         setAiMessages((prev) => [...prev, aiResponse]);
       }
@@ -117,8 +119,8 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
     return parts.map((part, index) => {
       const match = part.match(/\[([^\]]+)\]\(nav:([^)]+)\)/);
       if (match) {
-        const linkText = match[1];   
-        const screenName = match[2]; 
+        const linkText = match[1];
+        const screenName = match[2];
         return (
           <Text
             key={index}
@@ -130,7 +132,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             onPress={() => {
               setIsAiVisible(false);
               if (tabNavRef.current) {
-                tabNavRef.current.navigate(screenName); 
+                tabNavRef.current.navigate(screenName);
               } else {
                 navigation.navigate(screenName);
               }
@@ -186,9 +188,14 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
               <View style={styles.tabItemContainer}>
                 <View>
                   <MessageCircle size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
-                  <View style={styles.badgeContainer}>
-                    <Text style={styles.badgeText}>3</Text>
-                  </View>
+                  {/* Chỉ hiển thị badge khi có tin nhắn chưa đọc */}
+                  {totalUnreadCount > 0 && (
+                    <View style={styles.badgeContainer}>
+                      <Text style={styles.badgeText}>
+                        {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Chats</Text>
               </View>
@@ -225,7 +232,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           listeners={({ navigation: tabNavigation }) => ({
             tabPress: (e) => {
               e.preventDefault();
-              tabNavRef.current = tabNavigation; 
+              tabNavRef.current = tabNavigation;
               openAiPulse();
             },
           })}

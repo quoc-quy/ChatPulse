@@ -20,6 +20,7 @@ import MembersScreen from "./src/screens/MembersScreen";
 import AddMemberScreen from "./src/screens/AddMembersScreen";
 import UserProfileScreen from "./src/screens/UserProfileScreen";
 import BlockedUsersScreen from "./src/screens/BlockUserScreen";
+import { ChatProvider } from './src/contexts/ChatContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -66,8 +67,10 @@ export default function App() {
   }
 
   return (
+    
     // Bọc ThemeProvider ra ngoài cùng để mọi màn hình đều có thể gọi useTheme()
     <ThemeProvider>
+      <ChatProvider>
       <NavigationContainer key={navKey}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {isLoggedIn ? (
@@ -163,6 +166,7 @@ export default function App() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
+      </ChatProvider>
     </ThemeProvider>
   );
 }
