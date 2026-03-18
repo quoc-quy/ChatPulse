@@ -1,15 +1,17 @@
-import userApi from '@/apis/user.api'
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import userApi, { type BodyUpdateProfile } from '@/apis/user.api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getInitials } from '@/utils/common'
+import { toast } from 'react-toastify'
 
 interface Props {
   open: boolean
@@ -17,12 +19,30 @@ interface Props {
 }
 
 export default function ProfilePage({ open, onOpenChange }: Props) {
+  const queryClient = useQueryClient()
+  const { register, handleSubmit, reset, watch, setValue } = useForm()
   const { data: userData } = useQuery({
     queryKey: ['profile'],
     queryFn: userApi.getMe
   })
 
-  const { register, reset, setValue, watch } = useForm()
+  const updateMeMutation = useMutation({
+    mutationFn: userApi.updateMe
+  })
+
+  const handleUpdateMe = handleSubmit((data) => {
+    updateMeMutation.mutate(data as BodyUpdateProfile, {
+      onSuccess: () => {
+        toast.success('Cập nhật thông tin thành công')
+
+        queryClient.invalidateQueries({
+          queryKey: ['profile']
+        })
+
+        onOpenChange(false)
+      }
+    })
+  })
 
   const profile = userData?.data.user
 
@@ -61,7 +81,7 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        <form className='w-full'>
+        <form className='w-full' onSubmit={handleUpdateMe}>
           <div className='grid grid-cols-2 gap-6'>
             <div>
               <Label>User Name</Label>
@@ -70,7 +90,7 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
 
             <div>
               <Label>Email</Label>
-              <Input {...register('email')} type='email' />
+              <Input {...register('email')} type='email' disabled />
             </div>
 
             <div>
@@ -114,8 +134,8 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
           </div>
 
           <div className='flex justify-center mt-8'>
-            <Button type='submit' className='px-10 cursor-pointer'>
-              Cập nhật hồ sơ
+            <Button type='submit' className='px-10 cursor-pointer' disabled={updateMeMutation.isPending}>
+              {updateMeMutation.isPending ? 'Đang cập nhật...' : 'Cập nhật hồ sơ'}
             </Button>
           </div>
         </form>
