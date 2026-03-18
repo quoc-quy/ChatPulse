@@ -477,9 +477,11 @@ export default function FriendsScreen({ navigation }: any) {
         <View style={[styles.iconBox, { backgroundColor: "#F3E8FF" }]}>
           <Users size={22} color={COLORS.secondary} />
         </View>
-        <Text style={[styles.menuText, { color: COLORS.foreground }]}>
-          Danh sách chặn
-        </Text>
+        <View style={styles.menuTextContainer}>
+          <Text style={[styles.menuText, { color: COLORS.foreground }]}>
+            Danh sách chặn
+          </Text>
+        </View>
         <ChevronRight size={18} color={COLORS.muted} />
       </TouchableOpacity>
     </View>
