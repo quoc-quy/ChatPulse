@@ -22,6 +22,7 @@ import {
   kickMember,
   promoteAdmin,
 } from "../apis/chat.api";
+import { friendApi } from "../apis/friends.api";
 
 // ── Color Palettes (đồng nhất với ChatScreen) ────────────────────────────────
 const lightColors = {
@@ -728,16 +729,54 @@ export default function ConversationDetailScreen() {
               label="Chặn người dùng"
               danger
               COLORS={COLORS}
-              onPress={() =>
+              onPress={() => {
+                const otherUser = members.find(
+                  (m: any) =>
+                    (m._id || m.userId || "").toString() !== currentUserId,
+                );
+                if (!otherUser) return;
+                const otherUserId = (
+                  otherUser._id ||
+                  otherUser.userId ||
+                  ""
+                ).toString();
+                const otherUserName =
+                  otherUser.fullName || otherUser.userName || "người này";
                 Alert.alert(
-                  "Xác nhận",
-                  "Bạn có chắc muốn chặn người này không?",
+                  "Chặn người dùng",
+                  `Bạn có chắc muốn chặn ${otherUserName}? Họ sẽ không thể gửi tin nhắn cho bạn.`,
                   [
                     { text: "Hủy", style: "cancel" },
-                    { text: "Chặn", style: "destructive", onPress: () => {} },
+                    {
+                      text: "Chặn",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await friendApi.blockUser(otherUserId);
+                          Alert.alert(
+                            "Đã chặn",
+                            `Bạn đã chặn ${otherUserName}.`,
+                            [
+                              {
+                                text: "OK",
+                                onPress: () => {
+                                  navigation.popToTop();
+                                  navigation.navigate("BlockedUsers");
+                                },
+                              },
+                            ],
+                          );
+                        } catch {
+                          Alert.alert(
+                            "Lỗi",
+                            "Không thể chặn người dùng lúc này.",
+                          );
+                        }
+                      },
+                    },
                   ],
-                )
-              }
+                );
+              }}
               rightElement={null}
             />
           )}
