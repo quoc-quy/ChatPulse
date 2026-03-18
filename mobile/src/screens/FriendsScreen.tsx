@@ -36,6 +36,7 @@ import { api } from "../apis/api";
 import { friendApi } from "../apis/friends.api";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
+import { createDirectConversation } from "../apis/chat.api";
 
 const lightColors = {
   primary: "#4F46E5",
@@ -394,6 +395,23 @@ export default function FriendsScreen({ navigation }: any) {
     );
   };
 
+  // ── Open chat with friend ─────────────────────────────────────────────────
+  const handleOpenChat = async (userId: string, userName: string) => {
+    try {
+      const res = await createDirectConversation(userId);
+      const conversation = res.data.result;
+      navigation.navigate("MessageScreen", {
+        id: conversation._id,
+        name: userName,
+        isGroup: false,
+        targetUserId: userId,
+        unreadCount: 0,
+      });
+    } catch (error: any) {
+      Alert.alert("Lỗi", "Không thể mở cuộc trò chuyện. Vui lòng thử lại.");
+    }
+  };
+
   // ── Grouped friends (A-Z) ──────────────────────────────────────────────────
   const groupedFriends = useMemo(() => {
     // Khi đang search, không cần groupedFriends
@@ -629,6 +647,7 @@ export default function FriendsScreen({ navigation }: any) {
                   item={item}
                   type="friend"
                   onDelete={handleDeleteFriend}
+                  onChat={handleOpenChat}
                 />
               )}
               ListEmptyComponent={

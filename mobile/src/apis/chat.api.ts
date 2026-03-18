@@ -88,15 +88,22 @@ export const promoteAdmin = (conversationId: string, memberId: string) => {
 // Gửi mảng tin nhắn lên Backend thật để xử lý qua Groq AI
 export const summarizeChatApi = (messages: any[]) => {
   // Thay đổi đường dẫn '/conversations/summarize' cho khớp với route bạn đã khai báo bên backend
-  return api.post(`/conversations/summarize`, { 
-    messages: messages 
+  return api.post(`/conversations/summarize`, {
+    messages: messages,
   });
 };
 
 // API để chat liên tục với AI (gửi kèm bối cảnh chat và câu hỏi mới)
 export const askChatPulseAIApi = (chatContext: any[], prompt: string) => {
-  return api.post(`/conversations/ask-ai`, { 
+  return api.post(`/conversations/ask-ai`, {
     context: chatContext,
-    question: prompt 
+    question: prompt,
   });
-};  
+};
+// Tạo hoặc lấy conversation 1-1 với một user (idempotent)
+export const createDirectConversation = (userId: string) => {
+  return api.post("/conversations", {
+    type: "direct",
+    members: [userId],
+  });
+};
