@@ -1,8 +1,10 @@
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight } from 'lucide-react'
+import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import type { ChatItem } from '@/context/app.context'
+import { AppContext, type ChatItem } from '@/context/app.context'
+import { ChatAvatar } from '../chat-avatar'
+import { useContext } from 'react'
 
 interface ChatHeaderProps {
   chat: ChatItem
@@ -14,11 +16,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, isInfoPanelOpen }: ChatHeaderProps) {
   const { toggleSidebar } = useSidebar()
-
-  const getInitials = (name: string) => {
-    if (!name) return 'U'
-    return name.charAt(0).toUpperCase()
-  }
+  const { profile } = useContext(AppContext)
 
   const formatLastActive = (dateString?: string) => {
     if (!dateString) return 'Truy cập gần đây'
@@ -51,26 +49,21 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
         <SidebarTrigger className='md:hidden -ml-2 text-foreground' />
         <Separator orientation='vertical' className='md:hidden mr-2 h-4' />
 
-        <div className='relative'>
-          <Avatar className='h-10 w-10 border border-border'>
-            <AvatarImage src={chat.avatar} alt={chat.name} />
-            <AvatarFallback className='font-bold bg-blue-100 text-blue-600'>{getInitials(chat.name)}</AvatarFallback>
-          </Avatar>
-          {chat.type !== 'group' && (
-            <span
-              className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-background ${
-                chat.isOnline ? 'bg-green-500' : 'bg-gray-400'
-              }`}
-            />
-          )}
+        <div className='relative scale-90 -mr-1'>
+          <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
         </div>
 
         <div className='flex flex-col'>
           <span className='font-semibold text-foreground leading-tight'>{chat.name}</span>
           {chat.type === 'group' ? (
-            <span className='text-xs text-muted-foreground'>Nhóm trò chuyện</span>
+            <div className='flex items-center gap-1.5 text-[13px] text-muted-foreground mt-0.5'>
+              <User className='w-3.5 h-3.5' />
+              <span>{chat.participants?.length || 0} thành viên</span>
+            </div>
           ) : (
-            <span className={`text-xs ${chat.isOnline ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
+            <span
+              className={`text-xs mt-0.5 ${chat.isOnline ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}
+            >
               {chat.isOnline ? 'Đang hoạt động' : formatLastActive(chat.lastActiveAt)}
             </span>
           )}

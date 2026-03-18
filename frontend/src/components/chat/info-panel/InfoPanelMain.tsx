@@ -16,11 +16,12 @@ import {
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import type { ChatItem } from '@/context/app.context'
+import { AppContext, type ChatItem } from '@/context/app.context'
 import { MediaCollapsible } from './MediaCollapsible'
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { groupApi } from '@/apis/group.api'
 import { toast } from 'sonner'
+import { ChatAvatar } from '@/components/chat-avatar'
 
 interface InfoPanelMainProps {
   chat: ChatItem
@@ -35,6 +36,7 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
   const [isEditingName, setIsEditingName] = useState(false)
   const [tempName, setTempName] = useState(chat.name || '')
   const [isSavingName, setIsSavingName] = useState(false)
+  const { profile } = useContext(AppContext)
 
   const handleSaveName = async () => {
     if (!tempName.trim() || tempName.trim() === chat.name) {
@@ -55,11 +57,6 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
     }
   }
 
-  const getInitials = (name: string) => {
-    if (!name) return 'U'
-    return name.charAt(0).toUpperCase()
-  }
-
   return (
     <div className='w-[340px] flex-shrink-0 border-l border-border/40 bg-background flex flex-col h-screen overflow-hidden animate-in slide-in-from-right-2 duration-300'>
       <div className='flex h-16 items-center justify-center px-4 border-b border-border/40 relative shrink-0'>
@@ -74,12 +71,9 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
 
       <div className='flex-1 overflow-y-auto scroll-smooth'>
         <div className='flex flex-col items-center p-6 pb-4'>
-          <Avatar className='h-[88px] w-[88px] border border-border mb-3'>
-            <AvatarImage src={chat.avatar} alt={chat.name} />
-            <AvatarFallback className='text-3xl font-bold bg-blue-100 text-blue-600'>
-              {getInitials(chat.name)}
-            </AvatarFallback>
-          </Avatar>
+          <div className='transform scale-[1.75] mb-8 mt-2'>
+            <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
+          </div>
           {isGroup && isEditingName ? (
             <div className='flex items-center justify-center gap-2 mt-1 w-full animate-in fade-in'>
               <input
