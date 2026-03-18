@@ -194,41 +194,23 @@ class MessageService {
       updateQuery = {
         $pull: {
           reactions: {
-            $or: [{ user_id: userObjId }, { userId: userObjId }]
+            $or: [{ user_id: { $in: [userObjId, userId] } }, { userId: { $in: [userObjId, userId] } }]
           }
         }
       }
     } else {
-      // 3. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
-      const hasReactedThisEmoji = message.reactions?.find((r: any) => {
-        const reactionUserId = r?.user_id || r?.userId
-        return reactionUserId?.toString?.() === userId && r?.emoji === emoji
-      })
-
-      if (hasReactedThisEmoji) {
-        // Đã thả -> Hủy (Pull)
-        updateQuery = {
-          $pull: {
-            reactions: {
-              emoji: emoji,
-              $or: [{ user_id: userObjId }, { userId: userObjId }]
-            }
-          }
-        }
-      } else {
-        // Chưa thả -> Thêm mới (Push) kèm theo thông tin User (Denormalization để FE hiện Modal)
-        updateQuery = {
-          $push: {
-            reactions: {
-              user_id: userObjId, // Đổi userId -> user_id cho khớp với FE
-              emoji: emoji,
-              user: {
-                _id: user._id,
-                userName: user.userName,
-                avatar: user.avatar
-              },
-              createdAt: new Date()
-            }
+      // Cho phép cùng 1 user thả cùng 1 emoji nhiều lần
+      updateQuery = {
+        $push: {
+          reactions: {
+            user_id: userObjId,
+            emoji: emoji,
+            user: {
+              _id: user._id,
+              userName: user.userName,
+              avatar: user.avatar
+            },
+            createdAt: new Date()
           }
         }
       }
@@ -237,6 +219,7 @@ class MessageService {
     const result = await databaseService.messages.findOneAndUpdate({ _id: messageObjId }, updateQuery, {
       returnDocument: 'after'
     })
+    const updatedReactions = result?.reactions || result?.value?.reactions || []
 
     // 4. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
     const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
@@ -252,8 +235,6 @@ class MessageService {
           if (mId) targetUserIds.add(mId)
         })
       }
-
-      const updatedReactions = result?.reactions || result?.value?.reactions || []
 
       targetUserIds.forEach((id) => {
         socketService.emitToUser(id, 'message_reacted', {
