@@ -128,7 +128,7 @@ export default function SearchModal({ open, onOpenChange, user }: Props) {
           </div>
           <div className='flex'>
             <Label className='w-1/3 text-gray-400'>Ngày sinh</Label>
-            <div className='text-sm'>{user.date_of_birth.slice(0, 10)}</div>
+            <div className='text-sm'>{user.date_of_birth ? user.date_of_birth.slice(0, 10) : 'Chưa cập nhật'}</div>
           </div>
         </div>
         <div className='bg-gray-300 h-2 w-[calc(100%+3rem)] -mx-6' />

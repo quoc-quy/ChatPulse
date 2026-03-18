@@ -8,15 +8,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { toast } from 'react-toastify'
 import userApi from '@/apis/user.api'
+import { useState } from 'react'
+import SearchModal from './SearchModal'
 
 export default function FriendPage() {
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [openInfo, setOpenInfo] = useState(false)
   const queryClient = useQueryClient()
   const { data } = useQuery({
     queryKey: ['friendList'],
     queryFn: friendApi.getListFriend
   })
 
-  const { data: blockedData, refetch } = useQuery({
+  const { data: blockedData } = useQuery({
     queryKey: ['blockedUsers'],
     queryFn: userApi.getListBlockedUser
   })
@@ -141,7 +145,17 @@ export default function FriendPage() {
 
                     <PopoverContent align='end' className='w-48 p-2 border-gray-200 dark:border-gray-700/50'>
                       <div className='flex flex-col gap-1'>
-                        <button className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'>
+                        <button
+                          onClick={() => {
+                            setSelectedUser({
+                              ...friend,
+                              isBlocked: blockedIds.includes(friend._id),
+                              isFriend: true
+                            })
+                            setOpenInfo(true)
+                          }}
+                          className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'
+                        >
                           Xem thông tin
                         </button>
 
@@ -176,6 +190,7 @@ export default function FriendPage() {
               </div>
             )
           })}
+          {selectedUser && <SearchModal open={openInfo} onOpenChange={setOpenInfo} user={selectedUser} />}
         </div>
       </div>
     </div>
