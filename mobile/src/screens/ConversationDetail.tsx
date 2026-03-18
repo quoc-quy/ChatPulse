@@ -16,6 +16,7 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { useTheme } from "../contexts/ThemeContext";
+import { profileStatsEvents } from "../utils/profileStats.events";
 import {
   getConversationDetail,
   leaveGroup,
@@ -292,6 +293,7 @@ export default function ConversationDetailScreen() {
         onPress: async () => {
           try {
             await leaveGroup(conversationId);
+            profileStatsEvents.emit({ type: "groups_delta", delta: -1 });
             navigation.popToTop();
           } catch {
             Alert.alert("Lỗi", "Không thể rời nhóm lúc này.");

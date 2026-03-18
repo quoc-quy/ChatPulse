@@ -36,6 +36,7 @@ import { api } from "../apis/api";
 import { friendApi } from "../apis/friends.api";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
+import { profileStatsEvents } from "../utils/profileStats.events";
 import { createDirectConversation } from "../apis/chat.api";
 
 const lightColors = {
@@ -381,6 +382,7 @@ export default function FriendsScreen({ navigation }: any) {
           onPress: async () => {
             try {
               await friendApi.deleteFriend(friendId);
+              profileStatsEvents.emit({ type: "friends_delta", delta: -1 });
               Alert.alert("Thành công", `Đã xóa ${name} khỏi danh sách bạn bè`);
               fetchData(true);
             } catch (error: any) {

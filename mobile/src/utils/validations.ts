@@ -8,6 +8,15 @@ export const validateEmail = (email: string): string | null => {
   return null;
 };
 
+export const validateLoginIdentifier = (
+  identifier: string,
+): string | null => {
+  if (!identifier || identifier.trim().length === 0) {
+    return "Email hoặc username không được để trống";
+  }
+  return null;
+};
+
 export const validatePassword = (password: string): string | null => {
   if (!password) return "Mật khẩu không được để trống";
   if (password.length < 6) {
