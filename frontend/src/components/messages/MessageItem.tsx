@@ -6,6 +6,7 @@ import { useContext, useState } from 'react'
 import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
+import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react' // THÊM ICONS
 
 interface MessageItemProps {
   message: Message
@@ -52,6 +53,23 @@ export function MessageItem({
     return name.trim().charAt(0).toUpperCase()
   }
 
+  // RENDER TRẠNG THÁI TIN NHẮN (CHỈ DÀNH CHO TIN NHẮN CỦA MÌNH GỬI)
+  const renderMessageStatus = () => {
+    if (!isMe || isCall || isRevoked) return null
+
+    const status = message.status || 'SENT'
+
+    return (
+      <div className='flex items-center ml-1 opacity-70'>
+        {status === 'SENDING' && <Clock className='w-[10px] h-[10px]' />}
+        {status === 'SENT' && <Check className='w-[14px] h-[14px]' />}
+        {status === 'DELIVERED' && <CheckCheck className='w-[14px] h-[14px] text-gray-400' />}
+        {status === 'SEEN' && <CheckCheck className='w-[14px] h-[14px] text-blue-400' />}
+        {status === 'FAILED' && <AlertCircle className='w-[12px] h-[12px] text-red-500' title='Gửi thất bại' />}
+      </div>
+    )
+  }
+
   return (
     <div id={`message-${message._id}`} className='flex flex-col'>
       {showTimeDivider && (
@@ -80,10 +98,8 @@ export function MessageItem({
 
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
           <div className='flex items-center gap-2 group/bubble relative'>
-            {/* COMPONENT: Thanh công cụ xử lý tương tác */}
             <MessageActions message={message} isMe={isMe} currentUserId={currentUserId} onDeleteForMe={onDeleteForMe} />
 
-            {/* BONG BÓNG TIN NHẮN */}
             {isRevoked ? (
               <div
                 className={`flex flex-col px-4 py-2.5 rounded-2xl border border-border/60 bg-muted/30 text-muted-foreground/80 ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}
@@ -105,23 +121,24 @@ export function MessageItem({
                   <span className='text-xs font-semibold text-muted-foreground mb-1'>{senderName}</span>
                 )}
                 <p className='text-[15px] leading-relaxed break-words whitespace-pre-wrap'>{message.content}</p>
+
+                {/* THỜI GIAN KÈM TRẠNG THÁI */}
                 {isLastInGroup && (
-                  <span
-                    className={`text-[10px] mt-1 opacity-70 ${isMe ? 'text-white/80 self-end' : 'text-muted-foreground self-start'}`}
+                  <div
+                    className={`flex items-center mt-1 ${isMe ? 'self-end text-white/80' : 'self-start text-muted-foreground'}`}
                   >
-                    {displayTime}
-                  </span>
+                    <span className='text-[10px]'>{displayTime}</span>
+                    {renderMessageStatus()}
+                  </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* COMPONENT: Hiển thị Thẻ cảm xúc */}
           {hasReactions && <ReactionBadge reactions={reactions} isMe={isMe} onClick={() => setIsModalOpen(true)} />}
         </div>
       </div>
 
-      {/* COMPONENT: Modal xem ai thả cảm xúc */}
       <ReactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} reactions={reactions} />
     </div>
   )

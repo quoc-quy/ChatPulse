@@ -5,7 +5,7 @@ import type { Message } from '@/types/message.type'
 import { AppContext } from '@/context/app.context'
 import { MessageItem } from '../messages/MessageItem'
 import { formatZaloMessageTime, shouldShowTimeDivider } from '@/utils/time'
-import { ChevronDown } from 'lucide-react' // FIX 3: Import icon nút Scroll
+import { ChevronDown } from 'lucide-react'
 
 interface ChatBodyProps {
   convId: string
@@ -19,8 +19,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
   const [hasMore, setHasMore] = useState(true)
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
   const [isFetchingOlder, setIsFetchingOlder] = useState(false)
-
-  // FIX 3: State quản lý hiển thị nút Scroll to Bottom
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   const isInitialLoad = useRef(true)
@@ -45,27 +43,37 @@ export function ChatBody({ convId }: ChatBodyProps) {
         })
         const resData = (response as any).data?.result || (response as any).result || (response as any).data || []
         const newMessages: Message[] = Array.isArray(resData) ? resData : []
+
         if (newMessages.length < 20) setHasMore(false)
         if (newMessages.length > 0) {
           const oldestMessageInBatch = newMessages[newMessages.length - 1]
           setNextCursor(oldestMessageInBatch._id)
         }
+
+        // AUTO BÁO ĐÃ XEM KHI LOAD TIN NHẮN
+        if (socket) {
+          newMessages.forEach((msg) => {
+            if (msg.sender._id !== currentUserId && (!msg.seenBy || !msg.seenBy.includes(currentUserId))) {
+              socket.emit('message_seen', { messageId: msg._id, conversationId: convId })
+            }
+          })
+        }
+
         if (isInitial) {
           setMessages([...newMessages].reverse())
         } else {
           setMessages((prev) => {
             const combined = [...[...newMessages].reverse(), ...prev]
-            const uniqueMessages = Array.from(new Map(combined.map((msg) => [msg._id, msg])).values())
-            return uniqueMessages
+            return Array.from(new Map(combined.map((msg) => [msg._id, msg])).values())
           })
         }
       } catch (error) {
-        console.error('Lỗi khi tải lịch sử tin nhắn:', error)
+        console.error('Lỗi khi tải lịch sử:', error)
       } finally {
         setIsLoading(false)
       }
     },
-    [convId, nextCursor, isLoading, hasMore]
+    [convId, nextCursor, isLoading, hasMore, socket, currentUserId]
   )
 
   useEffect(() => {
@@ -97,52 +105,130 @@ export function ChatBody({ convId }: ChatBodyProps) {
 
   useEffect(() => {
     if (!currentUserId || !convId || !socket) return
+
+    // 1. NHẬN TIN NHẮN TỪ SOCKET
     const handleReceiveMessage = (newMessage: Message) => {
       if (newMessage.conversationId === convId) {
-        setMessages((prevMessages) => {
-          if (prevMessages.some((msg) => msg._id === newMessage._id)) return prevMessages
-          return [...prevMessages, newMessage]
-        })
-        setTimeout(() => {
-          if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight
+        setMessages((prev) => {
+          // Bỏ qua nếu tin nhắn thực sự đã tồn tại
+          if (prev.some((msg) => msg._id === newMessage._id)) return prev
+
+          // FIX LỖI NHÂN ĐÔI OPTIMISTIC UI:
+          // Nếu đây là tin nhắn của CỦA MÌNH VỪA GỬI, tìm tin "ảo" (SENDING) để GHI ĐÈ ngay lập tức.
+          const isMe = newMessage.sender._id === currentUserId
+          if (isMe) {
+            const tempIndex = prev.findIndex((msg) => msg.status === 'SENDING' && msg.content === newMessage.content)
+            if (tempIndex !== -1) {
+              const newArr = [...prev]
+              newArr[tempIndex] = newMessage // Chuyển từ ảo thành thật
+              return newArr
+            }
           }
+
+          // Nếu của người khác thì nhét bình thường
+          return [...prev, newMessage]
+        })
+
+        setTimeout(() => {
+          if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight
         }, 50)
+
+        // ĐÁNH DẤU ĐÃ XEM CHO TIN CỦA NGƯỜI KHÁC KHI MÀN HÌNH ĐANG MỞ
+        if (newMessage.sender._id !== currentUserId) {
+          socket.emit('message_seen', { messageId: newMessage._id, conversationId: convId })
+        }
       }
     }
 
-    const handleMessageReacted = ({ messageId, reactions }: { messageId: string; reactions: any[] }) => {
-      setMessages((prevMessages) => prevMessages.map((msg) => (msg._id === messageId ? { ...msg, reactions } : msg)))
+    const handleMessageStatusUpdate = ({ messageId, status, userId }: any) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg._id === messageId) {
+            const updatedMsg = { ...msg }
+            if (status === 'DELIVERED') {
+              updatedMsg.status = msg.status !== 'SEEN' ? 'DELIVERED' : 'SEEN'
+              if (!updatedMsg.deliveredTo) updatedMsg.deliveredTo = []
+              if (!updatedMsg.deliveredTo.includes(userId)) updatedMsg.deliveredTo.push(userId)
+            }
+            if (status === 'SEEN') {
+              updatedMsg.status = 'SEEN'
+              if (!updatedMsg.seenBy) updatedMsg.seenBy = []
+              if (!updatedMsg.seenBy.includes(userId)) updatedMsg.seenBy.push(userId)
+            }
+            return updatedMsg
+          }
+          return msg
+        })
+      )
     }
 
-    const handleMessageRevoked = ({ messageId, conversationId }: { messageId: string; conversationId: string }) => {
+    const handleMessageReacted = ({ messageId, reactions }: any) => {
+      setMessages((prev) => prev.map((msg) => (msg._id === messageId ? { ...msg, reactions } : msg)))
+    }
+
+    const handleMessageRevoked = ({ messageId, conversationId }: any) => {
       if (conversationId === convId) {
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) => (msg._id === messageId ? { ...msg, type: 'revoked', content: '' } : msg))
+        setMessages((prev) =>
+          prev.map((msg) => (msg._id === messageId ? { ...msg, type: 'revoked', content: '' } : msg))
         )
       }
     }
 
     socket.on('receive_message', handleReceiveMessage)
+    socket.on('message_status_update', handleMessageStatusUpdate)
     socket.on('message_reacted', handleMessageReacted)
     socket.on('message_revoked', handleMessageRevoked)
+
+    // ===============================================
+    // LẮNG NGHE OPTIMISTIC UI TỪ CHATFOOTER
+    // ===============================================
+    const handleOptSend = (e: any) => {
+      setMessages((prev) => [...prev, e.detail])
+      setTimeout(() => {
+        if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight
+      }, 10)
+    }
+
+    const handleOptSuccess = (e: any) => {
+      const { tempId, realMessage } = e.detail
+      setMessages((prev) => {
+        // Kiểm tra xem Socket đã tự động xử lý và add tin nhắn thật này vào chưa?
+        const isRealExist = prev.some((msg) => msg._id === realMessage._id)
+        if (isRealExist) {
+          // Socket đã xử lý xong trước đó -> Chỉ việc xóa ID ảo đi để dọn dẹp
+          return prev.filter((msg) => msg._id !== tempId)
+        }
+        // Nếu Socket chưa tới mà API xong trước -> Thay thế ID ảo bằng data thật
+        return prev.map((msg) => (msg._id === tempId ? realMessage : msg))
+      })
+    }
+
+    const handleOptFail = (e: any) => {
+      setMessages((prev) => prev.map((msg) => (msg._id === e.detail.tempId ? { ...msg, status: 'FAILED' } : msg)))
+    }
+
+    window.addEventListener('optimistic_send', handleOptSend)
+    window.addEventListener('optimistic_success', handleOptSuccess)
+    window.addEventListener('optimistic_fail', handleOptFail)
+
     return () => {
       socket.off('receive_message', handleReceiveMessage)
+      socket.off('message_status_update', handleMessageStatusUpdate)
       socket.off('message_reacted', handleMessageReacted)
       socket.off('message_revoked', handleMessageRevoked)
+
+      window.removeEventListener('optimistic_send', handleOptSend)
+      window.removeEventListener('optimistic_success', handleOptSuccess)
+      window.removeEventListener('optimistic_fail', handleOptFail)
     }
   }, [currentUserId, convId, socket])
 
   const handleScroll = () => {
     if (containerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-
-      // Load thêm lịch sử cũ
       if (scrollTop <= 5 && !isLoading && hasMore) {
         fetchMessages(false)
       }
-
-      // Hiện nút nếu cách đáy hơn 150px
       const distanceToBottom = scrollHeight - scrollTop - clientHeight
       setShowScrollButton(distanceToBottom > 150)
     }
@@ -150,22 +236,13 @@ export function ChatBody({ convId }: ChatBodyProps) {
 
   const handleDeleteForMe = async (messageId: string) => {
     try {
-      // 1. Xác định xem đây có phải là tin nhắn cuối cùng (mới nhất) không
       const isLastMessage = messages.length > 0 && messages[messages.length - 1]._id === messageId
       let previousMessage = null
-
-      // Nếu là tin cuối, lấy tin nhắn áp chót (kế cuối) để gửi ra Sidebar
       if (isLastMessage && messages.length > 1) {
         previousMessage = messages[messages.length - 2]
       }
-
-      // 2. Cập nhật UI ngay lập tức
       setMessages((prev) => prev.filter((msg) => msg._id !== messageId))
-
-      // 3. Gọi API
       await messagesApi.deleteMessageForMe(messageId)
-
-      // 4. Phát sự kiện ra cho Sidebar cập nhật (Nếu vừa xóa tin cuối cùng)
       if (isLastMessage) {
         window.dispatchEvent(
           new CustomEvent('local_message_deleted', {
@@ -177,7 +254,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
         )
       }
     } catch (error) {
-      console.error('Lỗi khi xóa tin nhắn ở phía tôi:', error)
+      console.error('Lỗi khi xóa tin nhắn:', error)
     }
   }
 
@@ -191,7 +268,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
   }
 
   return (
-    // Sử dụng Relative làm Wrapper chứa nút Floating
     <div className='relative flex-1 flex flex-col overflow-hidden bg-muted/10'>
       <div className='flex-1 overflow-y-auto p-4 scroll-smooth' ref={containerRef} onScroll={handleScroll}>
         <div className='flex flex-col'>
@@ -250,7 +326,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
           })}
         </div>
       </div>
-
       {showScrollButton && (
         <button
           onClick={scrollToBottom}

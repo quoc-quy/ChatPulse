@@ -11,73 +11,33 @@ class MessageService {
     const convObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // 1. Kiểm tra tồn tại và quyền truy cập
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
-    if (!conversation) {
-      throw new ErrorWithStatus({
-        message: 'Không tìm thấy cuộc hội thoại',
-        status: httpStatus.NOT_FOUND
-      })
-    }
+    if (!conversation)
+      throw new ErrorWithStatus({ message: 'Không tìm thấy cuộc hội thoại', status: httpStatus.NOT_FOUND })
 
-    // TÌM KIẾM TRONG MẢNG MEMBERS (Thêm dấu ? sau userId phòng trường hợp field bị sai tên)
     let userMember = conversation.members?.find(
       (member: any) => member.userId?.toString() === userId || member.user_id?.toString() === userId
     )
-
-    // FIX LỖI: FALLBACK TƯƠNG THÍCH NGƯỢC VỚI DỮ LIỆU CŨ
-    // Nếu mảng members không có, nhưng user vẫn nằm trong participants cũ
     if (!userMember && conversation.participants) {
-      const isOldParticipant = conversation.participants.some((p: ObjectId) => p.toString() === userId)
-
-      if (isOldParticipant) {
-        // Tạo một object member "ảo" để code đi tiếp xuống dưới mà không bị crash
-        userMember = {
-          userId: new ObjectId(userId),
-          role: 'member'
-        }
+      if (conversation.participants.some((p: ObjectId) => p.toString() === userId)) {
+        userMember = { userId: new ObjectId(userId), role: 'member' }
       }
     }
+    if (!userMember) throw new ErrorWithStatus({ message: 'Bạn không có quyền', status: httpStatus.FORBIDDEN })
 
-    // Nếu qua cả 2 vòng check trên mà vẫn không có thì mới văng lỗi 403
-    if (!userMember) {
-      throw new ErrorWithStatus({
-        message: 'Bạn không có quyền xem tin nhắn của hội thoại này',
-        status: httpStatus.FORBIDDEN
-      })
-    }
-
-    // 2. Xây dựng điều kiện truy vấn ($match)
     const matchCondition: any = {
       conversationId: convObjectId,
-      // Tính năng Soft Delete: Bỏ qua tin nhắn user đã xóa (hỗ trợ cả 2 schema cũ/mới)
       $and: [{ deletedByUsers: { $ne: userObjectId } }, { deleted_by_users: { $ne: userObjectId } }]
     }
+    if (userMember.clearedHistoryAt) matchCondition.createdAt = { $gt: userMember.clearedHistoryAt }
+    if (cursor) matchCondition._id = { $lt: new ObjectId(cursor) }
 
-    // Tính năng Clear History: Chỉ lấy tin nhắn sau thời điểm dọn lịch sử
-    if (userMember.clearedHistoryAt) {
-      matchCondition.createdAt = { $gt: userMember.clearedHistoryAt }
-    }
-
-    // Phân trang bằng Cursor: Chỉ lấy tin nhắn cũ hơn cursor hiện tại
-    if (cursor) {
-      matchCondition._id = { $lt: new ObjectId(cursor) }
-    }
-
-    // 3. Thực thi truy vấn
     const messages = await databaseService.messages
       .aggregate([
         { $match: matchCondition },
-        { $sort: { createdAt: -1 } }, // Sắp xếp giảm dần (mới nhất lên đầu)
+        { $sort: { createdAt: -1 } },
         { $limit: limit },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'senderId',
-            foreignField: '_id',
-            as: 'senderInfo'
-          }
-        },
+        { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
         {
           $project: {
@@ -92,16 +52,14 @@ class MessageService {
             callInfo: 1,
             createdAt: 1,
             updatedAt: 1,
-            sender: {
-              _id: '$senderInfo._id',
-              userName: '$senderInfo.userName',
-              avatar: '$senderInfo.avatar'
-            }
+            status: 1,
+            deliveredTo: 1,
+            seenBy: 1,
+            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
           }
         }
       ])
       .toArray()
-
     return messages
   }
 
@@ -115,72 +73,34 @@ class MessageService {
     const userObjectId = new ObjectId(userId)
     const convObjectId = new ObjectId(convId)
 
-    // 1. Kiểm tra hội thoại và quyền thành viên
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
-    if (!conversation) {
-      throw new ErrorWithStatus({
-        message: 'Không tìm thấy cuộc hội thoại',
-        status: httpStatus.NOT_FOUND
-      })
-    }
+    if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
 
-    const isMember =
-      conversation.members?.some((m: any) => m.userId?.toString() === userId || m.user_id?.toString() === userId) ||
-      conversation.participants?.some((p: ObjectId) => p.toString() === userId)
-
-    if (!isMember) {
-      throw new ErrorWithStatus({
-        message: 'Bạn không có quyền gửi tin nhắn vào hội thoại này',
-        status: httpStatus.FORBIDDEN
-      })
-    }
-
-    // 2. Khởi tạo đối tượng Message mới
     const newMessage = new Message({
       conversationId: convObjectId,
       senderId: userObjectId,
       type,
       content,
-      replyToId: replyToId ? new ObjectId(replyToId) : undefined
+      replyToId: replyToId ? new ObjectId(replyToId) : undefined,
+      status: 'SENT'
     })
 
-    // Lưu vào database
     const insertResult = await databaseService.messages.insertOne(newMessage)
     const messageId = insertResult.insertedId
 
-    // 3. Cập nhật bảng Conversation (last_message_id, updated_at và lastViewedMessageId của người gửi)
     await databaseService.conversations.updateOne(
       { _id: convObjectId },
-      {
-        $set: {
-          last_message_id: messageId,
-          updated_at: new Date()
-        }
-      }
+      { $set: { last_message_id: messageId, updated_at: new Date() } }
     )
-
-    // Update High Water Mark cho người gửi (xem như họ đã đọc tin nhắn mới nhất này)
     await databaseService.conversations.updateOne(
       { _id: convObjectId, 'members.userId': userObjectId },
-      {
-        $set: {
-          'members.$.lastViewedMessageId': messageId
-        }
-      }
+      { $set: { 'members.$.lastViewedMessageId': messageId } }
     )
 
-    // 4. Lấy thông tin chi tiết của tin nhắn vừa gửi (kèm user gửi)
     const messages = await databaseService.messages
       .aggregate([
         { $match: { _id: messageId } },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'senderId',
-            foreignField: '_id',
-            as: 'senderInfo'
-          }
-        },
+        { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
         {
           $project: {
@@ -192,11 +112,10 @@ class MessageService {
             reactions: 1,
             createdAt: 1,
             updatedAt: 1,
-            sender: {
-              _id: '$senderInfo._id',
-              userName: '$senderInfo.userName', // FIX: Đã đổi thành userName (N hoa)
-              avatar: '$senderInfo.avatar'
-            }
+            status: 1,
+            deliveredTo: 1,
+            seenBy: 1,
+            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
           }
         }
       ])
@@ -204,29 +123,17 @@ class MessageService {
 
     const populatedMessage = messages[0]
 
-    // ==========================================
-    // 5. EMIT SOCKET: Gom ID từ cả participants và members để bắn Realtime
-    // ==========================================
     const targetUserIds = new Set<string>()
-
-    // Lấy ID từ mảng participants
-    if (conversation.participants) {
-      conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
-    }
-
-    // Lấy ID từ mảng members
-    if (conversation.members) {
+    if (conversation.participants) conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+    if (conversation.members)
       conversation.members.forEach((m: any) => {
         const mId = m.userId?.toString() || m.user_id?.toString()
         if (mId) targetUserIds.add(mId)
       })
-    }
 
-    // Lặp qua Set (đã loại bỏ ID trùng lặp) và phát sự kiện socket
     targetUserIds.forEach((id) => {
       socketService.emitToUser(id, 'receive_message', populatedMessage)
     })
-    // ==========================================
 
     return populatedMessage
   }
@@ -546,66 +453,29 @@ class MessageService {
     }
   }
 
-  // async summarizeConversation(convId: string, userId: string, limit: number = 100) {
-  //   try {
-  //     // 1. Kiểm tra quyền truy cập
-  //     const convObjectId = new ObjectId(convId)
-  //     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
-  //     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: 404 })
+  async markMessageDelivered(messageId: string, userId: string) {
+    const result = await databaseService.messages.findOneAndUpdate(
+      { _id: new ObjectId(messageId) },
+      {
+        $addToSet: { deliveredTo: new ObjectId(userId) },
+        $set: { status: 'DELIVERED' } // Nâng cấp status lên Delivered
+      },
+      { returnDocument: 'after' }
+    )
+    return result
+  }
 
-  //     // 2. Lấy 100 tin nhắn gần nhất
-  //     const messages = await this.getMessages(convId, userId, undefined, limit)
-  //     if (messages.length === 0) return null
-
-  //     const chronologicalMessages = messages.reverse()
-
-  //     // 3. Format dữ liệu cho AI hiểu
-  //     const chatLog = chronologicalMessages
-  //       .map((msg) => {
-  //         return `[ID: ${msg._id}] ${msg.sender?.userName || 'Unknown'}: ${msg.content}`
-  //       })
-  //       .join('\n')
-
-  //     // 4. Khởi tạo Model NGAY TẠI ĐÂY để đảm bảo process.env đã được load
-  //     if (!process.env.GEMINI_API_KEY) {
-  //       throw new Error('Thiếu API Key của Gemini trong file .env')
-  //     }
-
-  //     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string)
-  //     const model = genAI.getGenerativeModel({
-  //       model: 'gemini-2.5-flash',
-  //       generationConfig: { responseMimeType: 'application/json' }
-  //     })
-
-  //     const prompt = `
-  //     Bạn là một trợ lý AI quản lý nhóm chat. Hãy đọc đoạn chat sau và tóm tắt lại.
-  //     Yêu cầu trả về định dạng JSON chính xác với cấu trúc sau:
-  //     {
-  //       "topic": "Chủ đề chính của cuộc trò chuyện",
-  //       "decisions": ["Quyết định 1", "Quyết định 2"],
-  //       "openQuestions": ["Câu hỏi còn bỏ ngỏ 1"],
-  //       "actionItems": [
-  //         { "task": "Nhiệm vụ cần làm", "assignee": "Tên người được giao", "messageId": "ID của tin nhắn gốc nếu có" }
-  //       ]
-  //     }
-
-  //     Dữ liệu chat:
-  //     ${chatLog}
-  //     `
-
-  //     // 5. Gọi AI và parse kết quả
-  //     const result = await model.generateContent(prompt)
-  //     const responseText = result.response.text()
-
-  //     return JSON.parse(responseText)
-  //   } catch (error) {
-  //     console.error('Lỗi khi tóm tắt hội thoại bằng AI:', error)
-  //     throw new ErrorWithStatus({
-  //       message: 'Lỗi server khi phân tích nội dung bằng AI',
-  //       status: httpStatus.INTERNAL_SERVER_ERROR
-  //     })
-  //   }
-  // }
+  async markMessageSeen(messageId: string, userId: string) {
+    const result = await databaseService.messages.findOneAndUpdate(
+      { _id: new ObjectId(messageId) },
+      {
+        $addToSet: { seenBy: new ObjectId(userId) },
+        $set: { status: 'SEEN' } // Nâng cấp status cao nhất lên SEEN
+      },
+      { returnDocument: 'after' }
+    )
+    return result
+  }
 }
 
 const messageService = new MessageService()

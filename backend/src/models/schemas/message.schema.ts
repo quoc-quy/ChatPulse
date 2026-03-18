@@ -8,13 +8,16 @@ interface MessageType {
   content: string
   replyToId?: ObjectId
   reactions?: any[]
-  deletedByUsers?: ObjectId[] // Xóa tin nhắn 1 chiều
-  isEdited?: boolean    
+  deletedByUsers?: ObjectId[]
+  isEdited?: boolean
   isDeleted?: boolean
-  callInfo?: any // Lưu thông tin nếu là cuộc gọi
+  callInfo?: any
+  // THÊM TRẠNG THÁI TIN NHẮN
+  status?: 'SENDING' | 'SENT' | 'DELIVERED' | 'SEEN' | 'FAILED'
+  deliveredTo?: ObjectId[]
+  seenBy?: ObjectId[]
   createdAt?: Date
   updatedAt?: Date
-
 }
 
 export default class Message {
@@ -29,6 +32,11 @@ export default class Message {
   isEdited?: boolean
   isDeleted?: boolean
   callInfo?: any
+
+  status: string
+  deliveredTo: ObjectId[]
+  seenBy: ObjectId[]
+
   createdAt: Date
   updatedAt: Date
 
@@ -44,6 +52,12 @@ export default class Message {
     this.isEdited = message.isEdited || false
     this.isDeleted = message.isDeleted || false
     this.callInfo = message.callInfo
+
+    // Khởi tạo trạng thái mặc định
+    this.status = message.status || 'SENT'
+    this.deliveredTo = message.deliveredTo || []
+    this.seenBy = message.seenBy || []
+
     this.createdAt = message.createdAt || new Date()
     this.updatedAt = message.updatedAt || new Date()
   }
