@@ -16,6 +16,7 @@ import {
   Alert,
   ScrollView,
   StatusBar,
+  RefreshControl,
 } from "react-native";
 import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -23,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from 'expo-blur';
+import { markConversationAsSeen } from '../apis/chat.api';
 
 // IMPORT USE THEME Ở ĐÂY
 import { useTheme } from "../contexts/ThemeContext";
@@ -74,6 +76,7 @@ const MessageScreen = () => {
   const navigation = useNavigation<any>();
   const flatListRef = useRef<FlatList>(null);
   const lastTap = useRef(0);
+  const { id } = route.params;
 
   // --- LẤY THEME TỪ CONTEXT (CÔNG TẮC CỦA PROFILE) ---
   const { isDarkMode } = useTheme();
@@ -96,6 +99,40 @@ const MessageScreen = () => {
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
 
+  // Thêm state để chặn gọi API liên tục khi đang tải
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  // Hàm tải thêm tin nhắn cũ
+  // Hàm tải thêm tin nhắn cũ (Có thêm delay 1 giây để hiện xoay xoay)
+  const loadMoreMessages = async () => {
+    // Nếu hết tin, hoặc đang tải, hoặc không có con trỏ cursor -> Bỏ qua
+    if (!hasMore || isFetchingMore || !cursor) return;
+    
+    try {
+      // 1. Bật cờ loading lên để RefreshControl bắt đầu xoay
+      setIsFetchingMore(true);
+      
+      // 2. Ép ứng dụng chờ đúng 1 giây (1000ms) để người dùng thấy cái vòng xoay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. Gọi API lấy 20 tin nhắn tiếp theo
+      const res = await getMessages(conversationId, cursor, 20);
+      const rawData = res.data.result || res.data.data || [];
+      
+      if (rawData.length > 0) {
+        setCursor(rawData[rawData.length - 1]._id);
+        setMessages((prev) => [...[...rawData].reverse(), ...prev]);
+      }
+      
+      if (rawData.length < 20) setHasMore(false);
+      
+    } catch (error: any) {
+      console.log("Lỗi tải thêm tin nhắn:", error.message);
+    } finally {
+      // 4. Tắt cờ loading đi để giấu vòng xoay
+      setIsFetchingMore(false);
+    }
+  };
   // --- STATE REACTION & MENU ---
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -105,6 +142,14 @@ const MessageScreen = () => {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState("");
+  useEffect(() => {
+    if (id) {
+      // Bắn API báo cho Backend biết user đã xem tin nhắn này
+      markConversationAsSeen(id).catch((error) => {
+        console.log("Lỗi khi đánh dấu đã xem tin nhắn:", error);
+      });
+    }
+  }, [id]);
 
   const fetchCurrentUserId = async () => {
     try {
@@ -520,6 +565,21 @@ const MessageScreen = () => {
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
+
+          refreshControl={
+            <RefreshControl
+              refreshing={isFetchingMore}
+              onRefresh={loadMoreMessages}
+              tintColor={COLORS.primary}
+            />
+          }
+          ListHeaderComponent={
+            !hasMore && messages.length > 0 ? (
+              <Text style={{ textAlign: "center", color: COLORS.textLight, paddingVertical: 10 }}>
+                Đã tải hết lịch sử trò chuyện
+              </Text>
+            ) : null
+          }
         />
         <View style={styles.inputContainer}>
           <TouchableOpacity style={styles.attachBtn}>
