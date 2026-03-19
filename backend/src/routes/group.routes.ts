@@ -28,4 +28,23 @@ groupRouter.patch('/:id/pin', groupController.pinController)
 // Đánh dấu đã đọc
 groupRouter.patch('/:id/read', groupController.readController)
 
+/**
+ * Tắt/bật thông báo cho hội thoại
+ * PATCH /groups/:id/mute
+ * Body: { mute: boolean }
+ */
+groupRouter.patch('/:id/mute', groupController.muteNotificationController)
+
+/**
+ * Lấy ảnh, video, file đã gửi trong nhóm
+ * GET /groups/:id/media?page=1&limit=20
+ */
+groupRouter.get('/:id/media', groupController.getMediaFilesController)
+
+/**
+ * Lấy danh sách link đã chia sẻ trong nhóm
+ * GET /groups/:id/links?page=1&limit=20
+ */
+groupRouter.get('/:id/links', groupController.getSharedLinksController)
+
 export default groupRouter

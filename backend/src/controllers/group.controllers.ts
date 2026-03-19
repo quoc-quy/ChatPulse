@@ -86,7 +86,43 @@ export const readController = async (req: Request, res: Response) => {
   await groupService.markAsRead(id, userId, last_message_id)
   return res.status(httpStatus.OK).json({ message: 'Đánh dấu đã xem thành công' })
 }
+export const muteNotificationController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const userId = req.decoded_authorization?.user_id as string
+  const { mute } = req.body as { mute: boolean }
 
+  const result = await groupService.muteNotification(id, userId, mute)
+  return res.status(httpStatus.OK).json({
+    message: mute ? 'Đã tắt thông báo' : 'Đã bật thông báo',
+    result
+  })
+}
+
+export const getMediaFilesController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const userId = req.decoded_authorization?.user_id as string
+  const page = Number(req.query.page) || 1
+  const limit = Number(req.query.limit) || 20
+
+  const result = await groupService.getMediaFiles(id, userId, page, limit)
+  return res.status(httpStatus.OK).json({
+    message: 'Lấy ảnh/video/file thành công',
+    result
+  })
+}
+
+export const getSharedLinksController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const userId = req.decoded_authorization?.user_id as string
+  const page = Number(req.query.page) || 1
+  const limit = Number(req.query.limit) || 20
+
+  const result = await groupService.getSharedLinks(id, userId, page, limit)
+  return res.status(httpStatus.OK).json({
+    message: 'Lấy danh sách link thành công',
+    result
+  })
+}
 export const renameGroupController = async (req: Request, res: Response) => {
   const id = req.params.id as string
   const { name } = req.body
