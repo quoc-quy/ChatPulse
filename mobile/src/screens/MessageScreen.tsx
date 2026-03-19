@@ -1020,7 +1020,7 @@ const MessageScreen = () => {
               >
                 <Ionicons
                   name="heart-dislike-outline"
-                  size={24}
+                  size={Platform.OS === "android" ? 20 : 24}
                   color={COLORS.textLight}
                 />
               </TouchableOpacity>
@@ -1425,8 +1425,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     reactionContainer: {
       position: "absolute",
-      bottom: -8,
-      right: -8,
+      bottom: Platform.OS === "android" ? -10 : -8,
+      right: Platform.OS === "android" ? -4 : -8,
       flexDirection: "row",
       zIndex: 2,
     },
@@ -1444,7 +1444,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     reactionSummary: {
       minHeight: 24,
       minWidth: 40,
-      paddingHorizontal: 8,
+      paddingHorizontal: 7,
       backgroundColor: COLORS.surface,
       borderRadius: 14,
       borderWidth: 1,
@@ -1456,18 +1456,18 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       elevation: 2,
     },
     reactionEmojiPreview: {
-      fontSize: 11,
+      fontSize: Platform.OS === "android" ? 10 : 11,
     },
     reactionCountText: {
-      fontSize: 11,
+      fontSize: Platform.OS === "android" ? 10 : 11,
       fontWeight: "700",
       color: COLORS.text,
     },
     defaultLike: {
-      width: 24,
-      height: 24,
+      width: Platform.OS === "android" ? 22 : 24,
+      height: Platform.OS === "android" ? 22 : 24,
       backgroundColor: COLORS.surface,
-      borderRadius: 12,
+      borderRadius: Platform.OS === "android" ? 11 : 12,
       borderWidth: 1,
       borderColor: COLORS.border,
       justifyContent: "center",
@@ -1497,7 +1497,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderBottomColor: COLORS.border,
     },
     reactionDetailTitle: {
-      fontSize: 30,
+      fontSize: 22,
       fontWeight: "700",
       color: COLORS.text,
     },
@@ -1522,12 +1522,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     reactionFilterLabel: {
       color: COLORS.text,
-      fontSize: 20,
+      fontSize: 16,
       fontWeight: "500",
     },
     reactionFilterCount: {
       color: COLORS.text,
-      fontSize: 18,
+      fontSize: 14,
       fontWeight: "600",
     },
     reactionUsersCol: {
@@ -1564,7 +1564,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     reactionUserName: {
       flex: 1,
       color: COLORS.text,
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: "500",
     },
     reactionUserRight: {
@@ -1574,14 +1574,14 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     reactionUserEmoji: {
       color: COLORS.text,
-      fontSize: 22,
+      fontSize: 18,
       marginRight: 8,
       textAlign: "right",
       flexShrink: 1,
     },
     reactionUserCount: {
       color: COLORS.text,
-      fontSize: 20,
+      fontSize: 16,
       fontWeight: "700",
     },
     reactionEmptyText: {
@@ -1593,9 +1593,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       position: "absolute",
       alignSelf: "center",
       backgroundColor: COLORS.surface,
-      width: "85%",
+      width: "92%",
+      maxWidth: 460,
       borderRadius: 25,
-      padding: 10,
+      padding: 8,
       elevation: 10,
       borderWidth: isDarkMode ? 1 : 0,
       borderColor: COLORS.border,
@@ -1603,46 +1604,46 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     emojiRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 15,
+      paddingVertical: Platform.OS === "android" ? 10 : 12,
       borderBottomWidth: 0.5,
       borderBottomColor: COLORS.border,
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
     },
     emojiStrip: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 4,
-      marginRight: 6,
+      paddingHorizontal: 2,
+      marginRight: 4,
     },
     reactionEmojiWrap: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
+      width: Platform.OS === "android" ? 40 : 44,
+      height: Platform.OS === "android" ? 40 : 44,
+      borderRadius: Platform.OS === "android" ? 20 : 22,
       alignItems: "center",
       justifyContent: "center",
     },
     reactionEmojiWrapHovered: {
       backgroundColor: COLORS.surfaceSoft,
-      transform: [{ translateY: -6 }],
+      transform: [{ translateY: Platform.OS === "android" ? -4 : -6 }],
     },
     reactionEmojiText: {
-      fontSize: 33,
+      fontSize: Platform.OS === "android" ? 30 : 32,
     },
     reactionEmojiTextHovered: {
-      fontSize: 40,
+      fontSize: Platform.OS === "android" ? 35 : 38,
     },
     removeAllReactionBtn: {
-      width: 54,
-      height: 54,
-      borderRadius: 27,
+      width: Platform.OS === "android" ? 44 : 50,
+      height: Platform.OS === "android" ? 44 : 50,
+      borderRadius: Platform.OS === "android" ? 22 : 25,
       backgroundColor: COLORS.background,
       borderWidth: 1,
       borderColor: COLORS.border,
       alignItems: "center",
       justifyContent: "center",
-      marginLeft: 4,
+      marginLeft: 2,
     },
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
