@@ -12,6 +12,8 @@ import {
   RefreshControl,
   Modal,
   FlatList,
+  TextInput,
+  Linking,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -24,6 +26,10 @@ import {
   leaveGroup,
   kickMember,
   promoteAdmin,
+  muteConversation,
+  getMediaFiles,
+  getSharedLinks,
+  renameGroup,
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
@@ -226,9 +232,23 @@ export default function ConversationDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [muteEnabled, setMuteEnabled] = useState(false);
+  const [muteSaving, setMuteSaving] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [leavingAfterTransfer, setLeavingAfterTransfer] = useState(false);
+
+  // ── Đổi tên nhóm ──
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameText, setRenameText] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+
+  // ── Media & Links ──
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [showLinksModal, setShowLinksModal] = useState(false);
+  const [mediaFiles, setMediaFiles] = useState<any[]>([]);
+  const [sharedLinks, setSharedLinks] = useState<any[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [linksLoading, setLinksLoading] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem("access_token").then((token) => {
@@ -247,7 +267,16 @@ export default function ConversationDetailScreen() {
         if (isRefreshing) setRefreshing(true);
         else setLoading(true);
         const res = await getConversationDetail(conversationId);
-        setConversation(res.data.result);
+        const conv = res.data.result;
+        setConversation(conv);
+
+        // Đồng bộ trạng thái mute từ server
+        const myMeta = (conv?.members || []).find(
+          (m: any) => m.userId?.toString() === currentUserId,
+        );
+        if (myMeta?.hasMuted !== undefined) {
+          setMuteEnabled(myMeta.hasMuted);
+        }
       } catch {
         Alert.alert("Lỗi", "Không thể tải thông tin hội thoại");
       } finally {
@@ -255,7 +284,7 @@ export default function ConversationDetailScreen() {
         setRefreshing(false);
       }
     },
-    [conversationId],
+    [conversationId, currentUserId],
   );
 
   const onRefresh = useCallback(() => fetchDetail(true), [fetchDetail]);
@@ -290,7 +319,7 @@ export default function ConversationDetailScreen() {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  // Thực sự rời nhóm (gọi sau khi đã chuyển quyền hoặc không phải admin)
+  // Thực sự rời nhóm
   const doLeaveGroup = useCallback(async () => {
     try {
       await leaveGroup(conversationId);
@@ -301,7 +330,7 @@ export default function ConversationDetailScreen() {
     }
   }, [conversationId, navigation]);
 
-  // Chuyển quyền admin rồi rời nhóm
+  // Chuyển quyền rồi rời nhóm
   const handleTransferAndLeave = useCallback(
     async (newAdminId: string) => {
       setTransferring(true);
@@ -309,7 +338,6 @@ export default function ConversationDetailScreen() {
         await promoteAdmin(conversationId, newAdminId);
         setShowTransferModal(false);
         setLeavingAfterTransfer(true);
-        // Chờ một chút để server cập nhật xong
         await new Promise((r) => setTimeout(r, 400));
         await doLeaveGroup();
       } catch {
@@ -324,12 +352,10 @@ export default function ConversationDetailScreen() {
 
   const handleLeaveGroup = () => {
     if (currentUserIsAdmin) {
-      // Cần ít nhất 1 thành viên khác để chuyển quyền
       const otherMembers = members.filter(
         (m: any) => (m._id || m.userId || "").toString() !== currentUserId,
       );
       if (otherMembers.length === 0) {
-        // Chỉ còn mình → cho phép giải tán / rời luôn
         Alert.alert(
           "Rời nhóm",
           "Bạn là thành viên duy nhất. Rời nhóm sẽ xóa nhóm này.",
@@ -343,7 +369,6 @@ export default function ConversationDetailScreen() {
           ],
         );
       } else {
-        // Bắt buộc chuyển quyền trước
         Alert.alert(
           "Chuyển quyền nhóm trưởng",
           "Bạn là nhóm trưởng. Vui lòng chọn 1 thành viên để chuyển quyền trước khi rời nhóm.",
@@ -359,11 +384,7 @@ export default function ConversationDetailScreen() {
     } else {
       Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này không?", [
         { text: "Hủy", style: "cancel" },
-        {
-          text: "Rời nhóm",
-          style: "destructive",
-          onPress: doLeaveGroup,
-        },
+        { text: "Rời nhóm", style: "destructive", onPress: doLeaveGroup },
       ]);
     }
   };
@@ -403,7 +424,83 @@ export default function ConversationDetailScreen() {
     ]);
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Tắt/bật thông báo ────────────────────────────────────────────────────
+  const handleToggleMute = async (value: boolean) => {
+    setMuteEnabled(value); // optimistic
+    setMuteSaving(true);
+    try {
+      await muteConversation(conversationId, value);
+    } catch {
+      setMuteEnabled(!value); // rollback
+      Alert.alert("Lỗi", "Không thể thay đổi cài đặt thông báo.");
+    } finally {
+      setMuteSaving(false);
+    }
+  };
+
+  // ── Đổi tên nhóm ────────────────────────────────────────────────────────
+  const openRenameModal = () => {
+    setRenameText(conversation?.name || "");
+    setShowRenameModal(true);
+  };
+
+  const handleRenameGroup = async () => {
+    const trimmed = renameText.trim();
+    if (!trimmed) {
+      Alert.alert("Lỗi", "Tên nhóm không được để trống.");
+      return;
+    }
+    if (trimmed === conversation?.name) {
+      setShowRenameModal(false);
+      return;
+    }
+    setRenameLoading(true);
+    try {
+      await renameGroup(conversationId, trimmed);
+      setShowRenameModal(false);
+      fetchDetail();
+    } catch {
+      Alert.alert("Lỗi", "Không thể đổi tên nhóm.");
+    } finally {
+      setRenameLoading(false);
+    }
+  };
+
+  // ── Ảnh/Video/File ───────────────────────────────────────────────────────
+  const openMediaModal = async () => {
+    setShowMediaModal(true);
+    if (mediaFiles.length > 0) return; // đã load rồi
+    setMediaLoading(true);
+    try {
+      const res = await getMediaFiles(conversationId);
+      setMediaFiles(res.data?.result || []);
+    } catch {
+      Alert.alert("Lỗi", "Không thể tải danh sách media.");
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  // ── Link đã chia sẻ ──────────────────────────────────────────────────────
+  const openLinksModal = async () => {
+    setShowLinksModal(true);
+    if (sharedLinks.length > 0) return;
+    setLinksLoading(true);
+    try {
+      const res = await getSharedLinks(conversationId);
+      setSharedLinks(res.data?.result || []);
+    } catch {
+      Alert.alert("Lỗi", "Không thể tải danh sách link.");
+    } finally {
+      setLinksLoading(false);
+    }
+  };
+
+  // Trích xuất URL đầu tiên từ nội dung tin nhắn
+  const extractUrl = (text: string): string => {
+    const match = text.match(/https?:\/\/[^\s]+/);
+    return match ? match[0] : text;
+  };
   if (loading) {
     return (
       <SafeAreaView
@@ -718,16 +815,12 @@ export default function ConversationDetailScreen() {
                   })
                 }
               />
-              <MenuRow
-                iconName="link-outline"
-                label="Link mời vào nhóm"
-                COLORS={COLORS}
-              />
               {currentUserIsAdmin && (
                 <MenuRow
-                  iconName="settings-outline"
-                  label="Cài đặt nhóm"
+                  iconName="pencil-outline"
+                  label="Đổi tên nhóm"
                   COLORS={COLORS}
+                  onPress={openRenameModal}
                 />
               )}
             </View>
@@ -744,24 +837,20 @@ export default function ConversationDetailScreen() {
             iconName="image-outline"
             label="Ảnh, video, file đã gửi"
             COLORS={COLORS}
+            onPress={openMediaModal}
           />
           <MenuRow
             iconName="link-outline"
             label="Link đã chia sẻ"
             COLORS={COLORS}
+            onPress={openLinksModal}
           />
         </View>
 
         <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
 
-        {/* ── Cá nhân hóa ── */}
+        {/* ── Thông báo ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-          <MenuRow
-            iconName="color-palette-outline"
-            label="Đổi hình nền"
-            COLORS={COLORS}
-          />
-          <MenuRow iconName="text-outline" label="Biệt danh" COLORS={COLORS} />
           <MenuRow
             iconName="notifications-outline"
             label="Tắt thông báo"
@@ -769,7 +858,8 @@ export default function ConversationDetailScreen() {
             rightElement={
               <Switch
                 value={muteEnabled}
-                onValueChange={setMuteEnabled}
+                onValueChange={handleToggleMute}
+                disabled={muteSaving}
                 trackColor={{ false: COLORS.muted, true: COLORS.primary }}
                 thumbColor={COLORS.white}
               />
@@ -849,7 +939,292 @@ export default function ConversationDetailScreen() {
           )}
         </View>
       </ScrollView>
-      {/* ── Modal chuyển quyền nhóm trưởng ───────────────────────────────────── */}
+
+      {/* ── Modal: Đổi tên nhóm ──────────────────────────────────────────────── */}
+      <Modal
+        visible={showRenameModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => !renameLoading && setShowRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: COLORS.card }]}>
+            <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+              Đổi tên nhóm
+            </Text>
+            <TextInput
+              style={[
+                styles.renameInput,
+                {
+                  color: COLORS.foreground,
+                  backgroundColor: COLORS.background,
+                  borderColor: COLORS.border,
+                },
+              ]}
+              value={renameText}
+              onChangeText={setRenameText}
+              placeholder="Nhập tên nhóm mới..."
+              placeholderTextColor={COLORS.mutedForeground}
+              maxLength={50}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { borderColor: COLORS.border }]}
+                onPress={() => setShowRenameModal(false)}
+                disabled={renameLoading}
+              >
+                <Text
+                  style={{ color: COLORS.mutedForeground, fontWeight: "500" }}
+                >
+                  Hủy
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalBtn,
+                  styles.modalBtnPrimary,
+                  { backgroundColor: COLORS.primary },
+                ]}
+                onPress={handleRenameGroup}
+                disabled={renameLoading}
+              >
+                {renameLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: "#FFF", fontWeight: "600" }}>Lưu</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modal: Ảnh/Video/File ─────────────────────────────────────────────── */}
+      <Modal
+        visible={showMediaModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowMediaModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
+            <View
+              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+            >
+              <TouchableOpacity onPress={() => setShowMediaModal(false)}>
+                <Feather name="x" size={22} color={COLORS.foreground} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+                Ảnh, video, file đã gửi
+              </Text>
+              <View style={{ width: 22 }} />
+            </View>
+
+            {mediaLoading ? (
+              <ActivityIndicator
+                color={COLORS.primary}
+                size="large"
+                style={{ marginTop: 40 }}
+              />
+            ) : (
+              <FlatList
+                data={mediaFiles}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={{ paddingBottom: 32 }}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="image-outline"
+                      size={48}
+                      color={COLORS.border}
+                    />
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: COLORS.mutedForeground },
+                      ]}
+                    >
+                      Chưa có ảnh, video hoặc file nào
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  const typeIcon =
+                    item.type === "image"
+                      ? "image-outline"
+                      : item.type === "video"
+                        ? "videocam-outline"
+                        : "document-outline";
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.mediaItem,
+                        { borderBottomColor: COLORS.border },
+                      ]}
+                      onPress={() =>
+                        item.fileUrl && Linking.openURL(item.fileUrl)
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.mediaIcon,
+                          { backgroundColor: COLORS.muted },
+                        ]}
+                      >
+                        <Ionicons
+                          name={typeIcon as any}
+                          size={22}
+                          color={COLORS.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.mediaName,
+                            { color: COLORS.foreground },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.fileName || item.content || "Tệp đính kèm"}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.mediaSub,
+                            { color: COLORS.mutedForeground },
+                          ]}
+                        >
+                          {item.sender?.userName || "Thành viên"} ·{" "}
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleDateString(
+                                "vi-VN",
+                              )
+                            : ""}
+                        </Text>
+                      </View>
+                      <Feather
+                        name="download"
+                        size={18}
+                        color={COLORS.mutedForeground}
+                      />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modal: Link đã chia sẻ ───────────────────────────────────────────── */}
+      <Modal
+        visible={showLinksModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowLinksModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
+            <View
+              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+            >
+              <TouchableOpacity onPress={() => setShowLinksModal(false)}>
+                <Feather name="x" size={22} color={COLORS.foreground} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+                Link đã chia sẻ
+              </Text>
+              <View style={{ width: 22 }} />
+            </View>
+
+            {linksLoading ? (
+              <ActivityIndicator
+                color={COLORS.primary}
+                size="large"
+                style={{ marginTop: 40 }}
+              />
+            ) : (
+              <FlatList
+                data={sharedLinks}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={{ paddingBottom: 32 }}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="link-outline"
+                      size={48}
+                      color={COLORS.border}
+                    />
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: COLORS.mutedForeground },
+                      ]}
+                    >
+                      Chưa có link nào được chia sẻ
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  const url = extractUrl(item.content || "");
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.linkItem,
+                        { borderBottomColor: COLORS.border },
+                      ]}
+                      onPress={() => url && Linking.openURL(url)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.mediaIcon,
+                          { backgroundColor: COLORS.muted },
+                        ]}
+                      >
+                        <Ionicons
+                          name="link-outline"
+                          size={20}
+                          color={COLORS.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[styles.linkUrl, { color: COLORS.primary }]}
+                          numberOfLines={1}
+                        >
+                          {url}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.mediaSub,
+                            { color: COLORS.mutedForeground },
+                          ]}
+                        >
+                          {item.sender?.userName || "Thành viên"} ·{" "}
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleDateString(
+                                "vi-VN",
+                              )
+                            : ""}
+                        </Text>
+                      </View>
+                      <Feather
+                        name="external-link"
+                        size={16}
+                        color={COLORS.mutedForeground}
+                      />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modal: Chuyển quyền nhóm trưởng ─────────────────────────────────── */}
       <Modal
         visible={showTransferModal}
         animationType="slide"
@@ -857,16 +1232,12 @@ export default function ConversationDetailScreen() {
         onRequestClose={() => !transferring && setShowTransferModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View
-            style={[styles.modalContainer, { backgroundColor: COLORS.card }]}
-          >
-            {/* Modal Header */}
+          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
             <View
               style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
             >
               <TouchableOpacity
                 onPress={() => !transferring && setShowTransferModal(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 disabled={transferring}
               >
                 <Feather
@@ -888,7 +1259,6 @@ export default function ConversationDetailScreen() {
               xác nhận.
             </Text>
 
-            {/* Danh sách thành viên (trừ bản thân) */}
             <FlatList
               data={members.filter(
                 (m: any) =>
@@ -897,7 +1267,7 @@ export default function ConversationDetailScreen() {
               keyExtractor={(item, i) =>
                 (item._id || item.userId || i).toString()
               }
-              style={styles.modalList}
+              style={{ flexGrow: 0 }}
               renderItem={({ item }) => {
                 const mId = (item._id || item.userId || "").toString();
                 const mName =
@@ -908,7 +1278,7 @@ export default function ConversationDetailScreen() {
                 return (
                   <TouchableOpacity
                     style={[
-                      styles.modalMemberItem,
+                      styles.mediaItem,
                       { borderBottomColor: COLORS.border },
                     ]}
                     onPress={() => {
@@ -928,22 +1298,18 @@ export default function ConversationDetailScreen() {
                     activeOpacity={0.7}
                     disabled={transferring}
                   >
-                    {/* Avatar */}
                     <View
                       style={[
-                        styles.modalAvatar,
+                        styles.mediaIcon,
                         { backgroundColor: COLORS.secondary },
                       ]}
                     >
-                      <Text style={styles.modalAvatarText}>
+                      <Text style={{ color: "#FFF", fontWeight: "bold" }}>
                         {(mName || "?").charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     <Text
-                      style={[
-                        styles.modalMemberName,
-                        { color: COLORS.foreground },
-                      ]}
+                      style={[styles.mediaName, { color: COLORS.foreground }]}
                       numberOfLines={1}
                     >
                       {mName}
@@ -958,19 +1324,18 @@ export default function ConversationDetailScreen() {
               }}
             />
 
-            {/* Loading overlay khi đang xử lý */}
             {(transferring || leavingAfterTransfer) && (
               <View
                 style={[
-                  styles.modalLoadingOverlay,
+                  styles.loadingOverlay,
                   { backgroundColor: COLORS.card + "CC" },
                 ]}
               >
                 <ActivityIndicator size="large" color={COLORS.primary} />
                 <Text
                   style={[
-                    styles.modalLoadingText,
-                    { color: COLORS.foreground },
+                    styles.mediaSub,
+                    { color: COLORS.foreground, marginTop: 8 },
                   ]}
                 >
                   {leavingAfterTransfer
@@ -1080,18 +1445,28 @@ const styles = StyleSheet.create({
   menuRowLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
   menuRowLabel: { fontSize: 16 },
 
-  // ── Modal chuyển quyền ──────────────────────────────────────────────────────
+  // ── Modals ──────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
-  modalContainer: {
+  // Sheet (slide up từ dưới) — dùng cho Media, Links, Transfer
+  modalSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "75%",
-    paddingBottom: 32,
+    maxHeight: "80%",
+    paddingBottom: 16,
     overflow: "hidden",
+  },
+  // Box nhỏ giữa màn hình — dùng cho Rename
+  modalBox: {
+    marginHorizontal: 24,
+    marginBottom: "auto",
+    marginTop: "auto",
+    borderRadius: 16,
+    padding: 20,
+    gap: 14,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1108,8 +1483,32 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     lineHeight: 18,
   },
-  modalList: { flexGrow: 0 },
-  modalMemberItem: {
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalBtnPrimary: { borderWidth: 0 },
+
+  // Rename input
+  renameInput: {
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 15,
+  },
+  searchBg: { backgroundColor: "transparent" }, // placeholder, overridden inline
+
+  // Media & Links list items
+  mediaItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -1117,20 +1516,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     gap: 12,
   },
-  modalAvatar: {
+  mediaIcon: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
-  modalAvatarText: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
-  modalMemberName: { flex: 1, fontSize: 15, fontWeight: "500" },
-  modalLoadingOverlay: {
+  mediaName: { fontSize: 14, fontWeight: "500" },
+  mediaSub: { fontSize: 12, marginTop: 2 },
+
+  linkItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    gap: 12,
+  },
+  linkUrl: { fontSize: 13, fontWeight: "500" },
+
+  // Empty state
+  emptyState: { alignItems: "center", marginTop: 60, gap: 12 },
+  emptyText: { fontSize: 14 },
+
+  // Loading overlay cho Transfer modal
+  loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
   },
-  modalLoadingText: { fontSize: 14, fontWeight: "500" },
 });
