@@ -82,7 +82,7 @@ const ChatScreen = () => {
     // Tính tổng số unread_count của tất cả các cuộc hội thoại hiện có
     const totalUnread = conversations.reduce(
       (sum, chat) => sum + (chat.unread_count || 0),
-      0
+      0,
     );
     // Đẩy con số này lên Context để MainTabs đọc được
     setTotalUnreadCount(totalUnread);
@@ -199,6 +199,16 @@ const ChatScreen = () => {
     return { chatName, chatAvatarUrl, isOnline, targetUserId };
   };
 
+  // Kiểm tra conversation có đang bị mute với currentUser không
+  const isMutedForItem = (item: any): boolean => {
+    if (!currentUserId) return false;
+    const myMember = (item.members || []).find(
+      (m: any) =>
+        (m.userId?.toString?.() || m.user_id?.toString?.()) === currentUserId,
+    );
+    return myMember?.hasMuted === true;
+  };
+
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline, targetUserId } =
       getChatDetails(item);
@@ -215,6 +225,7 @@ const ChatScreen = () => {
             isGroup: item.type === "group",
             targetUserId: targetUserId,
             unreadCount: item.unread_count || 0,
+            isMuted: isMutedForItem(item),
           })
         }
       >
@@ -238,9 +249,20 @@ const ChatScreen = () => {
             <Text style={styles.name} numberOfLines={1}>
               {chatName}
             </Text>
-            <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
-              {formatTimeZalo(item.updated_at)}
-            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              {isMutedForItem(item) && (
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={13}
+                  color={COLORS.textLight || "#9CA3AF"}
+                />
+              )}
+              <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
+                {formatTimeZalo(item.updated_at)}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.chatFooter}>
