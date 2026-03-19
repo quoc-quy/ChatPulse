@@ -724,6 +724,9 @@ const MessageScreen = () => {
       .slice(0, 3)
       .map((group) => group.emoji)
       .join(" ");
+    const isLatestMessage = index === messages.length - 1;
+    const shouldShowReactionCorner =
+      !isRevoked && (hasReactions || isLatestMessage);
 
     const prevItem = index > 0 ? messages[index - 1] : null;
     const nextItem = index < messages.length - 1 ? messages[index + 1] : null;
@@ -824,7 +827,7 @@ const MessageScreen = () => {
                   </Text>
                 )}
 
-                {!isRevoked && (
+                {shouldShowReactionCorner && (
                   <View style={styles.reactionContainer}>
                     {hasReactions ? (
                       <TouchableOpacity
