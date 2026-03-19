@@ -85,6 +85,11 @@ export const promoteAdmin = (conversationId: string, memberId: string) => {
   return api.patch(`/conversations/${conversationId}/admin`, { memberId });
 };
 
+// API đánh dấu đã xem toàn bộ tin nhắn trong một cuộc hội thoại
+export const markConversationAsSeen = (conversationId: string) => {
+  return api.patch(`/conversations/${conversationId}/seen`);
+};
+
 // Gửi mảng tin nhắn lên Backend thật để xử lý qua Groq AI
 export const summarizeChatApi = (messages: any[]) => {
   // Thay đổi đường dẫn '/conversations/summarize' cho khớp với route bạn đã khai báo bên backend
