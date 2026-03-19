@@ -10,6 +10,8 @@ import {
   Alert,
   Switch,
   RefreshControl,
+  Modal,
+  FlatList,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -224,6 +226,9 @@ export default function ConversationDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [muteEnabled, setMuteEnabled] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+  const [leavingAfterTransfer, setLeavingAfterTransfer] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem("access_token").then((token) => {
@@ -284,23 +289,83 @@ export default function ConversationDetailScreen() {
   const currentUserIsAdmin = adminId === currentUserId;
 
   // ── Actions ──────────────────────────────────────────────────────────────
+
+  // Thực sự rời nhóm (gọi sau khi đã chuyển quyền hoặc không phải admin)
+  const doLeaveGroup = useCallback(async () => {
+    try {
+      await leaveGroup(conversationId);
+      profileStatsEvents.emit({ type: "groups_delta", delta: -1 });
+      navigation.popToTop();
+    } catch {
+      Alert.alert("Lỗi", "Không thể rời nhóm lúc này.");
+    }
+  }, [conversationId, navigation]);
+
+  // Chuyển quyền admin rồi rời nhóm
+  const handleTransferAndLeave = useCallback(
+    async (newAdminId: string) => {
+      setTransferring(true);
+      try {
+        await promoteAdmin(conversationId, newAdminId);
+        setShowTransferModal(false);
+        setLeavingAfterTransfer(true);
+        // Chờ một chút để server cập nhật xong
+        await new Promise((r) => setTimeout(r, 400));
+        await doLeaveGroup();
+      } catch {
+        Alert.alert("Lỗi", "Không thể chuyển quyền nhóm trưởng.");
+      } finally {
+        setTransferring(false);
+        setLeavingAfterTransfer(false);
+      }
+    },
+    [conversationId, doLeaveGroup],
+  );
+
   const handleLeaveGroup = () => {
-    Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này không?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Rời nhóm",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await leaveGroup(conversationId);
-            profileStatsEvents.emit({ type: "groups_delta", delta: -1 });
-            navigation.popToTop();
-          } catch {
-            Alert.alert("Lỗi", "Không thể rời nhóm lúc này.");
-          }
+    if (currentUserIsAdmin) {
+      // Cần ít nhất 1 thành viên khác để chuyển quyền
+      const otherMembers = members.filter(
+        (m: any) => (m._id || m.userId || "").toString() !== currentUserId,
+      );
+      if (otherMembers.length === 0) {
+        // Chỉ còn mình → cho phép giải tán / rời luôn
+        Alert.alert(
+          "Rời nhóm",
+          "Bạn là thành viên duy nhất. Rời nhóm sẽ xóa nhóm này.",
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Rời & Xóa nhóm",
+              style: "destructive",
+              onPress: doLeaveGroup,
+            },
+          ],
+        );
+      } else {
+        // Bắt buộc chuyển quyền trước
+        Alert.alert(
+          "Chuyển quyền nhóm trưởng",
+          "Bạn là nhóm trưởng. Vui lòng chọn 1 thành viên để chuyển quyền trước khi rời nhóm.",
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Chọn thành viên",
+              onPress: () => setShowTransferModal(true),
+            },
+          ],
+        );
+      }
+    } else {
+      Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này không?", [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Rời nhóm",
+          style: "destructive",
+          onPress: doLeaveGroup,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const handleKickMember = (memberId: string, memberName: string) => {
@@ -784,6 +849,139 @@ export default function ConversationDetailScreen() {
           )}
         </View>
       </ScrollView>
+      {/* ── Modal chuyển quyền nhóm trưởng ───────────────────────────────────── */}
+      <Modal
+        visible={showTransferModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => !transferring && setShowTransferModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[styles.modalContainer, { backgroundColor: COLORS.card }]}
+          >
+            {/* Modal Header */}
+            <View
+              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+            >
+              <TouchableOpacity
+                onPress={() => !transferring && setShowTransferModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                disabled={transferring}
+              >
+                <Feather
+                  name="x"
+                  size={22}
+                  color={transferring ? COLORS.muted : COLORS.foreground}
+                />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+                Chọn nhóm trưởng mới
+              </Text>
+              <View style={{ width: 22 }} />
+            </View>
+
+            <Text
+              style={[styles.modalSubtitle, { color: COLORS.mutedForeground }]}
+            >
+              Chọn 1 thành viên để chuyển quyền. Bạn sẽ tự động rời nhóm sau khi
+              xác nhận.
+            </Text>
+
+            {/* Danh sách thành viên (trừ bản thân) */}
+            <FlatList
+              data={members.filter(
+                (m: any) =>
+                  (m._id || m.userId || "").toString() !== currentUserId,
+              )}
+              keyExtractor={(item, i) =>
+                (item._id || item.userId || i).toString()
+              }
+              style={styles.modalList}
+              renderItem={({ item }) => {
+                const mId = (item._id || item.userId || "").toString();
+                const mName =
+                  item.fullName ||
+                  item.userName ||
+                  item.username ||
+                  "Thành viên";
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalMemberItem,
+                      { borderBottomColor: COLORS.border },
+                    ]}
+                    onPress={() => {
+                      if (transferring) return;
+                      Alert.alert(
+                        "Xác nhận",
+                        `Chuyển quyền nhóm trưởng cho ${mName} và rời nhóm?`,
+                        [
+                          { text: "Hủy", style: "cancel" },
+                          {
+                            text: "Xác nhận",
+                            onPress: () => handleTransferAndLeave(mId),
+                          },
+                        ],
+                      );
+                    }}
+                    activeOpacity={0.7}
+                    disabled={transferring}
+                  >
+                    {/* Avatar */}
+                    <View
+                      style={[
+                        styles.modalAvatar,
+                        { backgroundColor: COLORS.secondary },
+                      ]}
+                    >
+                      <Text style={styles.modalAvatarText}>
+                        {(mName || "?").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.modalMemberName,
+                        { color: COLORS.foreground },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {mName}
+                    </Text>
+                    <Feather
+                      name="chevron-right"
+                      size={18}
+                      color={COLORS.mutedForeground}
+                    />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+
+            {/* Loading overlay khi đang xử lý */}
+            {(transferring || leavingAfterTransfer) && (
+              <View
+                style={[
+                  styles.modalLoadingOverlay,
+                  { backgroundColor: COLORS.card + "CC" },
+                ]}
+              >
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text
+                  style={[
+                    styles.modalLoadingText,
+                    { color: COLORS.foreground },
+                  ]}
+                >
+                  {leavingAfterTransfer
+                    ? "Đang rời nhóm..."
+                    : "Đang chuyển quyền..."}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -881,4 +1079,58 @@ const styles = StyleSheet.create({
   },
   menuRowLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
   menuRowLabel: { fontSize: 16 },
+
+  // ── Modal chuyển quyền ──────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "75%",
+    paddingBottom: 32,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  modalTitle: { fontSize: 16, fontWeight: "700" },
+  modalSubtitle: {
+    fontSize: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    lineHeight: 18,
+  },
+  modalList: { flexGrow: 0 },
+  modalMemberItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    gap: 12,
+  },
+  modalAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalAvatarText: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
+  modalMemberName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  modalLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalLoadingText: { fontSize: 14, fontWeight: "500" },
 });
