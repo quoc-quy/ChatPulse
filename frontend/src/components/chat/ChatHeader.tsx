@@ -1,7 +1,6 @@
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User, Bot } from 'lucide-react'
 import { AppContext, type ChatItem } from '@/context/app.context'
 import { ChatAvatar } from '../chat-avatar'
 import { useContext } from 'react'
@@ -10,13 +9,15 @@ interface ChatHeaderProps {
   chat: ChatItem
   onStartCall?: (type: 'video' | 'audio') => void
   onSummarize?: () => void
-  onToggleInfoPanel: () => void // THÊM PROP MỚI Ở ĐÂY
-  isInfoPanelOpen: boolean // THÊM PROP MỚI Ở ĐÂY
+  onToggleInfoPanel: () => void
+  isInfoPanelOpen: boolean
 }
 
 export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, isInfoPanelOpen }: ChatHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const { profile } = useContext(AppContext)
+
+  const isAI = chat.type === 'ai'
 
   const formatLastActive = (dateString?: string) => {
     if (!dateString) return 'Truy cập gần đây'
@@ -49,9 +50,15 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
         <SidebarTrigger className='md:hidden -ml-2 text-foreground' />
         <Separator orientation='vertical' className='md:hidden mr-2 h-4' />
 
-        <div className='relative scale-90 -mr-1'>
-          <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
-        </div>
+        {isAI ? (
+          <div className='flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-sm border border-border shrink-0'>
+            <Bot className='h-5 w-5 text-white' />
+          </div>
+        ) : (
+          <div className='relative scale-90 -mr-1'>
+            <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
+          </div>
+        )}
 
         <div className='flex flex-col'>
           <span className='font-semibold text-foreground leading-tight'>{chat.name}</span>
@@ -70,42 +77,43 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
         </div>
       </div>
 
-      <div className='flex items-center gap-2 text-muted-foreground'>
-        {chat.type === 'group' && (
+      {!isAI && (
+        <div className='flex items-center gap-2 text-muted-foreground'>
+          {chat.type === 'group' && (
+            <button
+              onClick={onSummarize}
+              title='Tóm tắt nhóm bằng AI'
+              className='p-2 hover:bg-muted hover:text-foreground hover:text-purple-500 rounded-full transition-colors'
+            >
+              <Sparkles className='h-5 w-5' />
+            </button>
+          )}
           <button
-            onClick={onSummarize}
-            title='Tóm tắt nhóm bằng AI'
-            className='p-2 hover:bg-muted hover:text-foreground hover:text-purple-500 rounded-full transition-colors'
+            onClick={() => onStartCall && onStartCall('audio')}
+            className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
           >
-            <Sparkles className='h-5 w-5' />
+            <Phone className='h-5 w-5' />
           </button>
-        )}
-        <button
-          onClick={() => onStartCall && onStartCall('audio')}
-          className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
-        >
-          <Phone className='h-5 w-5' />
-        </button>
-        <button
-          onClick={() => onStartCall && onStartCall('video')}
-          className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
-        >
-          <Video className='h-5 w-5' />
-        </button>
-        <Separator orientation='vertical' className='h-5 mx-1 hidden sm:block' />
-        <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors hidden sm:block'>
-          <Search className='h-5 w-5' />
-        </button>
+          <button
+            onClick={() => onStartCall && onStartCall('video')}
+            className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
+          >
+            <Video className='h-5 w-5' />
+          </button>
+          <Separator orientation='vertical' className='h-5 mx-1 hidden sm:block' />
+          <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors hidden sm:block'>
+            <Search className='h-5 w-5' />
+          </button>
 
-        {/* NÚT TOGGLE THÔNG TIN HỘI THOẠI BÊN PHẢI */}
-        <button
-          onClick={onToggleInfoPanel}
-          className={`p-2 rounded-full transition-colors ${isInfoPanelOpen ? 'bg-muted text-foreground' : 'hover:bg-muted hover:text-foreground'}`}
-          title='Thông tin hội thoại'
-        >
-          <PanelRight className='h-5 w-5' />
-        </button>
-      </div>
+          <button
+            onClick={onToggleInfoPanel}
+            className={`p-2 rounded-full transition-colors ${isInfoPanelOpen ? 'bg-muted text-foreground' : 'hover:bg-muted hover:text-foreground'}`}
+            title='Thông tin hội thoại'
+          >
+            <PanelRight className='h-5 w-5' />
+          </button>
+        </div>
+      )}
     </header>
   )
 }

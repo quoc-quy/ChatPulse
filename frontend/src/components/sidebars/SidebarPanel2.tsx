@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Loader2, UserPlus } from 'lucide-react'
+import { Loader2, UserPlus, Bot } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -33,6 +33,20 @@ export function SidebarPanel2({
   const { setOpenMobile, isMobile } = useSidebar()
 
   const handleChatSelect = async (chatId: string) => {
+    if (chatId === 'ai-chatbot') {
+      setActiveChat({
+        id: 'ai-chatbot',
+        name: 'ChatPulse AI',
+        avatar: '', // Xử lý qua type 'ai' bên trong
+        isOnline: true,
+        type: 'ai',
+        unreadCount: 0
+      })
+      if (isMobile) setOpenMobile(false)
+      if (location.pathname !== '/') navigate('/')
+      return
+    }
+
     const targetChat = chatList.find((c) => String(c.id) === String(chatId))
     if (!targetChat) return
 
@@ -88,7 +102,6 @@ export function SidebarPanel2({
           </button>
         </div>
         <AddFriendModal open={open} onOpenChange={setOpen} />
-
         <SidebarInput placeholder='Tìm kiếm...' />
       </SidebarHeader>
 
@@ -96,6 +109,29 @@ export function SidebarPanel2({
         <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
           {activeItem.title === 'Tin nhắn' && (
             <>
+              {/* PHẦN GHIM CỐ ĐỊNH: CHATBOT AI */}
+              <div
+                onClick={() => handleChatSelect('ai-chatbot')}
+                className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
+                  activeChat?.id === 'ai-chatbot' ? 'bg-muted/80' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className='shrink-0'>
+                  <div className='flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-sm border border-border'>
+                    <Bot className='h-6 w-6 text-white' />
+                  </div>
+                </div>
+                <div className='flex-1 overflow-hidden'>
+                  <div className='flex justify-between items-center mb-0.5 gap-2'>
+                    <div className='font-bold text-sm truncate text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-indigo-600'>
+                      ChatPulse AI
+                    </div>
+                  </div>
+                  <div className='text-sm truncate text-muted-foreground'>Trợ lý ảo thông minh</div>
+                </div>
+              </div>
+
+              {/* DANH SÁCH CHAT BÌNH THƯỜNG */}
               {isLoading ? (
                 <div className='flex justify-center items-center py-6'>
                   <Loader2 className='h-6 w-6 animate-spin text-blue-500' />
@@ -150,9 +186,6 @@ export function SidebarPanel2({
             </>
           )}
           {activeItem.title === 'Danh bạ' && <PhoneBook />}
-          {activeItem.title !== 'Tin nhắn' && activeItem.title !== 'Danh bạ' && (
-            <div className='text-center py-6 text-sm text-muted-foreground'>Tính năng đang phát triển...</div>
-          )}
         </div>
       </SidebarContent>
     </Sidebar>

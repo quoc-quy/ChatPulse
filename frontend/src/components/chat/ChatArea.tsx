@@ -8,6 +8,7 @@ import { AppContext } from '@/context/app.context'
 import { useSocket } from '@/context/socket.context'
 import { messagesApi, type ConversationSummary } from '@/apis/messages.api'
 import { conversationsApi } from '@/apis/conversations.api' // Nhớ import API này
+import { AIChatArea } from './AIChatArea'
 
 interface ChatAreaProps {
   chat: ChatItem
@@ -117,6 +118,10 @@ export function ChatArea({ chat }: ChatAreaProps) {
         })
       }
     })
+  }
+
+  if (chat.type === 'ai') {
+    return <AIChatArea chat={chat} />
   }
 
   return (
