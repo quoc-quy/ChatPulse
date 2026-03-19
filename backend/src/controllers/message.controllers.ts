@@ -109,3 +109,25 @@ export const deleteMessageForMeController = async (req: Request, res: Response) 
     result
   })
 }
+
+export const searchMessagesController = async (req: Request, res: Response) => {
+  const convId = req.params.convId as string
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const keyword = ((req.query.q as string) || '').trim()
+  const page = Number(req.query.page) || 1
+  const limit = Number(req.query.limit) || 20
+
+  if (!keyword) {
+    return res.status(httpStatus.BAD_REQUEST).json({
+      message: 'Vui lòng nhập từ khóa tìm kiếm',
+      result: null
+    })
+  }
+
+  const result = await messageService.searchMessages(convId, user_id, keyword, page, limit)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Tìm kiếm thành công',
+    result
+  })
+}

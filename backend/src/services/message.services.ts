@@ -434,6 +434,83 @@ class MessageService {
     }
   }
 
+  // ── Tìm kiếm tin nhắn trong hội thoại ──────────────────────────────────────
+  async searchMessages(conversationId: string, userId: string, keyword: string, page: number = 1, limit: number = 20) {
+    const convObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    // Kiểm tra quyền truy cập
+    const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
+    if (!conversation) {
+      throw new ErrorWithStatus({ message: 'Không tìm thấy hội thoại', status: httpStatus.NOT_FOUND })
+    }
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
+    if (!isMember) {
+      throw new ErrorWithStatus({ message: 'Bạn không có quyền truy cập', status: httpStatus.FORBIDDEN })
+    }
+
+    const skip = (page - 1) * limit
+
+    // Tìm trong tin nhắn text, không bị xóa phía user
+    const results = await databaseService.messages
+      .aggregate([
+        {
+          $match: {
+            conversationId: convObjectId,
+            type: 'text',
+            content: { $regex: keyword, $options: 'i' }, // case-insensitive
+            deletedByUsers: { $ne: userObjectId },
+            deleted_by_users: { $ne: userObjectId },
+            isDeleted: { $ne: true }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'senderInfo'
+          }
+        },
+        { $unwind: { path: '$senderInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            createdAt: 1,
+            type: 1,
+            sender: {
+              _id: '$senderInfo._id',
+              userName: '$senderInfo.userName',
+              avatar: '$senderInfo.avatar'
+            }
+          }
+        }
+      ])
+      .toArray()
+
+    // Đếm tổng kết quả để phân trang
+    const totalCount = await databaseService.messages.countDocuments({
+      conversationId: convObjectId,
+      type: 'text',
+      content: { $regex: keyword, $options: 'i' },
+      deletedByUsers: { $ne: userObjectId },
+      deleted_by_users: { $ne: userObjectId },
+      isDeleted: { $ne: true }
+    })
+
+    return {
+      results,
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit)
+    }
+  }
+
   async markMessageDelivered(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId) },

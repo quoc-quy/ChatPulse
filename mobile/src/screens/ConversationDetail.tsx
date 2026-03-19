@@ -602,7 +602,16 @@ export default function ConversationDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity style={styles.quickBtn}>
+          <TouchableOpacity
+            style={styles.quickBtn}
+            onPress={() =>
+              navigation.navigate("MessageSearchScreen", {
+                conversationId,
+                conversationName: chatName,
+                isGroup: isGroupChat,
+              })
+            }
+          >
             <View style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}>
               <Ionicons
                 name="search-outline"

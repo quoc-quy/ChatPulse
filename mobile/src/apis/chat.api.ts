@@ -140,3 +140,17 @@ export const getSharedLinks = (
  */
 export const renameGroup = (conversationId: string, name: string) =>
   api.patch(`/groups/${conversationId}/name`, { name });
+
+/**
+ * Tìm kiếm tin nhắn trong hội thoại
+ * GET /messages/:convId/search?q=keyword&page=1&limit=20
+ */
+export const searchMessages = (
+  conversationId: string,
+  keyword: string,
+  page: number = 1,
+  limit: number = 20,
+) =>
+  api.get(`/messages/${conversationId}/search`, {
+    params: { q: keyword, page, limit },
+  });

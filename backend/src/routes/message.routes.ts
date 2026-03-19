@@ -7,7 +7,8 @@ import {
   revokeMessageController,
   deleteMessageController,
   summarizeConversationController,
-  deleteMessageForMeController
+  deleteMessageForMeController,
+  searchMessagesController
 } from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -22,6 +23,14 @@ const messageRouter = Router()
  * Header: { Authorization: Bearer <access_token> }
  */
 messageRouter.get('/:convId', accessTokenValidator, wrapRequestHandler(getMessagesController))
+
+/**
+ * Description: Tìm kiếm tin nhắn trong hội thoại
+ * Path: /messages/:convId/search
+ * Method: GET
+ * Query: ?q=keyword&page=1&limit=20
+ */
+messageRouter.get('/:convId/search', accessTokenValidator, wrapRequestHandler(searchMessagesController))
 
 /**
  * Description: Send Text/Sticker message
@@ -69,6 +78,10 @@ messageRouter.get('/:convId/summary', accessTokenValidator, wrapRequestHandler(s
  * Description: Xóa tin nhắn ở phía tôi
  * Path: /messages/:messageId/delete-for-me
  */
-messageRouter.delete('/:messageId/delete-for-me', accessTokenValidator, wrapRequestHandler(deleteMessageForMeController))
+messageRouter.delete(
+  '/:messageId/delete-for-me',
+  accessTokenValidator,
+  wrapRequestHandler(deleteMessageForMeController)
+)
 
 export default messageRouter
