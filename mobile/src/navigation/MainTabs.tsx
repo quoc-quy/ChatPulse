@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useChatContext } from '../contexts/ChatContext';
@@ -157,6 +158,11 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           </View>
         )}
         <View style={[styles.aiBubble, isUser ? styles.aiBubbleUser : styles.aiBubbleBot]}>
+          {!isUser && (
+            <Text style={{ color: "#C084FC", fontSize: 12, fontWeight: "900", marginBottom: 4, letterSpacing: 0.5 }}>
+              @PulseAI
+            </Text>
+          )}
           <Text style={styles.aiMsgText}>
             {isUser ? item.text : renderAiTextWithLinks(item.text)}
           </Text>
@@ -311,6 +317,43 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                   )}
 
                   <View style={styles.inputArea}>
+
+                    {/* GỢI Ý DÍNH TRÊN INPUT */}
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{
+                        paddingHorizontal: 10,
+                        alignItems: "center",
+                      }}
+                      style={{
+                        marginBottom: 8,
+                        maxHeight: 45,
+                      }}
+                    >
+                      {["Gần đây tôi trò chuyện với ai?", "Tóm tắt chủ đề các tin nhắn gần đây", "Tôi có bao nhiêu người bạn?"].map((prompt, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={{
+                            flexShrink: 0,
+                            backgroundColor: "rgba(192, 132, 252, 0.15)",
+                            paddingHorizontal: 14,
+                            paddingVertical: 6,
+                            borderRadius: 16,
+                            marginRight: 8,
+                            borderWidth: 1,
+                            borderColor: "rgba(192, 132, 252, 0.3)",
+                          }}
+                          onPress={() => setInputText(prompt)}
+                        >
+                          <Text style={{ color: "#E5E7EB", fontSize: 13 }}>
+                            {prompt}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    {/* INPUT */}
                     <View style={styles.inputWrapper}>
                       <TextInput
                         style={styles.input}

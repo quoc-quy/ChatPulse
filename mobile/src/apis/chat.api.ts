@@ -98,11 +98,11 @@ export const summarizeChatApi = (messages: any[]) => {
   });
 };
 
-// API để chat liên tục với AI (gửi kèm bối cảnh chat và câu hỏi mới)
-export const askChatPulseAIApi = (chatContext: any[], prompt: string) => {
-  return api.post(`/conversations/ask-ai`, {
-    context: chatContext,
-    question: prompt,
+// Sửa lại URL ở đây nhé
+export const askChatPulseAIApi = (context: any[], question: string) => {
+  return api.post('/conversations/ask-ai', { 
+    context: context, 
+    question: question 
   });
 };
 // Tạo hoặc lấy conversation 1-1 với một user (idempotent)
@@ -159,3 +159,7 @@ export const searchMessages = (
   api.get(`/messages/${conversationId}/search`, {
     params: { q: keyword, page, limit },
   });
+
+  export const suggestReplyApi = (messages: any[]) => {
+  return api.post('/conversations/suggest-reply', { messages });
+};
