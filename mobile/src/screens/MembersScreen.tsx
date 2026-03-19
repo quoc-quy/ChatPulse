@@ -19,6 +19,7 @@ import {
   promoteAdmin,
   getConversationDetail,
 } from "../apis/chat.api";
+import { friendApi } from "../apis/friends.api";
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const lightColors = {
@@ -81,6 +82,14 @@ const Avatar = ({
   </View>
 );
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+// "friend"  : đã là bạn bè → ẩn nút
+// "pending" : đã gửi lời mời, chưa được chấp nhận → hiện icon đồng hồ, bấm để hủy
+// "none"    : chưa gửi lời mời → hiện icon person-add
+type FriendStatus = "friend" | "pending" | "none";
+type FriendStatusMap = Record<string, FriendStatus>;
+type PendingRequestIdMap = Record<string, string>;
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function MembersScreen() {
   const navigation = useNavigation<any>();
@@ -104,7 +113,57 @@ export default function MembersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
 
-  // Fetch danh sách thành viên mới nhất từ API
+  // Trạng thái kết bạn theo memberId
+  const [friendStatusMap, setFriendStatusMap] = useState<FriendStatusMap>({});
+  // requestId của lời mời đang pending theo memberId (để hủy)
+  const [pendingRequestIdMap, setPendingRequestIdMap] =
+    useState<PendingRequestIdMap>({});
+  // Set các memberId đang gọi API (tránh double-tap)
+  const [loadingFriendIds, setLoadingFriendIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // ── Fetch trạng thái bạn bè ────────────────────────────────────────────────
+  const fetchFriendData = useCallback(async () => {
+    try {
+      const [friendsRes, pendingRes] = await Promise.all([
+        friendApi.getFriends(),
+        friendApi.getPendingRequests(),
+      ]);
+
+      const newStatusMap: FriendStatusMap = {};
+      const newPendingMap: PendingRequestIdMap = {};
+
+      // Danh sách bạn bè hiện tại
+      const friends: any[] = friendsRes.data?.result || friendsRes.data || [];
+      friends.forEach((f: any) => {
+        const fId = (f._id || f.userId || f.friend_id || "").toString();
+        if (fId) newStatusMap[fId] = "friend";
+      });
+
+      // Lời mời đang pending — chỉ lấy những lời mời currentUser đã GỬI ĐI
+      const pending: any[] = pendingRes.data?.result || pendingRes.data || [];
+      pending.forEach((req: any) => {
+        const senderId = (req.sender_id || req.from || "").toString();
+        const receiverId = (req.receiver_id || req.to || "").toString();
+        const reqId = (req._id || req.id || "").toString();
+
+        if (senderId === currentUserId && receiverId) {
+          if (!newStatusMap[receiverId]) {
+            newStatusMap[receiverId] = "pending";
+            newPendingMap[receiverId] = reqId;
+          }
+        }
+      });
+
+      setFriendStatusMap(newStatusMap);
+      setPendingRequestIdMap(newPendingMap);
+    } catch {
+      // Silent fail — không ảnh hưởng UI chính
+    }
+  }, [currentUserId]);
+
+  // ── Fetch members ──────────────────────────────────────────────────────────
   const fetchMembers = useCallback(
     async (isRefreshing = false) => {
       if (!conversationId) return;
@@ -131,7 +190,7 @@ export default function MembersScreen() {
           }),
         );
       } catch {
-        // fallback: giữ nguyên data cũ nếu fetch lỗi
+        // fallback giữ data cũ
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -140,14 +199,16 @@ export default function MembersScreen() {
     [conversationId],
   );
 
-  // Fetch khi mount
   useEffect(() => {
     fetchMembers();
-  }, [fetchMembers]);
+    fetchFriendData();
+  }, [fetchMembers, fetchFriendData]);
 
-  const onRefresh = () => fetchMembers(true);
+  const onRefresh = async () => {
+    await Promise.all([fetchMembers(true), fetchFriendData()]);
+  };
 
-  // Sort + Filter: nhóm trưởng luôn đầu, còn lại A-Z
+  // ── Sort + Filter ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const getName = (m: any) =>
       (m.fullName || m.userName || m.username || "").toLowerCase();
@@ -155,7 +216,6 @@ export default function MembersScreen() {
     const sorted = [...memberList].sort((a, b) => {
       const aIsAdmin = (a._id || a.userId || "").toString() === adminIdState;
       const bIsAdmin = (b._id || b.userId || "").toString() === adminIdState;
-
       if (aIsAdmin && !bIsAdmin) return -1;
       if (!aIsAdmin && bIsAdmin) return 1;
       return getName(a).localeCompare(getName(b), "vi");
@@ -172,14 +232,13 @@ export default function MembersScreen() {
 
   const currentUserIsAdmin = adminIdState === currentUserId;
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Admin Actions ──────────────────────────────────────────────────────────
   const handleLongPress = (member: any) => {
     if (!currentUserIsAdmin) return;
     const memberId = (member._id || member.userId || "").toString();
     if (memberId === currentUserId) return;
 
     const name = member.fullName || member.userName || "Thành viên";
-    // ✅ Dùng adminIdState — không cho kick/promote admin hiện tại
     const isTargetAdmin = memberId === adminIdState;
 
     const options: any[] = [];
@@ -211,7 +270,7 @@ export default function MembersScreen() {
         onPress: async () => {
           try {
             await kickMember(conversationId, memberId);
-            fetchMembers(); // ✅ Refetch từ API
+            fetchMembers();
           } catch {
             Alert.alert("Lỗi", "Không thể xóa thành viên.");
           }
@@ -228,7 +287,7 @@ export default function MembersScreen() {
         onPress: async () => {
           try {
             await promoteAdmin(conversationId, memberId);
-            fetchMembers(); // ✅ Refetch từ API
+            fetchMembers();
           } catch {
             Alert.alert("Lỗi", "Không thể thăng cấp.");
           }
@@ -237,15 +296,122 @@ export default function MembersScreen() {
     ]);
   };
 
+  // ── Friend Actions ─────────────────────────────────────────────────────────
+  const handleFriendButton = useCallback(
+    async (memberId: string, memberName: string) => {
+      const status = friendStatusMap[memberId] || "none";
+      if (loadingFriendIds.has(memberId)) return;
+
+      if (status === "none") {
+        // Gửi lời mời kết bạn
+        Alert.alert("Kết bạn", `Gửi lời mời kết bạn đến ${memberName}?`, [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Gửi lời mời",
+            onPress: async () => {
+              // Optimistic update
+              setFriendStatusMap((prev) => ({
+                ...prev,
+                [memberId]: "pending",
+              }));
+              setLoadingFriendIds((prev) => new Set(prev).add(memberId));
+
+              try {
+                const res = await friendApi.sendFriendRequest(memberId);
+                // Lưu requestId để dùng khi hủy lời mời
+                const requestId = (
+                  res.data?.result?._id ||
+                  res.data?._id ||
+                  ""
+                ).toString();
+                if (requestId) {
+                  setPendingRequestIdMap((prev) => ({
+                    ...prev,
+                    [memberId]: requestId,
+                  }));
+                }
+              } catch {
+                // Rollback
+                setFriendStatusMap((prev) => ({
+                  ...prev,
+                  [memberId]: "none",
+                }));
+                Alert.alert("Lỗi", "Không thể gửi lời mời kết bạn.");
+              } finally {
+                setLoadingFriendIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(memberId);
+                  return next;
+                });
+              }
+            },
+          },
+        ]);
+      } else if (status === "pending") {
+        // Hủy lời mời đã gửi
+        const requestId = pendingRequestIdMap[memberId];
+        Alert.alert(
+          "Hủy lời mời",
+          `Hủy lời mời kết bạn đã gửi đến ${memberName}?`,
+          [
+            { text: "Không", style: "cancel" },
+            {
+              text: "Hủy lời mời",
+              style: "destructive",
+              onPress: async () => {
+                // Optimistic update
+                setFriendStatusMap((prev) => ({
+                  ...prev,
+                  [memberId]: "none",
+                }));
+                setLoadingFriendIds((prev) => new Set(prev).add(memberId));
+
+                try {
+                  if (requestId) {
+                    await friendApi.cancelRequest(requestId);
+                  }
+                  setPendingRequestIdMap((prev) => {
+                    const next = { ...prev };
+                    delete next[memberId];
+                    return next;
+                  });
+                } catch {
+                  // Rollback
+                  setFriendStatusMap((prev) => ({
+                    ...prev,
+                    [memberId]: "pending",
+                  }));
+                  Alert.alert("Lỗi", "Không thể hủy lời mời.");
+                } finally {
+                  setLoadingFriendIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(memberId);
+                    return next;
+                  });
+                }
+              },
+            },
+          ],
+        );
+      }
+      // status === "friend" → nút đã ẩn, không bao giờ vào đây
+    },
+    [friendStatusMap, pendingRequestIdMap, loadingFriendIds],
+  );
+
   // ── Render Item ───────────────────────────────────────────────────────────
   const renderItem = ({ item }: any) => {
     const memberId = (item._id || item.userId || "").toString();
     const isMe = memberId === currentUserId;
-    // ✅ Chỉ dùng adminIdState làm source of truth — tránh 2 admin
     const isAdmin = memberId === adminIdState;
     const name =
       item.fullName || item.userName || item.username || "Thành viên";
     const roleText = isAdmin ? "Trưởng nhóm" : "Thành viên";
+
+    const friendStatus: FriendStatus = friendStatusMap[memberId] || "none";
+    const isFriend = friendStatus === "friend";
+    const isPending = friendStatus === "pending";
+    const isFriendLoading = loadingFriendIds.has(memberId);
 
     return (
       <TouchableOpacity
@@ -293,17 +459,29 @@ export default function MembersScreen() {
           ) : null}
         </View>
 
-        {/* Nút thêm bạn (nếu không phải bản thân) */}
-        {!isMe && (
+        {/*
+          Nút kết bạn:
+          - Ẩn hoàn toàn nếu là bản thân HOẶC đã là bạn bè
+          - icon đồng hồ màu primary  → đang pending (bấm để hủy)
+          - icon person-add màu muted → chưa gửi lời mời
+          - ActivityIndicator         → đang gọi API
+        */}
+        {!isMe && !isFriend && (
           <TouchableOpacity
-            style={styles.addBtn}
+            style={[styles.addBtn, isPending && { opacity: 0.75 }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => handleFriendButton(memberId, name)}
+            disabled={isFriendLoading}
           >
-            <Ionicons
-              name="person-add-outline"
-              size={20}
-              color={COLORS.mutedForeground}
-            />
+            {isFriendLoading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <Ionicons
+                name={isPending ? "time-outline" : "person-add-outline"}
+                size={20}
+                color={isPending ? COLORS.primary : COLORS.mutedForeground}
+              />
+            )}
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -493,7 +671,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   adminText: { fontSize: 11, fontWeight: "600" },
-  addBtn: { padding: 4 },
+  addBtn: { padding: 4, minWidth: 28, alignItems: "center" },
 
   listContent: { paddingBottom: 24 },
   empty: { alignItems: "center", marginTop: 80, gap: 12 },
