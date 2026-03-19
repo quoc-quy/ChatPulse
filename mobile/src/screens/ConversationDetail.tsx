@@ -255,7 +255,8 @@ export default function ConversationDetailScreen() {
       if (token) {
         try {
           const decoded: any = jwtDecode(token);
-          setCurrentUserId(decoded.user_id || decoded._id || decoded.id || "");
+          const uid = decoded.user_id || decoded._id || decoded.id || "";
+          setCurrentUserId(uid);
         } catch {}
       }
     });
@@ -270,13 +271,7 @@ export default function ConversationDetailScreen() {
         const conv = res.data.result;
         setConversation(conv);
 
-        // Đồng bộ trạng thái mute từ server
-        const myMeta = (conv?.members || []).find(
-          (m: any) => m.userId?.toString() === currentUserId,
-        );
-        if (myMeta?.hasMuted !== undefined) {
-          setMuteEnabled(myMeta.hasMuted);
-        }
+        // mute sẽ được sync trong useEffect riêng bên dưới
       } catch {
         Alert.alert("Lỗi", "Không thể tải thông tin hội thoại");
       } finally {
@@ -292,6 +287,17 @@ export default function ConversationDetailScreen() {
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
+
+  // Sync trạng thái mute riêng — chạy sau khi cả conversation lẫn currentUserId đã sẵn sàng
+  useEffect(() => {
+    if (!conversation || !currentUserId) return;
+    const myMeta = (conversation.members || []).find(
+      (m: any) => m.userId?.toString() === currentUserId,
+    );
+    if (myMeta?.hasMuted !== undefined) {
+      setMuteEnabled(myMeta.hasMuted);
+    }
+  }, [conversation, currentUserId]);
 
   // Derived
   const isGroupChat = conversation?.type === "group" || isGroup;
@@ -628,7 +634,7 @@ export default function ConversationDetailScreen() {
 
           <TouchableOpacity
             style={styles.quickBtn}
-            onPress={() => setMuteEnabled(!muteEnabled)}
+            onPress={() => handleToggleMute(!muteEnabled)}
           >
             <View style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}>
               <Ionicons
