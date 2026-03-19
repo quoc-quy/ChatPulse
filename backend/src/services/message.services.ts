@@ -194,41 +194,23 @@ class MessageService {
       updateQuery = {
         $pull: {
           reactions: {
-            $or: [{ user_id: userObjId }, { userId: userObjId }]
+            $or: [{ user_id: { $in: [userObjId, userId] } }, { userId: { $in: [userObjId, userId] } }]
           }
         }
       }
     } else {
-      // 3. Logic Toggle: Kiểm tra xem user đã thả emoji NÀY chưa?
-      const hasReactedThisEmoji = message.reactions?.find((r: any) => {
-        const reactionUserId = r?.user_id || r?.userId
-        return reactionUserId?.toString?.() === userId && r?.emoji === emoji
-      })
-
-      if (hasReactedThisEmoji) {
-        // Đã thả -> Hủy (Pull)
-        updateQuery = {
-          $pull: {
-            reactions: {
-              emoji: emoji,
-              $or: [{ user_id: userObjId }, { userId: userObjId }]
-            }
-          }
-        }
-      } else {
-        // Chưa thả -> Thêm mới (Push) kèm theo thông tin User (Denormalization để FE hiện Modal)
-        updateQuery = {
-          $push: {
-            reactions: {
-              user_id: userObjId, // Đổi userId -> user_id cho khớp với FE
-              emoji: emoji,
-              user: {
-                _id: user._id,
-                userName: user.userName,
-                avatar: user.avatar
-              },
-              createdAt: new Date()
-            }
+      // Cho phép cùng 1 user thả cùng 1 emoji nhiều lần
+      updateQuery = {
+        $push: {
+          reactions: {
+            user_id: userObjId,
+            emoji: emoji,
+            user: {
+              _id: user._id,
+              userName: user.userName,
+              avatar: user.avatar
+            },
+            createdAt: new Date()
           }
         }
       }
@@ -237,6 +219,7 @@ class MessageService {
     const result = await databaseService.messages.findOneAndUpdate({ _id: messageObjId }, updateQuery, {
       returnDocument: 'after'
     })
+    const updatedReactions = result?.reactions || result?.value?.reactions || []
 
     // 4. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
     const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
@@ -252,8 +235,6 @@ class MessageService {
           if (mId) targetUserIds.add(mId)
         })
       }
-
-      const updatedReactions = result?.reactions || result?.value?.reactions || []
 
       targetUserIds.forEach((id) => {
         socketService.emitToUser(id, 'message_reacted', {
@@ -450,6 +431,83 @@ class MessageService {
         message: 'Lỗi server khi phân tích nội dung bằng AI',
         status: httpStatus.INTERNAL_SERVER_ERROR
       })
+    }
+  }
+
+  // ── Tìm kiếm tin nhắn trong hội thoại ──────────────────────────────────────
+  async searchMessages(conversationId: string, userId: string, keyword: string, page: number = 1, limit: number = 20) {
+    const convObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    // Kiểm tra quyền truy cập
+    const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
+    if (!conversation) {
+      throw new ErrorWithStatus({ message: 'Không tìm thấy hội thoại', status: httpStatus.NOT_FOUND })
+    }
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
+    if (!isMember) {
+      throw new ErrorWithStatus({ message: 'Bạn không có quyền truy cập', status: httpStatus.FORBIDDEN })
+    }
+
+    const skip = (page - 1) * limit
+
+    // Tìm trong tin nhắn text, không bị xóa phía user
+    const results = await databaseService.messages
+      .aggregate([
+        {
+          $match: {
+            conversationId: convObjectId,
+            type: 'text',
+            content: { $regex: keyword, $options: 'i' }, // case-insensitive
+            deletedByUsers: { $ne: userObjectId },
+            deleted_by_users: { $ne: userObjectId },
+            isDeleted: { $ne: true }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'senderInfo'
+          }
+        },
+        { $unwind: { path: '$senderInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            createdAt: 1,
+            type: 1,
+            sender: {
+              _id: '$senderInfo._id',
+              userName: '$senderInfo.userName',
+              avatar: '$senderInfo.avatar'
+            }
+          }
+        }
+      ])
+      .toArray()
+
+    // Đếm tổng kết quả để phân trang
+    const totalCount = await databaseService.messages.countDocuments({
+      conversationId: convObjectId,
+      type: 'text',
+      content: { $regex: keyword, $options: 'i' },
+      deletedByUsers: { $ne: userObjectId },
+      deleted_by_users: { $ne: userObjectId },
+      isDeleted: { $ne: true }
+    })
+
+    return {
+      results,
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit)
     }
   }
 

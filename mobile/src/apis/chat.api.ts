@@ -112,3 +112,50 @@ export const createDirectConversation = (userId: string) => {
     members: [userId],
   });
 };
+/**
+ * Tắt/bật thông báo cho một hội thoại
+ * PATCH /groups/:id/mute
+ */
+export const muteConversation = (conversationId: string, mute: boolean) =>
+  api.patch(`/groups/${conversationId}/mute`, { mute });
+
+/**
+ * Lấy ảnh, video, file đã gửi trong nhóm
+ * GET /groups/:id/media?page=1&limit=20
+ */
+export const getMediaFiles = (
+  conversationId: string,
+  page: number = 1,
+  limit: number = 20,
+) => api.get(`/groups/${conversationId}/media`, { params: { page, limit } });
+
+/**
+ * Lấy danh sách link đã chia sẻ trong nhóm
+ * GET /groups/:id/links?page=1&limit=20
+ */
+export const getSharedLinks = (
+  conversationId: string,
+  page: number = 1,
+  limit: number = 20,
+) => api.get(`/groups/${conversationId}/links`, { params: { page, limit } });
+
+/**
+ * Đổi tên nhóm
+ * PATCH /groups/:id/name
+ */
+export const renameGroup = (conversationId: string, name: string) =>
+  api.patch(`/groups/${conversationId}/name`, { name });
+
+/**
+ * Tìm kiếm tin nhắn trong hội thoại
+ * GET /messages/:convId/search?q=keyword&page=1&limit=20
+ */
+export const searchMessages = (
+  conversationId: string,
+  keyword: string,
+  page: number = 1,
+  limit: number = 20,
+) =>
+  api.get(`/messages/${conversationId}/search`, {
+    params: { q: keyword, page, limit },
+  });

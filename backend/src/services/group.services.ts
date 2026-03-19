@@ -161,7 +161,146 @@ class GroupService {
 
     return updatedConversation
   }
+  // ── Tắt/bật thông báo ────────────────────────────────────────────────────────
+  async muteNotification(conversationId: string, userId: string, mute: boolean) {
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
 
+    // Kiểm tra member đã tồn tại trong mảng members chưa
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    if (!conversation) return null
+
+    const memberExists = (conversation.members || []).some((m: any) => m.userId?.toString() === userId)
+
+    if (memberExists) {
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId, 'members.userId': userObjectId },
+        { $set: { 'members.$.hasMuted': mute } }
+      )
+    } else {
+      // Fallback: push member mới nếu chưa tồn tại (data cũ)
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId },
+        {
+          $push: {
+            members: {
+              userId: userObjectId,
+              role: conversation.admin_id?.toString() === userId ? 'admin' : 'member',
+              hasMuted: mute
+            } as any
+          }
+        }
+      )
+    }
+
+    return { muted: mute }
+  }
+  // ── Lấy ảnh/video/file đã gửi ────────────────────────────────────────────────
+  async getMediaFiles(conversationId: string, userId: string, page: number = 1, limit: number = 20) {
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    // Kiểm tra quyền truy cập
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    if (!conversation) return []
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
+    if (!isMember) return []
+
+    const skip = (page - 1) * limit
+
+    return databaseService.messages
+      .aggregate([
+        {
+          $match: {
+            conversationId: conversationObjectId,
+            type: { $in: ['image', 'video', 'file'] },
+            deletedByUsers: { $ne: userObjectId }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'sender_info'
+          }
+        },
+        { $unwind: { path: '$sender_info', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            type: 1,
+            content: 1,
+            fileUrl: 1,
+            fileName: 1,
+            fileSize: 1,
+            createdAt: 1,
+            sender: {
+              _id: '$sender_info._id',
+              userName: '$sender_info.userName',
+              avatar: '$sender_info.avatar'
+            }
+          }
+        }
+      ])
+      .toArray()
+  }
+
+  // ── Lấy link đã chia sẻ ──────────────────────────────────────────────────────
+  async getSharedLinks(conversationId: string, userId: string, page: number = 1, limit: number = 20) {
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    if (!conversation) return []
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
+    if (!isMember) return []
+
+    const skip = (page - 1) * limit
+
+    // Regex tìm URL trong nội dung tin nhắn text
+    const urlRegex = /https?:\/\/[^\s]+/
+
+    return databaseService.messages
+      .aggregate([
+        {
+          $match: {
+            conversationId: conversationObjectId,
+            type: 'text',
+            content: { $regex: urlRegex },
+            deletedByUsers: { $ne: userObjectId }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'sender_info'
+          }
+        },
+        { $unwind: { path: '$sender_info', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            createdAt: 1,
+            sender: {
+              _id: '$sender_info._id',
+              userName: '$sender_info.userName',
+              avatar: '$sender_info.avatar'
+            }
+          }
+        }
+      ])
+      .toArray()
+  }
   async renameGroup(conversationId: string, userId: string, newName: string) {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
