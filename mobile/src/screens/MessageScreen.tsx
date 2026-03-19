@@ -844,8 +844,8 @@ const MessageScreen = () => {
                         onPress={() => handleToggleReact(item, "👍")}
                       >
                         <Ionicons
-                          name="thumbs-up-outline"
-                          size={12}
+                          name="heart-outline"
+                          size={13}
                           color={COLORS.textLight}
                         />
                       </TouchableOpacity>
