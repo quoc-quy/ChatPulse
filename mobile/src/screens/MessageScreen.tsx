@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
@@ -19,12 +25,16 @@ import {
   StatusBar,
   PanResponder,
 } from "react-native";
-import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
+import {
+  useRoute,
+  useNavigation,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from 'expo-blur';
+import { BlurView } from "expo-blur";
 
 // IMPORT USE THEME Ở ĐÂY
 import { useTheme } from "../contexts/ThemeContext";
@@ -36,6 +46,7 @@ import {
   recallMessage as recallMessageApi,
   deleteMessageForMe as deleteMessageForMeApi,
   summarizeChatApi,
+  getConversationDetail,
 } from "../apis/chat.api";
 
 // ==========================================
@@ -80,7 +91,10 @@ const MessageScreen = () => {
   // --- LẤY THEME TỪ CONTEXT (CÔNG TẮC CỦA PROFILE) ---
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
-  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
+  const styles = useMemo(
+    () => getStyles(COLORS, isDarkMode),
+    [isDarkMode, COLORS],
+  );
 
   const {
     id: conversationId,
@@ -88,6 +102,7 @@ const MessageScreen = () => {
     isGroup,
     targetUserId,
     unreadCount = 0,
+    isMuted = false,
   } = route.params || {};
 
   const [messages, setMessages] = useState<any[]>([]);
@@ -97,6 +112,8 @@ const MessageScreen = () => {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  // Trạng thái mute — lấy từ params nếu có, sau đó sync từ server
+  const [isMutedState, setIsMutedState] = useState<boolean>(isMuted);
 
   // --- STATE REACTION & MENU ---
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
@@ -113,16 +130,19 @@ const MessageScreen = () => {
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState("");
 
-  const fetchCurrentUserId = async () => {
+  const fetchCurrentUserId = async (): Promise<string | undefined> => {
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (token) {
         const decoded: any = jwtDecode(token);
-        setCurrentUserId(decoded.user_id || decoded._id || decoded.id);
+        const userId = decoded.user_id || decoded._id || decoded.id;
+        setCurrentUserId(userId);
+        return userId;
       }
     } catch (error) {
       console.log("Lỗi token:", error);
     }
+    return undefined;
   };
 
   const fetchInitialMessages = async () => {
@@ -143,8 +163,28 @@ const MessageScreen = () => {
     }
   };
 
+  // Sync trạng thái mute từ server (chạy sau khi có currentUserId)
+  const fetchMuteState = async (userId: string) => {
+    if (!conversationId || !userId) return;
+    try {
+      const res = await getConversationDetail(conversationId);
+      const conv = res.data?.result;
+      const myMember = (conv?.members || []).find(
+        (m: any) => m.userId?.toString() === userId,
+      );
+      if (myMember?.hasMuted !== undefined) {
+        setIsMutedState(myMember.hasMuted);
+      }
+    } catch {
+      // silent — giữ giá trị từ params
+    }
+  };
+
   useEffect(() => {
-    fetchCurrentUserId().then(() => fetchInitialMessages());
+    fetchCurrentUserId().then((userId?: string) => {
+      fetchInitialMessages();
+      if (userId) fetchMuteState(userId);
+    });
   }, [conversationId]);
 
   const handleSummarizeChat = async () => {
@@ -167,7 +207,6 @@ const MessageScreen = () => {
           setIsAiProcessing(false);
         }
       }, 1500);
-
     } catch (error) {
       setShowAiModal(false);
       Alert.alert("Lỗi", "AI đang bận, thử lại sau nhé!");
@@ -177,12 +216,12 @@ const MessageScreen = () => {
   const scrollToMessage = (messageId: string) => {
     const index = messages.findIndex((m) => m._id === messageId);
     if (index !== -1) {
-      setShowAiModal(false); 
+      setShowAiModal(false);
       setTimeout(() => {
         flatListRef.current?.scrollToIndex({
           index,
           animated: true,
-          viewPosition: 0.5, 
+          viewPosition: 0.5,
         });
       }, 300);
     }
@@ -228,7 +267,7 @@ const MessageScreen = () => {
             ...msg,
             reactions: nextReactions,
           };
-        })
+        }),
       );
 
       setReactionDetailMessage((prev: any) => {
@@ -257,8 +296,8 @@ const MessageScreen = () => {
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg._id === message._id ? { ...msg, reactions: apiReactions } : msg
-        )
+          msg._id === message._id ? { ...msg, reactions: apiReactions } : msg,
+        ),
       );
 
       setReactionDetailMessage((prev: any) => {
@@ -275,12 +314,7 @@ const MessageScreen = () => {
   };
 
   const getReactionUserId = (reaction: any) =>
-    (
-      reaction?.user?._id ||
-      reaction?.userId ||
-      reaction?.user_id ||
-      ""
-    )
+    (reaction?.user?._id || reaction?.userId || reaction?.user_id || "")
       ?.toString?.()
       ?.trim?.() || "";
 
@@ -300,7 +334,10 @@ const MessageScreen = () => {
   const getReactionUserAvatar = (reaction: any) => reaction?.user?.avatar || "";
 
   const buildReactionGroups = (reactions: any[] = []) => {
-    const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>();
+    const groupMap = new Map<
+      string,
+      { emoji: string; count: number; users: any[] }
+    >();
 
     reactions.forEach((reaction: any) => {
       const emoji = reaction?.emoji;
@@ -326,14 +363,20 @@ const MessageScreen = () => {
 
   const reactionGroupsForModal = useMemo(
     () => buildReactionGroups(reactionDetailMessage?.reactions || []),
-    [reactionDetailMessage, currentUserId]
+    [reactionDetailMessage, currentUserId],
   );
 
   const reactionUsersForModal = useMemo(() => {
     const groupByUserAndEmoji = (reactions: any[]) => {
       const grouped = new Map<
         string,
-        { userId: string; userName: string; avatar: string; emoji: string; count: number }
+        {
+          userId: string;
+          userName: string;
+          avatar: string;
+          emoji: string;
+          count: number;
+        }
       >();
 
       reactions.forEach((reaction: any) => {
@@ -403,13 +446,13 @@ const MessageScreen = () => {
 
     if (reactionFilter !== "ALL") {
       const selectedGroup = reactionGroupsForModal.find(
-        (group) => group.emoji === reactionFilter
+        (group) => group.emoji === reactionFilter,
       );
       return groupByUserAndEmoji(selectedGroup?.users || []);
     }
 
     return groupByUserAllEmojis(
-      reactionGroupsForModal.flatMap((group) => group.users)
+      reactionGroupsForModal.flatMap((group) => group.users),
     );
   }, [reactionFilter, reactionGroupsForModal, currentUserId]);
 
@@ -421,8 +464,8 @@ const MessageScreen = () => {
         prev.map((msg) =>
           msg._id === selectedMsg._id
             ? { ...msg, type: "revoked", content: "", reactions: [] }
-            : msg
-        )
+            : msg,
+        ),
       );
     } catch (error) {
       console.log("Lỗi thu hồi:", error);
@@ -471,7 +514,7 @@ const MessageScreen = () => {
       if (index < 0 || index >= REACTION_LIST.length) return null;
       return REACTION_LIST[index];
     },
-    [emojiStripWidth]
+    [emojiStripWidth],
   );
 
   const emojiPanResponder = useMemo(
@@ -499,7 +542,7 @@ const MessageScreen = () => {
           setHoveredReaction(null);
         },
       }),
-    [getReactionFromX, hoveredReaction, selectedMsg]
+    [getReactionFromX, hoveredReaction, selectedMsg],
   );
 
   const handleSend = async () => {
@@ -521,7 +564,7 @@ const MessageScreen = () => {
       const realMessage = res.data.result || res.data;
       if (realMessage)
         setMessages((prev) =>
-          prev.map((msg) => (msg._id === tempId ? realMessage : msg))
+          prev.map((msg) => (msg._id === tempId ? realMessage : msg)),
         );
     } catch (error) {
       console.log(error);
@@ -569,7 +612,8 @@ const MessageScreen = () => {
                 style={styles.aiLink}
                 onPress={() => scrollToMessage(msgId)}
               >
-                {" "}(Xem){" "}
+                {" "}
+                (Xem){" "}
               </Text>
             );
           }
@@ -589,10 +633,46 @@ const MessageScreen = () => {
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
+
+    // ── System message: hiện label giữa màn hình như Zalo ──────────────────
+    if (item.type === "system") {
+      const prevItem = index > 0 ? messages[index - 1] : null;
+      const currentDate = new Date(item.createdAt).toDateString();
+      const prevDate = prevItem
+        ? new Date(prevItem.createdAt).toDateString()
+        : null;
+      const showDateDivider = currentDate !== prevDate;
+      return (
+        <View>
+          {showDateDivider && (
+            <View style={styles.dateDivider}>
+              <Text style={styles.dateDividerText}>
+                {formatMessageDate(item.createdAt)}
+              </Text>
+            </View>
+          )}
+          <View style={styles.systemMessageWrapper}>
+            <Text
+              style={[
+                styles.systemMessageText,
+                {
+                  color: isDarkMode
+                    ? "rgba(255,255,255,0.45)"
+                    : "rgba(0,0,0,0.4)",
+                },
+              ]}
+            >
+              {item.content}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+    // ───────────────────────────────────────────────────────────────────────
     const reactionGroups = buildReactionGroups(item.reactions || []);
     const totalReactions = reactionGroups.reduce(
       (acc, group) => acc + group.count,
-      0
+      0,
     );
     const hasReactions = totalReactions > 0;
     const reactionPreview = reactionGroups
@@ -604,17 +684,21 @@ const MessageScreen = () => {
     const nextItem = index < messages.length - 1 ? messages[index + 1] : null;
 
     const currentDate = new Date(item.createdAt).toDateString();
-    const prevDate = prevItem ? new Date(prevItem.createdAt).toDateString() : null;
+    const prevDate = prevItem
+      ? new Date(prevItem.createdAt).toDateString()
+      : null;
     const showDateDivider = currentDate !== prevDate;
 
     const isSameSenderAsNext =
       nextItem &&
       (nextItem.sender?._id || nextItem.senderId) ===
-      (item.sender?._id || item.senderId);
+        (item.sender?._id || item.senderId);
 
     let isCloseInTime = false;
     if (nextItem) {
-      const diff = new Date(nextItem.createdAt).getTime() - new Date(item.createdAt).getTime();
+      const diff =
+        new Date(nextItem.createdAt).getTime() -
+        new Date(item.createdAt).getTime();
       isCloseInTime = diff < 60000;
     }
 
@@ -675,14 +759,22 @@ const MessageScreen = () => {
                     {
                       color: isMe ? COLORS.headerText : COLORS.text,
                     },
-                    isRevoked && { fontStyle: "italic", color: COLORS.textLight },
+                    isRevoked && {
+                      fontStyle: "italic",
+                      color: COLORS.textLight,
+                    },
                   ]}
                 >
                   {isRevoked ? "Tin nhắn đã được thu hồi" : item.content}
                 </Text>
 
                 {showTime && (
-                  <Text style={[styles.messageTime, isMe && { color: "rgba(255,255,255,0.7)" }]}>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      isMe && { color: "rgba(255,255,255,0.7)" },
+                    ]}
+                  >
                     {formatTime(item.createdAt)}
                   </Text>
                 )}
@@ -697,7 +789,9 @@ const MessageScreen = () => {
                         <Text style={styles.reactionEmojiPreview}>
                           {reactionPreview}
                         </Text>
-                        <Text style={styles.reactionCountText}>{totalReactions}</Text>
+                        <Text style={styles.reactionCountText}>
+                          {totalReactions}
+                        </Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity
@@ -723,14 +817,35 @@ const MessageScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
-      <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.primary}
+        translucent={false}
+      />
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.accent]}
+        style={styles.header}
+      >
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+          >
             <Ionicons name="chevron-back" size={28} color="white" />
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerName}>{chatName || "Chat"}</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Text style={styles.headerName}>{chatName || "Chat"}</Text>
+              {isMutedState && (
+                <Ionicons
+                  name="notifications-off"
+                  size={14}
+                  color="rgba(255,255,255,0.75)"
+                />
+              )}
+            </View>
             <Text style={styles.headerStatus}>Trực tuyến</Text>
           </View>
         </View>
@@ -791,8 +906,16 @@ const MessageScreen = () => {
             onChangeText={setInputText}
           />
           <TouchableOpacity onPress={handleSend}>
-            <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.sendBtn}>
-              <Ionicons name="send" size={18} color="white" style={{ marginLeft: 3 }} />
+            <LinearGradient
+              colors={[COLORS.primary, COLORS.accent]}
+              style={styles.sendBtn}
+            >
+              <Ionicons
+                name="send"
+                size={18}
+                color="white"
+                style={{ marginLeft: 3 }}
+              />
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -835,19 +958,45 @@ const MessageScreen = () => {
                 onPress={() => handleRemoveAllReactions(selectedMsg)}
                 style={styles.removeAllReactionBtn}
               >
-                <Ionicons name="heart-dislike-outline" size={24} color={COLORS.textLight} />
+                <Ionicons
+                  name="heart-dislike-outline"
+                  size={24}
+                  color={COLORS.textLight}
+                />
               </TouchableOpacity>
             </View>
             <View style={styles.actionRow}>
               {selectedMsg?.sender?._id === currentUserId && (
-                <TouchableOpacity style={styles.menuItem} onPress={handleRevoke}>
-                  <Ionicons name="refresh-outline" size={20} color={COLORS.badge} />
-                  <Text style={{ color: COLORS.badge, marginLeft: 12, fontSize: 16 }}>Thu hồi</Text>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleRevoke}
+                >
+                  <Ionicons
+                    name="refresh-outline"
+                    size={20}
+                    color={COLORS.badge}
+                  />
+                  <Text
+                    style={{
+                      color: COLORS.badge,
+                      marginLeft: 12,
+                      fontSize: 16,
+                    }}
+                  >
+                    Thu hồi
+                  </Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.menuItem} onPress={handleDeleteForMe}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleDeleteForMe}
+              >
                 <Ionicons name="trash-outline" size={20} color={COLORS.text} />
-                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>Xóa phía tôi</Text>
+                <Text
+                  style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}
+                >
+                  Xóa phía tôi
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -878,7 +1027,10 @@ const MessageScreen = () => {
                 >
                   <Text style={styles.reactionFilterLabel}>Tất cả</Text>
                   <Text style={styles.reactionFilterCount}>
-                    {reactionGroupsForModal.reduce((acc, group) => acc + group.count, 0)}
+                    {reactionGroupsForModal.reduce(
+                      (acc, group) => acc + group.count,
+                      0,
+                    )}
                   </Text>
                 </TouchableOpacity>
 
@@ -892,8 +1044,12 @@ const MessageScreen = () => {
                     ]}
                     onPress={() => setReactionFilter(group.emoji)}
                   >
-                    <Text style={styles.reactionFilterLabel}>{group.emoji}</Text>
-                    <Text style={styles.reactionFilterCount}>{group.count}</Text>
+                    <Text style={styles.reactionFilterLabel}>
+                      {group.emoji}
+                    </Text>
+                    <Text style={styles.reactionFilterCount}>
+                      {group.count}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -931,14 +1087,20 @@ const MessageScreen = () => {
                         )}
                         <Text style={styles.reactionUserName}>{userName}</Text>
                         <View style={styles.reactionUserRight}>
-                          <Text style={styles.reactionUserEmoji}>{rightEmojiText}</Text>
-                          <Text style={styles.reactionUserCount}>{rightCountText}</Text>
+                          <Text style={styles.reactionUserEmoji}>
+                            {rightEmojiText}
+                          </Text>
+                          <Text style={styles.reactionUserCount}>
+                            {rightCountText}
+                          </Text>
                         </View>
                       </View>
                     );
                   }}
                   ListEmptyComponent={
-                    <Text style={styles.reactionEmptyText}>Chưa có biểu cảm</Text>
+                    <Text style={styles.reactionEmptyText}>
+                      Chưa có biểu cảm
+                    </Text>
                   }
                 />
               </View>
@@ -950,15 +1112,24 @@ const MessageScreen = () => {
       {/* MODAL AI GIỮ NGUYÊN ĐEN HUYỀN BÍ */}
       <Modal visible={showAiModal} transparent animationType="fade">
         <View style={styles.aiOverlay}>
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView
+            intensity={30}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
 
           <View style={styles.aiContainer}>
             <LinearGradient
               colors={["#1e1b4b", "#0f172a"]}
               style={styles.aiHeader}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="sparkles" size={20} color="#A78BFA" style={{ marginRight: 8 }} />
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name="sparkles"
+                  size={20}
+                  color="#A78BFA"
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={styles.aiTitle}>AI TỔNG HỢP</Text>
               </View>
               <TouchableOpacity onPress={() => setShowAiModal(false)}>
@@ -966,23 +1137,32 @@ const MessageScreen = () => {
               </TouchableOpacity>
             </LinearGradient>
 
-            <ScrollView style={styles.aiContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.aiContent}
+              showsVerticalScrollIndicator={false}
+            >
               {isAiProcessing ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#8B5CF6" />
-                  <Text style={styles.loadingText}>Đang giải mã bối cảnh...</Text>
+                  <Text style={styles.loadingText}>
+                    Đang giải mã bối cảnh...
+                  </Text>
                 </View>
               ) : (
-                <Text style={styles.aiText}>
-                  {renderAiText(aiSummaryText)}
-                </Text>
+                <Text style={styles.aiText}>{renderAiText(aiSummaryText)}</Text>
               )}
             </ScrollView>
 
             {!isAiProcessing && (
               <View style={styles.aiFooter}>
-                <TouchableOpacity onPress={() => setShowAiModal(false)} activeOpacity={0.8}>
-                  <LinearGradient colors={["#5b21b6", "#1e1b4b"]} style={styles.aiBtn}>
+                <TouchableOpacity
+                  onPress={() => setShowAiModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={["#5b21b6", "#1e1b4b"]}
+                    style={styles.aiBtn}
+                  >
                     <Text style={styles.aiBtnText}>Đã hiểu</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -1025,18 +1205,18 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     // --- KHỐI AI SUMMARY (Giữ màu tối sang trọng không phụ thuộc theme) ---
     aiOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.85)", 
+      backgroundColor: "rgba(0,0,0,0.85)",
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 25,
     },
     aiContainer: {
       width: "100%",
-      backgroundColor: "#0F172A", 
+      backgroundColor: "#0F172A",
       borderRadius: 30,
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: "#1E293B", 
+      borderColor: "#1E293B",
       shadowColor: "#8B5CF6",
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.5,
@@ -1056,10 +1236,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       color: "#F8FAFC",
       fontSize: 14,
       fontWeight: "800",
-      letterSpacing: 2, 
+      letterSpacing: 2,
     },
     aiText: {
-      color: "#E2E8F0", 
+      color: "#E2E8F0",
       fontSize: 16,
       lineHeight: 28,
       textAlign: "left",
@@ -1088,7 +1268,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       letterSpacing: 1,
     },
     aiLink: {
-      color: "#8B5CF6", 
+      color: "#8B5CF6",
       textDecorationLine: "underline",
       fontWeight: "bold",
     },
@@ -1146,6 +1326,18 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 12,
       overflow: "hidden",
     },
+    // ── System message (đổi tên nhóm, thêm thành viên...) ──────────────────
+    systemMessageWrapper: {
+      alignItems: "center",
+      marginVertical: 6,
+      paddingHorizontal: 24,
+    },
+    systemMessageText: {
+      fontSize: 12,
+      textAlign: "center",
+      lineHeight: 17,
+    },
+    // ───────────────────────────────────────────────────────────────────────
     inputContainer: {
       flexDirection: "row",
       padding: 10,
