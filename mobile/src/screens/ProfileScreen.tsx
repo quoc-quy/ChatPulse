@@ -82,7 +82,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     show_date_of_birth: true,
   });
   const [editDraft, setEditDraft] = useState({
-    displayName: "",
+    userName: "",
     bio: "",
     avatar: "https://via.placeholder.com/150",
     dateOfBirth: "",
@@ -129,7 +129,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     };
     setProfile(nextProfile);
     setEditDraft({
-      displayName: nextProfile.displayName,
+      userName: nextProfile.userName,
       bio: nextProfile.bio,
       avatar: nextProfile.avatar,
       dateOfBirth: formatDateFromApi(nextProfile.date_of_birth),
@@ -267,7 +267,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     try {
       const finalPayload = payload || profile;
       const body = {
-        displayName: finalPayload.displayName,
+        userName: finalPayload.userName,
         bio: finalPayload.bio,
         avatar: finalPayload.avatar,
         ...(finalPayload.dateOfBirth ? { date_of_birth: toIsoDate(finalPayload.dateOfBirth) } : {}),
@@ -317,7 +317,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
   const openEditModal = () => {
     setEditDraft({
-      displayName: profile.displayName || "",
+      userName: profile.userName || "",
       bio: profile.bio || "",
       avatar: profile.avatar || "https://via.placeholder.com/150",
       dateOfBirth: formatDateFromApi(profile.date_of_birth),
@@ -345,7 +345,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     Keyboard.dismiss();
     const nextProfile = {
       ...profile,
-      displayName: editDraft.displayName,
+      userName: editDraft.userName,
       bio: editDraft.bio,
       avatar: editDraft.avatar,
       dateOfBirth: editDraft.dateOfBirth,
@@ -403,7 +403,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           </TouchableOpacity>
 
           <Text style={[styles.nameText, { color: colors.textPrimary }]}>
-            {profile.displayName || "Alex Morgan"}
+            {profile.userName || "alexmorgan"}
           </Text>
           <Text style={[styles.handleText, { color: colors.textSecondary }]}>@{profile.userName || "alexmorgan"}</Text>
           <Text style={[styles.bioText, { color: colors.textSecondary }]}>{profile.bio || "Living the dream ✨"}</Text>
@@ -432,10 +432,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             <Ionicons name="create-outline" size={18} color={colors.accentAlt} />
             <Text style={[styles.actionText, { color: colors.textPrimary }]}>Edit Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}>
-            <Ionicons name="search-outline" size={18} color={colors.accentAlt} />
-            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Find Users</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
@@ -446,10 +442,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
             <Text style={[styles.statCount, { color: colors.accentAlt }]}>{stats.groups}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Groups</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
-            <Text style={[styles.statCount, { color: colors.accentAlt }]}>1.2K</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Media</Text>
           </View>
         </View>
 
@@ -474,26 +466,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         </View>
 
         <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <MenuOption
-            icon="notifications-outline"
-            label="Notifications"
-            subtitle="Message & call alerts"
-            color={colors.textPrimary}
-            subtitleColor={colors.textSecondary}
-            iconBg={colors.cardSoft}
-            iconColor={colors.accentAlt}
-            borderColor={colors.border}
-          />
-          <MenuOption
-            icon="shield-checkmark-outline"
-            label="Privacy & Security"
-            subtitle="Blocked users, 2FA"
-            color={colors.textPrimary}
-            subtitleColor={colors.textSecondary}
-            iconBg={colors.cardSoft}
-            iconColor={colors.accentAlt}
-            borderColor={colors.border}
-          />
           <MenuOption
             icon="log-out-outline"
             label="Log Out"
@@ -533,7 +505,17 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             style={styles.modalKeyboardWrap}
           >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <Pressable style={styles.modalCard} onPress={() => Keyboard.dismiss()}>
+          <Pressable
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderWidth: 1,
+              },
+            ]}
+            onPress={() => Keyboard.dismiss()}
+          >
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => {
@@ -542,16 +524,16 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 setShowEditModal(false);
               }}
             >
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            <Text style={styles.modalTitle}>Edit Profile</Text>
+            <Text style={[styles.modalTitle, { color: colors.accentAlt }]}>Edit Profile</Text>
 
             <TouchableOpacity style={styles.modalAvatarWrap} onPress={() => pickImage("edit")}> 
-              <View style={styles.modalAvatarRing}>
+              <View style={[styles.modalAvatarRing, { borderColor: colors.accent }] }>
                 <Image source={{ uri: editDraft.avatar }} style={styles.modalAvatar} />
               </View>
-              <View style={styles.modalCameraBadge}>
+              <View style={[styles.modalCameraBadge, { backgroundColor: colors.accentAlt, borderColor: colors.card }] }>
                 {uploadingAvatar ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
@@ -561,38 +543,63 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             </TouchableOpacity>
 
             <Input
-              label="Display Name"
-              value={editDraft.displayName}
-              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, displayName: text }))}
-              labelStyle={styles.modalLabel}
-              inputStyle={styles.modalInput}
-              placeholder="Your name"
-              placeholderTextColor="#7A8699"
+              label="Username"
+              value={editDraft.userName}
+              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, userName: text }))}
+              labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
+              inputStyle={[
+                styles.modalInput,
+                {
+                  backgroundColor: colors.cardSoft,
+                  borderColor: colors.border,
+                  color: colors.textPrimary,
+                },
+              ]}
+              placeholder="Your username"
+              placeholderTextColor={colors.textSecondary}
             />
 
             <Input
               label="Bio"
               value={editDraft.bio}
               onChangeText={(text) => setEditDraft((prev) => ({ ...prev, bio: text }))}
-              labelStyle={styles.modalLabel}
-              inputStyle={[styles.modalInput, styles.modalBioInput]}
+              labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
+              inputStyle={[
+                styles.modalInput,
+                styles.modalBioInput,
+                {
+                  backgroundColor: colors.cardSoft,
+                  borderColor: colors.border,
+                  color: colors.textPrimary,
+                },
+              ]}
               placeholder="Tell us about yourself..."
-              placeholderTextColor="#7A8699"
+              placeholderTextColor={colors.textSecondary}
               multiline
             />
 
             <View style={styles.dateBlock}>
-              <Text style={styles.modalLabel}>Date of Birth</Text>
-              <TouchableOpacity style={styles.dateInputWrap} onPress={openDatePicker} activeOpacity={0.85}>
+              <Text style={[styles.modalLabel, { color: colors.textPrimary }]}>Date of Birth</Text>
+              <TouchableOpacity
+                style={[
+                  styles.dateInputWrap,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.cardSoft,
+                  },
+                ]}
+                onPress={openDatePicker}
+                activeOpacity={0.85}
+              >
                 <TextInput
                   value={editDraft.dateOfBirth}
                   placeholder="dd/mm/yyyy"
-                  placeholderTextColor="#7A8699"
-                  style={styles.dateInput}
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.dateInput, { color: colors.textPrimary }]}
                   editable={false}
                   pointerEvents="none"
                 />
-                <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -601,23 +608,23 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 <Ionicons
                   name={editDraft.showDateOfBirth ? "eye-outline" : "eye-off-outline"}
                   size={18}
-                  color="#6B7280"
+                  color={colors.textSecondary}
                 />
-                <Text style={styles.visibilityLabel}>Hiển thị ngày sinh cho người khác</Text>
+                <Text style={[styles.visibilityLabel, { color: colors.textSecondary }]}>Hiển thị ngày sinh cho người khác</Text>
               </View>
               <Switch
                 value={editDraft.showDateOfBirth}
                 onValueChange={(value) => setEditDraft((prev) => ({ ...prev, showDateOfBirth: value }))}
-                trackColor={{ false: "#CBD5E1", true: "#A855F7" }}
+                trackColor={{ false: "#CBD5E1", true: colors.accentAlt }}
                 thumbColor="#FFFFFF"
               />
             </View>
 
             {showDatePicker && Platform.OS === "ios" && (
-              <View style={styles.inlineDatePickerWrap}>
-                <View style={styles.inlineDatePickerHeader}>
+              <View style={[styles.inlineDatePickerWrap, { backgroundColor: colors.card, borderColor: colors.border }] }>
+                <View style={[styles.inlineDatePickerHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }] }>
                   <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.datePickerText}>Hủy</Text>
+                    <Text style={[styles.datePickerText, { color: colors.textSecondary }]}>Hủy</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
@@ -625,7 +632,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                       setShowDatePicker(false);
                     }}
                   >
-                    <Text style={[styles.datePickerText, styles.datePickerDone]}>Xong</Text>
+                    <Text style={[styles.datePickerText, styles.datePickerDone, { color: colors.accentAlt }]}>Xong</Text>
                   </TouchableOpacity>
                 </View>
                 <DateTimePicker
@@ -642,7 +649,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
             <TouchableOpacity onPress={handleSaveFromModal} activeOpacity={0.9} disabled={loading}>
               <LinearGradient
-                colors={["#3B82F6", "#A855F7", "#D946EF"]}
+                colors={[colors.accent, colors.accentAlt, "#D946EF"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.modalSaveButton}
@@ -723,8 +730,8 @@ const styles = StyleSheet.create({
     left: -20,
   },
   container: { flex: 1 },
-  content: { paddingTop: 54, paddingBottom: 36 },
-  header: { alignItems: "center", paddingVertical: 22 },
+  content: { paddingTop: 46, paddingBottom: 28 },
+  header: { alignItems: "center", paddingVertical: 18, paddingHorizontal: 18 },
   avatarContainer: { position: "relative" },
   avatarRing: {
     borderWidth: 2,
@@ -743,9 +750,9 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 15,
   },
-  nameText: { fontSize: 38, fontWeight: "800", marginTop: 12 },
-  handleText: { fontSize: 15, marginTop: 2 },
-  bioText: { fontSize: 13, marginTop: 8 },
+  nameText: { fontSize: 30, fontWeight: "800", marginTop: 12, letterSpacing: 0.2 },
+  handleText: { fontSize: 16, marginTop: 2 },
+  bioText: { fontSize: 15, marginTop: 8, textAlign: "center", paddingHorizontal: 14 },
   birthRow: {
     marginTop: 6,
     flexDirection: "row",
@@ -759,32 +766,32 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     padding: 2,
   },
-  actionRow: { flexDirection: "row", gap: 12, paddingHorizontal: 18, marginTop: 12 },
+  actionRow: { flexDirection: "row", gap: 12, paddingHorizontal: 18, marginTop: 18 },
   actionButton: {
     flex: 1,
-    height: 56,
-    borderRadius: 24,
+    height: 58,
+    borderRadius: 22,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  actionText: { fontSize: 18, fontWeight: "700" },
-  statsRow: { flexDirection: "row", paddingHorizontal: 18, gap: 12, marginTop: 14 },
+  actionText: { fontSize: 17, fontWeight: "700" },
+  statsRow: { flexDirection: "row", paddingHorizontal: 18, gap: 12, marginTop: 12 },
   statBox: {
     flex: 1,
     alignItems: "center",
-    borderRadius: 26,
+    borderRadius: 22,
     borderWidth: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
-  statCount: { fontSize: 20, fontWeight: "800" },
+  statCount: { fontSize: 30, fontWeight: "800", lineHeight: 34 },
   statLabel: { fontSize: 14, marginTop: 4 },
   darkModeCard: {
-    marginTop: 14,
+    marginTop: 12,
     marginHorizontal: 18,
-    borderRadius: 26,
+    borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 1,
@@ -794,8 +801,8 @@ const styles = StyleSheet.create({
   },
   menuList: {
     marginHorizontal: 18,
-    marginTop: 14,
-    borderRadius: 24,
+    marginTop: 12,
+    borderRadius: 22,
     borderWidth: 1,
     overflow: "hidden",
   },
@@ -803,7 +810,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
   },

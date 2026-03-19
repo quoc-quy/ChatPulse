@@ -45,4 +45,5 @@ ios/build/
 android/app/build/
 android/.gradle/
 *.ipa
-*.apk
+*.apk.env
+.env
