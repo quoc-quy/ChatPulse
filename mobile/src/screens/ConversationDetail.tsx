@@ -830,14 +830,12 @@ export default function ConversationDetailScreen() {
                   })
                 }
               />
-              {currentUserIsAdmin && (
-                <MenuRow
-                  iconName="pencil-outline"
-                  label="Đổi tên nhóm"
-                  COLORS={COLORS}
-                  onPress={openRenameModal}
-                />
-              )}
+              <MenuRow
+                iconName="pencil-outline"
+                label="Đổi tên nhóm"
+                COLORS={COLORS}
+                onPress={openRenameModal}
+              />
             </View>
 
             <View
