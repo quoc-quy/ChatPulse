@@ -706,7 +706,15 @@ const MessageScreen = () => {
                 </Text>
 
                 {showTime && (
-                  <Text style={[styles.messageTime, isMe && { color: 'rgba(255,255,255,0.7)' }]}>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      {
+                        alignSelf: isMe ? 'flex-end' : 'flex-start',
+                        color: isMe ? 'rgba(255,255,255,0.7)' : COLORS.textLight
+                      }
+                    ]}
+                  >
                     {formatTime(item.createdAt)}
                   </Text>
                 )}
