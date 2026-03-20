@@ -59,11 +59,15 @@ const darkColors = {
 
 const ChatScreen = () => {
   const navigation = useNavigation<any>();
-  const { setTotalUnreadCount } = useChatContext();
+  const { setTotalUnreadCount, setLocalUnread, getLocalUnread } =
+    useChatContext();
 
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
-  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
+  const styles = useMemo(
+    () => getStyles(COLORS, isDarkMode),
+    [isDarkMode, COLORS],
+  );
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +77,7 @@ const ChatScreen = () => {
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+  // const { getLocalUnread } = useChatContext();
 
   // --- STATE TÌM KIẾM MÀN HÌNH RIÊNG ---
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -97,7 +102,7 @@ const ChatScreen = () => {
       console.log("Lỗi giải mã token:", error);
     }
   };
-
+  const initializedConvsRef = React.useRef<Set<string>>(new Set());
   const fetchConversations = async (pageNumber = 1, isRefresh = false) => {
     try {
       if (pageNumber === 1 && !isRefresh) setLoading(true);
@@ -107,8 +112,24 @@ const ChatScreen = () => {
 
       if (isRefresh || pageNumber === 1) {
         setConversations(newConversations);
+        newConversations.forEach((conv: any) => {
+          if (!conv._id) return;
+          // ✅ CHỈ set từ server nếu conversation chưa từng được init
+          // Nếu đã init rồi (user đã vào chat) → giữ nguyên local state
+          if (!initializedConvsRef.current.has(conv._id)) {
+            initializedConvsRef.current.add(conv._id);
+            setLocalUnread(conv._id, conv.unread_count || 0);
+          }
+        });
       } else {
         setConversations((prev) => [...prev, ...newConversations]);
+        newConversations.forEach((conv: any) => {
+          if (!conv._id) return;
+          if (!initializedConvsRef.current.has(conv._id)) {
+            initializedConvsRef.current.add(conv._id);
+            setLocalUnread(conv._id, conv.unread_count || 0);
+          }
+        });
       }
       setPage(pageNumber);
     } catch (error: any) {
@@ -178,9 +199,15 @@ const ChatScreen = () => {
       chatAvatarUrl = item.avatarUrl || "";
     } else {
       if (item.participants?.length > 0 && currentUserId) {
-        const partner = item.participants.find((p: any) => p._id !== currentUserId);
+        const partner = item.participants.find(
+          (p: any) => p._id !== currentUserId,
+        );
         if (partner) {
-          chatName = partner.displayName || partner.fullName || partner.userName || "Người dùng";
+          chatName =
+            partner.displayName ||
+            partner.fullName ||
+            partner.userName ||
+            "Người dùng";
           chatAvatarUrl = partner.avatar || "";
           isOnline = partner.isOnline;
           targetUserId = partner._id;
@@ -193,7 +220,8 @@ const ChatScreen = () => {
   const isMutedForItem = (item: any): boolean => {
     if (!currentUserId) return false;
     const myMember = (item.members || []).find(
-      (m: any) => (m.userId?.toString?.() || m.user_id?.toString?.()) === currentUserId,
+      (m: any) =>
+        (m.userId?.toString?.() || m.user_id?.toString?.()) === currentUserId,
     );
     return myMember?.hasMuted === true;
   };
@@ -201,7 +229,7 @@ const ChatScreen = () => {
   // Hàm chuyển trang chung cho cả màn hình chính và màn hình tìm kiếm
   const navigateToChat = (item: any) => {
     const { chatName, targetUserId } = getChatDetails(item);
-    
+
     // Nếu đang mở bảng tìm kiếm thì phải đóng lại trước khi chuyển trang
     if (showSearchModal) {
       setShowSearchModal(false);
@@ -221,17 +249,21 @@ const ChatScreen = () => {
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
     let messageContent = item.lastMessage?.content || "Chưa có tin nhắn";
-    const unread = item.unread_count || 0;
-
+    const unread = getLocalUnread(item._id);
     return (
-      <TouchableOpacity style={styles.chatCard} onPress={() => navigateToChat(item)}>
+      <TouchableOpacity
+        style={styles.chatCard}
+        onPress={() => navigateToChat(item)}
+      >
         <View style={styles.avatarWrapper}>
           <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
             {chatAvatarUrl ? (
               <Image source={{ uri: chatAvatarUrl }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
-                <Text style={styles.avatarText}>{chatName.charAt(0).toUpperCase()}</Text>
+                <Text style={styles.avatarText}>
+                  {chatName.charAt(0).toUpperCase()}
+                </Text>
               </View>
             )}
           </View>
@@ -240,10 +272,18 @@ const ChatScreen = () => {
 
         <View style={styles.chatContent}>
           <View style={styles.chatHeader}>
-            <Text style={styles.name} numberOfLines={1}>{chatName}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={styles.name} numberOfLines={1}>
+              {chatName}
+            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
               {isMutedForItem(item) && (
-                <Ionicons name="notifications-off-outline" size={13} color={COLORS.textLight} />
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={13}
+                  color={COLORS.textLight}
+                />
               )}
               <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
                 {formatTimeZalo(item.updated_at)}
@@ -252,12 +292,20 @@ const ChatScreen = () => {
           </View>
 
           <View style={styles.chatFooter}>
-            <Text style={[styles.message, unread > 0 && styles.unreadMessage]} numberOfLines={1}>
+            <Text
+              style={[styles.message, unread > 0 && styles.unreadMessage]}
+              numberOfLines={1}
+            >
               {messageContent}
             </Text>
             {unread > 0 && (
-              <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.badge}>
-                <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+              <LinearGradient
+                colors={[COLORS.primary, COLORS.accent]}
+                style={styles.badge}
+              >
+                <Text style={styles.badgeText}>
+                  {unread > 9 ? "9+" : unread}
+                </Text>
               </LinearGradient>
             )}
           </View>
@@ -270,14 +318,18 @@ const ChatScreen = () => {
   const validConversations = useMemo(() => {
     return conversations.filter((c) => {
       if (c.type === "group") return true;
-      const partner = c.participants?.find((p: any) => p._id?.toString() !== currentUserId);
+      const partner = c.participants?.find(
+        (p: any) => p._id?.toString() !== currentUserId,
+      );
       if (!partner) return true;
       return !blockedUserIds.has(partner._id?.toString() || "");
     });
   }, [conversations, blockedUserIds, currentUserId]);
 
   const displayConversations =
-    activeTab === "all" ? validConversations : validConversations.filter((c) => (c.unread_count || 0) > 0);
+    activeTab === "all"
+      ? validConversations
+      : validConversations.filter((c) => getLocalUnread(c._id) > 0);
 
   // --- LỌC DANH SÁCH CHO MÀN HÌNH TÌM KIẾM ---
   const searchResults = useMemo(() => {
@@ -290,15 +342,24 @@ const ChatScreen = () => {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={COLORS.primary} translucent={false} />
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={COLORS.primary}
+        translucent={false}
+      />
 
       <View style={styles.heroContainer}>
-        <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.heroGradient}>
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.accent]}
+          style={styles.heroGradient}
+        >
           <SafeAreaView style={styles.safeHeader}>
             <View style={styles.headerTop}>
               <View>
                 <Text style={styles.title}>Tin nhắn</Text>
-                <Text style={styles.subtitle}>{conversations.length} cuộc hội thoại</Text>
+                <Text style={styles.subtitle}>
+                  {conversations.length} cuộc hội thoại
+                </Text>
               </View>
               <View style={styles.headerIcons}>
                 <TouchableOpacity style={styles.iconBtn}>
@@ -312,13 +373,20 @@ const ChatScreen = () => {
 
             {/* --- NÚT BẤM MỞ MÀN HÌNH TÌM KIẾM --- */}
             <View style={styles.searchWrapper}>
-              <TouchableOpacity 
-                style={styles.searchBarFake} 
+              <TouchableOpacity
+                style={styles.searchBarFake}
                 activeOpacity={0.8}
                 onPress={() => setShowSearchModal(true)} // Mở modal tìm kiếm
               >
-                <Ionicons name="search" size={20} color="rgba(255,255,255,0.7)" style={{ marginLeft: 10 }} />
-                <Text style={styles.searchPlaceholderText}>Tìm kiếm bạn bè, nhóm...</Text>
+                <Ionicons
+                  name="search"
+                  size={20}
+                  color="rgba(255,255,255,0.7)"
+                  style={{ marginLeft: 10 }}
+                />
+                <Text style={styles.searchPlaceholderText}>
+                  Tìm kiếm bạn bè, nhóm...
+                </Text>
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -327,11 +395,37 @@ const ChatScreen = () => {
 
       <View style={styles.contentContainer}>
         <View style={styles.tabsContainer}>
-          <TouchableOpacity style={[styles.tabButton, activeTab === "all" && styles.tabButtonActive]} onPress={() => setActiveTab("all")}>
-            <Text style={[styles.tabText, activeTab === "all" && styles.tabTextActive]}>Tất cả</Text>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "all" && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveTab("all")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "all" && styles.tabTextActive,
+              ]}
+            >
+              Tất cả
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.tabButton, activeTab === "unread" && styles.tabButtonActive]} onPress={() => setActiveTab("unread")}>
-            <Text style={[styles.tabText, activeTab === "unread" && styles.tabTextActive]}>Chưa đọc</Text>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "unread" && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveTab("unread")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "unread" && styles.tabTextActive,
+              ]}
+            >
+              Chưa đọc
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -346,13 +440,19 @@ const ChatScreen = () => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={COLORS.primary}
+              />
+            }
             onEndReached={onLoadMore}
             onEndReachedThreshold={0.5}
             ListEmptyComponent={
-               <View style={styles.emptyContainer}>
-                 <Text style={styles.emptyText}>Chưa có cuộc hội thoại nào</Text>
-               </View>
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Chưa có cuộc hội thoại nào</Text>
+              </View>
             }
           />
         )}
@@ -361,17 +461,29 @@ const ChatScreen = () => {
       {/* ========================================== */}
       {/* MODAL MÀN HÌNH TÌM KIẾM TOÀN MÀN HÌNH */}
       {/* ========================================== */}
-      <Modal visible={showSearchModal} animationType="slide" onRequestClose={() => setShowSearchModal(false)}>
+      <Modal
+        visible={showSearchModal}
+        animationType="slide"
+        onRequestClose={() => setShowSearchModal(false)}
+      >
         <View style={[styles.root, { backgroundColor: COLORS.background }]}>
           <SafeAreaView style={{ backgroundColor: COLORS.surface }}>
             {/* Header Tìm Kiếm */}
             <View style={styles.searchModalHeader}>
-              <TouchableOpacity onPress={() => setShowSearchModal(false)} style={styles.backBtn}>
+              <TouchableOpacity
+                onPress={() => setShowSearchModal(false)}
+                style={styles.backBtn}
+              >
                 <Ionicons name="arrow-back" size={26} color={COLORS.text} />
               </TouchableOpacity>
-              
+
               <View style={styles.searchModalInputWrapper}>
-                <Ionicons name="search" size={20} color={COLORS.textLight} style={{ marginLeft: 10 }} />
+                <Ionicons
+                  name="search"
+                  size={20}
+                  color={COLORS.textLight}
+                  style={{ marginLeft: 10 }}
+                />
                 <TextInput
                   style={[styles.searchModalInput, { color: COLORS.text }]}
                   placeholder="Tìm kiếm bạn bè, nhóm..."
@@ -381,8 +493,15 @@ const ChatScreen = () => {
                   autoFocus={true} // Tự động bật bàn phím khi mở
                 />
                 {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery("")} style={{ padding: 8 }}>
-                    <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery("")}
+                    style={{ padding: 8 }}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color={COLORS.textLight}
+                    />
                   </TouchableOpacity>
                 )}
               </View>
@@ -390,7 +509,10 @@ const ChatScreen = () => {
           </SafeAreaView>
 
           {/* Danh sách kết quả tìm kiếm */}
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1 }}
+          >
             <FlatList
               data={searchResults}
               renderItem={renderItem}
@@ -400,8 +522,15 @@ const ChatScreen = () => {
               keyboardShouldPersistTaps="handled" // Cho phép bấm vào list khi bàn phím đang mở
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="search-outline" size={48} color={COLORS.textLight} style={{ marginBottom: 10, opacity: 0.5 }} />
-                  <Text style={styles.emptyText}>Không tìm thấy kết quả phù hợp</Text>
+                  <Ionicons
+                    name="search-outline"
+                    size={48}
+                    color={COLORS.textLight}
+                    style={{ marginBottom: 10, opacity: 0.5 }}
+                  />
+                  <Text style={styles.emptyText}>
+                    Không tìm thấy kết quả phù hợp
+                  </Text>
                 </View>
               }
             />
@@ -433,7 +562,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginTop: 10,
       marginBottom: 15,
     },
-    title: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", marginLeft: 20 },
+    title: {
+      fontSize: 30,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      marginLeft: 20,
+    },
     subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginLeft: 20 },
     headerIcons: { flexDirection: "row", right: 20 },
     iconBtn: {
@@ -445,7 +579,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       alignItems: "center",
       marginLeft: 12,
     },
-    
+
     // --- STYLES THANH TÌM KIẾM FAKE TRÊN HEADER ---
     searchWrapper: { marginTop: 10, paddingHorizontal: 20 },
     searchBarFake: {
@@ -512,7 +646,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     tabTextActive: { color: "#FFFFFF" },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
     listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
-    emptyContainer: { alignItems: 'center', marginTop: 40 },
+    emptyContainer: { alignItems: "center", marginTop: 40 },
     emptyText: { color: COLORS.textLight, fontSize: 15 },
     chatCard: {
       flexDirection: "row",
@@ -564,7 +698,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       justifyContent: "space-between",
       alignItems: "center",
     },
-    message: { color: COLORS.textLight, fontSize: 14, flex: 1, marginRight: 10 },
+    message: {
+      color: COLORS.textLight,
+      fontSize: 14,
+      flex: 1,
+      marginRight: 10,
+    },
     unreadMessage: { color: COLORS.text, fontWeight: "600" },
     badge: {
       minWidth: 22,
