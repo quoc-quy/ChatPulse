@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
+
 import {
   View,
   Text,
@@ -14,6 +15,7 @@ import {
   TextInput,
   Modal,
   KeyboardAvoidingView,
+  Alert,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,6 +24,9 @@ import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useChatContext } from "../contexts/ChatContext";
+
+// --- THÊM IMPORT CAMERA TỪ EXPO ---
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 import { getConversations } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
@@ -83,9 +88,14 @@ const ChatScreen = () => {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   // const { getLocalUnread } = useChatContext();
 
-  // --- STATE TÌM KIẾM MÀN HÌNH RIÊNG ---
+  // --- STATE TÌM KIẾM ---
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // --- STATE CAMERA (QUÉT QR) ---
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const scannedRef = useRef(false); // <--- DÙNG USEREF THAY VÌ USESTATE
+  const [permission, requestPermission] = useCameraPermissions();
 
   React.useEffect(() => {
     const totalUnread = Object.values(localUnreadMap).reduce(
@@ -230,14 +240,13 @@ const ChatScreen = () => {
     return myMember?.hasMuted === true;
   };
 
-  // Hàm chuyển trang chung cho cả màn hình chính và màn hình tìm kiếm
   const navigateToChat = (item: any) => {
     const { chatName, targetUserId } = getChatDetails(item);
 
     // Nếu đang mở bảng tìm kiếm thì phải đóng lại trước khi chuyển trang
     if (showSearchModal) {
       setShowSearchModal(false);
-      setSearchQuery(""); // Reset từ khóa để lần sau mở ra sạch sẽ
+      setSearchQuery("");
     }
 
     navigation.navigate("MessageScreen", {
@@ -250,6 +259,28 @@ const ChatScreen = () => {
     });
   };
 
+  // --- LOGIC MỞ CAMERA QUÉT QR ---
+  const handleOpenQRScanner = async () => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert("Thông báo", "Bạn cần cấp quyền truy cập Camera để quét mã QR.");
+        return;
+      }
+    }
+    scannedRef.current = false; // <--- MỞ KHÓA TRƯỚC KHI QUÉT
+    setShowQRScanner(true);
+  };
+
+  // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
+  // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
+  const handleBarcodeScanned = ({ type, data }: { type: string, data: string }) => {
+    if (scannedRef.current) return; // <--- NẾU ĐANG KHÓA THÌ DỪNG NGAY
+    scannedRef.current = true;      // <--- KHÓA LẠI NGAY LẬP TỨC (ĐỒNG BỘ)
+
+    setShowQRScanner(false);
+    Alert.alert("Kết quả quét QR", `Nội dung: ${data}`);
+  };
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
     let messageContent = item.lastMessage?.content || "Chưa có tin nhắn";
@@ -318,7 +349,6 @@ const ChatScreen = () => {
     );
   };
 
-  // --- LỌC DANH SÁCH CHO MÀN HÌNH CHÍNH (KHÔNG BỊ ẢNH HƯỞNG BỞI TỪ KHÓA) ---
   const validConversations = useMemo(() => {
     return conversations.filter((c) => {
       if (c.type === "group") return true;
@@ -335,7 +365,6 @@ const ChatScreen = () => {
       ? validConversations
       : validConversations.filter((c) => getLocalUnread(c._id) > 0);
 
-  // --- LỌC DANH SÁCH CHO MÀN HÌNH TÌM KIẾM ---
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return validConversations;
     return validConversations.filter((c) => {
@@ -366,7 +395,8 @@ const ChatScreen = () => {
                 </Text>
               </View>
               <View style={styles.headerIcons}>
-                <TouchableOpacity style={styles.iconBtn}>
+                {/* NÚT MỞ MÀN HÌNH QUÉT QR CỦA BẠN ĐÂY */}
+                <TouchableOpacity style={styles.iconBtn} onPress={handleOpenQRScanner}>
                   <Ionicons name="qr-code-outline" size={22} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.iconBtn}>
@@ -375,12 +405,11 @@ const ChatScreen = () => {
               </View>
             </View>
 
-            {/* --- NÚT BẤM MỞ MÀN HÌNH TÌM KIẾM --- */}
             <View style={styles.searchWrapper}>
               <TouchableOpacity
                 style={styles.searchBarFake}
                 activeOpacity={0.8}
-                onPress={() => setShowSearchModal(true)} // Mở modal tìm kiếm
+                onPress={() => setShowSearchModal(true)}
               >
                 <Ionicons
                   name="search"
@@ -463,7 +492,7 @@ const ChatScreen = () => {
       </View>
 
       {/* ========================================== */}
-      {/* MODAL MÀN HÌNH TÌM KIẾM TOÀN MÀN HÌNH */}
+      {/* MODAL MÀN HÌNH TÌM KIẾM */}
       {/* ========================================== */}
       <Modal
         visible={showSearchModal}
@@ -472,7 +501,6 @@ const ChatScreen = () => {
       >
         <View style={[styles.root, { backgroundColor: COLORS.background }]}>
           <SafeAreaView style={{ backgroundColor: COLORS.surface }}>
-            {/* Header Tìm Kiếm */}
             <View style={styles.searchModalHeader}>
               <TouchableOpacity
                 onPress={() => setShowSearchModal(false)}
@@ -494,7 +522,7 @@ const ChatScreen = () => {
                   placeholderTextColor={COLORS.textLight}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  autoFocus={true} // Tự động bật bàn phím khi mở
+                  autoFocus={true}
                 />
                 {searchQuery.length > 0 && (
                   <TouchableOpacity
@@ -512,6 +540,7 @@ const ChatScreen = () => {
             </View>
           </SafeAreaView>
 
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           {/* Danh sách kết quả tìm kiếm */}
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -523,7 +552,7 @@ const ChatScreen = () => {
               keyExtractor={(item) => item._id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled" // Cho phép bấm vào list khi bàn phím đang mở
+              keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Ionicons
@@ -539,6 +568,47 @@ const ChatScreen = () => {
               }
             />
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* ========================================== */}
+      {/* MODAL CAMERA QUÉT QR */}
+      {/* ========================================== */}
+      <Modal visible={showQRScanner} animationType="slide" transparent={false}>
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.qrHeader}>
+              <TouchableOpacity onPress={() => setShowQRScanner(false)}>
+                <Ionicons name="close" size={32} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.qrTitle}>Quét mã QR</Text>
+              <View style={{ width: 32 }} />
+            </View>
+
+            <View style={styles.qrCameraContainer}>
+              {showQRScanner && (
+                <CameraView
+                  style={StyleSheet.absoluteFillObject}
+                  facing="back"
+                  // Không cần check điều kiện ở đây nữa, cứ truyền thẳng hàm vào
+                  onBarcodeScanned={handleBarcodeScanned}
+                  barcodeScannerSettings={{
+                    barcodeTypes: ["qr"],
+                  }}
+                />
+              )}
+              {/* Khung ngắm quét QR mờ ảo */}
+              <View style={styles.qrTargetOverlay}>
+                <View style={styles.qrTargetBox} />
+              </View>
+            </View>
+
+            <View style={styles.qrFooter}>
+              <Text style={{ color: "white", textAlign: "center", fontSize: 15, opacity: 0.8 }}>
+                Hướng camera về phía mã QR để quét
+              </Text>
+            </View>
+          </SafeAreaView>
         </View>
       </Modal>
     </View>
@@ -584,6 +654,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginLeft: 12,
     },
 
+    // --- STYLES THANH TÌM KIẾM ---
     // --- STYLES THANH TÌM KIẾM FAKE TRÊN HEADER ---
     searchWrapper: { marginTop: 10, paddingHorizontal: 20 },
     searchBarFake: {
@@ -613,9 +684,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderBottomColor: COLORS.border,
       top: 0,
     },
-    backBtn: {
-      paddingRight: 15,
-    },
+    backBtn: { paddingRight: 15 },
     searchModalInputWrapper: {
       flex: 1,
       flexDirection: "row",
@@ -629,6 +698,43 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       fontSize: 15,
       marginLeft: 8,
       paddingVertical: 0,
+    },
+
+    // --- STYLES MODAL QUÉT QR ---
+    qrHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 15,
+    },
+    qrTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+    qrCameraContainer: {
+      flex: 1,
+      borderRadius: 24,
+      overflow: 'hidden',
+      marginHorizontal: 15,
+      marginTop: 10,
+      marginBottom: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#222'
+    },
+    qrTargetOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    qrTargetBox: {
+      width: 250,
+      height: 250,
+      borderWidth: 2,
+      borderColor: 'rgba(255, 255, 255, 0.5)',
+      borderRadius: 24,
+      backgroundColor: 'transparent'
+    },
+    qrFooter: {
+      paddingBottom: 40,
     },
 
     contentContainer: { flex: 1, marginTop: -25 },
