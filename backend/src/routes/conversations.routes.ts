@@ -6,7 +6,7 @@ import {
   markConversationAsSeenController,
   updateGroupController
 } from '~/controllers/conversations.controllers'
-import { summarizeChatController, suggestReplyController } from '~/controllers/conversations.controllers'
+import { summarizeChatController } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { askAiController } from '~/controllers/conversations.controllers'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -105,7 +105,7 @@ chatRouter.post('/summarize', accessTokenValidator, wrapRequestHandler(summarize
 // ĐÃ XÓA BỚT 1 DÒNG BỊ TRÙNG Ở ĐÂY
 chatRouter.post('/ask-ai', accessTokenValidator, wrapRequestHandler(askAiController))
 
-chatRouter.post('/suggest-reply', accessTokenValidator, wrapRequestHandler(suggestReplyController))
+
 
 
 

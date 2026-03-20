@@ -2,8 +2,8 @@ import { Request, Response } from 'express'
 import httpStatus from '~/constants/httpStatus'
 import { TokenPayload } from '~/models/requests/users.requests'
 import chatService from '~/services/conversations.services'
-import Groq from 'groq-sdk' // <-- Thêm dòng này
-import databaseService from '~/services/database.services' // Trỏ đúng đường dẫn tới file database.services của bạn
+import Groq from 'groq-sdk' 
+import databaseService from '~/services/database.services' 
 import { ObjectId } from 'mongodb'
 
 // Khởi tạo SDK với API Key từ file .env
@@ -53,9 +53,6 @@ export const updateGroupController = async (req: Request, res: Response) => {
 
   const updatedGroup = await chatService.updateGroup(id, user_id, { name, avatarUrl })
 
-  // TODO: Tích hợp Socket.io để emit sự kiện 'group_updated'
-  // Ví dụ: socketService.io.to(id).emit('group_updated', updatedGroup)
-
   return res.status(httpStatus.OK).json({
     message: 'Cập nhật thông tin nhóm thành công',
     result: updatedGroup
@@ -68,14 +65,11 @@ export const markConversationAsSeenController = async (req: Request, res: Respon
 
   const result = await chatService.markAsSeen(id, user_id)
 
-  // TODO: Tích hợp Socket.io để emit sự kiện 'message_seen' cho các client khác
-  // socketService.io.to(id).emit('message_seen', { conversationId: id, userId: user_id })
-
   return res.status(httpStatus.OK).json(result)
 }
 
 // ==========================================
-// API 1: TÓM TẮT TIN NHẮN (CHỈNH CHU LẠI PROMPT)
+// API 1: TÓM TẮT TIN NHẮN
 // ==========================================
 export const summarizeChatController = async (req: Request, res: Response) => {
   const { messages } = req.body
@@ -88,12 +82,10 @@ export const summarizeChatController = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. CHUẨN BỊ DỮ LIỆU
     const chatTextWithIds = messages
       .map((m: any) => `[[MESSAGE_ID:${m._id}]] ${m.sender?.userName || 'Người dùng'}: ${m.content}`)
       .join('\n')
 
-    // 2. PROMPT "SIÊU GẮT" CHO TÓM TẮT
     const systemInstruction = `Bạn là chuyên gia phân tích dữ liệu của ChatPulse. Nhiệm vụ của bạn là giải mã và tóm tắt hội thoại theo phong cách "Huyền bí & Thông minh".
 
 QUY TẮC TƯ DUY:
@@ -106,14 +98,13 @@ QUY TẮC TƯ DUY:
    - In đậm các từ khóa quan trọng và tên người thực hiện bằng **.
    - Ngôn ngữ sắc sảo, ngắn gọn, tập trung vào kết quả.`
 
-    // 3. GỌI API VỚI PROMPT TÓM TẮT
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemInstruction },
         { role: 'user', content: `Dưới đây là nội dung cuộc trò chuyện:\n\n${chatTextWithIds}` }
       ],
       model: 'llama-3.1-8b-instant',
-      temperature: 0.3, // Giảm nhiệt độ xuống 0.3 để AI phân tích logic và chính xác hơn, bớt bịa chuyện
+      temperature: 0.3, 
     })
 
     const summary = chatCompletion.choices[0]?.message?.content || 'Không thể trích xuất thông tin.'
@@ -132,7 +123,7 @@ QUY TẮC TƯ DUY:
 }
 
 // ==========================================
-// API 2: CHAT TRỰC TIẾP VỚI AI PULSE (THÔNG MINH ĐỈNH CAO)
+// API 2: CHAT TRỰC TIẾP VỚI AI PULSE (TỰ HÀNH + THẤU CẢM)
 // ==========================================
 export const askAiController = async (req: Request, res: Response) => {
   const { context, question } = req.body
@@ -148,9 +139,7 @@ export const askAiController = async (req: Request, res: Response) => {
   try {
     const userObjectId = new ObjectId(user_id)
 
-    // ----------------------------------------------------
-    // A. LẤY DANH SÁCH TÊN BẠN BÈ (Chuẩn theo FriendService)
-    // ----------------------------------------------------
+    // A. LẤY BỐI CẢNH BẠN BÈ
     const friends = await databaseService.friends.aggregate([
       { $match: { user_id: userObjectId } },
       { $lookup: { from: 'users', localField: 'friend_id', foreignField: '_id', as: 'friend_info' } },
@@ -158,27 +147,21 @@ export const askAiController = async (req: Request, res: Response) => {
     ]).toArray();
 
     const friendCount = friends.length;
-    // Lấy ra danh sách tên để bơm cho AI
     const friendNames = friends.map(f => f.friend_info?.userName || f.friend_info?.fullName || 'Ẩn danh').join(', ');
 
     let dbContextString = `Thông tin tài khoản: Bạn hiện có ${friendCount} người bạn. Danh sách bạn bè gồm có: ${friendNames || 'Chưa có ai'}.\n\nLịch sử các cuộc trò chuyện gần đây:\n`
 
-    // ----------------------------------------------------
     // B. LẤY CUỘC TRÒ CHUYỆN GẦN ĐÂY
-    // ----------------------------------------------------
     const recentConvos = await databaseService.conversations
       .find({ participants: userObjectId }) 
       .sort({ updated_at: -1 })
       .limit(3)
       .toArray()
 
-    // ----------------------------------------------------
-    // C. GOM DỮ LIỆU TIN NHẮN & DỊCH TÊN
-    // ----------------------------------------------------
+    // C. GOM DỮ LIỆU TIN NHẮN
     for (const conv of recentConvos) {
       let chatName = conv.name;
       
-      // Xử lý tên chat 1-1
       if (!chatName && conv.type === 'direct' && conv.participants) {
         const partnerId = conv.participants.find((id) => id.toString() !== user_id);
         if (partnerId) {
@@ -188,7 +171,6 @@ export const askAiController = async (req: Request, res: Response) => {
       }
       chatName = chatName || 'Chat cá nhân';
 
-      // Lấy 3 tin nhắn cuối
       const recentMessages = await databaseService.messages
         .aggregate([
           { $match: { conversationId: conv._id } },
@@ -208,7 +190,6 @@ export const askAiController = async (req: Request, res: Response) => {
 
       recentMessages.reverse()
 
-      // Lắp ghép lịch sử
       const msgLog = recentMessages.map(m => {
         const isMe = m.senderId.toString() === user_id;
         const realName = m.senderInfo?.userName || m.senderInfo?.fullName || 'Người dùng';
@@ -218,34 +199,40 @@ export const askAiController = async (req: Request, res: Response) => {
       dbContextString += `[Đang chat với: ${chatName}]\n${msgLog}\n\n`
     }
 
-    // ----------------------------------------------------
-    // D. CHUẨN BỊ PROMPT & GỌI GROQ
-    // ----------------------------------------------------
+    // D. CHUẨN BỊ PROMPT "GỘP CHUNG"
     const chatHistory = (context || [])
       .map((m: any) => `${m.sender?.userName || 'Tôi'}: ${m.content}`)
       .join('\n')
 
-    const systemPrompt = `Bạn là AI Pulse, trợ lý ảo thông minh và bí ẩn của ChatPulse.
+    const systemPrompt = `Bạn là AI Pulse, trợ lý ảo tự hành thông minh và tinh tế của ChatPulse.
 
-    **TÍNH NĂNG ĐIỀU HƯỚNG (RẤT QUAN TRỌNG):**
-      Nếu người dùng muốn thực hiện một thao tác yêu cầu chuyển tab/màn hình, bạn BẮT BUỘC phải tạo một đường dẫn để họ bấm vào bằng cú pháp: [Tên nút](nav:TênScreen).
-      - Đi tới trang cá nhân (đổi tên, avatar, đăng xuất): Dùng lệnh [Chuyển đến Hồ sơ](nav:Profile)
-      - Đi tới danh bạ (tìm bạn bè, kết bạn): Dùng lệnh [Mở Danh bạ](nav:Contacts)
-      - Trở về màn hình tin nhắn: Dùng lệnh [Về danh sách Chat](nav:Chat)
+    **1. TÍNH NĂNG TỰ ĐỘNG GỬI TIN NHẮN (QUAN TRỌNG NHẤT):**
+    Nếu người dùng ra lệnh cho bạn nhắn tin/chúc mừng/thông báo cho một ai đó (ví dụ: "chúc mừng sinh nhật quytran", "nhắn cho nam bảo tôi đến trễ").
+    Bạn PHẢI tự động soạn nội dung thật hay và trả về CHÍNH XÁC cú pháp sau (Không thêm bất kỳ chữ nào khác):
+    [EXECUTE_SEND]
+    Target: <tên_người_nhận_viết_liền_không_dấu>
+    Message: <Nội_dung_tin_nhắn_bạn_vừa_soạn>
+    [/EXECUTE_SEND]
 
-    **QUY TẮC CỐT LÕI:**
-    1. Trả lời dựa trên SỰ THẬT từ dữ liệu bên dưới. Tuyệt đối KHÔNG BỊA CHUYỆN.
-    2. Nếu người dùng hỏi các câu cơ bản (Xin chào, Bạn là ai), hãy trả lời lịch sự, ngắn gọn, không lôi dữ liệu bạn bè ra khoe.
-    3. Trả lời cực kỳ tự nhiên, như một người bạn.
+    **2. TÍNH NĂNG ĐIỀU HƯỚNG:**
+    Nếu người dùng muốn thực hiện thao tác chuyển trang, bạn BẮT BUỘC tạo đường dẫn bằng cú pháp: [Tên nút](nav:TênScreen).
+    - Đổi tên, avatar, đăng xuất: [Chuyển đến Hồ sơ](nav:Profile)
+    - Tìm bạn bè, kết bạn: [Mở Danh bạ](nav:Contacts)
+    - Về trang chủ tin nhắn: [Về danh sách Chat](nav:Chat)
 
-    **DỮ LIỆU THỰC TẾ CỦA NGƯỜI DÙNG NÀY:**
+    **3. QUY TẮC CỐT LÕI KHI TRÒ CHUYỆN BÌNH THƯỜNG:**
+    - Nếu người dùng KHÔNG yêu cầu gửi tin nhắn hay chuyển trang, hãy đóng vai một người bạn đồng hành.
+    - Đọc kỹ "Lịch sử trò chuyện gần đây" bên dưới để hiểu rõ bối cảnh và ý đồ của người đang chat cùng (đối phương).
+    - Đưa ra lời khuyên hoặc phản hồi dựa trên sự đồng cảm với ngữ cảnh đó. Trả lời dựa trên SỰ THẬT từ dữ liệu. Tuyệt đối KHÔNG BỊA CHUYỆN những thứ nằm ngoài dữ liệu được cung cấp.
+
+    **DỮ LIỆU THỰC TẾ VỀ BẠN BÈ VÀ CÁC CUỘC TRÒ CHUYỆN GẦN ĐÂY CỦA TÔI:**
     ---
     ${dbContextString}
     ---`
 
     let userPrompt = question;
     if (chatHistory) {
-      userPrompt = `Bối cảnh trò chuyện:\n${chatHistory}\n\nNgười dùng vừa hỏi: "${question}"`;
+      userPrompt = `Bối cảnh cuộc trò chuyện hiện tại của chúng ta:\n${chatHistory}\n\nNgười dùng yêu cầu: "${question}"`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
@@ -254,15 +241,75 @@ export const askAiController = async (req: Request, res: Response) => {
         { role: 'user', content: userPrompt }
       ],
       model: 'llama-3.1-8b-instant',
-      temperature: 0.3,
+      temperature: 0.6,
     })
 
     const answer = chatCompletion.choices[0]?.message?.content || 'Đường truyền đang gặp sự cố.'
 
+    // ========================================================
+    // E. BẮT MẬT MÃ VÀ THỰC THI LỆNH GỬI TIN NHẮN (NẾU CÓ)
+    // ========================================================
+    const sendRegex = /\[EXECUTE_SEND\][\s\S]*?Target:\s*([^\n\r]+)[\s\S]*?Message:\s*([\s\S]*?)\[\/EXECUTE_SEND\]/i;
+    const match = answer.match(sendRegex);
+
+    if (match) {
+      const targetUsername = match[1].trim().replace('@', '');
+      const generatedMessage = match[2].trim();
+
+      const targetUser = await databaseService.users.findOne({ userName: targetUsername });
+      
+      if (!targetUser) {
+        return res.status(httpStatus.OK).json({ 
+          message: 'Trả lời thành công', 
+          result: `Xin lỗi, tôi không tìm thấy ai có tên người dùng là "${targetUsername}" trong danh sách của bạn để gửi tin nhắn.` 
+        })
+      }
+
+      let conversation = await databaseService.conversations.findOne({
+        type: 'direct',
+        participants: { $all: [userObjectId, targetUser._id] }
+      });
+
+      if (!conversation) {
+        conversation = await chatService.createConversation(user_id, 'direct', [targetUser._id.toString()], '');
+      }
+
+      const newMessage = {
+        _id: new ObjectId(),
+        conversationId: conversation._id,
+        senderId: userObjectId, 
+        type: 'text',
+        content: generatedMessage,
+        reactions: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await databaseService.messages.insertOne(newMessage);
+
+      await databaseService.conversations.updateOne(
+        { _id: conversation._id },
+        { 
+          $set: { 
+            lastMessage: newMessage, 
+            updated_at: new Date() 
+          },
+          $inc: { unread_count: 1 } 
+        }
+      );
+
+      return res.status(httpStatus.OK).json({ 
+        message: 'Trả lời thành công', 
+        result: `✅ **Đã gửi thành công!**\n\nTôi đã nhắn cho **${targetUsername}** nội dung sau:\n\n*"${generatedMessage}"*` 
+      })
+    }
+
+    // Nếu không có mật mã gửi tin, trả lời bình thường
     return res.status(httpStatus.OK).json({
       message: 'Trả lời thành công',
       result: answer
     })
+
   } catch (error: any) {
     console.error('🚨 LỖI GROQ CHAT:', error)
     return res.status(httpStatus.INTERNAL_SERVER_ERROR || 500).json({
@@ -271,6 +318,7 @@ export const askAiController = async (req: Request, res: Response) => {
     })
   }
 }
+
 // ==========================================
 // API 3: AI SOẠN TIN NHẮN TRẢ LỜI GIÚP NGƯỜI DÙNG
 // ==========================================
@@ -285,26 +333,24 @@ export const suggestReplyController = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Format lịch sử 5 tin nhắn gần nhất
     const chatLog = messages
       .map((m: any) => `${m.sender?.userName || 'Người kia'}: ${m.content}`)
       .join('\n')
 
-    // 2. Prompt "ép" AI chỉ nhả ra text trả lời
-    const systemInstruction = `Bạn là trợ lý AI thông minh đang giúp người dùng nhắn tin. 
-    Dựa vào lịch sử đoạn chat ngắn dưới đây, hãy soạn MỘT câu trả lời tiếp theo thật tự nhiên, thân thiện và đúng ngữ cảnh (có thể dùng emoji).
-    YÊU CẦU TỐI THƯỢNG: 
-    - CHỈ TRẢ VỀ NỘI DUNG TIN NHẮN.
-    - TUYỆT ĐỐI KHÔNG giải thích, KHÔNG bọc trong ngoặc kép, KHÔNG nói "Dưới đây là câu trả lời".`
+    const systemInstruction = `Bạn là chính tôi (người dùng). Nhiệm vụ của bạn là đọc tin nhắn cuối cùng của người đang chat với tôi, và viết giúp tôi MỘT CÂU TRẢ LỜI ngắn gọn, phản xạ tự nhiên.
+    
+    YÊU CẦU:
+    - Bắt chước văn phong chat hàng ngày (có thể dùng icon, tiếng lóng nhẹ nhàng nếu phù hợp bối cảnh).
+    - Phải logic và tiếp nối đúng ý người kia vừa nói (Đồng ý, hỏi lại, đùa giỡn...).
+    - CHỈ TRẢ VỀ NỘI DUNG TIN NHẮN ĐỂ GỬI ĐI. TUYỆT ĐỐI không giải thích, không dùng ngoặc kép, không xưng hô "Tôi đề xuất:".`
 
-    // 3. Gọi Groq LLaMA 3
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemInstruction },
-        { role: 'user', content: `Lịch sử chat:\n${chatLog}\n\nHãy viết tin nhắn trả lời:` }
+        { role: 'user', content: `Lịch sử đoạn chat hiện tại:\n${chatLog}\n\nHãy viết tiếp tin nhắn tôi nên trả lời:` }
       ],
       model: 'llama-3.1-8b-instant',
-      temperature: 0.7,
+      temperature: 0.7, 
     })
 
     const suggestion = chatCompletion.choices[0]?.message?.content || ''
