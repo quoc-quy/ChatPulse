@@ -59,8 +59,12 @@ const darkColors = {
 
 const ChatScreen = () => {
   const navigation = useNavigation<any>();
-  const { setTotalUnreadCount, setLocalUnread, getLocalUnread } =
-    useChatContext();
+  const {
+    setTotalUnreadCount,
+    setLocalUnread,
+    getLocalUnread,
+    localUnreadMap,
+  } = useChatContext();
 
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
@@ -84,12 +88,12 @@ const ChatScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
 
   React.useEffect(() => {
-    const totalUnread = conversations.reduce(
-      (sum, chat) => sum + (chat.unread_count || 0),
+    const totalUnread = Object.values(localUnreadMap).reduce(
+      (sum, count) => sum + (count || 0),
       0,
     );
     setTotalUnreadCount(totalUnread);
-  }, [conversations, setTotalUnreadCount]);
+  }, [localUnreadMap, setTotalUnreadCount]);
 
   const fetchCurrentUserId = async () => {
     try {
