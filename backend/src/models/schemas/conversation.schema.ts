@@ -7,6 +7,7 @@ interface MemberType {
   lastViewedMessageId?: ObjectId // High Water Mark dùng để tính unread_count
   clearedHistoryAt?: Date
   hasMuted?: boolean
+  isPinned?: boolean // ✅ Ghim hội thoại lên đầu (per-user)
 }
 
 interface ConversationType {
