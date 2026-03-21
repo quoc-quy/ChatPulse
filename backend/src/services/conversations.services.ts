@@ -276,9 +276,21 @@ class ChatService {
       })
     }
 
-    if (!conversation.last_message_id) {
+    // ✅ FIX: Lấy tin nhắn MỚI NHẤT thật sự từ messages collection
+    // Không dùng conversation.last_message_id vì field này thường không được
+    // update khi có tin nhắn mới → lastViewedMessageId bị set vào ID cũ
+    // → getConversations vẫn đếm được unread_count > 0 sau khi login lại
+    const latestMessage = await databaseService.messages.findOne(
+      { conversationId: convObjectId },
+      { sort: { createdAt: -1 } }
+    )
+
+    // Nếu không có tin nhắn nào thì không cần làm gì
+    if (!latestMessage) {
       return { success: true }
     }
+
+    const latestMessageId = latestMessage._id
 
     // KIỂM TRA MẢNG MEMBERS ĐÃ CÓ USER NÀY CHƯA (Fix lỗi cho data cũ)
     const memberExists = conversation.members?.some(
@@ -289,7 +301,7 @@ class ChatService {
       // Nếu đã có trong mảng members -> Cập nhật bình thường
       await databaseService.conversations.updateOne(
         { _id: convObjectId, 'members.userId': userObjectId },
-        { $set: { 'members.$.lastViewedMessageId': conversation.last_message_id } }
+        { $set: { 'members.$.lastViewedMessageId': latestMessageId } } // ✅ dùng latestMessageId
       )
     } else {
       // Nếu CHƯA CÓ (hội thoại được tạo từ code cũ) -> Push mới user này vào mảng members
@@ -300,7 +312,7 @@ class ChatService {
             members: {
               userId: userObjectId,
               role: conversation.admin_id && conversation.admin_id.toString() === userId ? 'admin' : 'member',
-              lastViewedMessageId: conversation.last_message_id
+              lastViewedMessageId: latestMessageId // ✅ dùng latestMessageId
             } as any
           }
         }
