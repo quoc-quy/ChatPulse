@@ -21,7 +21,9 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Button, Input } from "../components/ui";
 import { getMeApi, updateMeApi, uploadAvatarApi } from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
@@ -34,6 +36,9 @@ import { profileStatsEvents } from "../utils/profileStats.events";
 
 // BƯỚC QUAN TRỌNG: Import useTheme từ Context
 import { useTheme } from "../contexts/ThemeContext";
+
+// ✅ FIX BADGE: Import useChatContext để reset badge khi logout
+import { useChatContext } from "../contexts/ChatContext";
 
 interface Props {
   navigation: any;
@@ -93,7 +98,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     groups: 0,
   });
 
-  const colors = useMemo(() => (isDarkMode ? darkTheme : lightTheme), [isDarkMode]);
+  const colors = useMemo(
+    () => (isDarkMode ? darkTheme : lightTheme),
+    [isDarkMode],
+  );
+  // ✅ FIX BADGE: Lấy hàm reset từ ChatContext
+  const { resetChatContext } = useChatContext();
 
   const formatDate = (date: Date) => {
     const day = `${date.getDate()}`.padStart(2, "0");
@@ -144,9 +154,13 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
     while (true) {
       const res = await getConversations(page, limit);
-      const conversations = Array.isArray(res.data?.result) ? res.data.result : [];
+      const conversations = Array.isArray(res.data?.result)
+        ? res.data.result
+        : [];
 
-      totalGroups += conversations.filter((item: any) => item?.type === "group").length;
+      totalGroups += conversations.filter(
+        (item: any) => item?.type === "group",
+      ).length;
 
       if (conversations.length < limit) {
         break;
@@ -169,7 +183,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       ]);
 
       const user = meRes.data?.result || meRes.data?.user;
-      const friends = Array.isArray(friendsRes.data?.result) ? friendsRes.data.result : [];
+      const friends = Array.isArray(friendsRes.data?.result)
+        ? friendsRes.data.result
+        : [];
 
       if (user) {
         applyProfileFromApi(user);
@@ -238,7 +254,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         } as any);
 
         const uploadRes = await uploadAvatarApi(formData);
-        const avatarUrl = uploadRes.data?.result?.avatar || uploadRes.data?.avatar;
+        const avatarUrl =
+          uploadRes.data?.result?.avatar || uploadRes.data?.avatar;
 
         if (!avatarUrl) {
           throw new Error("Không lấy được URL avatar sau khi upload");
@@ -254,7 +271,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         }
       } catch (error) {
         console.error("Lỗi upload avatar:", error);
-        const errMsg = (error as any)?.response?.data?.message || "Upload ảnh thất bại, vui lòng thử lại";
+        const errMsg =
+          (error as any)?.response?.data?.message ||
+          "Upload ảnh thất bại, vui lòng thử lại";
         Alert.alert("Lỗi", errMsg);
       } finally {
         setUploadingAvatar(false);
@@ -270,8 +289,11 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         userName: finalPayload.userName,
         bio: finalPayload.bio,
         avatar: finalPayload.avatar,
-        ...(finalPayload.dateOfBirth ? { date_of_birth: toIsoDate(finalPayload.dateOfBirth) } : {}),
-        show_date_of_birth: finalPayload.showDateOfBirth ?? profile.show_date_of_birth,
+        ...(finalPayload.dateOfBirth
+          ? { date_of_birth: toIsoDate(finalPayload.dateOfBirth) }
+          : {}),
+        show_date_of_birth:
+          finalPayload.showDateOfBirth ?? profile.show_date_of_birth,
       };
 
       const res = await updateMeApi(body);
@@ -305,6 +327,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         console.error("Lỗi Logout API:", e.response?.data || e.message);
       } finally {
         await clearAuthData();
+        resetChatContext();
         onLogout();
       }
     };
@@ -375,25 +398,61 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     }
     if (event.type === "set" && selectedDate) {
       setTempDate(selectedDate);
-      setEditDraft((prev) => ({ ...prev, dateOfBirth: formatDate(selectedDate) }));
+      setEditDraft((prev) => ({
+        ...prev,
+        dateOfBirth: formatDate(selectedDate),
+      }));
     }
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}> 
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-      <View style={[styles.hero, { backgroundColor: isDarkMode ? "#080D1F" : "#EDE9FE" }]}>
-        <View style={[styles.heroGlowOne, { backgroundColor: colors.accent, opacity: isDarkMode ? 0.35 : 0.2 }]} />
-        <View style={[styles.heroGlowTwo, { backgroundColor: colors.accentAlt, opacity: isDarkMode ? 0.28 : 0.2 }]} />
+      <View
+        style={[
+          styles.hero,
+          { backgroundColor: isDarkMode ? "#080D1F" : "#EDE9FE" },
+        ]}
+      >
+        <View
+          style={[
+            styles.heroGlowOne,
+            {
+              backgroundColor: colors.accent,
+              opacity: isDarkMode ? 0.35 : 0.2,
+            },
+          ]}
+        />
+        <View
+          style={[
+            styles.heroGlowTwo,
+            {
+              backgroundColor: colors.accentAlt,
+              opacity: isDarkMode ? 0.28 : 0.2,
+            },
+          ]}
+        />
       </View>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => pickImage("profile")} style={styles.avatarContainer}>
+          <TouchableOpacity
+            onPress={() => pickImage("profile")}
+            style={styles.avatarContainer}
+          >
             <View style={[styles.avatarRing, { borderColor: colors.accent }]}>
               <Image source={{ uri: profile.avatar }} style={styles.avatar} />
             </View>
-            <View style={[styles.cameraBadge, { backgroundColor: colors.accentAlt }]}> 
+            <View
+              style={[
+                styles.cameraBadge,
+                { backgroundColor: colors.accentAlt },
+              ]}
+            >
               {uploadingAvatar ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
@@ -405,18 +464,32 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           <Text style={[styles.nameText, { color: colors.textPrimary }]}>
             {profile.userName || "alexmorgan"}
           </Text>
-          <Text style={[styles.handleText, { color: colors.textSecondary }]}>@{profile.userName || "alexmorgan"}</Text>
-          <Text style={[styles.bioText, { color: colors.textSecondary }]}>{profile.bio || "Living the dream ✨"}</Text>
+          <Text style={[styles.handleText, { color: colors.textSecondary }]}>
+            @{profile.userName || "alexmorgan"}
+          </Text>
+          <Text style={[styles.bioText, { color: colors.textSecondary }]}>
+            {profile.bio || "Living the dream ✨"}
+          </Text>
           <View style={styles.birthRow}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color={colors.textSecondary}
+            />
             <Text style={[styles.birthText, { color: colors.textSecondary }]}>
               {profile.show_date_of_birth
-                ? formatDateFromApi(profile.date_of_birth) || "Chưa cập nhật ngày sinh"
+                ? formatDateFromApi(profile.date_of_birth) ||
+                  "Chưa cập nhật ngày sinh"
                 : "Ngày sinh đã ẩn"}
             </Text>
-            <TouchableOpacity onPress={toggleDobVisibility} style={styles.birthEyeBtn}>
+            <TouchableOpacity
+              onPress={toggleDobVisibility}
+              style={styles.birthEyeBtn}
+            >
               <Ionicons
-                name={profile.show_date_of_birth ? "eye-outline" : "eye-off-outline"}
+                name={
+                  profile.show_date_of_birth ? "eye-outline" : "eye-off-outline"
+                }
                 size={16}
                 color={colors.textSecondary}
               />
@@ -426,33 +499,75 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: colors.cardSoft, borderColor: colors.border },
+            ]}
             onPress={openEditModal}
           >
-            <Ionicons name="create-outline" size={18} color={colors.accentAlt} />
-            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Edit Profile</Text>
+            <Ionicons
+              name="create-outline"
+              size={18}
+              color={colors.accentAlt}
+            />
+            <Text style={[styles.actionText, { color: colors.textPrimary }]}>
+              Edit Profile
+            </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
-            <Text style={[styles.statCount, { color: colors.accentAlt }]}>{stats.friends}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Friends</Text>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: colors.cardSoft, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>
+              {stats.friends}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              Friends
+            </Text>
           </View>
-          <View style={[styles.statBox, { backgroundColor: colors.cardSoft, borderColor: colors.border }]}> 
-            <Text style={[styles.statCount, { color: colors.accentAlt }]}>{stats.groups}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Groups</Text>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: colors.cardSoft, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.statCount, { color: colors.accentAlt }]}>
+              {stats.groups}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              Groups
+            </Text>
           </View>
         </View>
 
-        <View style={[styles.darkModeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.darkModeCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
           <View style={styles.menuLeft}>
-            <View style={[styles.iconBadge, { backgroundColor: colors.cardSoft }]}>
-              <Ionicons name="moon-outline" size={18} color={colors.accentAlt} />
+            <View
+              style={[styles.iconBadge, { backgroundColor: colors.cardSoft }]}
+            >
+              <Ionicons
+                name="moon-outline"
+                size={18}
+                color={colors.accentAlt}
+              />
             </View>
             <View>
-              <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
-              <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>
+              <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>
+                Dark Mode
+              </Text>
+              <Text
+                style={[styles.menuSubLabel, { color: colors.textSecondary }]}
+              >
                 {isDarkMode ? "Currently dark" : "Currently light"}
               </Text>
             </View>
@@ -465,7 +580,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           />
         </View>
 
-        <View style={[styles.menuList, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+        <View
+          style={[
+            styles.menuList,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
           <MenuOption
             icon="log-out-outline"
             label="Log Out"
@@ -479,7 +599,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             isLast
           />
         </View>
-
       </ScrollView>
 
       <Modal
@@ -504,161 +623,262 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={styles.modalKeyboardWrap}
           >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <Pressable
-            style={[
-              styles.modalCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                borderWidth: 1,
-              },
-            ]}
-            onPress={() => Keyboard.dismiss()}
-          >
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                Keyboard.dismiss();
-                setShowDatePicker(false);
-                setShowEditModal(false);
-              }}
-            >
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <Text style={[styles.modalTitle, { color: colors.accentAlt }]}>Edit Profile</Text>
-
-            <TouchableOpacity style={styles.modalAvatarWrap} onPress={() => pickImage("edit")}> 
-              <View style={[styles.modalAvatarRing, { borderColor: colors.accent }] }>
-                <Image source={{ uri: editDraft.avatar }} style={styles.modalAvatar} />
-              </View>
-              <View style={[styles.modalCameraBadge, { backgroundColor: colors.accentAlt, borderColor: colors.card }] }>
-                {uploadingAvatar ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Ionicons name="camera" size={15} color="#FFFFFF" />
-                )}
-              </View>
-            </TouchableOpacity>
-
-            <Input
-              label="Username"
-              value={editDraft.userName}
-              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, userName: text }))}
-              labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
-              inputStyle={[
-                styles.modalInput,
-                {
-                  backgroundColor: colors.cardSoft,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                },
-              ]}
-              placeholder="Your username"
-              placeholderTextColor={colors.textSecondary}
-            />
-
-            <Input
-              label="Bio"
-              value={editDraft.bio}
-              onChangeText={(text) => setEditDraft((prev) => ({ ...prev, bio: text }))}
-              labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
-              inputStyle={[
-                styles.modalInput,
-                styles.modalBioInput,
-                {
-                  backgroundColor: colors.cardSoft,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                },
-              ]}
-              placeholder="Tell us about yourself..."
-              placeholderTextColor={colors.textSecondary}
-              multiline
-            />
-
-            <View style={styles.dateBlock}>
-              <Text style={[styles.modalLabel, { color: colors.textPrimary }]}>Date of Birth</Text>
-              <TouchableOpacity
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <Pressable
                 style={[
-                  styles.dateInputWrap,
+                  styles.modalCard,
                   {
+                    backgroundColor: colors.card,
                     borderColor: colors.border,
-                    backgroundColor: colors.cardSoft,
+                    borderWidth: 1,
                   },
                 ]}
-                onPress={openDatePicker}
-                activeOpacity={0.85}
+                onPress={() => Keyboard.dismiss()}
               >
-                <TextInput
-                  value={editDraft.dateOfBirth}
-                  placeholder="dd/mm/yyyy"
-                  placeholderTextColor={colors.textSecondary}
-                  style={[styles.dateInput, { color: colors.textPrimary }]}
-                  editable={false}
-                  pointerEvents="none"
-                />
-                <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowDatePicker(false);
+                    setShowEditModal(false);
+                  }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
 
-            <View style={styles.visibilityRow}>
-              <View style={styles.visibilityLabelWrap}>
-                <Ionicons
-                  name={editDraft.showDateOfBirth ? "eye-outline" : "eye-off-outline"}
-                  size={18}
-                  color={colors.textSecondary}
-                />
-                <Text style={[styles.visibilityLabel, { color: colors.textSecondary }]}>Hiển thị ngày sinh cho người khác</Text>
-              </View>
-              <Switch
-                value={editDraft.showDateOfBirth}
-                onValueChange={(value) => setEditDraft((prev) => ({ ...prev, showDateOfBirth: value }))}
-                trackColor={{ false: "#CBD5E1", true: colors.accentAlt }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
+                <Text style={[styles.modalTitle, { color: colors.accentAlt }]}>
+                  Edit Profile
+                </Text>
 
-            {showDatePicker && Platform.OS === "ios" && (
-              <View style={[styles.inlineDatePickerWrap, { backgroundColor: colors.card, borderColor: colors.border }] }>
-                <View style={[styles.inlineDatePickerHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }] }>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={[styles.datePickerText, { color: colors.textSecondary }]}>Hủy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditDraft((prev) => ({ ...prev, dateOfBirth: formatDate(tempDate) }));
-                      setShowDatePicker(false);
-                    }}
+                <TouchableOpacity
+                  style={styles.modalAvatarWrap}
+                  onPress={() => pickImage("edit")}
+                >
+                  <View
+                    style={[
+                      styles.modalAvatarRing,
+                      { borderColor: colors.accent },
+                    ]}
                   >
-                    <Text style={[styles.datePickerText, styles.datePickerDone, { color: colors.accentAlt }]}>Xong</Text>
+                    <Image
+                      source={{ uri: editDraft.avatar }}
+                      style={styles.modalAvatar}
+                    />
+                  </View>
+                  <View
+                    style={[
+                      styles.modalCameraBadge,
+                      {
+                        backgroundColor: colors.accentAlt,
+                        borderColor: colors.card,
+                      },
+                    ]}
+                  >
+                    {uploadingAvatar ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="camera" size={15} color="#FFFFFF" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <Input
+                  label="Username"
+                  value={editDraft.userName}
+                  onChangeText={(text) =>
+                    setEditDraft((prev) => ({ ...prev, userName: text }))
+                  }
+                  labelStyle={[
+                    styles.modalLabel,
+                    { color: colors.textPrimary },
+                  ]}
+                  inputStyle={[
+                    styles.modalInput,
+                    {
+                      backgroundColor: colors.cardSoft,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  placeholder="Your username"
+                  placeholderTextColor={colors.textSecondary}
+                />
+
+                <Input
+                  label="Bio"
+                  value={editDraft.bio}
+                  onChangeText={(text) =>
+                    setEditDraft((prev) => ({ ...prev, bio: text }))
+                  }
+                  labelStyle={[
+                    styles.modalLabel,
+                    { color: colors.textPrimary },
+                  ]}
+                  inputStyle={[
+                    styles.modalInput,
+                    styles.modalBioInput,
+                    {
+                      backgroundColor: colors.cardSoft,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  placeholder="Tell us about yourself..."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                />
+
+                <View style={styles.dateBlock}>
+                  <Text
+                    style={[styles.modalLabel, { color: colors.textPrimary }]}
+                  >
+                    Date of Birth
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.dateInputWrap,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.cardSoft,
+                      },
+                    ]}
+                    onPress={openDatePicker}
+                    activeOpacity={0.85}
+                  >
+                    <TextInput
+                      value={editDraft.dateOfBirth}
+                      placeholder="dd/mm/yyyy"
+                      placeholderTextColor={colors.textSecondary}
+                      style={[styles.dateInput, { color: colors.textPrimary }]}
+                      editable={false}
+                      pointerEvents="none"
+                    />
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 </View>
-                <DateTimePicker
-                  value={tempDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={(_, selectedDate) => {
-                    if (selectedDate) setTempDate(selectedDate);
-                  }}
-                  maximumDate={new Date()}
-                />
-              </View>
-            )}
 
-            <TouchableOpacity onPress={handleSaveFromModal} activeOpacity={0.9} disabled={loading}>
-              <LinearGradient
-                colors={[colors.accent, colors.accentAlt, "#D946EF"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.modalSaveButton}
-              >
-                <Text style={styles.modalSaveText}>{loading ? "Saving..." : "Save Changes"}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </Pressable>
-          </TouchableWithoutFeedback>
+                <View style={styles.visibilityRow}>
+                  <View style={styles.visibilityLabelWrap}>
+                    <Ionicons
+                      name={
+                        editDraft.showDateOfBirth
+                          ? "eye-outline"
+                          : "eye-off-outline"
+                      }
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.visibilityLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Hiển thị ngày sinh cho người khác
+                    </Text>
+                  </View>
+                  <Switch
+                    value={editDraft.showDateOfBirth}
+                    onValueChange={(value) =>
+                      setEditDraft((prev) => ({
+                        ...prev,
+                        showDateOfBirth: value,
+                      }))
+                    }
+                    trackColor={{ false: "#CBD5E1", true: colors.accentAlt }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                {showDatePicker && Platform.OS === "ios" && (
+                  <View
+                    style={[
+                      styles.inlineDatePickerWrap,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.inlineDatePickerHeader,
+                        {
+                          backgroundColor: colors.card,
+                          borderBottomColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}
+                      >
+                        <Text
+                          style={[
+                            styles.datePickerText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          Hủy
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditDraft((prev) => ({
+                            ...prev,
+                            dateOfBirth: formatDate(tempDate),
+                          }));
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.datePickerText,
+                            styles.datePickerDone,
+                            { color: colors.accentAlt },
+                          ]}
+                        >
+                          Xong
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={tempDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(_, selectedDate) => {
+                        if (selectedDate) setTempDate(selectedDate);
+                      }}
+                      maximumDate={new Date()}
+                    />
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  onPress={handleSaveFromModal}
+                  activeOpacity={0.9}
+                  disabled={loading}
+                >
+                  <LinearGradient
+                    colors={[colors.accent, colors.accentAlt, "#D946EF"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalSaveButton}
+                  >
+                    <Text style={styles.modalSaveText}>
+                      {loading ? "Saving..." : "Save Changes"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Pressable>
+            </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
@@ -688,14 +908,25 @@ const MenuOption = ({
   onPress,
   isLast = false,
 }: any) => (
-  <TouchableOpacity style={[styles.menuItem, { borderBottomColor: borderColor }, isLast && { borderBottomWidth: 0 }]} onPress={onPress}>
+  <TouchableOpacity
+    style={[
+      styles.menuItem,
+      { borderBottomColor: borderColor },
+      isLast && { borderBottomWidth: 0 },
+    ]}
+    onPress={onPress}
+  >
     <View style={styles.menuLeft}>
       <View style={[styles.iconBadge, { backgroundColor: iconBg }]}>
         <Ionicons name={icon} size={20} color={iconColor} />
       </View>
       <View>
         <Text style={[styles.menuLabel, { color }]}>{label}</Text>
-        {!!subtitle && <Text style={[styles.menuSubLabel, { color: subtitleColor }]}>{subtitle}</Text>}
+        {!!subtitle && (
+          <Text style={[styles.menuSubLabel, { color: subtitleColor }]}>
+            {subtitle}
+          </Text>
+        )}
       </View>
     </View>
     <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
@@ -750,9 +981,19 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 15,
   },
-  nameText: { fontSize: 30, fontWeight: "800", marginTop: 12, letterSpacing: 0.2 },
+  nameText: {
+    fontSize: 30,
+    fontWeight: "800",
+    marginTop: 12,
+    letterSpacing: 0.2,
+  },
   handleText: { fontSize: 16, marginTop: 2 },
-  bioText: { fontSize: 15, marginTop: 8, textAlign: "center", paddingHorizontal: 14 },
+  bioText: {
+    fontSize: 15,
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 14,
+  },
   birthRow: {
     marginTop: 6,
     flexDirection: "row",
@@ -766,7 +1007,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     padding: 2,
   },
-  actionRow: { flexDirection: "row", gap: 12, paddingHorizontal: 18, marginTop: 18 },
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 18,
+    marginTop: 18,
+  },
   actionButton: {
     flex: 1,
     height: 58,
@@ -778,7 +1024,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionText: { fontSize: 17, fontWeight: "700" },
-  statsRow: { flexDirection: "row", paddingHorizontal: 18, gap: 12, marginTop: 12 },
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 18,
+    gap: 12,
+    marginTop: 12,
+  },
   statBox: {
     flex: 1,
     alignItems: "center",

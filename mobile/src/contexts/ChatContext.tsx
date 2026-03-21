@@ -9,6 +9,7 @@ interface ChatContextType {
   setLocalUnread: (conversationId: string, count: number) => void;
   clearLocalUnread: (conversationId: string) => void;
   getLocalUnread: (conversationId: string) => number;
+  resetChatContext: () => void;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -18,6 +19,7 @@ const ChatContext = createContext<ChatContextType>({
   setLocalUnread: () => {},
   clearLocalUnread: () => {},
   getLocalUnread: () => 0,
+  resetChatContext: () => {},
 });
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
@@ -46,6 +48,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     (conversationId: string) => localUnreadMap[conversationId] ?? 0,
     [localUnreadMap],
   );
+  // ✅ FIX LOGOUT BUG: reset toàn bộ state về 0
+  // auth.ts chỉ xóa AsyncStorage, nhưng localUnreadMap và totalUnreadCount
+  // vẫn còn trong RAM → badge vẫn hiện sau khi login lại.
+  const resetChatContext = useCallback(() => {
+    setTotalUnreadCount(0);
+    setLocalUnreadMap({});
+  }, []);
   return (
     <ChatContext.Provider
       value={{
@@ -55,6 +64,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setLocalUnread,
         clearLocalUnread,
         getLocalUnread,
+        resetChatContext,
       }}
     >
       {children}

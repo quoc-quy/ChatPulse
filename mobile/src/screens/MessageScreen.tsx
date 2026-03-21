@@ -182,10 +182,18 @@ const MessageScreen = () => {
   // -------------------------------------------------------
   useEffect(() => {
     if (id) {
-      markConversationAsSeen(id).catch((error) => {
-        console.log("Lỗi khi đánh dấu đã xem tin nhắn:", error);
-      });
-      // KHÔNG gọi clearLocalUnread ở đây
+      // ✅ FIX: Gọi seen API và clear badge cùng lúc
+      // Server đã nhận biết "đã đọc" → local cũng phải sync ngay
+      // Không cần chờ user scroll đến tin cuối nữa
+      markConversationAsSeen(id)
+        .then(() => {
+          clearLocalUnread(id); // ✅ Clear badge sau khi server confirm
+        })
+        .catch((error) => {
+          console.log("Lỗi khi đánh dấu đã xem tin nhắn:", error);
+          // Vẫn clear local dù API lỗi, vì user đã mở chat rồi
+          clearLocalUnread(id);
+        });
     }
   }, [id]);
 
