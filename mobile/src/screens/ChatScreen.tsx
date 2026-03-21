@@ -28,7 +28,7 @@ import { useChatContext } from "../contexts/ChatContext";
 // --- THÊM IMPORT CAMERA TỪ EXPO ---
 import { CameraView, useCameraPermissions } from "expo-camera";
 
-import { getConversations } from "../apis/chat.api";
+import { getConversations, pinConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
 // ==========================================
@@ -86,6 +86,11 @@ const ChatScreen = () => {
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+
+  // ✅ PIN: state lưu set các conversationId đang được ghim
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [showPinMenu, setShowPinMenu] = useState(false);
+  const [selectedConvForPin, setSelectedConvForPin] = useState<any>(null);
   // const { getLocalUnread } = useChatContext();
 
   // --- STATE TÌM KIẾM ---
@@ -142,15 +147,43 @@ const ChatScreen = () => {
 
       if (isRefresh || pageNumber === 1) {
         setConversations(newConversations);
+
+        // ✅ Luôn đọc lại isPinned từ server mỗi lần refresh
+        // Tách biệt hoàn toàn với initializedConvsRef (chỉ dùng cho unread)
+        // currentUserId có thể chưa có lúc mount → dùng giá trị mới nhất từ token
+        let resolvedUserId = currentUserId;
+        if (!resolvedUserId) {
+          try {
+            const token = await AsyncStorage.getItem("access_token");
+            if (token) {
+              const decoded: any = jwtDecode(token);
+              resolvedUserId = decoded.user_id || decoded._id || decoded.id;
+            }
+          } catch {}
+        }
+
+        const pinned = new Set<string>();
         newConversations.forEach((conv: any) => {
           if (!conv._id) return;
-          // ✅ CHỈ set từ server nếu conversation chưa từng được init
-          // Nếu đã init rồi (user đã vào chat) → giữ nguyên local state
+          // Unread: chỉ set lần đầu
           if (!initializedConvsRef.current.has(conv._id)) {
             initializedConvsRef.current.add(conv._id);
             setLocalUnread(conv._id, conv.unread_count || 0);
           }
+          // Pin: luôn đọc lại từ server mỗi lần fetch
+          if (resolvedUserId) {
+            const myMember = (conv.members || []).find(
+              (m: any) => m.userId?.toString() === resolvedUserId,
+            );
+            if (myMember?.isPinned) pinned.add(conv._id);
+          }
         });
+
+        // Chỉ ghi đè pinnedIds nếu resolvedUserId hợp lệ
+        // (tránh reset về rỗng khi userId chưa load xong)
+        if (resolvedUserId) {
+          setPinnedIds(pinned);
+        }
       } else {
         setConversations((prev) => [...prev, ...newConversations]);
         newConversations.forEach((conv: any) => {
@@ -256,6 +289,38 @@ const ChatScreen = () => {
     return myMember?.hasMuted === true;
   };
 
+  // ✅ Long press → mở menu pin
+  const handleLongPressConv = (item: any) => {
+    setSelectedConvForPin(item);
+    setShowPinMenu(true);
+  };
+
+  // ✅ Gọi API pin/unpin và cập nhật local state
+  const handleTogglePin = async (item: any) => {
+    const isCurrentlyPinned = pinnedIds.has(item._id);
+    const newIsPinned = !isCurrentlyPinned;
+    setShowPinMenu(false);
+    // Optimistic update
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (newIsPinned) next.add(item._id);
+      else next.delete(item._id);
+      return next;
+    });
+    try {
+      await pinConversation(item._id, newIsPinned);
+    } catch (e) {
+      // Rollback nếu API lỗi
+      setPinnedIds((prev) => {
+        const next = new Set(prev);
+        if (newIsPinned) next.delete(item._id);
+        else next.add(item._id);
+        return next;
+      });
+      Alert.alert("Lỗi", "Không thể thực hiện thao tác này.");
+    }
+  };
+
   const navigateToChat = (item: any) => {
     const { chatName, targetUserId } = getChatDetails(item);
 
@@ -310,11 +375,15 @@ const ChatScreen = () => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
     let messageContent = item.lastMessage?.content || "Chưa có tin nhắn";
     const unread = getLocalUnread(item._id);
+    const isPinned = pinnedIds.has(item._id);
     return (
       <TouchableOpacity
         style={styles.chatCard}
         onPress={() => navigateToChat(item)}
+        onLongPress={() => handleLongPressConv(item)}
+        delayLongPress={400}
       >
+        {/* AVATAR + PIN BADGE */}
         <View style={styles.avatarWrapper}>
           <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
             {chatAvatarUrl ? (
@@ -327,7 +396,13 @@ const ChatScreen = () => {
               </View>
             )}
           </View>
-          {isOnline && <View style={styles.onlineDot} />}
+          {isOnline && !isPinned && <View style={styles.onlineDot} />}
+          {/* ✅ Icon ghim nằm góc dưới phải avatar, đè lên onlineDot */}
+          {/* {isPinned && (
+            <View style={styles.pinBadge}>
+              <Ionicons name="pin" size={9} color="#fff" />
+            </View>
+          )} */}
         </View>
 
         <View style={styles.chatContent}>
@@ -358,7 +433,8 @@ const ChatScreen = () => {
             >
               {messageContent}
             </Text>
-            {unread > 0 && (
+            {/* ✅ Nếu có unread → badge số, nếu không có unread nhưng ghim → icon ghim nhỏ góc phải */}
+            {unread > 0 ? (
               <LinearGradient
                 colors={[COLORS.primary, COLORS.accent]}
                 style={styles.badge}
@@ -367,7 +443,9 @@ const ChatScreen = () => {
                   {unread > 9 ? "9+" : unread}
                 </Text>
               </LinearGradient>
-            )}
+            ) : isPinned ? (
+              <Ionicons name="pin-outline" size={15} color={COLORS.textLight} />
+            ) : null}
           </View>
         </View>
       </TouchableOpacity>
@@ -385,10 +463,18 @@ const ChatScreen = () => {
     });
   }, [conversations, blockedUserIds, currentUserId]);
 
-  const displayConversations =
-    activeTab === "all"
-      ? validConversations
-      : validConversations.filter((c) => getLocalUnread(c._id) > 0);
+  const displayConversations = useMemo(() => {
+    const list =
+      activeTab === "all"
+        ? validConversations
+        : validConversations.filter((c) => getLocalUnread(c._id) > 0);
+    // ✅ Pinned lên đầu, giữ nguyên thứ tự bên trong từng nhóm
+    return [...list].sort((a, b) => {
+      const aPinned = pinnedIds.has(a._id) ? 1 : 0;
+      const bPinned = pinnedIds.has(b._id) ? 1 : 0;
+      return bPinned - aPinned;
+    });
+  }, [validConversations, activeTab, pinnedIds]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return validConversations;
@@ -595,6 +681,47 @@ const ChatScreen = () => {
             />
           </KeyboardAvoidingView>
         </View>
+      </Modal>
+
+      {/* ========================================== */}
+      {/* MODAL GHIM / BỎ GHIM HỘI THOẠI */}
+      {/* ========================================== */}
+      <Modal
+        visible={showPinMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPinMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.pinOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPinMenu(false)}
+        >
+          <View
+            style={[
+              styles.pinMenuBox,
+              { backgroundColor: COLORS.surface, borderColor: COLORS.border },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.pinMenuItem}
+              onPress={() => handleTogglePin(selectedConvForPin)}
+            >
+              <Ionicons
+                name={
+                  pinnedIds.has(selectedConvForPin?._id) ? "pin-outline" : "pin"
+                }
+                size={20}
+                color={COLORS.accent}
+              />
+              <Text style={[styles.pinMenuText, { color: COLORS.text }]}>
+                {pinnedIds.has(selectedConvForPin?._id)
+                  ? "Bỏ ghim hội thoại"
+                  : "Ghim hội thoại"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* ========================================== */}
@@ -806,6 +933,42 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderWidth: 1,
       borderColor: COLORS.border,
     },
+    // ✅ Badge ghim nhỏ góc dưới phải avatar (giống Zalo)
+    pinBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: COLORS.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 1.5,
+      borderColor: COLORS.surface,
+    },
+    pinOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    pinMenuBox: {
+      width: "75%",
+      borderRadius: 20,
+      borderWidth: 1,
+      overflow: "hidden",
+    },
+    pinMenuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 18,
+      gap: 14,
+    },
+    pinMenuText: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
     avatarWrapper: { position: "relative" },
     avatarRing: { borderWidth: 2, borderRadius: 30, padding: 2 },
     avatar: {
@@ -833,7 +996,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       justifyContent: "space-between",
       marginBottom: 4,
     },
-    name: { color: COLORS.text, fontSize: 16, fontWeight: "700" },
+    name: { color: COLORS.text, fontSize: 16, fontWeight: "700", flex: 1 },
     time: { color: COLORS.textLight, fontSize: 12 },
     unreadTime: { color: COLORS.primary, fontWeight: "700" },
     chatFooter: {
