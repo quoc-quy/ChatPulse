@@ -100,9 +100,9 @@ export const summarizeChatApi = (messages: any[]) => {
 
 // Sửa lại URL ở đây nhé
 export const askChatPulseAIApi = (context: any[], question: string) => {
-  return api.post('/conversations/ask-ai', { 
-    context: context, 
-    question: question 
+  return api.post("/conversations/ask-ai", {
+    context: context,
+    question: question,
   });
 };
 // Tạo hoặc lấy conversation 1-1 với một user (idempotent)
@@ -160,6 +160,9 @@ export const searchMessages = (
     params: { q: keyword, page, limit },
   });
 
-  export const suggestReplyApi = (messages: any[]) => {
-  return api.post('/conversations/suggest-reply', { messages });
+export const suggestReplyApi = (messages: any[]) => {
+  return api.post("/conversations/suggest-reply", { messages });
 };
+// ✅ Ghim / bỏ ghim hội thoại
+export const pinConversation = (conversationId: string, is_pin: boolean) =>
+  api.patch(`/conversations/${conversationId}/pin`, { is_pin });
