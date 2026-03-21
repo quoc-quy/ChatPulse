@@ -117,6 +117,22 @@ const ChatScreen = () => {
     }
   };
   const initializedConvsRef = React.useRef<Set<string>>(new Set());
+
+  // ✅ FIX LOGOUT BUG: Khi resetChatContext() được gọi lúc logout,
+  // localUnreadMap sẽ về {} (empty). Lúc đó clear initializedConvsRef
+  // để lần fetch tiếp theo (sau login) sẽ set lại unread từ server.
+  React.useEffect(() => {
+    if (Object.keys(localUnreadMap).length === 0) {
+      initializedConvsRef.current.clear();
+    }
+  }, [localUnreadMap]);
+
+  // Clear ref khi component unmount
+  React.useEffect(() => {
+    return () => {
+      initializedConvsRef.current.clear();
+    };
+  }, []);
   const fetchConversations = async (pageNumber = 1, isRefresh = false) => {
     try {
       if (pageNumber === 1 && !isRefresh) setLoading(true);
@@ -264,7 +280,10 @@ const ChatScreen = () => {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert("Thông báo", "Bạn cần cấp quyền truy cập Camera để quét mã QR.");
+        Alert.alert(
+          "Thông báo",
+          "Bạn cần cấp quyền truy cập Camera để quét mã QR.",
+        );
         return;
       }
     }
@@ -274,9 +293,15 @@ const ChatScreen = () => {
 
   // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
   // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
-  const handleBarcodeScanned = ({ type, data }: { type: string, data: string }) => {
+  const handleBarcodeScanned = ({
+    type,
+    data,
+  }: {
+    type: string;
+    data: string;
+  }) => {
     if (scannedRef.current) return; // <--- NẾU ĐANG KHÓA THÌ DỪNG NGAY
-    scannedRef.current = true;      // <--- KHÓA LẠI NGAY LẬP TỨC (ĐỒNG BỘ)
+    scannedRef.current = true; // <--- KHÓA LẠI NGAY LẬP TỨC (ĐỒNG BỘ)
 
     setShowQRScanner(false);
     Alert.alert("Kết quả quét QR", `Nội dung: ${data}`);
@@ -396,7 +421,10 @@ const ChatScreen = () => {
               </View>
               <View style={styles.headerIcons}>
                 {/* NÚT MỞ MÀN HÌNH QUÉT QR CỦA BẠN ĐÂY */}
-                <TouchableOpacity style={styles.iconBtn} onPress={handleOpenQRScanner}>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={handleOpenQRScanner}
+                >
                   <Ionicons name="qr-code-outline" size={22} color="white" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.iconBtn}>
@@ -573,7 +601,7 @@ const ChatScreen = () => {
       {/* MODAL CAMERA QUÉT QR */}
       {/* ========================================== */}
       <Modal visible={showQRScanner} animationType="slide" transparent={false}>
-        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <View style={{ flex: 1, backgroundColor: "#000000" }}>
           <SafeAreaView style={{ flex: 1 }}>
             <View style={styles.qrHeader}>
               <TouchableOpacity onPress={() => setShowQRScanner(false)}>
@@ -602,7 +630,14 @@ const ChatScreen = () => {
             </View>
 
             <View style={styles.qrFooter}>
-              <Text style={{ color: "white", textAlign: "center", fontSize: 15, opacity: 0.8 }}>
+              <Text
+                style={{
+                  color: "white",
+                  textAlign: "center",
+                  fontSize: 15,
+                  opacity: 0.8,
+                }}
+              >
                 Hướng camera về phía mã QR để quét
               </Text>
             </View>
@@ -700,36 +735,36 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
 
     // --- STYLES MODAL QUÉT QR ---
     qrHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
       paddingHorizontal: 20,
       paddingVertical: 15,
     },
-    qrTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+    qrTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
     qrCameraContainer: {
       flex: 1,
       borderRadius: 24,
-      overflow: 'hidden',
+      overflow: "hidden",
       marginHorizontal: 15,
       marginTop: 10,
       marginBottom: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#222'
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#222",
     },
     qrTargetOverlay: {
       ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
     qrTargetBox: {
       width: 250,
       height: 250,
       borderWidth: 2,
-      borderColor: 'rgba(255, 255, 255, 0.5)',
+      borderColor: "rgba(255, 255, 255, 0.5)",
       borderRadius: 24,
-      backgroundColor: 'transparent'
+      backgroundColor: "transparent",
     },
     qrFooter: {
       paddingBottom: 40,
