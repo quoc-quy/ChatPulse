@@ -41,16 +41,37 @@ class GroupService {
 
   async togglePin(userId: string, conversationId: string, isPin: boolean) {
     const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
 
-    const result = await databaseService.conversations.findOneAndUpdate(
-      { _id: conversationObjectId },
-      {
-        $set: { is_pin: isPin }
-      },
-      { returnDocument: 'after' }
-    )
+    // Kiểm tra member đã tồn tại trong mảng members chưa
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    if (!conversation) return null
 
-    return result
+    const memberExists = (conversation.members || []).some((m: any) => m.userId?.toString() === userId)
+
+    if (memberExists) {
+      // ✅ Cập nhật isPinned theo từng user (per-user), không phải global
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId, 'members.userId': userObjectId },
+        { $set: { 'members.$.isPinned': isPin } }
+      )
+    } else {
+      // Fallback: push member mới nếu chưa tồn tại (data cũ)
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId },
+        {
+          $push: {
+            members: {
+              userId: userObjectId,
+              role: conversation.admin_id?.toString() === userId ? 'admin' : 'member',
+              isPinned: isPin
+            } as any
+          }
+        }
+      )
+    }
+
+    return { isPinned: isPin }
   }
 
   async kickMember(conversationId: string, memberId: string) {
