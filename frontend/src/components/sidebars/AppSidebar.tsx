@@ -6,6 +6,8 @@ import { useConversations } from '@/hooks/useConversations'
 
 import { SidebarPanel1 } from './SidebarPanel1'
 import { SidebarPanel2 } from './SidebarPanel2'
+import { useQuery } from '@tanstack/react-query'
+import friendApi from '@/apis/friend.api'
 
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
@@ -24,6 +26,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: profile?.avatar || ''
   }
 
+  const { data: requestData } = useQuery({
+    queryKey: ['ListRequest'],
+    queryFn: friendApi.getListFriendRequest
+  })
+
+  const requestCount = requestData?.data.result.length || 0
+
   return (
     <Sidebar collapsible='icon' className='overflow-hidden' {...props}>
       <div className='flex flex-row h-full w-full'>
@@ -33,6 +42,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           setActiveItem={setActiveItem}
           hasUnreadMessages={hasUnreadMessages}
           currentUser={currentUser}
+          requestCount={requestCount}
         />
 
         <SidebarPanel2
