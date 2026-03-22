@@ -18,6 +18,7 @@ interface SidebarPanel1Props {
   setActiveItem: (item: any) => void
   hasUnreadMessages: boolean
   currentUser: any
+  requestCount: number
 }
 
 export function SidebarPanel1({
@@ -25,7 +26,8 @@ export function SidebarPanel1({
   activeItem,
   setActiveItem,
   hasUnreadMessages,
-  currentUser
+  currentUser,
+  requestCount
 }: SidebarPanel1Props) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -73,6 +75,12 @@ export function SidebarPanel1({
                 <div className='relative flex items-center justify-center'>
                   <item.icon className='!size-6' />
                   {item.title === 'Tin nhắn' && hasUnreadMessages && (
+                    <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
+                      <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
+                      <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
+                    </span>
+                  )}
+                  {item.title === 'Danh bạ' && requestCount > 0 && (
                     <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
                       <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
                       <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
