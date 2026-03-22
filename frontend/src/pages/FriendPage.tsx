@@ -12,6 +12,7 @@ import { useState } from 'react'
 import SearchModal from './SearchModal'
 
 export default function FriendPage() {
+  const [search, setSearch] = useState('')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [openInfo, setOpenInfo] = useState(false)
   const queryClient = useQueryClient()
@@ -72,6 +73,10 @@ export default function FriendPage() {
     unBlockMutation.mutate(friend_id)
   }
 
+  const filteredFriends = listFriends.filter((friend) =>
+  friend.userName.toLowerCase().includes(search.toLowerCase())
+)
+
   return (
     <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
       <div className='flex items-center bg-white dark:bg-background p-4 text-foreground'>
@@ -98,10 +103,15 @@ export default function FriendPage() {
             />
           </svg>
 
-          <Input className='w-full pl-10' placeholder='Tìm bạn' />
+          <Input
+            className='w-full pl-10'
+            placeholder='Tìm bạn'
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className='mb-5'>
-          {listFriends.map((friend) => {
+          {filteredFriends.map((friend) => {
             const isBlocked = blockedIds.includes(friend._id)
             return (
               <div
