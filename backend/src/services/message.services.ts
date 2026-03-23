@@ -4,7 +4,9 @@ import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import Message from '~/models/schemas/message.schema'
 import socketService from './socket.services'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+// IMPORT CÁC MODULE AI MỚI TẠO
+import aiService from './ai/ai.service'
+import { ContextManager } from './ai/context.manager'
 
 class MessageService {
   async getMessages(conversationId: string, userId: string, cursor?: string, limit: number = 20) {
@@ -137,18 +139,17 @@ class MessageService {
 
     return populatedMessage
   }
-  // ==========================================================
-  // 1. Hàm Chỉnh sửa tin nhắn
+
   async editMessage(messageId: string, userId: string, newContent: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       {
         _id: new ObjectId(messageId),
-        senderId: new ObjectId(userId) // Bảo mật: Chỉ người gửi mới được sửa
+        senderId: new ObjectId(userId)
       },
       {
         $set: {
           content: newContent,
-          isEdited: true, // Đánh dấu đã sửa để FE hiển thị nhãn
+          isEdited: true,
           updatedAt: new Date()
         }
       },
@@ -157,16 +158,15 @@ class MessageService {
     return result
   }
 
-  // 2. Hàm Thu hồi tin nhắn (Recall)
   async recallMessage(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       {
         _id: new ObjectId(messageId),
-        senderId: new ObjectId(userId) // Bảo mật: Chỉ người gửi mới được thu hồi
+        senderId: new ObjectId(userId)
       },
       {
         $set: {
-          isDeleted: true, // Đánh dấu đã xóa/thu hồi
+          isDeleted: true,
           updatedAt: new Date()
         }
       },
@@ -174,11 +174,11 @@ class MessageService {
     )
     return result
   }
+
   async reactMessage(messageId: string, userId: string, emoji: string) {
     const messageObjId = new ObjectId(messageId)
     const userObjId = new ObjectId(userId)
 
-    // 1. Lấy tin nhắn và thông tin người đang thả cảm xúc
     const [message, user] = await Promise.all([
       databaseService.messages.findOne({ _id: messageObjId }),
       databaseService.users.findOne({ _id: userObjId })
@@ -189,7 +189,6 @@ class MessageService {
 
     let updateQuery: any = {}
 
-    // 2. Logic Xóa tất cả cảm xúc của user này (Khi bấm nút X)
     if (emoji === 'REMOVE_ALL') {
       updateQuery = {
         $pull: {
@@ -199,7 +198,6 @@ class MessageService {
         }
       }
     } else {
-      // Cho phép cùng 1 user thả cùng 1 emoji nhiều lần
       updateQuery = {
         $push: {
           reactions: {
@@ -221,7 +219,6 @@ class MessageService {
     })
     const updatedReactions = result?.reactions || result?.value?.reactions || []
 
-    // 4. EMIT SOCKET: Thông báo cho mọi người trong nhóm biết
     const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
     if (conversation) {
       const targetUserIds = new Set<string>()
@@ -246,21 +243,20 @@ class MessageService {
 
     return result
   }
-  // 4. Hàm Thu hồi Reaction
+
   async revokeMessage(messageId: string, userId: string) {
     const messageObjId = new ObjectId(messageId)
 
-    // 1. Cập nhật tin nhắn thành trạng thái thu hồi
     const result = await databaseService.messages.findOneAndUpdate(
       {
         _id: messageObjId,
-        senderId: new ObjectId(userId) // Bảo mật: Chỉ chủ nhân mới được thu hồi
+        senderId: new ObjectId(userId)
       },
       {
         $set: {
           content: '',
-          type: 'revoked', // Đổi type để giao diện biết tin đã bị thu hồi
-          reactions: [], // Thu hồi cũng sẽ xóa hết reaction đi
+          type: 'revoked',
+          reactions: [],
           updatedAt: new Date()
         }
       },
@@ -271,10 +267,8 @@ class MessageService {
       throw new ErrorWithStatus({ message: 'Không thể thu hồi tin nhắn này', status: 403 })
     }
 
-    // Tùy version MongoDB, lấy document ra
     const updatedMessage = result.value || result
 
-    // 2. EMIT SOCKET: Thông báo cho mọi người trong nhóm
     const conversation = await databaseService.conversations.findOne({ _id: updatedMessage.conversationId })
     if (conversation) {
       const targetUserIds = new Set<string>()
@@ -291,19 +285,18 @@ class MessageService {
       targetUserIds.forEach((id) => {
         socketService.emitToUser(id, 'message_revoked', {
           messageId: messageId,
-          conversationId: updatedMessage.conversationId.toString() // THÊM DÒNG NÀY
+          conversationId: updatedMessage.conversationId.toString()
         })
       })
     }
 
     return result
   }
-  // 5 . Hàm Xóa tin nhắn (Soft Delete - chỉ ẩn với user đó)
+
   async deleteMessage(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId) },
       {
-        // Thêm ID của mình vào danh sách những người đã xóa tin này
         $addToSet: {
           deleted_by_users: new ObjectId(userId)
         }
@@ -318,7 +311,6 @@ class MessageService {
     const messageObjId = new ObjectId(messageId)
     const userObjId = new ObjectId(userId)
 
-    // Cập nhật tin nhắn: Push userId vào mảng deletedByUsers
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: messageObjId },
       {
@@ -326,7 +318,7 @@ class MessageService {
           deletedByUsers: userObjId,
           deleted_by_users: userObjId
         }
-      }, // Dùng $addToSet để không bị trùng lặp
+      },
       { returnDocument: 'after' }
     )
 
@@ -337,101 +329,66 @@ class MessageService {
     return result
   }
 
-  async summarizeConversation(convId: string, userId: string, limit: number = 30, unreadCount: number = 0) {
-    try {
-      // 1. Bảo vệ ở Backend: Nếu không có tin mới thì trả về rỗng ngay
-      if (unreadCount === 0 || limit === 0) {
-        return {
-          topic: 'Không có tin nhắn mới nào cần tóm tắt',
-          decisions: [],
-          openQuestions: [],
-          actionItems: []
-        }
-      }
+  // ==========================================================
+  // HÀM HELPER: CHỈ TRUY VẤN DB (Decoupled Layer)
+  // ==========================================================
+  async getRecentMessagesForContext(convId: string, userId: string, limit: number) {
+    const convObjectId = new ObjectId(convId)
+    const userObjectId = new ObjectId(userId)
 
-      const convObjectId = new ObjectId(convId)
-      const userObjectId = new ObjectId(userId)
-
-      const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
-      if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: 404 })
-
-      const matchCondition: any = {
-        conversationId: convObjectId,
-        deletedByUsers: { $ne: userObjectId }
-      }
-
-      // 2. CHỈ LẤY ĐÚNG SỐ LƯỢNG TIN NHẮN CHƯA ĐỌC (limit = unreadCount)
-      const recentMessages = await databaseService.messages
-        .aggregate([
-          { $match: matchCondition },
-          { $sort: { createdAt: -1 } },
-          { $limit: limit },
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'senderId',
-              foreignField: '_id',
-              as: 'senderInfo'
-            }
-          },
-          { $unwind: '$senderInfo' }
-        ])
-        .toArray()
-
-      if (recentMessages.length === 0) {
-        return { topic: 'Không có tin nhắn mới nào cần tóm tắt', decisions: [], openQuestions: [], actionItems: [] }
-      }
-
-      // Đảo ngược mảng (cũ -> mới)
-      recentMessages.reverse()
-
-      // 3. Toàn bộ lúc này đều là tin nhắn mới, không cần dán nhãn nữa
-      const chatLog = recentMessages
-        .map((msg) => {
-          return `[ID: ${msg._id}] ${msg.senderInfo?.userName || 'Unknown'}: ${msg.content}`
-        })
-        .join('\n')
-
-      if (!process.env.GEMINI_API_KEY) throw new Error('Thiếu API Key')
-
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string)
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { responseMimeType: 'application/json' }
-      })
-
-      // 4. Cập nhật lại Prompt
-      const prompt = `
-      Bạn là một trợ lý AI quản lý nhóm chat. Dưới đây là các TIN NHẮN MỚI CHƯA ĐỌC của nhóm.
-      
-      YÊU CẦU TÓM TẮT:
-      1. Tóm tắt ngắn gọn chủ đề chính của đoạn chat này.
-      2. Liệt kê các quyết định quan trọng (nếu có).
-      3. Liệt kê các hành động, công việc cần làm và người được giao (nếu có).
-      
-      Trả về định dạng JSON chính xác với cấu trúc sau:
-      {
-        "topic": "Chủ đề chính",
-        "decisions": ["Quyết định 1"],
-        "openQuestions": ["Câu hỏi còn bỏ ngỏ 1"],
-        "actionItems": [
-          { "task": "Nhiệm vụ", "assignee": "Tên người", "messageId": "ID tin nhắn gốc" }
-        ]
-      }
-      
-      Dữ liệu chat:
-      ${chatLog}
-      `
-
-      const result = await model.generateContent(prompt)
-      return JSON.parse(result.response.text())
-    } catch (error) {
-      console.error('Lỗi khi tóm tắt AI:', error)
-      throw new ErrorWithStatus({
-        message: 'Lỗi server khi phân tích nội dung bằng AI',
-        status: httpStatus.INTERNAL_SERVER_ERROR
-      })
+    const matchCondition: any = {
+      conversationId: convObjectId,
+      deletedByUsers: { $ne: userObjectId },
+      isDeleted: { $ne: true } // Không lấy tin nhắn đã thu hồi
     }
+
+    return await databaseService.messages
+      .aggregate([
+        { $match: matchCondition },
+        { $sort: { createdAt: -1 } },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'senderId',
+            foreignField: '_id',
+            as: 'senderInfo'
+          }
+        },
+        { $unwind: '$senderInfo' }
+      ])
+      .toArray()
+  }
+
+  // ==========================================================
+  // HÀM SUMMARIZE ĐÃ ĐƯỢC REFACTOR
+  // ==========================================================
+  async summarizeConversation(convId: string, userId: string, limit: number = 30, unreadCount: number = 0) {
+    // 1. Bảo vệ ở Backend: Nếu không có tin mới thì trả về rỗng ngay
+    if (unreadCount === 0 || limit === 0) {
+      return {
+        topic: 'Không có tin nhắn mới nào cần tóm tắt',
+        decisions: [],
+        openQuestions: [],
+        actionItems: []
+      }
+    }
+
+    const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(convId) })
+    if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: 404 })
+
+    // 2. Gọi hàm Helper để lấy data
+    const recentMessages = await this.getRecentMessagesForContext(convId, userId, limit)
+
+    if (recentMessages.length === 0) {
+      return { topic: 'Không có tin nhắn mới nào cần tóm tắt', decisions: [], openQuestions: [], actionItems: [] }
+    }
+
+    // 3. Biến đổi dữ liệu thông qua Context Manager (Không dính dáng DB logic)
+    const chatLog = ContextManager.formatChatLog(recentMessages)
+
+    // 4. Gọi Service AI xử lý chuỗi cuối cùng
+    return await aiService.summarizeChat(chatLog)
   }
 
   // ── Tìm kiếm tin nhắn trong hội thoại ──────────────────────────────────────
@@ -439,7 +396,6 @@ class MessageService {
     const convObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // Kiểm tra quyền truy cập
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) {
       throw new ErrorWithStatus({ message: 'Không tìm thấy hội thoại', status: httpStatus.NOT_FOUND })
@@ -451,14 +407,13 @@ class MessageService {
 
     const skip = (page - 1) * limit
 
-    // Tìm trong tin nhắn text, không bị xóa phía user
     const results = await databaseService.messages
       .aggregate([
         {
           $match: {
             conversationId: convObjectId,
             type: 'text',
-            content: { $regex: keyword, $options: 'i' }, // case-insensitive
+            content: { $regex: keyword, $options: 'i' },
             deletedByUsers: { $ne: userObjectId },
             deleted_by_users: { $ne: userObjectId },
             isDeleted: { $ne: true }
@@ -492,7 +447,6 @@ class MessageService {
       ])
       .toArray()
 
-    // Đếm tổng kết quả để phân trang
     const totalCount = await databaseService.messages.countDocuments({
       conversationId: convObjectId,
       type: 'text',
@@ -516,7 +470,7 @@ class MessageService {
       { _id: new ObjectId(messageId) },
       {
         $addToSet: { deliveredTo: new ObjectId(userId) },
-        $set: { status: 'DELIVERED' } // Nâng cấp status lên Delivered
+        $set: { status: 'DELIVERED' }
       },
       { returnDocument: 'after' }
     )
@@ -528,11 +482,67 @@ class MessageService {
       { _id: new ObjectId(messageId) },
       {
         $addToSet: { seenBy: new ObjectId(userId) },
-        $set: { status: 'SEEN' } // Nâng cấp status cao nhất lên SEEN
+        $set: { status: 'SEEN' }
       },
       { returnDocument: 'after' }
     )
     return result
+  }
+
+  // ==========================================================
+  // LẤY LỊCH SỬ CHAT TOÀN CỤC CỦA 1 USER (DÀNH CHO AI)
+  // ==========================================================
+  async getGlobalRecentMessagesForUser(userId: string, limitPerConv: number = 10) {
+    const userObjId = new ObjectId(userId)
+
+    // 1. Tìm tất cả các nhóm/chat 1-1 mà user này là thành viên
+    const conversations = await databaseService.conversations
+      .find({
+        $or: [{ participants: userObjId }, { 'members.userId': userObjId }, { 'members.user_id': userObjId }]
+      })
+      .toArray()
+
+    if (!conversations.length) return []
+
+    // Lấy top 10 hội thoại có tương tác gần đây nhất để tối ưu RAM và Token của AI
+    const recentConvs = conversations
+      .sort((a, b) => {
+        const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0
+        const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0
+        return tB - tA
+      })
+      .slice(0, 10)
+
+    // 2. Query lấy tin nhắn của từng hội thoại
+    const globalContext = await Promise.all(
+      recentConvs.map(async (conv) => {
+        const msgs = await databaseService.messages
+          .aggregate([
+            {
+              $match: {
+                conversationId: conv._id,
+                deletedByUsers: { $ne: userObjId },
+                deleted_by_users: { $ne: userObjId },
+                isDeleted: { $ne: true },
+                type: 'text' // Chỉ lấy text cho AI đọc, bỏ qua sticker/image
+              }
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: limitPerConv },
+            { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
+            { $unwind: { path: '$senderInfo', preserveNullAndEmptyArrays: true } }
+          ])
+          .toArray()
+
+        return {
+          conversationName: conv.name || (conv.type === 'group' ? 'Group Chat' : 'Chat 1-1'),
+          conversationId: conv._id.toString(),
+          messages: msgs.reverse() // Sắp xếp cũ -> mới
+        }
+      })
+    )
+
+    return globalContext.filter((c) => c.messages.length > 0)
   }
 }
 
