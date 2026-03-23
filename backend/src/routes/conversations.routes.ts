@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  askAIController,
   createConversationController,
   getConversationController,
   getConversationsController,
@@ -8,10 +9,14 @@ import {
 } from '~/controllers/conversations.controllers'
 import { summarizeChatController } from '~/controllers/conversations.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
-import { askAiController } from '~/controllers/conversations.controllers'
 import { wrapRequestHandler } from '~/utils/handlers'
-import { addMembersController, kickMemberController, pinController, leaveGroupController, promoteAdminController } from '~/controllers/group.controllers'
-
+import {
+  addMembersController,
+  kickMemberController,
+  pinController,
+  leaveGroupController,
+  promoteAdminController
+} from '~/controllers/group.controllers'
 
 // Sửa lại dòng này
 
@@ -61,7 +66,7 @@ chatRouter.patch('/:id/seen', accessTokenValidator, wrapRequestHandler(markConve
 
 /**
  * Description: Add members to group
- * Path: /conversations/:id/members 
+ * Path: /conversations/:id/members
  * Method: POST
  * Body: { members: string[] }
  */
@@ -100,13 +105,8 @@ chatRouter.patch('/:id/admin', accessTokenValidator, wrapRequestHandler(promoteA
 
 chatRouter.patch('/:id/pin', accessTokenValidator, wrapRequestHandler(pinController))
 
-chatRouter.post('/summarize', accessTokenValidator, wrapRequestHandler(summarizeChatController)) 
+chatRouter.post('/summarize', accessTokenValidator, wrapRequestHandler(summarizeChatController))
 
-// ĐÃ XÓA BỚT 1 DÒNG BỊ TRÙNG Ở ĐÂY
-chatRouter.post('/ask-ai', accessTokenValidator, wrapRequestHandler(askAiController))
-
-
-
-
+chatRouter.post('/ask-ai', accessTokenValidator, wrapRequestHandler(askAIController))
 
 export default chatRouter

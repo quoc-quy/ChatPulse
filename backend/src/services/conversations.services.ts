@@ -4,6 +4,9 @@ import { ErrorWithStatus } from '~/models/errors'
 import Conversation from '~/models/schemas/conversation.schema'
 import databaseService from '~/services/database.services'
 import socketService from './socket.services'
+import { ContextManager } from './ai/context.manager'
+import aiService from './ai/ai.service'
+import messageService from './message.services'
 
 class ChatService {
   async getConversations(userId: string, limit: number = 20, page: number = 1) {
@@ -320,6 +323,53 @@ class ChatService {
     }
 
     return { success: true }
+  }
+
+  async askChatPulseAI(userId: string, chatContext: any[], question: string) {
+    if (!question || question.trim() === '') {
+      throw new ErrorWithStatus({ message: 'Vui lòng nhập câu hỏi', status: httpStatus.BAD_REQUEST })
+    }
+
+    const userObjId = new ObjectId(userId)
+
+    // 1. QUERIES SONG SONG ĐỂ LẤY TOÀN BỘ SIÊU DỮ LIỆU (Tối ưu tốc độ)
+    const [globalRawData, profile, friends, receivedReqs, sentReqs, blocks] = await Promise.all([
+      messageService.getGlobalRecentMessagesForUser(userId, 10), // Lấy tin nhắn
+      databaseService.users.findOne({ _id: userObjId }), // Lấy Profile
+      // Tìm danh sách bạn bè (bao quát cả 2 trường hợp user_id hoặc friend_id)
+      databaseService.friends
+        .find({
+          $or: [{ user_id: userObjId }, { userId: userObjId }, { friend_id: userObjId }, { friendId: userObjId }]
+        })
+        .toArray(),
+      // Lời mời kết bạn được nhận
+      databaseService.friendRequests
+        .find({
+          $or: [{ receiver_id: userObjId }, { receiverId: userObjId }]
+        })
+        .toArray(),
+      // Lời mời kết bạn đã gửi
+      databaseService.friendRequests
+        .find({
+          $or: [{ sender_id: userObjId }, { senderId: userObjId }]
+        })
+        .toArray(),
+      // Danh sách chặn
+      databaseService.user_blocks
+        .find({
+          $or: [{ blocker_id: userObjId }, { blockerId: userObjId }]
+        })
+        .toArray()
+    ])
+
+    // 2. Định dạng dữ liệu thành chữ để nạp vào não AI
+    const globalContextStr = ContextManager.formatGlobalChatLog(globalRawData)
+    const userMetadataStr = ContextManager.formatUserMetadata(profile, friends, receivedReqs, sentReqs, blocks)
+
+    // 3. Gọi AI và truyền đầy đủ bộ não
+    const answer = await aiService.answerQuestion(globalContextStr, userMetadataStr, chatContext, question)
+
+    return answer
   }
 }
 
