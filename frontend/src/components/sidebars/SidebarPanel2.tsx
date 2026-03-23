@@ -7,6 +7,7 @@ import { conversationsApi } from '@/apis/conversations.api'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
 import AddFriendModal from '@/pages/AddFriendModal'
+import Settings from '../settings/Setting'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -186,6 +187,7 @@ export function SidebarPanel2({
             </>
           )}
           {activeItem.title === 'Danh bạ' && <PhoneBook />}
+          {activeItem.title === 'Cài đặt' && <Settings />}
         </div>
       </SidebarContent>
     </Sidebar>
