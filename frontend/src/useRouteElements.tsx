@@ -11,6 +11,7 @@ import FriendPage from './pages/FriendPage'
 import FriendInvitationPage from './pages/FriendInvitationPage'
 import BlockUserPage from './pages/BlockUserPage'
 import FriendRequest from './pages/FriendRequest'
+import ChangePassword from './pages/ChangePassword'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -71,6 +72,15 @@ export default function useRouteElements() {
           element: [
             <MainLayout>
               <BlockUserPage />
+            </MainLayout>
+          ]
+        },
+        {
+          path: '/settings/change-password',
+          index: true,
+          element: [
+            <MainLayout>
+              <ChangePassword />
             </MainLayout>
           ]
         }

@@ -5,6 +5,12 @@ export interface BodyUpdateProfile extends Omit<User, '_id' | 'created_at' | 'up
   new_password?: string
 }
 
+export interface ChangePasswordBody {
+  old_password: string
+  password: string
+  confirm_password: string
+}
+
 const userApi = {
   getMe() {
     return http.get<User>('/users/me')
@@ -24,6 +30,10 @@ const userApi = {
 
   updateMe(body: BodyUpdateProfile) {
     return http.patch('/users/update-profile', body)
+  },
+
+  changePassword(body: ChangePasswordBody) {
+    return http.put('/users/change-password', body)
   }
 }
 
