@@ -4,16 +4,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
 import { useMutation } from '@tanstack/react-query'
 import authApi from '@/apis/auth.api'
 import { toast } from 'react-toastify'
-import { useContext } from 'react'
+import { useContext, useEffect } from 'react'
 import { AppContext } from '@/context/app.context'
 import backgroundLoginImage from '../../public/background-login.png'
+import userApi from '@/apis/user.api'
+import axios from 'axios'
 
 const getGoogleAuthUrl = () => {
   const { VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_REDIRECT_URI } = import.meta.env
@@ -25,7 +27,8 @@ const getGoogleAuthUrl = () => {
     scope: ['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'].join(
       ' '
     ),
-    prompt: 'consent'
+    prompt: 'consent',
+    access_type: 'offline'
   }
   const queryString = new URLSearchParams(query).toString()
   return `${url}?${queryString}`
@@ -36,8 +39,41 @@ const googleOauthUrl = getGoogleAuthUrl()
 type FormData = Pick<UserSchema, 'email' | 'password'>
 const loginSchema = userRegistrationSchema.pick(['email', 'password'])
 export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const [params] = useSearchParams()
   const { setIsAuthenticated, setProfile } = useContext(AppContext)
   const navigate = useNavigate()
+  useEffect(() => {
+    const access_token = params.get('access_token')
+    const refresh_token = params.get('refresh_token')
+
+    if (access_token && refresh_token) {
+      localStorage.setItem('access_token', access_token)
+      localStorage.setItem('refresh_token', refresh_token)
+
+      const fetchProfile = async () => {
+        try {
+          const response = await axios.get('http://localhost:4000/users/me', {
+            headers: { Authorization: `Bearer ${access_token}` }
+          })
+
+          const user = response.data.user
+
+          localStorage.setItem('profile', JSON.stringify(user))
+
+          setProfile(user)
+          setIsAuthenticated(true)
+
+          toast.success('Đăng nhập thành công')
+          window.location.href = '/'
+        } catch (error) {
+          console.error('Lỗi lấy profile:', error)
+          toast.error('Không thể xác thực thông tin người dùng')
+        }
+      }
+
+      fetchProfile()
+    }
+  }, [params, navigate, setIsAuthenticated, setProfile])
 
   const {
     handleSubmit,

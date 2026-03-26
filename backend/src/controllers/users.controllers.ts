@@ -15,6 +15,9 @@ import userService from '~/services/user.services'
 import { uploadImageBufferToCloudinary } from '~/utils/cloudinary'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
+import { config } from 'dotenv'
+config()
+
 export const loginController = async (req: Request, res: Response) => {
   const user = req.user as User
   const user_id = user._id as ObjectId
@@ -24,6 +27,16 @@ export const loginController = async (req: Request, res: Response) => {
     message: 'Login successfully',
     result
   })
+}
+
+export const oauthController = async (req: Request, res: Response) => {
+  const { code } = req.query
+  const result = await userService.oauth(code as string)
+
+  const urlRedirect = `${process.env.CLIENT_REDIRECT_CALLBACK}?access_token=${
+    result.access_token
+  }&refresh_token=${result.refresh_token}&newUser=${result.newUser}`
+  return res.redirect(urlRedirect)
 }
 
 export const registerController = async (req: Request<ParamsDictionary, any, RegisterReqBody>, res: Response) => {

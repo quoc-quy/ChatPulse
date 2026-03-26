@@ -10,6 +10,7 @@ import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { sendEmailNotification } from '~/utils/email'
 import UserBlocks from '~/models/schemas/userBlocks.schema'
+import axios from 'axios'
 
 class UserService {
   private signAccessToken(user_id: string) {
@@ -93,6 +94,74 @@ class UserService {
       access_token,
       refresh_token,
       user
+    }
+  }
+
+  private async getOauthGoogleToken(code: string) {
+    const body = {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    }
+    const { data } = await axios.post('https://oauth2.googleapis.com/token', body, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    })
+    return data as {
+      access_token: string
+      id_token: string
+    }
+  }
+
+  private async getGoogleUserInfo(access_token: string, id_token: string) {
+    const { data } = await axios.get('https://www.googleapis.com/oauth2/v1/userinfo', {
+      params: {
+        access_token,
+        alt: 'json'
+      },
+      headers: {
+        Authorization: `Bearer ${id_token}`
+      }
+    })
+
+    return data
+  }
+  async oauth(code: string) {
+    const { id_token, access_token } = await this.getOauthGoogleToken(code)
+    const userInfo = await this.getGoogleUserInfo(access_token, id_token)
+
+    const user = await databaseService.users.findOne({ email: userInfo.email })
+    //Tồn tại thì login
+    if (user) {
+      const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user._id.toString())
+
+      await databaseService.refreshTokens.insertOne(
+        new RefreshToken({ token: refresh_token, user_id: new ObjectId(user._id) })
+      )
+      return {
+        access_token,
+        refresh_token,
+        user,
+        newUser: false
+      }
+      //Không tồn tại tạo mới
+    } else {
+      const password = Math.random().toString(36).substring(2, 7)
+      const data = await this.register({
+        email: userInfo.email,
+        userName: userInfo.name,
+        date_of_birth: new Date(),
+        password,
+        confirm_password: password,
+        phone: `temp_${new ObjectId().toString()}`
+      })
+      return {
+        ...data,
+        newUser: true
+      }
     }
   }
 

@@ -11,7 +11,8 @@ import {
   searchUserController,
   uploadAvatarController,
   unBlockUserController,
-  updateMeController
+  updateMeController,
+  oauthController
 } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
@@ -34,6 +35,11 @@ const upload = multer({ storage: multer.memoryStorage() })
  * Header: {Authorization: Bearer <access_token>}
  */
 usersRouter.get('/me', accessTokenValidator, wrapRequestHandler(getMeController))
+
+/**
+ * Login account with Google
+ */
+usersRouter.get('/oauth/google', wrapRequestHandler(oauthController))
 
 /**
  * Update profile
