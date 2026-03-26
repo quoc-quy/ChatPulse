@@ -31,6 +31,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1017.0",
     "@aws-sdk/client-ses": "^3.981.0",
     "@google/generative-ai": "^0.24.1",
     "@types/cors": "^2.8.19",
@@ -48,6 +49,7 @@
     "mongodb": "^7.0.0",
     "multer": "^2.1.1",
     "socket.io": "^4.8.3",
-    "typescript-eslint": "^8.53.0"
+    "typescript-eslint": "^8.53.0",
+    "uuid": "^13.0.0"
   }
 }

@@ -62,5 +62,18 @@ export const messagesApi = {
       params: { limit, unreadCount }, // Truyền thêm unreadCount
       timeout: 60000
     })
+  },
+
+  sendMediaMessage: (convId: string, file: File, replyToId?: string) => {
+    const formData = new FormData()
+    formData.append('convId', convId)
+    formData.append('file', file)
+    if (replyToId) formData.append('replyToId', replyToId)
+
+    return http.post<{ message: string; result: Message }>('/messages/media', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
   }
 }
