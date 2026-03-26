@@ -3,6 +3,7 @@ import type { Message } from '@/types/message.type'
 import { CallMessage } from '../chat/CallMessage'
 import { AppContext } from '@/context/app.context'
 import { useContext, useState } from 'react'
+import { createPortal } from 'react-dom' // <-- IMPORT CREATE PORTAL
 import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
@@ -35,14 +36,13 @@ export function MessageItem({
   const currentUserId = profile?._id || ''
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false) // State cho Modal phóng to ảnh
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
 
   const isCall = message.type === 'call'
   const isRevoked = message.type === 'revoked'
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
 
-  // Phân tích loại Media
   const isMedia = message.type === 'media'
   const ext = isMedia ? message.content.split('.').pop()?.toLowerCase() : ''
   const isImage =
@@ -64,7 +64,6 @@ export function MessageItem({
     return name.trim().charAt(0).toUpperCase()
   }
 
-  // Render trạng thái tin nhắn
   const renderMessageStatus = () => {
     if (!isMe || isCall || isRevoked) return null
     const status = message.status || 'SENT'
@@ -80,7 +79,6 @@ export function MessageItem({
     )
   }
 
-  // Render nội dung tin nhắn đa phương tiện hoặc text
   const renderMessageContent = () => {
     if (isMedia) {
       if (isImage) {
@@ -92,30 +90,32 @@ export function MessageItem({
               onClick={() => setIsImageModalOpen(true)}
               className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
             />
-            {/* Modal Phóng To Ảnh */}
-            {isImageModalOpen && (
-              <div
-                className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm'
-                onClick={() => setIsImageModalOpen(false)}
-              >
-                <div className='relative max-w-[90vw] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200'>
-                  <button
-                    className='absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors bg-white/10 rounded-full'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsImageModalOpen(false)
-                    }}
-                  >
-                    <X className='w-6 h-6' />
-                  </button>
-                  <img
-                    src={message.content}
-                    alt='Zoomed media'
-                    className='max-w-full max-h-[85vh] object-contain rounded-md'
-                  />
-                </div>
-              </div>
-            )}
+            {/* SỬ DỤNG PORTAL ĐỂ RENDER MODAL RA NGOÀI BODY */}
+            {isImageModalOpen &&
+              createPortal(
+                <div
+                  className='fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm'
+                  onClick={() => setIsImageModalOpen(false)}
+                >
+                  <div className='relative max-w-[90vw] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 flex items-center justify-center'>
+                    <button
+                      className='absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors bg-white/10 rounded-full z-50'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsImageModalOpen(false)
+                      }}
+                    >
+                      <X className='w-6 h-6' />
+                    </button>
+                    <img
+                      src={message.content}
+                      alt='Zoomed media'
+                      className='max-w-full max-h-[85vh] object-contain rounded-md'
+                    />
+                  </div>
+                </div>,
+                document.body // <-- Đẩy thẳng ra Body
+              )}
           </>
         )
       } else if (isVideo) {
@@ -125,7 +125,6 @@ export function MessageItem({
       } else if (isAudio) {
         return <audio src={message.content} controls className='max-w-[240px]' />
       } else if (isFile) {
-        // Giao diện File giống Zalo
         const fileName = message.content.split('/').pop()?.split('?')[0] || 'Tài liệu không tên'
         return (
           <div
@@ -138,7 +137,6 @@ export function MessageItem({
               <p className='text-[14px] font-medium truncate' title={fileName}>
                 {fileName}
               </p>
-              {/* Do DB hiện tại không lưu size, tạm để text Đính kèm */}
               <p className='text-[12px] opacity-70 mt-0.5 uppercase'>{ext || 'FILE'}</p>
             </div>
             <a
@@ -177,9 +175,8 @@ export function MessageItem({
     )
   }
 
-  // Logic css background cho bong bóng chat (Nếu là ảnh thì xoá background/padding)
   const getBubbleStyles = () => {
-    if (isImage || isMedia) return 'bg-transparent' // Không dùng nền nếu là ảnh
+    if (isImage || isMedia) return 'bg-transparent'
     if (isMe) return 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm px-4 py-2.5 shadow-sm'
     return 'bg-background border border-border text-foreground rounded-tl-sm px-4 py-2.5 shadow-sm'
   }
@@ -235,7 +232,6 @@ export function MessageItem({
 
                 {renderMessageContent()}
 
-                {/* THỜI GIAN KÈM TRẠNG THÁI */}
                 {isLastInGroup && (
                   <div
                     className={`flex items-center mt-1 ${
