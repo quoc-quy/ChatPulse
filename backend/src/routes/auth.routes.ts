@@ -16,6 +16,7 @@ const authRoute = Router()
  */
 authRoute.post('/login', loginValidator, wrapRequestHandler(loginController))
 
+
 /**
  * Register a new user
  * Body: {email: string, password: string, confirm_password: string, userName: string, date_of_birth: ISOString, phone: number}
