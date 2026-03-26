@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import {
   getMessagesController,
   sendMessageController,
@@ -8,12 +9,32 @@ import {
   deleteMessageController,
   summarizeConversationController,
   deleteMessageForMeController,
-  searchMessagesController
+  searchMessagesController,
+  uploadMediaMessageController
 } from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
 const messageRouter = Router()
+
+// Cấu hình Multer lưu vào RAM
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // Giới hạn 10MB mỗi file để tiết kiệm dung lượng Free Tier
+})
+
+/**
+ * Description: Send Media/File/Audio message
+ * Path: /messages/media
+ * Method: POST
+ * Form-data: convId, type ('media'), file
+ */
+messageRouter.post(
+  '/media',
+  accessTokenValidator,
+  upload.single('file'),
+  wrapRequestHandler(uploadMediaMessageController)
+)
 
 /**
  * Description: Get message history with cursor pagination

@@ -68,7 +68,7 @@ class MessageService {
   async sendMessage(
     userId: string,
     convId: string,
-    type: 'text' | 'sticker' | 'system',
+    type: 'text' | 'sticker' | 'system' | 'media',
     content: string,
     replyToId?: string
   ) {

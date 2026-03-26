@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import httpStatus from '~/constants/httpStatus'
 import { TokenPayload } from '~/models/requests/users.requests'
 import messageService from '~/services/message.services'
+import { uploadFileToS3 } from '~/utils/s3'
 
 export const getMessagesController = async (req: Request, res: Response) => {
   const convId = req.params.convId as string
@@ -129,5 +130,26 @@ export const searchMessagesController = async (req: Request, res: Response) => {
   return res.status(httpStatus.OK).json({
     message: 'Tìm kiếm thành công',
     result
+  })
+}
+
+export const uploadMediaMessageController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { convId, replyToId } = req.body
+  const file = req.file
+
+  if (!file) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Không tìm thấy file tải lên' })
+  }
+
+  // Upload lên S3 và lấy URL về
+  const fileUrl = await uploadFileToS3(file)
+
+  // Lưu tin nhắn vào DB dưới dạng media, tái sử dụng hàm sendMessage
+  const message = await messageService.sendMessage(user_id, convId, 'media', fileUrl, replyToId)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Gửi file thành công',
+    result: message
   })
 }
