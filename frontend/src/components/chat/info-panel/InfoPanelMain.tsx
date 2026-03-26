@@ -14,12 +14,12 @@ import {
   Check,
   Pencil
 } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { AppContext, type ChatItem } from '@/context/app.context'
-import { MediaCollapsible } from './MediaCollapsible'
-import { useContext, useState } from 'react'
+import { MediaCollapsible, type MediaItem } from './MediaCollapsible'
+import { useContext, useState, useEffect } from 'react'
 import { groupApi } from '@/apis/group.api'
+import { messagesApi } from '@/apis/messages.api'
 import { toast } from 'sonner'
 import { ChatAvatar } from '@/components/chat-avatar'
 
@@ -37,6 +37,66 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
   const [tempName, setTempName] = useState(chat.name || '')
   const [isSavingName, setIsSavingName] = useState(false)
   const { profile } = useContext(AppContext)
+
+  // State lưu trữ dữ liệu Media
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [fileItems, setFileItems] = useState<MediaItem[]>([])
+  const [linkItems, setLinkItems] = useState<MediaItem[]>([])
+
+  useEffect(() => {
+    const fetchSharedMedia = async () => {
+      try {
+        // Lấy 100 tin nhắn gần nhất để lọc media
+        const res = await messagesApi.getMessages({ convId: chat.id, limit: 100 })
+        const messages = res.data.result || []
+
+        const medias: MediaItem[] = []
+        const files: MediaItem[] = []
+        const links: MediaItem[] = []
+        const urlRegex = /(https?:\/\/[^\s]+)/g
+
+        messages.forEach((msg: any) => {
+          if (msg.type === 'media') {
+            const ext = msg.content.split('.').pop()?.toLowerCase() || ''
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) || msg.content.startsWith('blob:')
+            const isVideo = ['mp4', 'webm', 'ogg'].includes(ext)
+
+            if (isImage || isVideo) {
+              medias.push({
+                id: msg._id,
+                url: msg.content,
+                isVideo: isVideo
+              })
+            } else {
+              files.push({
+                id: msg._id,
+                url: msg.content,
+                name: msg.content.split('/').pop()?.split('?')[0] || 'Tài liệu không tên'
+              })
+            }
+          } else if (msg.type === 'text') {
+            const foundLinks = msg.content.match(urlRegex)
+            if (foundLinks) {
+              foundLinks.forEach((link: string, idx: number) => {
+                links.push({
+                  id: `${msg._id}-${idx}`,
+                  url: link
+                })
+              })
+            }
+          }
+        })
+
+        setMediaItems(medias)
+        setFileItems(files)
+        setLinkItems(links)
+      } catch (error) {
+        console.error('Lỗi khi tải dữ liệu media:', error)
+      }
+    }
+
+    if (chat.id) fetchSharedMedia()
+  }, [chat.id])
 
   const handleSaveName = async () => {
     if (!tempName.trim() || tempName.trim() === chat.name) {
@@ -171,18 +231,24 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
             icon={ImageIcon}
             emptyText='Chưa có ảnh/video được chia sẻ trong cuộc hội thoại này'
             defaultOpen={!isGroup}
+            type='media'
+            items={mediaItems}
           />
           <MediaCollapsible
             title='File'
             icon={FileText}
             emptyText='Chưa có file được chia sẻ trong cuộc hội thoại này'
             defaultOpen={false}
+            type='file'
+            items={fileItems}
           />
           <MediaCollapsible
             title='Link'
             icon={Link2}
             emptyText='Chưa có link được chia sẻ trong cuộc hội thoại này'
             defaultOpen={false}
+            type='link'
+            items={linkItems}
           />
         </div>
 
