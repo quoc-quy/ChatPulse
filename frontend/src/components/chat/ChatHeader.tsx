@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User, Bot } from 'lucide-react'
 import { AppContext, type ChatItem } from '@/context/app.context'
 import { ChatAvatar } from '../chat-avatar'
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
+import SearchModal from '@/pages/SearchModal'
 
 interface ChatHeaderProps {
   chat: ChatItem
@@ -16,6 +19,8 @@ interface ChatHeaderProps {
 export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, isInfoPanelOpen }: ChatHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const { profile } = useContext(AppContext)
+  const [openUserModal, setOpenUserModal] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
 
   const isAI = chat.type === 'ai'
 
@@ -34,6 +39,17 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
     if (diffHours < 24) return `Truy cập ${diffHours} giờ trước`
     if (diffDays === 1) return 'Truy cập hôm qua'
     return `Truy cập ${diffDays} ngày trước`
+  }
+
+  const handleClickAvatar = () => {
+    if (chat.type === 'direct') {
+      const otherUser = chat.participants?.find((p: any) => p._id !== profile?._id)
+      console.log(otherUser)
+      if (otherUser) {
+        setSelectedUser(otherUser)
+        setOpenUserModal(true)
+      }
+    }
   }
 
   return (
@@ -55,7 +71,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
             <Bot className='h-5 w-5 text-white' />
           </div>
         ) : (
-          <div className='relative scale-90 -mr-1'>
+          <div className='relative scale-90 -mr-1 cursor-pointer hover:scale-95 transition' onClick={handleClickAvatar}>
             <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
           </div>
         )}
@@ -112,6 +128,8 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
           >
             <PanelRight className='h-5 w-5' />
           </button>
+
+          {selectedUser && <SearchModal open={openUserModal} onOpenChange={setOpenUserModal} user={selectedUser} />}
         </div>
       )}
     </header>

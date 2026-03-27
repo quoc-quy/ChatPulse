@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createContext, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react'
 import type { User } from '@/types/user.type'
 import { getProfileFromLS } from '@/utils/auth'
