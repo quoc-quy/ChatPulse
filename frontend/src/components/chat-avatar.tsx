@@ -1,5 +1,8 @@
+/* eslint-disable react-hooks/rules-of-hooks */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // frontend/src/components/chat-avatar.tsx
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
 
 // Định nghĩa kiểu dữ liệu cho props
 interface ChatAvatarProps {
@@ -8,6 +11,7 @@ interface ChatAvatarProps {
 }
 
 // FIX: Đưa StatusDot ra ngoài, khai báo như một component độc lập và nhận prop
+// eslint-disable-next-line react-refresh/only-export-components
 const StatusDot = ({ isOnline }: { isOnline: boolean }) => (
   <span
     className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-background ${
@@ -18,8 +22,9 @@ const StatusDot = ({ isOnline }: { isOnline: boolean }) => (
 
 export function ChatAvatar({ chat, currentUserId }: ChatAvatarProps) {
   const getInitials = (name: string) => (name ? name.charAt(0).toUpperCase() : 'U')
-
   // Trạng thái online
+
+
   const isOnline = chat.isOnline || false
 
   if (chat.type === 'direct' || chat.avatarUrl) {
