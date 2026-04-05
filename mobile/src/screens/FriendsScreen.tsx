@@ -30,6 +30,7 @@ import {
   Send,
   X,
   UserCircle,
+  Phone,
 } from "lucide-react-native";
 import { FriendItem } from "../components/friends/FriendItem";
 import { api } from "../apis/api";
@@ -73,7 +74,16 @@ const darkColors = {
   sectionHeaderBg: "#0D1428",
 };
 
-// ─── Debounce hook ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Kiểm tra input có phải số điện thoại không (toàn số, ít nhất 9 ký tự) */
+function isPhoneNumber(text: string): boolean {
+  const trimmed = text.trim();
+  // Nếu nhập từ 1 chữ số trở lên và toàn là số, coi như đang tìm theo SĐT
+  return /^[0-9+]+$/.test(trimmed) && trimmed.length > 0;
+}
+
+// ─── Debounce hook ────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -90,7 +100,6 @@ interface SearchUser {
   phone?: string;
   avatar?: string;
   bio?: string;
-  // friendStatus được tính ở frontend dựa trên danh sách bạn bè & pending requests
   friendStatus?: "friend" | "pending_sent" | "pending_received" | "none";
 }
 
@@ -150,10 +159,10 @@ const SearchResultItem = React.memo(
               disabled={isSending}
             >
               {isSending ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <UserPlus size={14} color={COLORS.white} />
+                  <UserPlus size={14} color="#FFFFFF" />
                   <Text style={searchStyles.btnAddText}>Kết bạn</Text>
                 </>
               )}
@@ -169,12 +178,9 @@ const SearchResultItem = React.memo(
           { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
         ]}
       >
-        {/* Avatar */}
         <View style={searchStyles.avatar}>
           <Text style={searchStyles.avatarText}>{initials}</Text>
         </View>
-
-        {/* Info */}
         <View style={searchStyles.info}>
           <Text
             style={[searchStyles.name, { color: COLORS.foreground }]}
@@ -192,8 +198,6 @@ const SearchResultItem = React.memo(
             </Text>
           ) : null}
         </View>
-
-        {/* Action Button */}
         {renderButton()}
       </View>
     );
@@ -204,6 +208,7 @@ const SearchResultItem = React.memo(
 export default function FriendsScreen({ navigation }: any) {
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
+
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
@@ -213,14 +218,35 @@ export default function FriendsScreen({ navigation }: any) {
   // Search states
   const [searchText, setSearchText] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState("");
+
+  /**
+   * searchMode:
+   *  "friends" → lọc bạn bè local theo tên (không gọi API)
+   *  "phone"   → gọi API tìm người lạ bằng SĐT
+   */
+  const [searchMode, setSearchMode] = useState<"friends" | "phone">("friends");
+
+  const [phoneSearchResults, setPhoneSearchResults] = useState<SearchUser[]>(
+    [],
+  );
+  const [phoneSearchLoading, setPhoneSearchLoading] = useState(false);
+  const [phoneSearchError, setPhoneSearchError] = useState("");
+
   const [sendingId, setSendingId] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(searchText, 400);
   const inputRef = useRef<TextInput>(null);
 
+  useEffect(() => {
+    if (isPhoneNumber(searchText)) {
+      setSearchMode("phone");
+    } else {
+      setSearchMode("friends");
+      // Khi quay về mode friends, xóa kết quả tìm kiếm phone cũ
+      setPhoneSearchResults([]);
+      setPhoneSearchError("");
+    }
+  }, [searchText]);
   // ── Fetch main data ────────────────────────────────────────────────────────
   const fetchData = async (isRefreshing = false) => {
     if (!isRefreshing) setLoading(true);
@@ -252,70 +278,96 @@ export default function FriendsScreen({ navigation }: any) {
     }, []),
   );
 
-  // ── Search logic ───────────────────────────────────────────────────────────
-  // Tính friendStatus dựa trên dữ liệu local đã fetch
+  // ── Tính friendStatus từ dữ liệu local ────────────────────────────────────
   const computeFriendStatus = useCallback(
     (userId: string): SearchUser["friendStatus"] => {
-      const isFriend = friends.some((f) => (f._id || f.user?._id) === userId);
-      if (isFriend) return "friend";
-
-      const hasSent = sentRequests.some(
-        (r) => (r.receiver_id || r.receiver?._id || r.receiver) === userId,
-      );
-      if (hasSent) return "pending_sent";
-
-      const hasReceived = requests.some(
-        (r) => (r.sender_id || r.sender?._id || r.sender) === userId,
-      );
-      if (hasReceived) return "pending_received";
-
+      if (friends.some((f) => (f._id || f.user?._id) === userId))
+        return "friend";
+      if (
+        sentRequests.some(
+          (r) => (r.receiver_id || r.receiver?._id || r.receiver) === userId,
+        )
+      )
+        return "pending_sent";
+      if (
+        requests.some(
+          (r) => (r.sender_id || r.sender?._id || r.sender) === userId,
+        )
+      )
+        return "pending_received";
       return "none";
     },
     [friends, sentRequests, requests],
   );
 
+  // ── Chuyển chế độ search tự động khi input thay đổi ───────────────────────
+  // Tìm đến đoạn useEffect gọi API khi đang ở chế độ phone
   useEffect(() => {
-    if (!debouncedSearch.trim()) {
-      setSearchResults([]);
-      setSearchError("");
+    // 1. Chỉ chạy nếu ở chế độ phone và có giá trị search
+    if (searchMode !== "phone" || !debouncedSearch.trim()) {
+      setPhoneSearchResults([]);
+      setPhoneSearchError("");
       return;
     }
 
-    const doSearch = async () => {
-      setSearchLoading(true);
-      setSearchError("");
+    const doPhoneSearch = async () => {
+      const term = debouncedSearch.trim();
+
+      // 2. CHỈNH SỬA TẠI ĐÂY: Chỉ gọi API nếu nhập đủ số (ví dụ ít nhất 10 số)
+      // Nếu chưa đủ số, chúng ta xóa kết quả cũ và không báo lỗi để người dùng nhập tiếp
+      if (term.length < 10) {
+        setPhoneSearchResults([]);
+        setPhoneSearchError("");
+        return;
+      }
+
+      setPhoneSearchLoading(true);
+      setPhoneSearchError("");
       try {
-        const res = await friendApi.searchUsers(debouncedSearch.trim());
+        const res = await friendApi.searchUsers(term);
         const users: SearchUser[] = (res.data.result?.users || []).map(
-          (u: any) => ({
-            ...u,
-            friendStatus: computeFriendStatus(u._id),
-          }),
+          (u: any) => ({ ...u, friendStatus: computeFriendStatus(u._id) }),
         );
-        setSearchResults(users);
-        if (users.length === 0) setSearchError("Không tìm thấy người dùng");
-      } catch (err) {
-        setSearchError("Có lỗi xảy ra, vui lòng thử lại");
+
+        // 3. CHỈNH SỬA TẠI ĐÂY: Lọc thủ công một lần nữa để chắc chắn
+        // chỉ lấy user có số điện thoại khớp hoàn toàn (Exact Match)
+        const exactMatchUsers = users.filter((u) => u.phone === term);
+
+        setPhoneSearchResults(exactMatchUsers);
+
+        if (exactMatchUsers.length === 0)
+          setPhoneSearchError(
+            "Không tìm thấy người dùng với số điện thoại này",
+          );
+      } catch {
+        setPhoneSearchError("Có lỗi xảy ra, vui lòng thử lại");
       } finally {
-        setSearchLoading(false);
+        setPhoneSearchLoading(false);
       }
     };
 
-    doSearch();
-  }, [debouncedSearch, computeFriendStatus]);
+    doPhoneSearch();
+  }, [debouncedSearch, searchMode, computeFriendStatus]);
 
-  // ── Add / Cancel friend from search ───────────────────────────────────────
-  const handleAddFriend = async (userId: string, userName: string) => {
+  // ── Lọc bạn bè local (chế độ "friends") ──────────────────────────────────
+  const filteredFriends = useMemo(() => {
+    if (searchMode !== "friends" || !searchText.trim()) return [];
+    const q = searchText.trim().toLowerCase();
+    return friends.filter((f) =>
+      (f.fullName || f.userName || "").toLowerCase().includes(q),
+    );
+  }, [friends, searchText, searchMode]);
+
+  // ── Gửi lời mời kết bạn ───────────────────────────────────────────────────
+  const handleAddFriend = async (userId: string, _userName: string) => {
     setSendingId(userId);
     try {
       await friendApi.sendFriendRequest(userId);
-      // Cập nhật status ngay lập tức trong kết quả tìm kiếm
-      setSearchResults((prev) =>
+      setPhoneSearchResults((prev) =>
         prev.map((u) =>
           u._id === userId ? { ...u, friendStatus: "pending_sent" } : u,
         ),
       );
-      // Reload sent requests để đồng bộ
       const sentRes = await api.get("/friends/requests/pending");
       setSentRequests(sentRes.data.result || []);
     } catch (err: any) {
@@ -328,8 +380,8 @@ export default function FriendsScreen({ navigation }: any) {
     }
   };
 
-  const handleCancelFromSearch = async (userId: string, userName: string) => {
-    // Tìm requestId từ sentRequests
+  // ── Hủy lời mời ───────────────────────────────────────────────────────────
+  const handleCancelFromSearch = async (userId: string, _userName: string) => {
     const req = sentRequests.find(
       (r) =>
         r.receiver_id === userId ||
@@ -343,7 +395,7 @@ export default function FriendsScreen({ navigation }: any) {
     setSendingId(userId);
     try {
       await friendApi.cancelRequest(req._id || req.id);
-      setSearchResults((prev) =>
+      setPhoneSearchResults((prev) =>
         prev.map((u) =>
           u._id === userId ? { ...u, friendStatus: "none" } : u,
         ),
@@ -360,16 +412,17 @@ export default function FriendsScreen({ navigation }: any) {
     }
   };
 
-  // ── Clear search ───────────────────────────────────────────────────────────
+  // ── Clear search ──────────────────────────────────────────────────────────
   const clearSearch = () => {
     setSearchText("");
-    setSearchResults([]);
-    setSearchError("");
+    setPhoneSearchResults([]);
+    setPhoneSearchError("");
+    setSearchMode("friends");
     setIsSearchFocused(false);
     Keyboard.dismiss();
   };
 
-  // ── Delete friend ──────────────────────────────────────────────────────────
+  // ── Xóa bạn ──────────────────────────────────────────────────────────────
   const handleDeleteFriend = (friendId: string, name: string) => {
     Alert.alert(
       "Xóa bạn bè",
@@ -385,7 +438,7 @@ export default function FriendsScreen({ navigation }: any) {
               profileStatsEvents.emit({ type: "friends_delta", delta: -1 });
               Alert.alert("Thành công", `Đã xóa ${name} khỏi danh sách bạn bè`);
               fetchData(true);
-            } catch (error: any) {
+            } catch {
               Alert.alert(
                 "Lỗi",
                 "Không thể xóa bạn lúc này. Vui lòng thử lại sau.",
@@ -397,7 +450,7 @@ export default function FriendsScreen({ navigation }: any) {
     );
   };
 
-  // ── Open chat with friend ─────────────────────────────────────────────────
+  // ── Mở chat ───────────────────────────────────────────────────────────────
   const handleOpenChat = async (userId: string, userName: string) => {
     try {
       const res = await createDirectConversation(userId);
@@ -409,16 +462,14 @@ export default function FriendsScreen({ navigation }: any) {
         targetUserId: userId,
         unreadCount: 0,
       });
-    } catch (error: any) {
+    } catch {
       Alert.alert("Lỗi", "Không thể mở cuộc trò chuyện. Vui lòng thử lại.");
     }
   };
 
-  // ── Grouped friends (A-Z) ──────────────────────────────────────────────────
+  // ── Grouped friends A-Z ───────────────────────────────────────────────────
   const groupedFriends = useMemo(() => {
-    // Khi đang search, không cần groupedFriends
     if (isSearchFocused) return [];
-
     const groups: { [key: string]: any[] } = {};
     friends.forEach((friend) => {
       const name = friend.fullName || friend.userName || "U";
@@ -426,7 +477,6 @@ export default function FriendsScreen({ navigation }: any) {
       if (!groups[firstLetter]) groups[firstLetter] = [];
       groups[firstLetter].push(friend);
     });
-
     return Object.keys(groups)
       .sort()
       .map((letter) => ({
@@ -437,7 +487,7 @@ export default function FriendsScreen({ navigation }: any) {
       }));
   }, [friends, isSearchFocused]);
 
-  // ── Static Menu ────────────────────────────────────────────────────────────
+  // ── Static Menu ───────────────────────────────────────────────────────────
   const StaticMenu = () => (
     <View style={[styles.staticMenu, { backgroundColor: COLORS.card }]}>
       <TouchableOpacity
@@ -492,12 +542,132 @@ export default function FriendsScreen({ navigation }: any) {
     </View>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render search panel ───────────────────────────────────────────────────
+  const renderSearchPanel = () => {
+    // Chế độ SĐT: tìm người lạ qua API
+    if (searchMode === "phone") {
+      return (
+        <KeyboardAvoidingView
+          style={[styles.searchPanel, { backgroundColor: COLORS.background }]}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View
+            style={[
+              styles.phoneBanner,
+              { backgroundColor: COLORS.searchFocusedBg },
+            ]}
+          >
+            <Phone size={14} color={COLORS.primary} />
+            <Text style={[styles.phoneBannerText, { color: COLORS.primary }]}>
+              Tìm kiếm bằng số điện thoại
+            </Text>
+          </View>
+
+          {phoneSearchLoading && (
+            <View style={styles.searchPlaceholder}>
+              <ActivityIndicator color={COLORS.primary} size="large" />
+              <Text style={styles.searchLoadingText}>Đang tìm kiếm...</Text>
+            </View>
+          )}
+
+          {!phoneSearchLoading &&
+            phoneSearchError !== "" &&
+            searchText.trim().length >= 10 && (
+              <View style={styles.searchPlaceholder}>
+                <UserCircle size={44} color={COLORS.border} />
+                <Text style={styles.searchPlaceholderText}>
+                  {phoneSearchError}
+                </Text>
+              </View>
+            )}
+
+          {!phoneSearchLoading && phoneSearchResults.length > 0 && (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.searchResultsContent}
+            >
+              <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
+                {phoneSearchResults.length} kết quả
+              </Text>
+              {phoneSearchResults.map((user) => (
+                <SearchResultItem
+                  key={user._id}
+                  user={user}
+                  onAddFriend={handleAddFriend}
+                  onCancelRequest={handleCancelFromSearch}
+                  sendingId={sendingId}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </KeyboardAvoidingView>
+      );
+    }
+
+    // Chế độ tên: lọc bạn bè local
+    return (
+      <KeyboardAvoidingView
+        style={[styles.searchPanel, { backgroundColor: COLORS.background }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        {/* Chưa nhập gì */}
+        {!searchText.trim() && (
+          <View style={styles.searchPlaceholder}>
+            <Search size={40} color={COLORS.border} />
+            <Text style={styles.searchPlaceholderText}>
+              Nhập tên để tìm bạn bè{"\n"}hoặc số điện thoại để kết bạn mới
+            </Text>
+          </View>
+        )}
+
+        {/* Đang nhập tên */}
+        {searchText.trim() !== "" && (
+          <>
+            {filteredFriends.length > 0 ? (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.searchResultsContent}
+              >
+                <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
+                  {filteredFriends.length} bạn bè
+                </Text>
+                {filteredFriends.map((friend) => (
+                  <FriendItem
+                    key={friend._id}
+                    item={friend}
+                    type="friend"
+                    onDelete={handleDeleteFriend}
+                    onChat={handleOpenChat}
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.searchPlaceholder}>
+                <UserCircle size={44} color={COLORS.border} />
+                <Text style={styles.searchPlaceholderText}>
+                  Không tìm thấy bạn bè tên "{searchText}"
+                </Text>
+                <Text style={[styles.searchHint, { color: COLORS.muted }]}>
+                  Nhập số điện thoại để tìm và kết bạn mới
+                </Text>
+              </View>
+            )}
+          </>
+        )}
+      </KeyboardAvoidingView>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: COLORS.background }]}
     >
-      {/* Header — luôn hiển thị, không bao giờ bị che */}
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -514,21 +684,28 @@ export default function FriendsScreen({ navigation }: any) {
             },
           ]}
         >
-          <Search
-            size={18}
-            color={isSearchFocused ? COLORS.primary : COLORS.muted}
-          />
+          {/* Icon thay đổi theo chế độ */}
+          {searchMode === "phone" ? (
+            <Phone size={18} color={COLORS.primary} />
+          ) : (
+            <Search
+              size={18}
+              color={isSearchFocused ? COLORS.primary : COLORS.muted}
+            />
+          )}
+
           <TextInput
             ref={inputRef}
-            placeholder="Tìm kiếm bạn bè..."
+            placeholder="Tìm tên bạn bè hoặc số điện thoại..."
             placeholderTextColor={COLORS.muted}
             style={[styles.searchInput, { color: COLORS.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
             onFocus={() => setIsSearchFocused(true)}
+            keyboardType="default"
             returnKeyType="search"
           />
-          {/* Nút X clear — chỉ xóa text, không thoát search */}
+
           {searchText.length > 0 && (
             <TouchableOpacity
               onPress={() => setSearchText("")}
@@ -539,7 +716,6 @@ export default function FriendsScreen({ navigation }: any) {
           )}
         </View>
 
-        {/* Nút Hủy — thoát hẳn search mode */}
         {isSearchFocused ? (
           <TouchableOpacity style={styles.cancelBtn} onPress={clearSearch}>
             <Text style={[styles.cancelText, { color: COLORS.primary }]}>
@@ -553,70 +729,10 @@ export default function FriendsScreen({ navigation }: any) {
         )}
       </View>
 
-      {/*
-        Dùng flex layout: header cố định trên cùng,
-        phần body bên dưới switch giữa search panel và friend list.
-        KHÔNG dùng absolute để tránh che header.
-      */}
-
-      {/* ── Search Panel ── */}
+      {/* Body */}
       {isSearchFocused ? (
-        <KeyboardAvoidingView
-          style={[styles.searchPanel, { backgroundColor: COLORS.card }]}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          {/* Chưa nhập gì */}
-          {!searchText.trim() && (
-            <View style={styles.searchPlaceholder}>
-              <Search size={40} color={COLORS.border} />
-              <Text style={styles.searchPlaceholderText}>
-                Nhập tên hoặc số điện thoại để tìm kiếm
-              </Text>
-            </View>
-          )}
-
-          {/* Đang tìm kiếm */}
-          {searchText.trim() !== "" && searchLoading && (
-            <View style={styles.searchPlaceholder}>
-              <ActivityIndicator color={COLORS.primary} size="large" />
-              <Text style={styles.searchLoadingText}>Đang tìm kiếm...</Text>
-            </View>
-          )}
-
-          {/* Không tìm thấy */}
-          {searchText.trim() !== "" && !searchLoading && searchError !== "" && (
-            <View style={styles.searchPlaceholder}>
-              <UserCircle size={44} color={COLORS.border} />
-              <Text style={styles.searchPlaceholderText}>{searchError}</Text>
-            </View>
-          )}
-
-          {/* Kết quả */}
-          {!searchLoading && searchResults.length > 0 && (
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.searchResultsContent}
-            >
-              <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
-                {searchResults.length} kết quả
-              </Text>
-              {searchResults.map((user) => (
-                <SearchResultItem
-                  key={user._id}
-                  user={user}
-                  onAddFriend={handleAddFriend}
-                  onCancelRequest={handleCancelFromSearch}
-                  sendingId={sendingId}
-                />
-              ))}
-            </ScrollView>
-          )}
-        </KeyboardAvoidingView>
+        renderSearchPanel()
       ) : (
-        /* ── Friend List Panel ── */
         <>
           {loading ? (
             <ActivityIndicator
@@ -674,8 +790,6 @@ export default function FriendsScreen({ navigation }: any) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -693,22 +807,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "transparent",
   },
-  searchBarFocused: {
-    borderWidth: 1.5,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 15,
-  },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 15 },
   addBtn: { marginLeft: 12 },
   cancelBtn: { marginLeft: 12 },
-  cancelText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  cancelText: { fontSize: 15, fontWeight: "600" },
 
-  // Static menu
   staticMenu: { paddingVertical: 8 },
   menuItem: {
     flexDirection: "row",
@@ -736,43 +839,30 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "bold" },
 
-  // Section list
-  sectionHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
+  sectionHeader: { paddingHorizontal: 16, paddingVertical: 4 },
   sectionTitle: { fontSize: 13, fontWeight: "700" },
   listContent: { paddingBottom: 20 },
   emptyText: { textAlign: "center", marginTop: 40 },
 
-  // Search panel (flex, nằm dưới header)
-  searchPanel: {
-    flex: 1,
-  },
-  searchResultsContent: {
-    paddingBottom: 32,
-  },
+  searchPanel: { flex: 1 },
+  searchResultsContent: { paddingBottom: 32 },
   searchPlaceholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
     paddingBottom: 80,
+    paddingHorizontal: 32,
   },
   searchPlaceholderText: {
     fontSize: 14,
     color: "#94A3B8",
     textAlign: "center",
-    paddingHorizontal: 40,
   },
-  searchLoadingText: {
-    fontSize: 14,
-    color: "#64748B",
-    marginTop: 8,
-  },
+  searchLoadingText: { fontSize: 14, color: "#64748B", marginTop: 8 },
+  searchHint: { fontSize: 12, textAlign: "center", marginTop: 4 },
   resultHeader: {
     fontSize: 12,
-    color: "#94A3B8",
     fontWeight: "600",
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -780,9 +870,19 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  phoneBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 8,
+  },
+  phoneBannerText: { fontSize: 13, fontWeight: "600" },
 });
 
-// Search result item styles
 const searchStyles = StyleSheet.create({
   item: {
     flexDirection: "row",
@@ -799,25 +899,10 @@ const searchStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  info: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  sub: {
-    fontSize: 13,
-    color: "#94A3B8",
-    marginTop: 2,
-  },
-  // Buttons
+  avatarText: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
+  info: { flex: 1, marginLeft: 14 },
+  name: { fontSize: 16, fontWeight: "600" },
+  sub: { fontSize: 13, color: "#94A3B8", marginTop: 2 },
   btnAdd: {
     flexDirection: "row",
     alignItems: "center",
@@ -829,11 +914,7 @@ const searchStyles = StyleSheet.create({
     minWidth: 80,
     justifyContent: "center",
   },
-  btnAddText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  btnAddText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
   btnPending: {
     backgroundColor: "#F1F5F9",
     paddingHorizontal: 14,
@@ -842,11 +923,7 @@ const searchStyles = StyleSheet.create({
     minWidth: 80,
     alignItems: "center",
   },
-  btnPendingText: {
-    color: "#64748B",
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  btnPendingText: { color: "#64748B", fontSize: 13, fontWeight: "600" },
   btnFriend: {
     flexDirection: "row",
     alignItems: "center",
@@ -858,9 +935,5 @@ const searchStyles = StyleSheet.create({
     minWidth: 80,
     justifyContent: "center",
   },
-  btnFriendText: {
-    color: "#22C55E",
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  btnFriendText: { color: "#22C55E", fontSize: 13, fontWeight: "600" },
 });
