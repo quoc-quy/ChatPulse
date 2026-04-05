@@ -1,4 +1,3 @@
-// src/services/friend.services.ts
 import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
 import FriendRequest from '~/models/schemas/friendRequest.schema'
@@ -7,6 +6,7 @@ import UserBlocks from '~/models/schemas/userBlocks.schema'
 import { FriendStatus } from '~/constants/friendStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
+import messageService from './message.services'
 
 class FriendService {
   async createFriendRequest(sender_id: string, receiver_id: string) {
@@ -70,6 +70,45 @@ class FriendService {
         new Friend({ user_id: new ObjectId(sender_id), friend_id: new ObjectId(user_id) })
       ])
     ])
+
+    // TẠO HỘI THOẠI & GỬI TIN NHẮN HỆ THỐNG
+    const userObjId = new ObjectId(user_id)
+    const senderObjId = new ObjectId(sender_id)
+
+    // 1. Kiểm tra xem 2 người đã có cuộc trò chuyện 1-1 chưa
+    let conversation = await databaseService.conversations.findOne({
+      type: 'direct',
+      participants: { $all: [userObjId, senderObjId] }
+    })
+
+    // 2. Nếu chưa có, tiến hành tạo mới
+    if (!conversation) {
+      const newConv = {
+        type: 'direct',
+        participants: [userObjId, senderObjId],
+        members: [
+          { userId: userObjId, role: 'member', joinedAt: new Date() },
+          { userId: senderObjId, role: 'member', joinedAt: new Date() }
+        ],
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+      const insertResult = await databaseService.conversations.insertOne(newConv as any)
+      conversation = { _id: insertResult.insertedId, ...newConv } as any
+    }
+
+    // 3. Gửi tin nhắn chào mừng hệ thống
+    // messageService sẽ tự động cập nhật last_message_id và bắn Socket 'receive_message'
+    await messageService.sendMessage(
+      user_id, // Lấy người chấp nhận làm sender đại diện
+      conversation!._id.toString(),
+      'system',
+      'Hai bạn đã trở thành bạn bè. Hãy gửi lời chào cho nhau nhé!'
+    )
+    // ==============================================================
+    // KẾT THÚC PHẦN THÊM MỚI
+    // ==============================================================
+
     return { message: 'Đã trở thành bạn bè' }
   }
 
