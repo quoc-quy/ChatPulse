@@ -146,7 +146,6 @@ class ChatService {
   }
 
   async createConversation(userId: string, type: 'direct' | 'group', members: string[], name?: string) {
-    // ... Giữ nguyên như cũ của bạn ...
     const userObjectId = new ObjectId(userId)
     const memberObjectIds = members.map((id) => new ObjectId(id))
     const participants = [userObjectId, ...memberObjectIds]
@@ -177,6 +176,18 @@ class ChatService {
         created_at: new Date()
       })
       const result = await databaseService.conversations.insertOne(newConversation)
+
+      // ==========================================================
+      // BẮT ĐẦU THÊM: Gửi tin nhắn hệ thống thông báo tạo nhóm
+      // ==========================================================
+      await messageService.sendMessage(
+        userId,
+        result.insertedId.toString(),
+        'system',
+        `Nhóm "${name || 'Chưa đặt tên'}" đã được tạo. Chào mừng tất cả thành viên!`
+      )
+      // ==========================================================
+
       return { ...newConversation, _id: result.insertedId }
     }
   }
