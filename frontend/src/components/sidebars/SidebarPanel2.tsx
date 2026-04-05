@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
 import { Loader2, UserPlus, Bot } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
@@ -8,6 +9,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
 import AddFriendModal from '@/pages/AddFriendModal'
 import Settings from '../settings/Setting'
+import { useMutation } from '@tanstack/react-query'
+import searchApi from '@/apis/search.api'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -32,6 +35,8 @@ export function SidebarPanel2({
   const location = useLocation()
   const [open, setOpen] = React.useState(false)
   const { setOpenMobile, isMobile } = useSidebar()
+  const [keyword, setKeyword] = React.useState('')
+  const [searchResults, setSearchResults] = React.useState<any[]>([])
 
   const handleChatSelect = async (chatId: string) => {
     if (chatId === 'ai-chatbot') {
@@ -89,9 +94,12 @@ export function SidebarPanel2({
       console.error('Lỗi khi đánh dấu xem:', error)
     }
   }
+  const searchUserMutation = useMutation({
+    mutationFn: (userName: string) => searchApi.advancedSearch({ userName })
+  })
 
   return (
-    <Sidebar collapsible='none' className='flex flex-1 overflow-hidden bg-background'>
+    <Sidebar collapsible='none' className='flex flex-1 overflow-hidden bg-background relative'>
       <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4 shadow-sm'>
         <div className='flex w-full items-center justify-between'>
           <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
@@ -103,12 +111,65 @@ export function SidebarPanel2({
           </button>
         </div>
         <AddFriendModal open={open} onOpenChange={setOpen} />
-        <SidebarInput placeholder='Tìm kiếm...' />
+        <SidebarInput
+          placeholder='Tìm kiếm...'
+          value={keyword}
+          onChange={(e) => {
+            const value = e.target.value
+            setKeyword(value)
+
+            if (!value.trim()) {
+              setSearchResults([])
+              return
+            }
+
+            searchUserMutation.mutate(value, {
+              onSuccess: (res) => {
+                setSearchResults(res.data.result.users || [])
+              }
+            })
+          }}
+        />
       </SidebarHeader>
 
-      <SidebarContent className='overflow-hidden'>
+      {keyword && (
+        <div className='absolute top-[125px] left-0 w-full h-[calc(100%-80px)] dark:bg-background z-50 overflow-y-auto'>
+          {searchUserMutation.isPending ? (
+            <div className='flex justify-center items-center py-6'>
+              <Loader2 className='animate-spin' />
+            </div>
+          ) : searchResults.length === 0 ? (
+            <div className='text-center py-6 text-sm text-muted-foreground'>Không tìm thấy người dùng</div>
+          ) : (
+            searchResults.map((user: any) => (
+              <div
+                key={user._id}
+                className='flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-sidebar-accent cursor-pointer'
+              >
+                {/* Avatar */}
+                <div className='h-10 w-10 rounded-full overflow-hidden'>
+                  {user.avatar ? (
+                    <img src={user.avatar} className='h-full w-full object-cover' />
+                  ) : (
+                    <div className='flex items-center justify-center h-full w-full bg-blue-100 text-blue-600 font-semibold'>
+                      {user.userName?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className='flex-1'>
+                  <div className='font-medium'>{user.userName}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      <SidebarContent className='overflow-hidden relative'>
         <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
-          {activeItem.title === 'Tin nhắn' && (
+          {!keyword && activeItem.title === 'Tin nhắn' && (
             <>
               {/* PHẦN GHIM CỐ ĐỊNH: CHATBOT AI */}
               <div
@@ -186,8 +247,8 @@ export function SidebarPanel2({
               )}
             </>
           )}
-          {activeItem.title === 'Danh bạ' && <PhoneBook />}
-          {activeItem.title === 'Cài đặt' && <Settings />}
+          {!keyword && activeItem.title === 'Danh bạ' && <PhoneBook />}
+          {!keyword && activeItem.title === 'Cài đặt' && <Settings />}
         </div>
       </SidebarContent>
     </Sidebar>
