@@ -6,6 +6,9 @@ import httpStatus from '~/constants/httpStatus'
 export const addMembersController = async (req: Request, res: Response) => {
   const id = req.params.id as string
 
+  // THÊM DÒNG NÀY: Lấy ID của user đang thực hiện thêm thành viên
+  const userId = req.decoded_authorization?.user_id as string
+
   // Hứng member_ids an toàn
   const member_ids = (req.body.member_ids as string[]) || []
 
@@ -15,10 +18,9 @@ export const addMembersController = async (req: Request, res: Response) => {
     })
   }
 
-  // 1. Hứng kết quả trả về từ service
-  const updatedGroup = await groupService.addMembers(id, member_ids)
+  // SỬA DÒNG NÀY: Truyền thêm userId vào hàm addMembers
+  const updatedGroup = await groupService.addMembers(id, member_ids, userId)
 
-  // 2. Trả kèm updatedGroup (hoặc bạn có thể đặt tên key là data/result tùy ý)
   return res.status(httpStatus.OK).json({
     message: 'Thêm thành viên thành công',
     result: updatedGroup

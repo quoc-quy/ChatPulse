@@ -1,9 +1,10 @@
 import { ObjectId } from 'mongodb'
 import databaseService from '~/services/database.services'
 import socketService from './socket.services'
+import messageService from './message.services'
 
 class GroupService {
-  async addMembers(conversationId: string, memberIds: string[]) {
+  async addMembers(conversationId: string, memberIds: string[], inviterId: string) {
     const conversationObjectId = new ObjectId(conversationId)
     const objectMemberIds = memberIds.map((id) => new ObjectId(id))
 
@@ -23,6 +24,23 @@ class GroupService {
         returnDocument: 'after'
       }
     )
+
+    // ==========================================================
+    // BẮT ĐẦU THÊM: Gửi thông báo có thành viên mới
+    // ==========================================================
+    // Tìm tên của những người vừa được thêm
+    const addedUsers = await databaseService.users.find({ _id: { $in: objectMemberIds } }).toArray()
+    const addedNames = addedUsers.map((u) => u.userName || 'Thành viên mới').join(', ')
+
+    if (addedNames) {
+      await messageService.sendMessage(
+        inviterId, // Lấy ID của người thao tác thêm thành viên
+        conversationId,
+        'system',
+        `${addedNames} đã được thêm vào nhóm.`
+      )
+    }
+    // ==========================================================
 
     return result
   }
