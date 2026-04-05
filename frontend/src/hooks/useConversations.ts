@@ -64,11 +64,19 @@ export function useConversations() {
             prefix = ''
           } else if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
             content = '[Hình ảnh/Video]'
+          } else if (conv.lastMessage.type === 'system') {
+            // Xử lý không hiển thị tiền tố cho tin nhắn hệ thống
+            prefix = ''
           } else if (!content) {
             content = 'Tin nhắn'
           }
 
-          if (conv.lastMessage.type !== 'revoked' && (conv.lastMessage.sender_id || conv.lastMessage.senderId)) {
+          //  Thêm điều kiện conv.lastMessage.type !== 'system'
+          if (
+            conv.lastMessage.type !== 'revoked' &&
+            conv.lastMessage.type !== 'system' &&
+            (conv.lastMessage.sender_id || conv.lastMessage.senderId)
+          ) {
             const senderId = conv.lastMessage.sender_id || conv.lastMessage.senderId
             const isMe = String(senderId) === String(profile._id)
             if (isMe) {
@@ -130,13 +138,17 @@ export function useConversations() {
       setChatList((prevChats) => {
         const convIdStr = String(newMessage.conversationId)
         const existingChatIndex = prevChats.findIndex((c) => String(c.id) === convIdStr)
-        let updatedChats = [...prevChats]
+        const updatedChats = [...prevChats]
 
         const senderIdStr = String(newMessage.sender?._id || newMessage.senderId)
         const isMe = senderIdStr === String(profile._id)
         let prefix = isMe ? 'Bạn: ' : ''
         if (!isMe && newMessage.type === 'group') {
           prefix = `${newMessage.sender?.userName || newMessage.sender?.fullName || 'Thành viên'}: `
+        }
+
+        if (newMessage.type === 'system') {
+          prefix = ''
         }
 
         let previewContent = newMessage.content
