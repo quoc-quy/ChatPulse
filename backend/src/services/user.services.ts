@@ -37,6 +37,19 @@ class UserService {
     })
   }
 
+  private signForgotPasswordToken(user_id: string) {
+    return signToken({
+      payload: {
+        user_id,
+        token_type: TokenType.ForgotPasswordToken
+      },
+      privateKey: process.env.JWT_SECRET_FOROT_PASSWORD_TOKEN as string,
+      options: {
+        expiresIn: '7d'
+      }
+    })
+  }
+
   private signAccessAndRefreshToken(user_id: string) {
     return Promise.all([this.signAccessToken(user_id), this.signRefreshToken(user_id)])
   }
@@ -384,6 +397,25 @@ class UserService {
       .limit(10)
       .toArray()
     return { users }
+  }
+
+  async forgotPassword(user_id: string) {
+    const forgot_password_token = await this.signForgotPasswordToken(user_id)
+
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      {
+        $set: {
+          forgot_password_token,
+          updated_at: new Date()
+        }
+      }
+    )
+    return {
+      message: 'Kiểm tra hộp thư email để thiết lập lại mật khẩu'
+    }
   }
 }
 
