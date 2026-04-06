@@ -2,7 +2,7 @@ import databaseService from './database.services'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { hashPassword } from '~/utils/crypto'
-import { sendOtpEmail } from '~/utils/email_otp'
+import { sendOtpEmail } from '~/utils/email'
 import { Otp } from '~/models/schemas/otp.schema'
 
 class ForgotPasswordService {

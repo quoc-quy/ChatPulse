@@ -6,6 +6,7 @@ import {
   ChangePasswordReqBody,
   ForgotPasswordReqBody,
   getProfileReqBody,
+  ResetPasswordReqBody,
   RegisterReqBody,
   TokenPayload,
   UnBlockUserReqBody,
@@ -17,6 +18,8 @@ import { uploadImageBufferToCloudinary } from '~/utils/cloudinary'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { config } from 'dotenv'
+import forgotPasswordService from '~/services/forget_password.services' // Đảm bảo đúng tên file .ts của bạn
+
 config()
 
 export const loginController = async (req: Request, res: Response) => {
@@ -196,5 +199,33 @@ export const resetPasswordController = async (req: Request, res: Response) => {
 
   const result = await userService.resetPassword(user_id, password)
 
+  return res.json(result)
+}
+
+/**
+ * Dành cho Mobile: POST /auth/forgot-password-mobile
+ * Sử dụng mã OTP gửi qua email
+ */
+export const forgotPasswordMobileController = async (
+  req: Request<ParamsDictionary, any, ForgotPasswordReqBody>,
+  res: Response
+) => {
+  const { email } = req.body //
+  // Gọi trực tiếp service xử lý mã OTP
+  const result = await forgotPasswordService.forgotPassword(email)
+  return res.json(result)
+}
+
+/**
+ * Dành cho Mobile: POST /auth/reset-password-mobile
+ * Xác thực OTP và đặt mật khẩu mới
+ */
+export const resetPasswordMobileController = async (
+  req: Request<ParamsDictionary, any, ResetPasswordReqBody>,
+  res: Response
+) => {
+  const { email, otp, password } = req.body //
+  // Gọi service xác thực mã số và cập nhật DB
+  const result = await forgotPasswordService.resetPassword(email, otp, password)
   return res.json(result)
 }

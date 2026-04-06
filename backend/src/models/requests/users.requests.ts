@@ -44,3 +44,9 @@ export interface UnBlockUserReqBody extends ParamsDictionary {
 export interface ForgotPasswordReqBody {
   email: string
 }
+export interface ResetPasswordReqBody {
+  email: string
+  otp: string
+  password: string
+  confirm_password: string
+}

@@ -69,9 +69,22 @@ export const registerApi = (data: any) => {
   return api.post("/auth/register", data);
 };
 
+/**
+ * Gửi yêu cầu quên mật khẩu (Mobile OTP)
+ * POST /auth/forgot-password-mobile
+ */
 export const forgotPasswordApi = (email: string) => {
-  return api.post("/auth/forgot-password", { email });
+  return api.post("/auth/forgot-password-mobile", { email });
 };
-export const resetPasswordApi = (data: any) => {
-  return api.post("/auth/reset-password", data);
+/**
+ * Xác thực OTP và đặt mật khẩu mới
+ * POST /auth/reset-password-mobile
+ */
+export const resetPasswordApi = (data: {
+  email: string;
+  otp: string;
+  password: string;
+  confirm_password: string;
+}) => {
+  return api.post("/auth/reset-password-mobile", data);
 };
