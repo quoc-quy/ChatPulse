@@ -37,6 +37,10 @@ export interface BlockUserReqBody {
   blocked_user_id: string
 }
 
-export interface UnBlockUserReqBody extends ParamsDictionary{
+export interface UnBlockUserReqBody extends ParamsDictionary {
   user_id: string
+}
+
+export interface ForgotPasswordReqBody {
+  email: string
 }

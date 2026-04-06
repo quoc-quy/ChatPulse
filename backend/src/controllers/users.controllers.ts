@@ -4,6 +4,7 @@ import { ObjectId, WithId } from 'mongodb'
 import {
   BlockUserReqBody,
   ChangePasswordReqBody,
+  ForgotPasswordReqBody,
   getProfileReqBody,
   RegisterReqBody,
   TokenPayload,
@@ -170,4 +171,15 @@ export const uploadAvatarController = async (req: Request, res: Response) => {
       avatar: avatarUrl
     }
   })
+}
+
+export const forgotPasswordController = async (
+  req: Request<ParamsDictionary, any, ForgotPasswordReqBody>,
+  res: Response
+) => {
+  const { _id } = req.user as User
+
+  const result = await userService.forgotPassword((_id as ObjectId).toString())
+
+  return res.json(result)
 }

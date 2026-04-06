@@ -69,14 +69,13 @@ export const loginValidator = validate(
               throw new Error('Email hoặc username không được để trống')
             }
 
-            const loginQuery =
-              identifier.includes('@')
-                ? {
-                    $or: [{ email: identifier }, { email: identifier.toLowerCase() }]
-                  }
-                : {
-                    userName: identifier
-                  }
+            const loginQuery = identifier.includes('@')
+              ? {
+                  $or: [{ email: identifier }, { email: identifier.toLowerCase() }]
+                }
+              : {
+                  userName: identifier
+                }
 
             const user = await databaseService.users.findOne({
               ...loginQuery,
@@ -420,5 +419,40 @@ export const unBlockUserValidator = validate(
       user_id: userIdSchema
     },
     ['params']
+  )
+)
+
+export const forgotPasswordValidator = validate(
+  checkSchema(
+    {
+      email: {
+        notEmpty: {
+          errorMessage: 'Email không được để trống'
+        },
+        isString: true,
+        trim: true,
+        isEmail: true,
+        isLength: {
+          options: {
+            min: 10,
+            max: 100
+          },
+          errorMessage: 'Email có độ dài từ 10 đến 100 ký tự'
+        },
+        custom: {
+          options: async (value, { req }) => {
+            const user = await databaseService.users.findOne({ email: value })
+
+            if (user == null) {
+              throw new Error('Ngời dùng không tồn tại')
+            }
+
+            req.user = user
+            return true
+          }
+        }
+      }
+    },
+    ['body']
   )
 )
