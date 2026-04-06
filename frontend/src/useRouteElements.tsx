@@ -12,6 +12,9 @@ import FriendInvitationPage from './pages/FriendInvitationPage'
 import BlockUserPage from './pages/BlockUserPage'
 import FriendRequest from './pages/FriendRequest'
 import ChangePassword from './pages/ChangePassword'
+import VerifyForgotPasswordToken from './pages/VerifyForgotPasswordToken'
+import ResetPassword from './pages/ResetPassword'
+import { ForgotPasswordForm } from './pages/ForgotPasswordForm'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -103,6 +106,19 @@ export default function useRouteElements() {
           element: <SignInPage />
         }
       ]
+    },
+
+    {
+      path: '/forgot-password-form',
+      element: <ForgotPasswordForm />
+    },
+    {
+      path: '/forgot-password',
+      element: <VerifyForgotPasswordToken />
+    },
+    {
+      path: '/reset-password',
+      element: <ResetPassword />
     }
   ])
   return routeElements
