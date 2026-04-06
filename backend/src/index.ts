@@ -13,6 +13,7 @@ import messageRouter from './routes/message.routes'
 import authRoute from './routes/auth.routes'
 import advancedSearchRouter from './routes/advancedSearch.routes'
 import groupRouter from './routes/group.routes'
+import callRouter from './routes/call.routes'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
 databaseService.connect().then(async () => {
@@ -49,6 +50,7 @@ app.use('/messages', messageRouter)
 app.use('/auth', authRoute)
 app.use('/advanced-search', advancedSearchRouter)
 app.use('/groups', groupRouter)
+app.use('/calls', callRouter)
 
 //default global error
 app.use(defaultErrorHandler)
