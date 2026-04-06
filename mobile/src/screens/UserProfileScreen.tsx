@@ -9,9 +9,11 @@ import {
   Alert,
   useColorScheme,
   Linking,
+  Image,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import { createDirectConversation } from "../apis/chat.api";
 
 // ── Color Palettes (đồng nhất với ConversationDetail) ─────────────────────────
 const lightColors = {
@@ -45,28 +47,46 @@ const darkColors = {
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   name,
+  avatar,
   size = 90,
   bgColor,
 }: {
   name: string;
+  avatar?: string;
   size?: number;
   bgColor: string;
-}) => (
-  <View
-    style={{
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-      backgroundColor: bgColor,
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <Text style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}>
-      {(name || "?").charAt(0).toUpperCase()}
-    </Text>
-  </View>
-);
+}) => {
+  if (avatar) {
+    return (
+      <Image
+        source={{ uri: avatar }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bgColor,
+        }}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: bgColor,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}>
+        {(name || "?").charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+};
 
 // ── InfoRow ───────────────────────────────────────────────────────────────────
 const InfoRow = ({
@@ -122,7 +142,8 @@ export default function UserProfileScreen() {
   const route = useRoute<any>();
 
   // Nhận params được truyền từ ConversationDetail
-  const { userId, userName, userPhone, userEmail } = route.params || {};
+  const { userId, userName, userPhone, userEmail, userAvatar, userBio } =
+    route.params || {};
 
   const isDarkMode = useColorScheme() === "dark";
   const COLORS = useMemo(
@@ -131,6 +152,28 @@ export default function UserProfileScreen() {
   );
 
   const displayName = userName || "Người dùng";
+  const displayBio = userBio || "";
+
+  const handleOpenChat = async () => {
+    if (!userId) {
+      navigation.goBack();
+      return;
+    }
+
+    try {
+      const res = await createDirectConversation(userId);
+      const conversation = res.data.result;
+      navigation.navigate("MessageScreen", {
+        id: conversation._id,
+        name: displayName,
+        isGroup: false,
+        targetUserId: userId,
+        unreadCount: 0,
+      });
+    } catch {
+      Alert.alert("Lỗi", "Không thể mở cuộc trò chuyện. Vui lòng thử lại.");
+    }
+  };
 
   const handleCallPhone = () => {
     if (userPhone) {
@@ -172,13 +215,23 @@ export default function UserProfileScreen() {
             { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
           ]}
         >
-          <Avatar name={displayName} size={90} bgColor={COLORS.primary} />
+          <Avatar
+            name={displayName}
+            avatar={userAvatar}
+            size={90}
+            bgColor={COLORS.primary}
+          />
           <Text style={[styles.heroName, { color: COLORS.foreground }]}>
             {displayName}
           </Text>
           {userPhone && (
             <Text style={[styles.heroSub, { color: COLORS.mutedForeground }]}>
               {userPhone}
+            </Text>
+          )}
+          {!!displayBio && (
+            <Text style={[styles.heroSub, { color: COLORS.mutedForeground }]}> 
+              {displayBio}
             </Text>
           )}
 
@@ -189,7 +242,7 @@ export default function UserProfileScreen() {
                 styles.heroActionBtn,
                 { backgroundColor: COLORS.primary },
               ]}
-              onPress={() => navigation.goBack()}
+              onPress={handleOpenChat}
             >
               <Ionicons name="chatbubble-outline" size={18} color="#FFF" />
               <Text style={styles.heroActionBtnLabel}>Nhắn tin</Text>

@@ -10,6 +10,14 @@ interface FriendItemProps {
   onDelete?: (id: string, name: string) => void;
   onCancel?: (id: string) => void;
   onChat?: (userId: string, userName: string) => void;
+  onViewProfile?: (payload: {
+    userId: string;
+    userName: string;
+    userPhone?: string;
+    userEmail?: string;
+    userAvatar?: string;
+    userBio?: string;
+  }) => void;
 }
 
 const lightColors = {
@@ -45,6 +53,7 @@ export const FriendItem = React.memo(
     onDelete,
     onCancel,
     onChat,
+    onViewProfile,
   }: FriendItemProps) => {
     const { isDarkMode } = useTheme();
     const COLORS = isDarkMode ? darkColors : lightColors;
@@ -73,6 +82,11 @@ export const FriendItem = React.memo(
       userData?.name ||
       "Người dùng";
 
+    const userPhone = userData?.phone || "";
+    const userEmail = userData?.email || "";
+    const userAvatar = userData?.avatar || "";
+    const userBio = userData?.bio || "";
+
     const initials = displayName?.charAt(0)?.toUpperCase() || "?";
 
     const subText = (() => {
@@ -87,7 +101,21 @@ export const FriendItem = React.memo(
         style={[styles.container, { backgroundColor: COLORS.card }]}
         activeOpacity={0.7}
         delayLongPress={500}
-        onPress={() => type === "friend" && onChat?.(friendUserId, displayName)}
+        onPress={() => {
+          if (type !== "friend") return;
+          if (onViewProfile) {
+            onViewProfile({
+              userId: friendUserId,
+              userName: displayName,
+              userPhone,
+              userEmail,
+              userAvatar,
+              userBio,
+            });
+            return;
+          }
+          onChat?.(friendUserId, displayName);
+        }}
         onLongPress={() =>
           type === "friend" && onDelete?.(requestId, displayName)
         }

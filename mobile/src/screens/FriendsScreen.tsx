@@ -38,7 +38,6 @@ import { friendApi } from "../apis/friends.api";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
 import { profileStatsEvents } from "../utils/profileStats.events";
-import { createDirectConversation } from "../apis/chat.api";
 
 const lightColors = {
   primary: "#4F46E5",
@@ -450,21 +449,22 @@ export default function FriendsScreen({ navigation }: any) {
     );
   };
 
-  // ── Mở chat ───────────────────────────────────────────────────────────────
-  const handleOpenChat = async (userId: string, userName: string) => {
-    try {
-      const res = await createDirectConversation(userId);
-      const conversation = res.data.result;
-      navigation.navigate("MessageScreen", {
-        id: conversation._id,
-        name: userName,
-        isGroup: false,
-        targetUserId: userId,
-        unreadCount: 0,
-      });
-    } catch {
-      Alert.alert("Lỗi", "Không thể mở cuộc trò chuyện. Vui lòng thử lại.");
-    }
+  const handleOpenFriendProfile = (payload: {
+    userId: string;
+    userName: string;
+    userPhone?: string;
+    userEmail?: string;
+    userAvatar?: string;
+    userBio?: string;
+  }) => {
+    navigation.navigate("UserProfile", {
+      userId: payload.userId,
+      userName: payload.userName,
+      userPhone: payload.userPhone || "",
+      userEmail: payload.userEmail || "",
+      userAvatar: payload.userAvatar || "",
+      userBio: payload.userBio || "",
+    });
   };
 
   // ── Grouped friends A-Z ───────────────────────────────────────────────────
@@ -641,7 +641,7 @@ export default function FriendsScreen({ navigation }: any) {
                     item={friend}
                     type="friend"
                     onDelete={handleDeleteFriend}
-                    onChat={handleOpenChat}
+                    onViewProfile={handleOpenFriendProfile}
                   />
                 ))}
               </ScrollView>
@@ -770,7 +770,7 @@ export default function FriendsScreen({ navigation }: any) {
                   item={item}
                   type="friend"
                   onDelete={handleDeleteFriend}
-                  onChat={handleOpenChat}
+                  onViewProfile={handleOpenFriendProfile}
                 />
               )}
               ListEmptyComponent={
