@@ -89,3 +89,22 @@ export const sendEmailNotification = (toAddress: string, template: string = temp
       .replace('{{titleLink}}', 'Đăng nhập ngay')
   )
 }
+
+export const sendForgotPasswordEmail = (toAddress: string, forgot_password_token: string, template: string = templatesEmail) => {
+  return sendVerifyEmail(
+    toAddress,
+    'Reset Password – Chào mừng bạn đến với ChatPulse',
+    template
+      .replace('{{title}}', 'Bạn đã nhận được email này bởi vì bạn đã yêu cầu thiết lập lại mật khẩu của bạn')
+      .replace(
+        '{{content}}',
+        `
+        Tài khoản của bạn với email<br/>
+        email: <b>${toAddress}</b><br/><br/>
+        (Đây là email tự động, bạn không cần phản hồi email này)
+        `
+      )
+      .replace('{{titleLink}}', 'Thiết lập lại mật khẩu')
+      .replace('{{link}}', `${process.env.CLIENT_URL}/reset-password?token=${forgot_password_token}`)
+  )
+}

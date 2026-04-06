@@ -177,9 +177,9 @@ export const forgotPasswordController = async (
   req: Request<ParamsDictionary, any, ForgotPasswordReqBody>,
   res: Response
 ) => {
-  const { _id } = req.user as User
+  const { _id, email } = req.user as User
 
-  const result = await userService.forgotPassword((_id as ObjectId).toString())
+  const result = await userService.forgotPassword((_id as ObjectId).toString(), email)
 
   return res.json(result)
 }

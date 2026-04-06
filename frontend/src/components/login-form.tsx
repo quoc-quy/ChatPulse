@@ -187,6 +187,9 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
               <FieldDescription className='text-center'>
                 Don&apos;t have an account? <Link to={'/signup'}>Sign up</Link>
               </FieldDescription>
+              <FieldDescription className='text-center'>
+                Forgot your password? <Link to={'/signup'}>Forgot Password</Link>
+              </FieldDescription>
             </FieldGroup>
           </form>
           <div className='bg-muted relative hidden md:block'>

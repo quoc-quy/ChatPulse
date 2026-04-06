@@ -8,7 +8,7 @@ import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import { ObjectId } from 'mongodb'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
-import { sendEmailNotification } from '~/utils/email'
+import { sendEmailNotification, sendForgotPasswordEmail } from '~/utils/email'
 import UserBlocks from '~/models/schemas/userBlocks.schema'
 import axios from 'axios'
 
@@ -399,7 +399,7 @@ class UserService {
     return { users }
   }
 
-  async forgotPassword(user_id: string) {
+  async forgotPassword(user_id: string, email: string) {
     const forgot_password_token = await this.signForgotPasswordToken(user_id)
 
     await databaseService.users.updateOne(
@@ -413,7 +413,7 @@ class UserService {
         }
       }
     )
-    console.log(forgot_password_token)
+    await sendForgotPasswordEmail(email, forgot_password_token)
     return {
       message: 'Kiểm tra hộp thư email để thiết lập lại mật khẩu'
     }
