@@ -25,22 +25,18 @@ class GroupService {
       }
     )
 
-    // ==========================================================
-    // BẮT ĐẦU THÊM: Gửi thông báo có thành viên mới
-    // ==========================================================
-    // Tìm tên của những người vừa được thêm
+    // Gửi thông báo có thành viên mới
     const addedUsers = await databaseService.users.find({ _id: { $in: objectMemberIds } }).toArray()
     const addedNames = addedUsers.map((u) => u.userName || 'Thành viên mới').join(', ')
 
     if (addedNames) {
       await messageService.sendMessage(
-        inviterId, // Lấy ID của người thao tác thêm thành viên
+        inviterId, 
         conversationId,
         'system',
         `${addedNames} đã được thêm vào nhóm.`
       )
     }
-    // ==========================================================
 
     return result
   }
@@ -61,20 +57,17 @@ class GroupService {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // Kiểm tra member đã tồn tại trong mảng members chưa
     const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
     if (!conversation) return null
 
     const memberExists = (conversation.members || []).some((m: any) => m.userId?.toString() === userId)
 
     if (memberExists) {
-      // ✅ Cập nhật isPinned theo từng user (per-user), không phải global
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId, 'members.userId': userObjectId },
         { $set: { 'members.$.isPinned': isPin } }
       )
     } else {
-      // Fallback: push member mới nếu chưa tồn tại (data cũ)
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId },
         {
@@ -116,7 +109,6 @@ class GroupService {
     const conversationObjectId = new ObjectId(conversationId)
     const targetMemberObjectId = new ObjectId(targetMemberId)
 
-    // 1. Lấy conversation để biết admin_id hiện tại
     const conversation = await databaseService.conversations.findOne({
       _id: conversationObjectId
     })
@@ -124,14 +116,12 @@ class GroupService {
 
     const oldAdminId = conversation.admin_id
 
-    // 2. Cập nhật admin_id sang người mới
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       { $set: { admin_id: targetMemberObjectId } },
       { returnDocument: 'after' }
     )
 
-    // 3. ✅ Reset role admin cũ → member (tránh 2 admin)
     if (oldAdminId) {
       try {
         await databaseService.conversations.updateOne(
@@ -141,7 +131,6 @@ class GroupService {
       } catch {}
     }
 
-    // 4. ✅ Set role admin cho người mới
     try {
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId, 'members.userId': targetMemberObjectId },
@@ -162,7 +151,6 @@ class GroupService {
 
     if (!conversation) return null
 
-    // 1. Xóa user hiện tại khỏi mảng participants và members (dùng pull rất an toàn, không sợ lỗi)
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       {
@@ -173,17 +161,14 @@ class GroupService {
       }
     )
 
-    // 2. Kiểm tra xem người rời đi có phải là admin không (dựa vào admin_id thay vì chọc vào mảng members)
     const isAdmin = conversation.admin_id && conversation.admin_id.toString() === userId
 
     if (isAdmin) {
-      // Lấy danh sách participants còn lại
       const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
 
       if (remainingParticipants.length > 0) {
         const nextAdminId = remainingParticipants[0]
 
-        // Gán admin_id mới cho người đầu tiên
         await databaseService.conversations.updateOne(
           { _id: conversationObjectId },
           {
@@ -193,19 +178,17 @@ class GroupService {
       }
     }
 
-    // 3. Lấy lại thông tin document mới nhất từ DB trả về
     const updatedConversation = await databaseService.conversations.findOne({
       _id: conversationObjectId
     })
 
     return updatedConversation
   }
-  // ── Tắt/bật thông báo ────────────────────────────────────────────────────────
+
   async muteNotification(conversationId: string, userId: string, mute: boolean) {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // Kiểm tra member đã tồn tại trong mảng members chưa
     const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
     if (!conversation) return null
 
@@ -217,7 +200,6 @@ class GroupService {
         { $set: { 'members.$.hasMuted': mute } }
       )
     } else {
-      // Fallback: push member mới nếu chưa tồn tại (data cũ)
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId },
         {
@@ -234,12 +216,12 @@ class GroupService {
 
     return { muted: mute }
   }
+
   // ── Lấy ảnh/video/file đã gửi ────────────────────────────────────────────────
   async getMediaFiles(conversationId: string, userId: string, page: number = 1, limit: number = 20) {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // Kiểm tra quyền truy cập
     const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
     if (!conversation) return []
     const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
@@ -252,7 +234,8 @@ class GroupService {
         {
           $match: {
             conversationId: conversationObjectId,
-            type: { $in: ['image', 'video', 'file'] },
+            // ĐÃ FIX: Thêm 'media' vào type để tìm cả hình ảnh & video mới
+            type: { $in: ['media', 'image', 'video', 'file'] },
             deletedByUsers: { $ne: userObjectId }
           }
         },
@@ -300,7 +283,6 @@ class GroupService {
 
     const skip = (page - 1) * limit
 
-    // Regex tìm URL trong nội dung tin nhắn text
     const urlRegex = /https?:\/\/[^\s]+/
 
     return databaseService.messages
@@ -340,11 +322,11 @@ class GroupService {
       ])
       .toArray()
   }
+
   async renameGroup(conversationId: string, userId: string, newName: string) {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
 
-    // 1. Cập nhật tên nhóm trong Database
     const updatedConversation = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       { $set: { name: newName, updated_at: new Date() } },
@@ -353,11 +335,9 @@ class GroupService {
 
     if (!updatedConversation) throw new Error('Không tìm thấy cuộc hội thoại')
 
-    // 2. Lấy thông tin user để tạo câu thông báo
     const user = await databaseService.users.findOne({ _id: userObjectId })
     const userName = user?.userName || 'Một thành viên'
 
-    // 3. Tạo tin nhắn hệ thống (System Message)
     const systemMessageId = new ObjectId()
     const systemMessage = {
       _id: systemMessageId,
@@ -376,13 +356,11 @@ class GroupService {
 
     await databaseService.messages.insertOne(systemMessage as any)
 
-    // Cập nhật last_message_id cho hội thoại
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       { $set: { last_message_id: systemMessageId } }
     )
 
-    // 4. Bắn Socket cho mọi người
     const populatedMessage = {
       ...systemMessage,
       sender: {
@@ -405,9 +383,7 @@ class GroupService {
     }
 
     targetUserIds.forEach((id) => {
-      // Gửi tin nhắn hệ thống
       socketService.emitToUser(id, 'receive_message', populatedMessage)
-      // Gửi lệnh cập nhật tên UI
       socketService.emitToUser(id, 'conversation_updated', { conversationId, name: newName })
     })
 

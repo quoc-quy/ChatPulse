@@ -140,6 +140,8 @@ export default function MessageSearchScreen() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  
+
   // ── Search ────────────────────────────────────────────────────────────────
   const doSearch = useCallback(
     async (q: string, pageNum: number = 1, append = false) => {
