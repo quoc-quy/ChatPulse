@@ -191,3 +191,7 @@ export const suggestReplyApi = (messages: any[]) => {
 // ✅ Ghim / bỏ ghim hội thoại
 export const pinConversation = (conversationId: string, is_pin: boolean) =>
   api.patch(`/conversations/${conversationId}/pin`, { is_pin });
+
+export const joinGroupByLink = (conversationId: string) => {
+  return api.post('/groups/join', { conversationId });
+};

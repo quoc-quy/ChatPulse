@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { groupService } from '~/services/group.services'
 import httpStatus from '~/constants/httpStatus'
+import { TokenPayload } from '~/models/requests/users.requests'; // Đảm bảo đường dẫn này đúng với dự án của bạn
 
 // Thêm thành viên
 export const addMembersController = async (req: Request, res: Response) => {
@@ -137,3 +138,23 @@ export const renameGroupController = async (req: Request, res: Response) => {
   const updatedGroup = await groupService.renameGroup(id, userId, name.trim())
   return res.status(httpStatus.OK).json({ message: 'Đổi tên nhóm thành công', result: updatedGroup })
 }
+
+export const joinGroupController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload;
+  const { conversationId } = req.body;
+
+  if (!conversationId) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Thiếu conversationId' });
+  }
+
+  const result = await groupService.joinGroupViaLink(conversationId, user_id);
+
+  if (!result) {
+    return res.status(httpStatus.NOT_FOUND).json({ message: 'Nhóm không tồn tại hoặc bạn đã ở trong nhóm này' });
+  }
+
+  return res.status(httpStatus.OK).json({
+    message: 'Tham gia nhóm thành công',
+    result
+  });
+};

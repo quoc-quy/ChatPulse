@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import QRCode from 'react-native-qrcode-svg';
 import {
   View,
   Text,
@@ -14,6 +15,7 @@ import {
   FlatList,
   TextInput,
   Linking,
+  Pressable,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -236,6 +238,7 @@ export default function ConversationDetailScreen() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [leavingAfterTransfer, setLeavingAfterTransfer] = useState(false);
+  const [showGroupQRModal, setShowGroupQRModal] = useState(false);
 
   // ── Đổi tên nhóm ──
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -257,7 +260,7 @@ export default function ConversationDetailScreen() {
           const decoded: any = jwtDecode(token);
           const uid = decoded.user_id || decoded._id || decoded.id || "";
           setCurrentUserId(uid);
-        } catch {}
+        } catch { }
       }
     });
   }, []);
@@ -847,6 +850,12 @@ export default function ConversationDetailScreen() {
         {/* ── Media & Files ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
           <MenuRow
+            iconName="qr-code-outline"
+            label="Mã QR nhóm"
+            COLORS={COLORS}
+            onPress={() => setShowGroupQRModal(true)}
+          />
+          <MenuRow
             iconName="image-outline"
             label="Ảnh, video, file đã gửi"
             COLORS={COLORS}
@@ -1111,8 +1120,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                                "vi-VN",
-                              )
+                              "vi-VN",
+                            )
                             : ""}
                         </Text>
                       </View>
@@ -1218,8 +1227,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                                "vi-VN",
-                              )
+                              "vi-VN",
+                            )
                             : ""}
                         </Text>
                       </View>
@@ -1359,6 +1368,58 @@ export default function ConversationDetailScreen() {
             )}
           </View>
         </View>
+      </Modal>
+      {/* ========================================== */}
+      {/* MODAL MÃ QR CỦA NHÓM */}
+      {/* ========================================== */}
+      <Modal
+        visible={showGroupQRModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowGroupQRModal(false)}
+      >
+        {/* Dùng Pressable bọc ngoài cùng: Bấm vào vùng mờ sẽ đóng Modal */}
+        <Pressable style={styles.modalOverlay} onPress={() => setShowGroupQRModal(false)}>
+
+          {/* Dùng Pressable bọc nội dung (không có sự kiện onPress): Ngăn chặn việc bấm vào khối trắng bị đóng Modal */}
+          <Pressable style={[styles.modalBox, { backgroundColor: COLORS.card, alignItems: 'center', position: 'relative' }]}>
+
+            {/* Nút X nằm ở góc trên bên phải của Box trắng */}
+            <TouchableOpacity
+              style={{ position: "absolute", top: 12, right: 12, zIndex: 10, padding: 8 }}
+              onPress={() => setShowGroupQRModal(false)}
+            >
+              <Ionicons name="close" size={24} color={COLORS.mutedForeground} />
+            </TouchableOpacity>
+
+            <Text style={[styles.modalTitle, { color: COLORS.foreground, marginBottom: 20, marginTop: 10 }]}>
+              Mã QR của nhóm
+            </Text>
+
+            <View style={{ padding: 20, backgroundColor: '#FFF', borderRadius: 20 }}>
+              <QRCode
+                value={`chatpulse://group/join/${conversationId}`}
+                size={220}
+                color="#000"
+                backgroundColor="#FFF"
+                logoSize={40}
+                logoBackgroundColor='transparent'
+              />
+            </View>
+
+            <Text style={[{ color: COLORS.mutedForeground, textAlign: 'center', marginTop: 20, marginBottom: 20, paddingHorizontal: 10 }]}>
+              Bạn bè có thể dùng tính năng quét QR trên màn hình chính để quét mã này và tham gia nhóm.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalBtn, { borderColor: COLORS.border, width: '100%' }]}
+              onPress={() => setShowGroupQRModal(false)}
+            >
+              <Text style={{ color: COLORS.mutedForeground, fontWeight: "600" }}>Đóng</Text>
+            </TouchableOpacity>
+
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -1546,6 +1607,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     gap: 12,
+  },
+  closeIcon: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 6,
+    elevation: 3,
   },
   linkUrl: { fontSize: 13, fontWeight: "500" },
 

@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import * as groupController from '~/controllers/group.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
+import { /* ... */ joinGroupController } from '~/controllers/group.controllers';
+import { wrapRequestHandler } from '~/utils/handlers';
 
 const groupRouter = Router()
 
@@ -46,5 +48,7 @@ groupRouter.get('/:id/media', groupController.getMediaFilesController)
  * GET /groups/:id/links?page=1&limit=20
  */
 groupRouter.get('/:id/links', groupController.getSharedLinksController)
+
+groupRouter.post('/join', accessTokenValidator, wrapRequestHandler(joinGroupController));
 
 export default groupRouter
