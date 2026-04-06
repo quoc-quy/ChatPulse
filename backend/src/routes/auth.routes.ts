@@ -15,9 +15,6 @@ import {
   verifyForgotPasswordValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
-import { forgotPasswordController, resetPasswordController } from '../controllers/forget_password.controllers'
-import { validate } from '../utils/validation'
-import { checkSchema } from 'express-validator'
 const authRoute = Router()
 
 /**
@@ -44,66 +41,15 @@ authRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapReque
  * POST /auth/forgot-password
  * Body: { email: string }
  */
-authRoute.post('/forgot-password-token', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
+authRoute.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
 
 /**
  * Description: verify link in email to reset password
  * body: {forgot-password-token: string}
  */
-authRoute.post('/verify-forgot-password', verifyForgotPasswordValidator, wrapRequestHandler(verifyForgotPasswordController))
-
 authRoute.post(
-  '/forgot-password',
-  validate(
-    checkSchema(
-      {
-        email: {
-          notEmpty: { errorMessage: 'Email không được để trống' },
-          isEmail: { errorMessage: 'Email không hợp lệ' },
-          normalizeEmail: true
-        }
-      },
-      ['body']
-    )
-  ),
-  wrapRequestHandler(forgotPasswordController)
-)
-/**
- * Reset Password — Bước 2: Xác thực OTP + đặt mật khẩu mới
- * POST /auth/reset-password
- * Body: { email: string, otp: string, password: string, confirm_password: string }
- */
-authRoute.post(
-  '/reset-password',
-  validate(
-    checkSchema(
-      {
-        email: {
-          notEmpty: { errorMessage: 'Email không được để trống' },
-          isEmail: { errorMessage: 'Email không hợp lệ' }
-        },
-        otp: {
-          notEmpty: { errorMessage: 'OTP không được để trống' },
-          isLength: { options: { min: 6, max: 6 }, errorMessage: 'OTP phải là 6 chữ số' },
-          isNumeric: { errorMessage: 'OTP chỉ gồm chữ số' }
-        },
-        password: {
-          notEmpty: { errorMessage: 'Mật khẩu không được để trống' },
-          isLength: { options: { min: 6 }, errorMessage: 'Mật khẩu phải ít nhất 6 ký tự' }
-        },
-        confirm_password: {
-          notEmpty: { errorMessage: 'Xác nhận mật khẩu không được để trống' },
-          custom: {
-            options: (value, { req }) => {
-              if (value !== req.body.password) throw new Error('Mật khẩu xác nhận không khớp')
-              return true
-            }
-          }
-        }
-      },
-      ['body']
-    )
-  ),
-  wrapRequestHandler(resetPasswordController)
+  '/verify-forgot-password',
+  verifyForgotPasswordValidator,
+  wrapRequestHandler(verifyForgotPasswordController)
 )
 export default authRoute
