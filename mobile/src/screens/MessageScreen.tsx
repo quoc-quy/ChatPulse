@@ -996,24 +996,37 @@ const MessageScreen = () => {
               styles.textInput,
               {
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "flex-end", // Đẩy text xuống đáy khi khung cao lên
                 paddingHorizontal: 0,
               },
             ]}
           >
             {inputText.startsWith("@PulseAI ") && (
               <Text
-                style={{ color: "#C084FC", fontWeight: "900", paddingLeft: 16 }}
+                style={{
+                  color: "#C084FC",
+                  fontWeight: "900",
+                  paddingLeft: 16,
+                  paddingBottom: Platform.OS === 'ios' ? 10 : 12 // Canh chữ @PulseAI ngang hàng với TextInput
+                }}
               >
                 @PulseAI
               </Text>
             )}
             <TextInput
+              multiline={true}
               style={{
                 flex: 1,
                 color: COLORS.text,
                 paddingHorizontal: inputText.startsWith("@PulseAI ") ? 6 : 16,
-                height: 40,
+                minHeight: 40,
+                lineHeight: 20,
+                maxHeight: 70, 
+                paddingTop: 10, 
+                paddingBottom: 10,
+                
+                // Đảm bảo chữ bắt đầu từ trên xuống mượt mà trên Android
+                textAlignVertical: 'center', 
               }}
               placeholder="Tin nhắn..."
               placeholderTextColor={COLORS.textLight}
@@ -1040,7 +1053,7 @@ const MessageScreen = () => {
             />
           </View>
 
-          <TouchableOpacity onPress={handleSend}>
+          <TouchableOpacity onPress={handleSend} style={{ marginBottom: 2 }}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.accent]}
               style={styles.sendBtn}
@@ -1452,18 +1465,21 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       padding: 10,
       backgroundColor: COLORS.surface,
-      alignItems: "center",
+      alignItems: "flex-end", // 🔥 Đổi từ center thành flex-end để nút Send luôn nằm sát đáy khi khung chat cao lên
       borderTopWidth: 1,
       borderColor: COLORS.border,
     },
-    attachBtn: { padding: 8 },
+    attachBtn: {
+      padding: 8,
+      marginBottom: 2 // 🔥 Thêm để căn đều với nút Send
+    },
     textInput: {
       flex: 1,
       backgroundColor: COLORS.background,
       color: COLORS.text,
       borderRadius: 20,
       paddingHorizontal: 16,
-      height: 40,
+      minHeight: 40, // 🔥 Sửa TỪ height: 40 THÀNH minHeight: 40
     },
     sendBtn: {
       width: 36,
