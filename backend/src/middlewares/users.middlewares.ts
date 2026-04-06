@@ -512,3 +512,75 @@ export const verifyForgotPasswordValidator = validate(
     ['body']
   )
 )
+
+export const resetPasswordValidator = validate(
+  checkSchema({
+    password: {
+      notEmpty: {
+        errorMessage: 'Mật khẩu không được để trống'
+      },
+      isString: true
+    },
+    confirm_password: {
+      notEmpty: {
+        errorMessage: 'Mật khẩu nhập lại không được để trống'
+      },
+      isString: true,
+      custom: {
+        options: (value, { req }) => {
+          if (value !== req.body.password) {
+            throw new Error('Mật khẩu nhập lại không khớp với mật khẩu')
+          }
+          return true
+        }
+      }
+    },
+    forgot_password_token: {
+      trim: true,
+      custom: {
+        options: async (value: string, { req }) => {
+          if (!value) {
+            throw new ErrorWithStatus({
+              message: 'Forgot password token is required',
+              status: httpStatus.UNAUTHORIZED
+            })
+          }
+          try {
+            const decoded_forgot_password_token = await verifyToken({
+              token: value,
+              secretOrPublicKey: process.env.JWT_SECRET_FOROT_PASSWORD_TOKEN as string
+            })
+
+            const { user_id } = decoded_forgot_password_token
+
+            const user = await databaseService.users.findOne({ _id: new ObjectId(user_id) })
+
+            if (user == null) {
+              throw new ErrorWithStatus({
+                message: 'User not found',
+                status: httpStatus.UNAUTHORIZED
+              })
+            }
+            if (user.forgot_password_token != value) {
+              throw new ErrorWithStatus({
+                message: 'Invalid forgot password token',
+                status: httpStatus.UNAUTHORIZED
+              })
+            }
+            req.decoded_forgot_password_token = decoded_forgot_password_token
+          } catch (error) {
+            if (error instanceof JsonWebTokenError) {
+              throw new ErrorWithStatus({
+                message: capitalize(error.message),
+                status: httpStatus.UNAUTHORIZED
+              })
+            }
+            throw error
+          }
+
+          return true
+        }
+      }
+    }
+  })
+)

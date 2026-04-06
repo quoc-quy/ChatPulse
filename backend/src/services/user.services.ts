@@ -418,6 +418,25 @@ class UserService {
       message: 'Kiểm tra hộp thư email để thiết lập lại mật khẩu'
     }
   }
+
+  async resetPassword(user_id: string, password: string) {
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      {
+        $set: {
+          password: hashPassword(password),
+          forgot_password_token: '',
+          updated_at: new Date()
+        }
+      }
+    )
+
+    return {
+      message: 'Thay đổi mật khẩu thành công'
+    }
+  }
 }
 
 const userService = new UserService()
