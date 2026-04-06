@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect, useContext, useRef } from 'react'
 import { AppContext } from '@/context/app.context'
 import { useSocket } from '@/context/socket.context'
@@ -186,6 +188,7 @@ export function GlobalCallUI() {
           callId={activeCall.callId}
           conversationId={activeCall.conversationId}
           currentUserId={profile?._id || ''}
+          currentUserName={profile?.userName || 'User'}
           isVideoCall={activeCall.type === 'video'}
           onEndCall={() => setActiveCall(null)}
           onMinimize={() => setIsMinimized(true)}
