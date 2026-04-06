@@ -105,6 +105,6 @@ export const sendForgotPasswordEmail = (toAddress: string, forgot_password_token
         `
       )
       .replace('{{titleLink}}', 'Thiết lập lại mật khẩu')
-      .replace('{{link}}', `${process.env.CLIENT_URL}/reset-password?token=${forgot_password_token}`)
+      .replace('{{link}}', `${process.env.CLIENT_URL}/forgot-password?token=${forgot_password_token}`)
   )
 }

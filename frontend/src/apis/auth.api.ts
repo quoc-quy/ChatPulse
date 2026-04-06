@@ -16,6 +16,14 @@ const authApi = {
 
   login(body: { email: string; password: string }) {
     return http.post('/auth/login', body)
+  },
+
+  forgotPassword(body: { email: string }) {
+    return http.post('/auth/forgot-password', body)
+  },
+
+  resetPassword(body: { password: string; confirm_password: string; forgot_password_token: string }) {
+    return http.post('/auth/reset-password', body)
   }
 }
 
