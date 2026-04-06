@@ -2,9 +2,11 @@ import { Router } from 'express'
 import {
   forgotPasswordController,
   loginController,
+  forgotPasswordMobileController,
   logoutController,
   registerController,
   resetPasswordController,
+  resetPasswordMobileController,
   verifyForgotPasswordController
 } from '~/controllers/users.controllers'
 import {
@@ -60,5 +62,24 @@ authRoute.post(
  * body: {forgot-password-token: string, password: string, confirm_password: string}
  */
 authRoute.post('/reset-password', resetPasswordValidator, wrapRequestHandler(resetPasswordController))
+
+
+/**
+ * Quên mật khẩu Mobile (Bước 1: Gửi OTP)
+ * POST /auth/forgot-password-mobile
+ */
+authRoute.post(
+  '/forgot-password-mobile', 
+  wrapRequestHandler(forgotPasswordMobileController)
+)
+
+/**
+ * Đặt lại mật khẩu Mobile (Bước 2: Xác thực OTP và đổi pass)
+ * POST /auth/reset-password-mobile
+ */
+authRoute.post(
+  '/reset-password-mobile', 
+  wrapRequestHandler(resetPasswordMobileController)
+)
 
 export default authRoute

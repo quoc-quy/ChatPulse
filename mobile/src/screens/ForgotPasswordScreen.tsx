@@ -66,7 +66,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
         <Input
           label="Email Address"
-          placeholder="m@example.com"
+          placeholder="abc@gmail.com"
           value={email}
           error={error || undefined}
           onChangeText={(text) => {
