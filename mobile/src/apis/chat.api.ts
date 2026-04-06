@@ -34,6 +34,31 @@ export const sendMessage = (
   });
 };
 
+// Thêm hàm này ngay dưới sendMessage
+export const sendMediaMessage = (
+  conversationId: string,
+  fileAsset: any,
+  type: "media" | "file" = "media"
+) => {
+  const formData = new FormData();
+  formData.append("convId", conversationId);
+  formData.append("type", type);
+  
+  // Xử lý dữ liệu file cho React Native FormData
+  formData.append("file", {
+    uri: fileAsset.uri,
+    name: fileAsset.name || fileAsset.fileName || `file_${Date.now()}`,
+    type: fileAsset.mimeType || "application/octet-stream",
+  } as any);
+
+  // Quan trọng: Gửi dưới dạng multipart/form-data
+  return api.post(`/messages/media`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
 // API Thả hoặc Gỡ cảm xúc (React)
 export const reactMessage = (messageId: string, emoji: string) => {
   return api.post(`/messages/${messageId}/react`, { emoji });

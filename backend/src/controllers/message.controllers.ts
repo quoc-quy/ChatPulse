@@ -136,6 +136,7 @@ export const searchMessagesController = async (req: Request, res: Response) => {
 export const uploadMediaMessageController = async (req: Request, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload
   const { convId, replyToId } = req.body
+  const type = req.body.type // Lấy type do Frontend truyền lên
   const file = req.file
 
   if (!file) {
@@ -145,8 +146,17 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
   // Upload lên S3 và lấy URL về
   const fileUrl = await uploadFileToS3(file)
 
-  // Lưu tin nhắn vào DB dưới dạng media, tái sử dụng hàm sendMessage
-  const message = await messageService.sendMessage(user_id, convId, 'media', fileUrl, replyToId)
+
+
+  // THÊM ĐOẠN NÀY ĐỂ BACKEND LƯU ĐÚNG TYPE LÀ 'video' hoặc 'image'
+  let messageType = req.body.type || 'media';
+  if (messageType === 'media') {
+    if (file.mimetype.startsWith('video/')) messageType = 'video';
+    else if (file.mimetype.startsWith('image/')) messageType = 'image';
+  }
+
+  // Lưu tin nhắn vào DB với chuẩn type mới
+  const message = await messageService.sendMessage(user_id, convId, messageType, fileUrl, replyToId)
 
   return res.status(httpStatus.OK).json({
     message: 'Gửi file thành công',

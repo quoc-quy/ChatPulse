@@ -5,6 +5,10 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { sendMediaMessage } from "../apis/chat.api";
+import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   View,
   Text,
@@ -16,20 +20,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  Keyboard,
-  ActivityIndicator,
+  StatusBar,
+  PanResponder,
+  Linking,
   Modal,
   Pressable,
   Alert,
   ScrollView,
-  StatusBar,
-  RefreshControl,
-  PanResponder,
+  ActivityIndicator,
 } from "react-native";
 import {
   useRoute,
   useNavigation,
-  useFocusEffect,
 } from "@react-navigation/native";
 import { suggestReplyApi } from "../apis/chat.api";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -42,7 +44,7 @@ import { markConversationAsSeen } from "../apis/chat.api";
 // IMPORT USE THEME
 import { useTheme } from "../contexts/ThemeContext";
 
-// 🔥 IMPORT useChatContext để xoá badge khi đọc xong
+// IMPORT useChatContext để xoá badge khi đọc xong
 import { useChatContext } from "../contexts/ChatContext";
 
 import {
@@ -55,9 +57,6 @@ import {
   getConversationDetail,
 } from "../apis/chat.api";
 
-// ==========================================
-// 1. CẤU HÌNH BẢNG MÀU ĐỒNG BỘ 100% TOÀN APP
-// ==========================================
 const lightColors = {
   background: "#F5F7FB",
   surface: "#FFFFFF",
@@ -99,10 +98,9 @@ const MessageScreen = () => {
   const COLORS = isDarkMode ? darkColors : lightColors;
   const styles = useMemo(
     () => getStyles(COLORS, isDarkMode),
-    [isDarkMode, COLORS],
+    [isDarkMode, COLORS]
   );
 
-  // 🔥 Lấy hàm clearLocalUnread từ ChatContext
   const { clearLocalUnread } = useChatContext();
 
   const {
@@ -126,9 +124,11 @@ const MessageScreen = () => {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
-  // ----------------------------------------------------
-  // GỢI Ý TRẢ LỜI AI (@PulseAI)
-  // ----------------------------------------------------
+  // STATE MỚI: Quản lý file chờ gửi (để hiện preview lên trước)
+  const [pendingMedia, setPendingMedia] = useState<any | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const handleSuggestReply = async () => {
     if (messages.length === 0) return;
     setIsSuggesting(true);
@@ -145,18 +145,171 @@ const MessageScreen = () => {
     }
   };
 
+  // COMPONENT HIỂN THỊ THUMBNAIL VIDEO 
+  const VideoThumbnail = ({ url }: { url: string }) => {
+    const player = useVideoPlayer({ uri: url }, p => p.pause());
+    return (
+      <View style={{ width: 240, height: 300, borderRadius: 16, overflow: 'hidden' }}>
+        <VideoView
+          style={{ width: '100%', height: '100%' }}
+          player={player}
+          nativeControls={false}
+          contentFit="cover"
+        />
+        <View style={styles.playIconOverlay}>
+          <Ionicons name="play-circle" size={54} color="rgba(255, 255, 255, 0.85)" />
+        </View>
+      </View>
+    );
+  };
+
+  // COMPONENT HỖ TRỢ XEM VIDEO TOÀN MÀN HÌNH
+  const VideoViewer = ({ url }: { url: string }) => {
+    const player = useVideoPlayer({ uri: url }, player => {
+      player.loop = true;
+      player.play();
+    });
+
+    return (
+      <VideoView
+        style={{ width: '100%', height: '100%' }}
+        player={player}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+    );
+  };
+
+  const handlePickMedia = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      // FIX: Gán vào chờ gửi thay vì upload ngay lập tức
+      setPendingMedia({ ...result.assets[0], attachmentType: "media" });
+    }
+  };
+
+  const handlePickDocument = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      // FIX: Gán vào chờ gửi thay vì upload ngay lập tức
+      setPendingMedia({ ...result.assets[0], attachmentType: "file" });
+    }
+  };
+
+  const uploadAttachment = async (fileData: any, type: "media" | "file") => {
+    setIsUploading(true);
+    
+    // Tách phần đuôi mở rộng bỏ đi tham số "?"
+    const isVideoFile = fileData.type === "video" || fileData.uri.split('?')[0].match(/\.(mp4|mov)$/i);
+    const mediaType = type === "media" ? (isVideoFile ? "video" : "image") : type;
+
+    const tempId = Date.now().toString();
+    const tempMessage = {
+      _id: tempId,
+      conversationId,
+      type: mediaType,
+      content: fileData.uri,
+      createdAt: new Date().toISOString(),
+      sender: { _id: currentUserId, userName: "Tôi" },
+      isSending: true, 
+    };
+    setMessages((prev) => [tempMessage, ...prev]);
+
+    try {
+      let mimeType = fileData.mimeType;
+      let fileName = fileData.name || fileData.fileName;
+
+      if (type === "media") {
+        if (isVideoFile) {
+          mimeType = mimeType || "video/mp4";
+          fileName = fileName || `video_${Date.now()}.mp4`;
+        } else {
+          mimeType = mimeType || "image/jpeg";
+          fileName = fileName || `image_${Date.now()}.jpg`;
+        }
+      } else {
+        mimeType = mimeType || "application/octet-stream";
+        fileName = fileName || `file_${Date.now()}`;
+      }
+
+      const formattedFile = { uri: fileData.uri, name: fileName, type: mimeType };
+      const res = await sendMediaMessage(conversationId, formattedFile, type);
+      const realMessage = res.data?.result || res.data;
+      
+      if (realMessage) {
+        setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
+      }
+    } catch (error) {
+      console.log("Lỗi upload:", error);
+      setMessages((prev) => prev.filter((msg) => msg._id !== tempId));
+      Alert.alert("Lỗi", "Không thể gửi tệp đính kèm. File quá nặng hoặc lỗi mạng!");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAttachPress = () => {
+    Alert.alert("Đính kèm", "Chọn loại tệp bạn muốn gửi", [
+      { text: "Thư viện Ảnh / Video", onPress: handlePickMedia },
+      { text: "Tài liệu (File)", onPress: handlePickDocument },
+      { text: "Hủy", style: "cancel" },
+    ]);
+  };
+
+  const handleSend = async () => {
+    const textToSend = inputText.trim() === "@PulseAI " ? "" : inputText.trim();
+    const mediaToSend = pendingMedia;
+
+    if (textToSend.length === 0 && !mediaToSend) return;
+
+    // Reset UI ngay lập tức
+    setInputText("");
+    setPendingMedia(null);
+
+    // Xử lý gửi tin nhắn TEXT
+    if (textToSend.length > 0) {
+      const tempId = Date.now().toString();
+      const tempMessage = {
+        _id: tempId,
+        conversationId,
+        type: "text",
+        content: textToSend,
+        createdAt: new Date().toISOString(),
+        sender: { _id: currentUserId, userName: "Tôi" },
+      };
+      setMessages((prev) => [tempMessage, ...prev]);
+
+      try {
+        const res = await sendMessage(conversationId, textToSend, "type");
+        const realMessage = res.data.result || res.data;
+        if (realMessage) {
+          setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+    // Xử lý gửi MEDIA / FILE
+    if (mediaToSend) {
+      uploadAttachment(mediaToSend, mediaToSend.attachmentType);
+    }
+  };
+
   const loadMoreMessages = async () => {
     if (!hasMore || isFetchingMore || !cursor) return;
     try {
       setIsFetchingMore(true);
-      // SỬA Ở ĐÂY: Xoá dòng await new Promise(setTimeout...) gây trễ 1 giây vô lý
-
       const res = await getMessages(conversationId, cursor, 20);
       const rawData = res.data.result || res.data.data || [];
       if (rawData.length > 0) {
         setCursor(rawData[rawData.length - 1]._id);
-
-        // SỬA Ở ĐÂY: Nối tin nhắn cũ vào CUỐI mảng (do đang dùng inverted)
         setMessages((prev) => [...prev, ...rawData]);
       }
       if (rawData.length < 20) setHasMore(false);
@@ -179,22 +332,12 @@ const MessageScreen = () => {
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiSummaryText, setAiSummaryText] = useState("");
 
-  // -------------------------------------------------------
-  // 🔥 BƯỚC 1: Gọi markAsSeen nhưng KHÔNG xoá badge ngay
-  // Badge chỉ bị xoá ở BƯỚC 2 khi user scroll đến tin cuối
-  // -------------------------------------------------------
   useEffect(() => {
     if (id) {
-      // ✅ FIX: Gọi seen API và clear badge cùng lúc
-      // Server đã nhận biết "đã đọc" → local cũng phải sync ngay
-      // Không cần chờ user scroll đến tin cuối nữa
       markConversationAsSeen(id)
-        .then(() => {
-          clearLocalUnread(id); // ✅ Clear badge sau khi server confirm
-        })
+        .then(() => clearLocalUnread(id))
         .catch((error) => {
           console.log("Lỗi khi đánh dấu đã xem tin nhắn:", error);
-          // Vẫn clear local dù API lỗi, vì user đã mở chat rồi
           clearLocalUnread(id);
         });
     }
@@ -221,11 +364,8 @@ const MessageScreen = () => {
       setLoading(true);
       const res = await getMessages(conversationId, null, 20);
       const rawData = res.data.result || res.data.data || [];
-      if (rawData.length > 0)
-        setCursor(rawData[rawData.length - 1]._id);
+      if (rawData.length > 0) setCursor(rawData[rawData.length - 1]._id);
       if (rawData.length < 20) setHasMore(false);
-
-      // SỬA Ở ĐÂY: KHÔNG dùng .reverse() nữa
       setMessages(rawData);
     } catch (error: any) {
       console.log("Lỗi tải tin nhắn:", error.message);
@@ -240,7 +380,7 @@ const MessageScreen = () => {
       const res = await getConversationDetail(conversationId);
       const conv = res.data?.result;
       const myMember = (conv?.members || []).find(
-        (m: any) => m.userId?.toString() === userId,
+        (m: any) => m.userId?.toString() === userId
       );
       if (myMember?.hasMuted !== undefined) {
         setIsMutedState(myMember.hasMuted);
@@ -323,7 +463,7 @@ const MessageScreen = () => {
             },
           ];
           return { ...msg, reactions: nextReactions };
-        }),
+        })
       );
       setReactionDetailMessage((prev: any) => {
         if (!prev || prev._id !== message._id) return prev;
@@ -350,8 +490,8 @@ const MessageScreen = () => {
         [];
       setMessages((prev) =>
         prev.map((msg) =>
-          msg._id === message._id ? { ...msg, reactions: apiReactions } : msg,
-        ),
+          msg._id === message._id ? { ...msg, reactions: apiReactions } : msg
+        )
       );
       setReactionDetailMessage((prev: any) => {
         if (!prev || prev._id !== message._id) return prev;
@@ -407,7 +547,7 @@ const MessageScreen = () => {
 
   const reactionGroupsForModal = useMemo(
     () => buildReactionGroups(reactionDetailMessage?.reactions || []),
-    [reactionDetailMessage, currentUserId],
+    [reactionDetailMessage, currentUserId]
   );
 
   const reactionUsersForModal = useMemo(() => {
@@ -481,12 +621,12 @@ const MessageScreen = () => {
 
     if (reactionFilter !== "ALL") {
       const selectedGroup = reactionGroupsForModal.find(
-        (group) => group.emoji === reactionFilter,
+        (group) => group.emoji === reactionFilter
       );
       return groupByUserAndEmoji(selectedGroup?.users || []);
     }
     return groupByUserAllEmojis(
-      reactionGroupsForModal.flatMap((group) => group.users),
+      reactionGroupsForModal.flatMap((group) => group.users)
     );
   }, [reactionFilter, reactionGroupsForModal, currentUserId]);
 
@@ -498,8 +638,8 @@ const MessageScreen = () => {
         prev.map((msg) =>
           msg._id === selectedMsg._id
             ? { ...msg, type: "revoked", content: "", reactions: [] }
-            : msg,
-        ),
+            : msg
+        )
       );
     } catch (error) {
       console.log("Lỗi thu hồi:", error);
@@ -546,7 +686,7 @@ const MessageScreen = () => {
       if (index < 0 || index >= REACTION_LIST.length) return null;
       return REACTION_LIST[index];
     },
-    [emojiStripWidth],
+    [emojiStripWidth]
   );
 
   const emojiPanResponder = useMemo(
@@ -570,38 +710,8 @@ const MessageScreen = () => {
         },
         onPanResponderTerminate: () => setHoveredReaction(null),
       }),
-    [getReactionFromX, hoveredReaction, selectedMsg],
+    [getReactionFromX, hoveredReaction, selectedMsg]
   );
-
-  const handleSend = async () => {
-    if (inputText.trim().length === 0 || inputText === "@PulseAI ") return;
-    const contentToSend = inputText.trim();
-    setInputText("");
-    const tempId = Date.now().toString();
-    const tempMessage = {
-      _id: tempId,
-      conversationId,
-      type: "text",
-      content: contentToSend,
-      createdAt: new Date().toISOString(),
-      sender: { _id: currentUserId, userName: "Tôi" },
-    };
-
-    // SỬA Ở ĐÂY: Đưa tin nhắn mới lên đầu mảng
-    setMessages((prev) => [tempMessage, ...prev]);
-
-    try {
-      const res = await sendMessage(conversationId, contentToSend, "type");
-      // ... (Phần logic phía dưới giữ nguyên)
-      const realMessage = res.data.result || res.data;
-      if (realMessage)
-        setMessages((prev) =>
-          prev.map((msg) => (msg._id === tempId ? realMessage : msg)),
-        );
-    } catch (error) {
-      console.log(error);
-    }
-  };
 
   const formatTime = (dateString: string) => {
     if (!dateString) return "";
@@ -663,15 +773,12 @@ const MessageScreen = () => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
 
-    // 1. TÁCH RÕ HAI KHÁI NIỆM TRONG INVERTED LIST
-    const olderItem = index < messages.length - 1 ? messages[index + 1] : null; // Tin CŨ HƠN (nằm bên TRÊN)
-    const newerItem = index > 0 ? messages[index - 1] : null; // Tin MỚI HƠN (nằm bên DƯỚI)
+    const olderItem = index < messages.length - 1 ? messages[index + 1] : null;
+    const newerItem = index > 0 ? messages[index - 1] : null;
 
-    // 2. XỬ LÝ TIN NHẮN HỆ THỐNG
     if (item.type === "system") {
       const currentDate = new Date(item.createdAt).toDateString();
       const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null;
-      // Ngày phân cách sẽ hiện ở tin nhắn đầu tiên của ngày đó (so sánh với tin CŨ HƠN)
       const showDateDivider = currentDate !== olderDate;
 
       return (
@@ -697,7 +804,6 @@ const MessageScreen = () => {
       );
     }
 
-    // 3. LOGIC AVATAR, THỜI GIAN CHO TIN NHẮN BÌNH THƯỜNG
     const isAiGenerated = item.content?.startsWith("@PulseAI ");
     const displayContent = isAiGenerated ? item.content.substring(9) : item.content;
     const reactionGroups = buildReactionGroups(item.reactions || []);
@@ -711,20 +817,17 @@ const MessageScreen = () => {
     const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null;
     const showDateDivider = currentDate !== olderDate;
 
-    // So sánh người gửi với tin MỚI HƠN (nằm dưới) để quyết định giấu Avatar
     const isSameSenderAsNewer =
       newerItem &&
       (newerItem.sender?._id || newerItem.senderId) === (item.sender?._id || item.senderId);
 
     let isCloseInTime = false;
     if (newerItem) {
-      // Vì newerItem là tin mới hơn nên createdAt sẽ lớn hơn -> diff ra số dương
       const diff = new Date(newerItem.createdAt).getTime() - new Date(item.createdAt).getTime();
       isCloseInTime = diff < 60000;
     }
 
     const showTime = !isRevoked && !(isSameSenderAsNewer && isCloseInTime);
-    // Chỉ hiện Avatar ở tin nhắn cuối cùng của một cụm (khi tin mới hơn không cùng người gửi)
     const showAvatar = !isMe && !isSameSenderAsNewer;
 
     return (
@@ -737,7 +840,6 @@ const MessageScreen = () => {
           </View>
         )}
         <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
-          {/* ... (Đoạn mã render UI HTML bên trong của bạn giữ nguyên hoàn toàn) ... */}
           {!isMe && (
             <View style={styles.avatarPlaceholder}>
               {showAvatar && (
@@ -760,90 +862,153 @@ const MessageScreen = () => {
               onLongPress={(e) => handleLongPress(e, item)}
               activeOpacity={0.9}
             >
+              {/* TÁCH BIỆT KHUNG BONG BÓNG CHO TỪNG LOẠI TIN NHẮN */}
               <View
                 style={[
-                  styles.bubble,
-                  isMe ? styles.bubbleMe : styles.bubbleOther,
+                  // Nếu là Media thì bỏ khung bubble đi
+                  !(item.type === "media" || item.type === "image" || item.type === "video") && styles.bubble,
+                  !(item.type === "media" || item.type === "image" || item.type === "video") && (isMe ? styles.bubbleMe : styles.bubbleOther),
                   isRevoked && {
                     backgroundColor: isDarkMode ? "#1E2946" : "#E2E8F0",
                     opacity: 0.6,
                   },
+                  item.isSending && { opacity: 0.6 }
                 ]}
               >
+                {isRevoked ? (
+                  <Text style={[styles.messageText, { fontStyle: "italic", color: COLORS.textLight, paddingRight: 5 }]}>
+                    Tin nhắn đã được thu hồi
+                  </Text>
+                ) : (item.type === "media" || item.type === "image" || item.type === "video") ? (
+                  // GIAO DIỆN ẢNH / VIDEO (CÓ THỂ BẤM VÀO ĐỂ XEM)
+                  <TouchableOpacity
+                    style={{ position: "relative", marginBottom: 5 }}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      // Fix: Split URL trước khi check đuôi
+                      const isVideo = item.type === "video" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i);
+                      setPreviewMedia({ url: displayContent, isVideo: !!isVideo });
+                    }}
+                  >
+                    {(item.type === "video" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i)) ? (
+                      <VideoThumbnail url={displayContent} />
+                    ) : (
+                      <Image source={{ uri: displayContent }} style={styles.mediaImage} resizeMode="cover" />
+                    )}
+                  </TouchableOpacity>
+                ) : item.type === "file" ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.fileAttachmentContainer,
+                      {
+                        backgroundColor: "transparent", // Xóa màu nền vì đã được bọc bởi màu bong bóng bên ngoài
+                        borderWidth: 0,
+                      },
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => Linking.openURL(displayContent)}
+                  >
+                    <View style={[styles.fileIconWrapper, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : (isDarkMode ? "#1E293B" : "#F3F4F6") }]}>
+                      <Ionicons
+                        name="document-text"
+                        size={26}
+                        color={isMe ? "#ffffff" : COLORS.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text
+                        style={[
+                          styles.fileNameText,
+                          { color: isMe ? "#ffffff" : COLORS.text },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {displayContent.split("/").pop()?.split("?")[0] || "Tài liệu đính kèm"}
+                      </Text>
+                      <Text
+                        style={{
+                          color: isMe ? "rgba(255,255,255,0.75)" : COLORS.textLight,
+                          fontSize: 12,
+                          marginTop: 4,
+                        }}
+                      >
+                        Tệp đính kèm
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <Text
+                    style={[
+                      styles.messageText,
+                      { color: isMe ? COLORS.headerText : COLORS.text, paddingRight: 5 },
+                    ]}
+                  >
+                    {isAiGenerated && (
+                      <Text
+                        style={{
+                          color: isMe ? "#E9D5FF" : "#C084FC",
+                          fontWeight: "900",
+                        }}
+                      >
+                        @PulseAI{" "}
+                      </Text>
+                    )}
+                    {displayContent}
+                  </Text>
+                )}
+              </View>
+
+              {showTime && !item.isSending && (
                 <Text
                   style={[
-                    styles.messageText,
-                    { color: isMe ? COLORS.headerText : COLORS.text },
-                    isRevoked && {
-                      fontStyle: "italic",
-                      color: COLORS.textLight,
+                    styles.messageTime,
+                    {
+                      alignSelf: isMe ? "flex-end" : "flex-start",
+                      color: isMe
+                        ? "rgba(255,255,255,0.7)"
+                        : COLORS.textLight,
                     },
                   ]}
                 >
-                  {isRevoked ? (
-                    "Tin nhắn đã được thu hồi"
-                  ) : (
-                    <>
-                      {isAiGenerated && (
-                        <Text
-                          style={{
-                            color: isMe ? "#E9D5FF" : "#C084FC",
-                            fontWeight: "900",
-                          }}
-                        >
-                          @PulseAI{" "}
-                        </Text>
-                      )}
-                      <Text>{displayContent}</Text>
-                    </>
-                  )}
+                  {formatTime(item.createdAt)}
                 </Text>
+              )}
 
-                {showTime && (
-                  <Text
-                    style={[
-                      styles.messageTime,
-                      {
-                        alignSelf: isMe ? "flex-end" : "flex-start",
-                        color: isMe
-                          ? "rgba(255,255,255,0.7)"
-                          : COLORS.textLight,
-                      },
-                    ]}
-                  >
-                    {formatTime(item.createdAt)}
-                  </Text>
-                )}
+              {/* Nếu đang gửi thì hiển thị "Đang gửi..." thay cho time */}
+              {item.isSending && (
+                <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight }]}>
+                  Đang gửi...
+                </Text>
+              )}
 
-                {shouldShowReactionCorner && (
-                  <View style={styles.reactionContainer}>
-                    {hasReactions ? (
-                      <TouchableOpacity
-                        style={styles.reactionSummary}
-                        onPress={() => openReactionDetails(item)}
-                      >
-                        <Text style={styles.reactionEmojiPreview}>
-                          {reactionPreview}
-                        </Text>
-                        <Text style={styles.reactionCountText}>
-                          {totalReactions}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.defaultLike}
-                        onPress={() => handleToggleReact(item, "👍")}
-                      >
-                        <Ionicons
-                          name="heart-outline"
-                          size={13}
-                          color={COLORS.textLight}
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-              </View>
+              {shouldShowReactionCorner && !item.isSending && (
+                <View style={styles.reactionContainer}>
+                  {hasReactions ? (
+                    <TouchableOpacity
+                      style={styles.reactionSummary}
+                      onPress={() => openReactionDetails(item)}
+                    >
+                      <Text style={styles.reactionEmojiPreview}>
+                        {reactionPreview}
+                      </Text>
+                      <Text style={styles.reactionCountText}>
+                        {totalReactions}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.defaultLike}
+                      onPress={() => handleToggleReact(item, "👍")}
+                    >
+                      <Ionicons
+                        name="heart-outline"
+                        size={13}
+                        color={COLORS.textLight}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -851,24 +1016,18 @@ const MessageScreen = () => {
     );
   };
 
-  // -------------------------------------------------------
-  // 🔥 BƯỚC 2: Theo dõi item nào đang hiển thị trên màn hình
-  // Khi tin nhắn CUỐI CÙNG xuất hiện → xoá badge
-  // -------------------------------------------------------
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: any) => {
       if (!viewableItems || viewableItems.length === 0) return;
       const lastVisibleItem = viewableItems[viewableItems.length - 1];
       const lastMessageIndex = messages.length - 1;
       if (lastVisibleItem?.index === lastMessageIndex) {
-        // User đã thấy tin nhắn mới nhất → xoá badge ở ChatScreen
         clearLocalUnread(conversationId);
       }
     },
-    [messages.length, conversationId, clearLocalUnread],
+    [messages.length, conversationId, clearLocalUnread]
   );
 
-  // Dùng ref để tránh FlatList re-render khi callback thay đổi
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 });
   const onViewableItemsChangedRef = useRef(handleViewableItemsChanged);
   useEffect(() => {
@@ -946,22 +1105,16 @@ const MessageScreen = () => {
         style={styles.chatArea}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* 🔥 FlatList với onViewableItemsChanged để detect khi đọc đến cuối */}
         <FlatList
           ref={flatListRef}
-          inverted={true} // THÊM DÒNG NÀY: Lật ngược danh sách (rất quan trọng cho App Chat)
+          inverted={true}
           data={messages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
-
-          // XOÁ: refreshControl={...}
-
-          // THÊM 2 DÒNG NÀY: Tự động tải thêm khi cuộn lên gần tới nơi có tin cũ
           onEndReached={loadMoreMessages}
-          onEndReachedThreshold={0.5} // Cách đỉnh 0.5 màn hình thì bắt đầu fetch tiếp
-
-          ListFooterComponent={ // SỬA ListHeader thành ListFooter do danh sách bị lật ngược
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
             !hasMore && messages.length > 0 ? (
               <Text style={{ textAlign: "center", color: COLORS.textLight, paddingVertical: 10 }}>
                 Đã tải hết lịch sử trò chuyện
@@ -974,8 +1127,43 @@ const MessageScreen = () => {
           viewabilityConfig={viewabilityConfig.current}
         />
 
+        {/* UI HIỂN THỊ FILE/ẢNH ĐANG CHỜ GỬI NẰM NGAY TRÊN Ô NHẬP TEXT */}
+        {pendingMedia && (
+          <View style={styles.pendingContainer}>
+            <View style={styles.pendingMediaWrap}>
+              <TouchableOpacity
+                style={styles.removePendingBtn}
+                onPress={() => setPendingMedia(null)}
+              >
+                <Ionicons name="close" size={14} color="#FFF" />
+              </TouchableOpacity>
+
+              {pendingMedia.attachmentType === "media" ? (
+                <Image
+                  source={{ uri: pendingMedia.uri }}
+                  style={styles.pendingImage}
+                />
+              ) : (
+                <View style={styles.pendingFile}>
+                  <Ionicons name="document-text" size={30} color={COLORS.primary} />
+                </View>
+              )}
+              {pendingMedia.type === "video" && (
+                <View style={styles.pendingVideoIcon}>
+                  <Ionicons name="videocam" size={14} color="#FFF" />
+                </View>
+              )}
+            </View>
+            {pendingMedia.attachmentType === "file" && (
+              <Text style={styles.pendingFileName} numberOfLines={1}>
+                {pendingMedia.name || "Tài liệu đính kèm"}
+              </Text>
+            )}
+          </View>
+        )}
+
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachBtn}>
+          <TouchableOpacity style={styles.attachBtn} onPress={handleAttachPress} disabled={isUploading}>
             <Feather name="plus" size={24} color={COLORS.textLight} />
           </TouchableOpacity>
 
@@ -996,7 +1184,7 @@ const MessageScreen = () => {
               styles.textInput,
               {
                 flexDirection: "row",
-                alignItems: "flex-end", // Đẩy text xuống đáy khi khung cao lên
+                alignItems: "flex-end",
                 paddingHorizontal: 0,
               },
             ]}
@@ -1007,7 +1195,7 @@ const MessageScreen = () => {
                   color: "#C084FC",
                   fontWeight: "900",
                   paddingLeft: 16,
-                  paddingBottom: Platform.OS === 'ios' ? 10 : 12 // Canh chữ @PulseAI ngang hàng với TextInput
+                  paddingBottom: Platform.OS === 'ios' ? 10 : 12
                 }}
               >
                 @PulseAI
@@ -1021,12 +1209,10 @@ const MessageScreen = () => {
                 paddingHorizontal: inputText.startsWith("@PulseAI ") ? 6 : 16,
                 minHeight: 40,
                 lineHeight: 20,
-                maxHeight: 70, 
-                paddingTop: 10, 
+                maxHeight: 70,
+                paddingTop: 10,
                 paddingBottom: 10,
-                
-                // Đảm bảo chữ bắt đầu từ trên xuống mượt mà trên Android
-                textAlignVertical: 'center', 
+                textAlignVertical: 'center',
               }}
               placeholder="Tin nhắn..."
               placeholderTextColor={COLORS.textLight}
@@ -1176,7 +1362,7 @@ const MessageScreen = () => {
                   <Text style={styles.reactionFilterCount}>
                     {reactionGroupsForModal.reduce(
                       (acc, group) => acc + group.count,
-                      0,
+                      0
                     )}
                   </Text>
                 </TouchableOpacity>
@@ -1311,13 +1497,33 @@ const MessageScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={!!previewMedia} transparent={true} animationType="fade">
+        <View style={styles.imagePreviewContainer}>
+          <TouchableOpacity
+            style={styles.closePreviewBtn}
+            onPress={() => setPreviewMedia(null)}
+          >
+            <Ionicons name="close" size={32} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          {previewMedia && (
+            previewMedia.isVideo ? (
+              <VideoViewer url={previewMedia.url} />
+            ) : (
+              <Image
+                source={{ uri: previewMedia.url }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            )
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-// ==========================================
-// 2. STYLES CHI TIẾT VÀ HOÀN CHỈNH THEO THEME
-// ==========================================
 const getStyles = (COLORS: any, isDarkMode: boolean) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
@@ -1465,13 +1671,13 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       padding: 10,
       backgroundColor: COLORS.surface,
-      alignItems: "flex-end", // 🔥 Đổi từ center thành flex-end để nút Send luôn nằm sát đáy khi khung chat cao lên
+      alignItems: "flex-end",
       borderTopWidth: 1,
       borderColor: COLORS.border,
     },
     attachBtn: {
       padding: 8,
-      marginBottom: 2 // 🔥 Thêm để căn đều với nút Send
+      marginBottom: 2
     },
     textInput: {
       flex: 1,
@@ -1479,7 +1685,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       color: COLORS.text,
       borderRadius: 20,
       paddingHorizontal: 16,
-      minHeight: 40, // 🔥 Sửa TỪ height: 40 THÀNH minHeight: 40
+      minHeight: 40,
     },
     sendBtn: {
       width: 36,
@@ -1700,6 +1906,117 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     menuItem: { flexDirection: "row", alignItems: "center", padding: 15 },
     aiContent: { maxHeight: 350, paddingHorizontal: 20, paddingVertical: 20 },
     aiFooter: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10 },
+
+    mediaImage: {
+      width: 240,
+      height: 300,
+      borderRadius: 16,
+      borderWidth: 0.5,
+      borderColor: "rgba(0,0,0,0.1)",
+    },
+    playIconOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.15)",
+      borderRadius: 16,
+    },
+    fileAttachmentContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 0,
+      paddingVertical: 4, 
+      marginBottom: 0,
+      width: 240, 
+      borderRadius: 18,
+    },
+    fileIconWrapper: {
+      width: 48,
+      height: 48,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    fileNameText: {
+      fontSize: 15,
+      fontWeight: "600",
+      lineHeight: 20,
+    },
+
+    imagePreviewContainer: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.95)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    closePreviewBtn: {
+      position: "absolute",
+      top: Platform.OS === "ios" ? 50 : 40,
+      right: 20,
+      zIndex: 10,
+      padding: 10,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      borderRadius: 20,
+    },
+    fullScreenImage: {
+      width: "100%",
+      height: "80%",
+    },
+    // STYLE MỚI CHO PREVIEW MEDIA TRƯỚC KHI GỬI
+    pendingContainer: {
+      padding: 10,
+      backgroundColor: COLORS.surface,
+      borderTopWidth: 1,
+      borderColor: COLORS.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    pendingMediaWrap: {
+      position: 'relative',
+      width: 60,
+      height: 60,
+      borderRadius: 8,
+      marginRight: 10,
+    },
+    pendingImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 8,
+    },
+    pendingFile: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 8,
+      backgroundColor: COLORS.surfaceSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    removePendingBtn: {
+      position: 'absolute',
+      top: -8,
+      right: -8,
+      backgroundColor: COLORS.badge,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+    },
+    pendingFileName: {
+      flex: 1,
+      color: COLORS.text,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    pendingVideoIcon: {
+      position: 'absolute',
+      bottom: 4,
+      left: 4,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      padding: 2,
+      borderRadius: 4,
+    }
   });
 
 export default MessageScreen;
