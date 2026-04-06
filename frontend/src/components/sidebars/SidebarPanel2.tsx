@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { Loader2, UserPlus, Bot } from 'lucide-react'
+import { Loader2, UserPlus, Bot, Users } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -8,6 +8,7 @@ import { conversationsApi } from '@/apis/conversations.api'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
 import AddFriendModal from '@/pages/AddFriendModal'
+import { AddMemberModal } from '../chat/info-panel/AddMemberModal' // Import Modal vừa sửa
 import Settings from '../settings/Setting'
 import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
@@ -33,7 +34,10 @@ export function SidebarPanel2({
 }: SidebarPanel2Props) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [open, setOpen] = React.useState(false)
+
+  const [open, setOpen] = React.useState(false) // State cho modal kết bạn
+  const [openCreateGroup, setOpenCreateGroup] = React.useState(false) // State cho modal tạo nhóm
+
   const { setOpenMobile, isMobile } = useSidebar()
   const [keyword, setKeyword] = React.useState('')
   const [searchResults, setSearchResults] = React.useState<any[]>([])
@@ -43,7 +47,7 @@ export function SidebarPanel2({
       setActiveChat({
         id: 'ai-chatbot',
         name: 'ChatPulse AI',
-        avatar: '', // Xử lý qua type 'ai' bên trong
+        avatar: '',
         isOnline: true,
         type: 'ai',
         unreadCount: 0
@@ -94,6 +98,7 @@ export function SidebarPanel2({
       console.error('Lỗi khi đánh dấu xem:', error)
     }
   }
+
   const searchUserMutation = useMutation({
     mutationFn: (userName: string) => searchApi.advancedSearch({ userName })
   })
@@ -103,14 +108,30 @@ export function SidebarPanel2({
       <SidebarHeader className='gap-3.5 border-b border-sidebar-border/40 p-4 shadow-sm'>
         <div className='flex w-full items-center justify-between'>
           <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
-          <button
-            onClick={() => setOpen(true)}
-            className='flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 transition-colors'
-          >
-            <UserPlus className='h-4 w-4 cursor-pointer' />
-          </button>
+
+          {/* VÙNG NÚT ĐIỀU KHIỂN BÊN PHẢI */}
+          <div className='flex items-center gap-1.5'>
+            <button
+              onClick={() => setOpenCreateGroup(true)}
+              className='flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground transition-colors'
+              title='Tạo nhóm trò chuyện'
+            >
+              <Users className='h-4 w-4 cursor-pointer' />
+            </button>
+            <button
+              onClick={() => setOpen(true)}
+              className='flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground transition-colors'
+              title='Thêm bạn bè'
+            >
+              <UserPlus className='h-4 w-4 cursor-pointer' />
+            </button>
+          </div>
         </div>
+
+        {/* NHÚNG CÁC MODALS */}
         <AddFriendModal open={open} onOpenChange={setOpen} />
+        <AddMemberModal isOpen={openCreateGroup} onClose={() => setOpenCreateGroup(false)} mode='create' />
+
         <SidebarInput
           placeholder='Tìm kiếm...'
           value={keyword}
@@ -146,7 +167,6 @@ export function SidebarPanel2({
                 key={user._id}
                 className='flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-sidebar-accent cursor-pointer'
               >
-                {/* Avatar */}
                 <div className='h-10 w-10 rounded-full overflow-hidden'>
                   {user.avatar ? (
                     <img src={user.avatar} className='h-full w-full object-cover' />
@@ -156,8 +176,6 @@ export function SidebarPanel2({
                     </div>
                   )}
                 </div>
-
-                {/* Info */}
                 <div className='flex-1'>
                   <div className='font-medium'>{user.userName}</div>
                 </div>
@@ -171,7 +189,6 @@ export function SidebarPanel2({
         <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
           {!keyword && activeItem.title === 'Tin nhắn' && (
             <>
-              {/* PHẦN GHIM CỐ ĐỊNH: CHATBOT AI */}
               <div
                 onClick={() => handleChatSelect('ai-chatbot')}
                 className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
@@ -193,7 +210,6 @@ export function SidebarPanel2({
                 </div>
               </div>
 
-              {/* DANH SÁCH CHAT BÌNH THƯỜNG */}
               {isLoading ? (
                 <div className='flex justify-center items-center py-6'>
                   <Loader2 className='h-6 w-6 animate-spin text-blue-500' />

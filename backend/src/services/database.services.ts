@@ -7,6 +7,7 @@ import Friend from '~/models/schemas/friend.schema'
 import Conversation from '~/models/schemas/conversation.schema'
 import UserBlocks from '~/models/schemas/userBlocks.schema'
 import Call from '~/models/schemas/call.schema'
+import { Otp } from '~/models/schemas/otp.schema'
 config()
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ptzh2gl.mongodb.net/?appName=Cluster0`
@@ -15,7 +16,6 @@ class DatabaseService {
   private client: MongoClient
   private db: Db
   constructor() {
-
     this.client = new MongoClient(uri)
     this.db = this.client.db(process.env.DB_NAME)
   }
@@ -38,7 +38,7 @@ class DatabaseService {
       this.users.createIndex({ userName: 1 })
       this.users.createIndex({ phone: 1 })
       // Đánh index cho username và displayName để tối ưu tốc độ search < 200ms
-     this.users.createIndex({ displayName: 1 })
+      this.users.createIndex({ displayName: 1 })
     }
   }
 
@@ -67,6 +67,10 @@ class DatabaseService {
 
   get calls(): Collection<Call> {
     return this.db.collection('calls')
+  }
+  // ── Thêm mới: collection lưu OTP quên mật khẩu ──────────────────────────
+  get otps(): Collection<Otp> {
+    return this.db.collection('otps')
   }
 
   //Create Index

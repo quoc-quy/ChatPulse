@@ -149,12 +149,15 @@ const MessageScreen = () => {
     if (!hasMore || isFetchingMore || !cursor) return;
     try {
       setIsFetchingMore(true);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // SỬA Ở ĐÂY: Xoá dòng await new Promise(setTimeout...) gây trễ 1 giây vô lý
+
       const res = await getMessages(conversationId, cursor, 20);
       const rawData = res.data.result || res.data.data || [];
       if (rawData.length > 0) {
         setCursor(rawData[rawData.length - 1]._id);
-        setMessages((prev) => [...[...rawData].reverse(), ...prev]);
+
+        // SỬA Ở ĐÂY: Nối tin nhắn cũ vào CUỐI mảng (do đang dùng inverted)
+        setMessages((prev) => [...prev, ...rawData]);
       }
       if (rawData.length < 20) setHasMore(false);
     } catch (error: any) {
@@ -218,11 +221,12 @@ const MessageScreen = () => {
       setLoading(true);
       const res = await getMessages(conversationId, null, 20);
       const rawData = res.data.result || res.data.data || [];
-      const visibleData = rawData;
-      if (visibleData.length > 0)
-        setCursor(visibleData[visibleData.length - 1]._id);
-      if (visibleData.length < 20) setHasMore(false);
-      setMessages([...visibleData].reverse());
+      if (rawData.length > 0)
+        setCursor(rawData[rawData.length - 1]._id);
+      if (rawData.length < 20) setHasMore(false);
+
+      // SỬA Ở ĐÂY: KHÔNG dùng .reverse() nữa
+      setMessages(rawData);
     } catch (error: any) {
       console.log("Lỗi tải tin nhắn:", error.message);
     } finally {
@@ -582,9 +586,13 @@ const MessageScreen = () => {
       createdAt: new Date().toISOString(),
       sender: { _id: currentUserId, userName: "Tôi" },
     };
-    setMessages((prev) => [...prev, tempMessage]);
+
+    // SỬA Ở ĐÂY: Đưa tin nhắn mới lên đầu mảng
+    setMessages((prev) => [tempMessage, ...prev]);
+
     try {
       const res = await sendMessage(conversationId, contentToSend, "type");
+      // ... (Phần logic phía dưới giữ nguyên)
       const realMessage = res.data.result || res.data;
       if (realMessage)
         setMessages((prev) =>
@@ -655,13 +663,17 @@ const MessageScreen = () => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
     const isRevoked = item.type === "revoked";
 
+    // 1. TÁCH RÕ HAI KHÁI NIỆM TRONG INVERTED LIST
+    const olderItem = index < messages.length - 1 ? messages[index + 1] : null; // Tin CŨ HƠN (nằm bên TRÊN)
+    const newerItem = index > 0 ? messages[index - 1] : null; // Tin MỚI HƠN (nằm bên DƯỚI)
+
+    // 2. XỬ LÝ TIN NHẮN HỆ THỐNG
     if (item.type === "system") {
-      const prevItem = index > 0 ? messages[index - 1] : null;
       const currentDate = new Date(item.createdAt).toDateString();
-      const prevDate = prevItem
-        ? new Date(prevItem.createdAt).toDateString()
-        : null;
-      const showDateDivider = currentDate !== prevDate;
+      const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null;
+      // Ngày phân cách sẽ hiện ở tin nhắn đầu tiên của ngày đó (so sánh với tin CŨ HƠN)
+      const showDateDivider = currentDate !== olderDate;
+
       return (
         <View>
           {showDateDivider && (
@@ -675,11 +687,7 @@ const MessageScreen = () => {
             <Text
               style={[
                 styles.systemMessageText,
-                {
-                  color: isDarkMode
-                    ? "rgba(255,255,255,0.45)"
-                    : "rgba(0,0,0,0.4)",
-                },
+                { color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)" },
               ]}
             >
               {item.content}
@@ -689,46 +697,35 @@ const MessageScreen = () => {
       );
     }
 
+    // 3. LOGIC AVATAR, THỜI GIAN CHO TIN NHẮN BÌNH THƯỜNG
     const isAiGenerated = item.content?.startsWith("@PulseAI ");
-    const displayContent = isAiGenerated
-      ? item.content.substring(9)
-      : item.content;
+    const displayContent = isAiGenerated ? item.content.substring(9) : item.content;
     const reactionGroups = buildReactionGroups(item.reactions || []);
-    const totalReactions = reactionGroups.reduce(
-      (acc, group) => acc + group.count,
-      0,
-    );
+    const totalReactions = reactionGroups.reduce((acc, group) => acc + group.count, 0);
     const hasReactions = totalReactions > 0;
-    const reactionPreview = reactionGroups
-      .slice(0, 3)
-      .map((group) => group.emoji)
-      .join(" ");
+    const reactionPreview = reactionGroups.slice(0, 3).map((group) => group.emoji).join(" ");
     const isLatestMessage = index === messages.length - 1;
-    const shouldShowReactionCorner =
-      !isRevoked && (hasReactions || isLatestMessage);
+    const shouldShowReactionCorner = !isRevoked && (hasReactions || isLatestMessage);
 
-    const prevItem = index > 0 ? messages[index - 1] : null;
-    const nextItem = index < messages.length - 1 ? messages[index + 1] : null;
     const currentDate = new Date(item.createdAt).toDateString();
-    const prevDate = prevItem
-      ? new Date(prevItem.createdAt).toDateString()
-      : null;
-    const showDateDivider = currentDate !== prevDate;
-    const isSameSenderAsNext =
-      nextItem &&
-      (nextItem.sender?._id || nextItem.senderId) ===
-        (item.sender?._id || item.senderId);
+    const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null;
+    const showDateDivider = currentDate !== olderDate;
+
+    // So sánh người gửi với tin MỚI HƠN (nằm dưới) để quyết định giấu Avatar
+    const isSameSenderAsNewer =
+      newerItem &&
+      (newerItem.sender?._id || newerItem.senderId) === (item.sender?._id || item.senderId);
 
     let isCloseInTime = false;
-    if (nextItem) {
-      const diff =
-        new Date(nextItem.createdAt).getTime() -
-        new Date(item.createdAt).getTime();
+    if (newerItem) {
+      // Vì newerItem là tin mới hơn nên createdAt sẽ lớn hơn -> diff ra số dương
+      const diff = new Date(newerItem.createdAt).getTime() - new Date(item.createdAt).getTime();
       isCloseInTime = diff < 60000;
     }
 
-    const showTime = !isRevoked && !(isSameSenderAsNext && isCloseInTime);
-    const showAvatar = !isMe && !isSameSenderAsNext;
+    const showTime = !isRevoked && !(isSameSenderAsNewer && isCloseInTime);
+    // Chỉ hiện Avatar ở tin nhắn cuối cùng của một cụm (khi tin mới hơn không cùng người gửi)
+    const showAvatar = !isMe && !isSameSenderAsNewer;
 
     return (
       <View>
@@ -739,12 +736,8 @@ const MessageScreen = () => {
             </Text>
           </View>
         )}
-        <View
-          style={[
-            styles.messageWrapper,
-            isMe ? styles.messageWrapperMe : styles.messageWrapperOther,
-          ]}
-        >
+        <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
+          {/* ... (Đoạn mã render UI HTML bên trong của bạn giữ nguyên hoàn toàn) ... */}
           {!isMe && (
             <View style={styles.avatarPlaceholder}>
               {showAvatar && (
@@ -956,34 +949,28 @@ const MessageScreen = () => {
         {/* 🔥 FlatList với onViewableItemsChanged để detect khi đọc đến cuối */}
         <FlatList
           ref={flatListRef}
+          inverted={true} // THÊM DÒNG NÀY: Lật ngược danh sách (rất quan trọng cho App Chat)
           data={messages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetchingMore}
-              onRefresh={loadMoreMessages}
-              tintColor={COLORS.primary}
-            />
-          }
-          ListHeaderComponent={
+
+          // XOÁ: refreshControl={...}
+
+          // THÊM 2 DÒNG NÀY: Tự động tải thêm khi cuộn lên gần tới nơi có tin cũ
+          onEndReached={loadMoreMessages}
+          onEndReachedThreshold={0.5} // Cách đỉnh 0.5 màn hình thì bắt đầu fetch tiếp
+
+          ListFooterComponent={ // SỬA ListHeader thành ListFooter do danh sách bị lật ngược
             !hasMore && messages.length > 0 ? (
-              <Text
-                style={{
-                  textAlign: "center",
-                  color: COLORS.textLight,
-                  paddingVertical: 10,
-                }}
-              >
+              <Text style={{ textAlign: "center", color: COLORS.textLight, paddingVertical: 10 }}>
                 Đã tải hết lịch sử trò chuyện
               </Text>
+            ) : isFetchingMore ? (
+              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 10 }} />
             ) : null
           }
-          // 🔥 Hai prop mới: detect tin nhắn cuối đã visible → xoá badge
-          onViewableItemsChanged={(info) =>
-            onViewableItemsChangedRef.current(info)
-          }
+          onViewableItemsChanged={(info) => onViewableItemsChangedRef.current(info)}
           viewabilityConfig={viewabilityConfig.current}
         />
 
@@ -1009,24 +996,37 @@ const MessageScreen = () => {
               styles.textInput,
               {
                 flexDirection: "row",
-                alignItems: "center",
+                alignItems: "flex-end", // Đẩy text xuống đáy khi khung cao lên
                 paddingHorizontal: 0,
               },
             ]}
           >
             {inputText.startsWith("@PulseAI ") && (
               <Text
-                style={{ color: "#C084FC", fontWeight: "900", paddingLeft: 16 }}
+                style={{
+                  color: "#C084FC",
+                  fontWeight: "900",
+                  paddingLeft: 16,
+                  paddingBottom: Platform.OS === 'ios' ? 10 : 12 // Canh chữ @PulseAI ngang hàng với TextInput
+                }}
               >
                 @PulseAI
               </Text>
             )}
             <TextInput
+              multiline={true}
               style={{
                 flex: 1,
                 color: COLORS.text,
                 paddingHorizontal: inputText.startsWith("@PulseAI ") ? 6 : 16,
-                height: 40,
+                minHeight: 40,
+                lineHeight: 20,
+                maxHeight: 70, 
+                paddingTop: 10, 
+                paddingBottom: 10,
+                
+                // Đảm bảo chữ bắt đầu từ trên xuống mượt mà trên Android
+                textAlignVertical: 'center', 
               }}
               placeholder="Tin nhắn..."
               placeholderTextColor={COLORS.textLight}
@@ -1053,7 +1053,7 @@ const MessageScreen = () => {
             />
           </View>
 
-          <TouchableOpacity onPress={handleSend}>
+          <TouchableOpacity onPress={handleSend} style={{ marginBottom: 2 }}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.accent]}
               style={styles.sendBtn}
@@ -1186,7 +1186,7 @@ const MessageScreen = () => {
                     style={[
                       styles.reactionFilterItem,
                       reactionFilter === group.emoji &&
-                        styles.reactionFilterItemActive,
+                      styles.reactionFilterItemActive,
                     ]}
                     onPress={() => setReactionFilter(group.emoji)}
                   >
@@ -1465,18 +1465,21 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       padding: 10,
       backgroundColor: COLORS.surface,
-      alignItems: "center",
+      alignItems: "flex-end", // 🔥 Đổi từ center thành flex-end để nút Send luôn nằm sát đáy khi khung chat cao lên
       borderTopWidth: 1,
       borderColor: COLORS.border,
     },
-    attachBtn: { padding: 8 },
+    attachBtn: {
+      padding: 8,
+      marginBottom: 2 // 🔥 Thêm để căn đều với nút Send
+    },
     textInput: {
       flex: 1,
       backgroundColor: COLORS.background,
       color: COLORS.text,
       borderRadius: 20,
       paddingHorizontal: 16,
-      height: 40,
+      minHeight: 40, // 🔥 Sửa TỪ height: 40 THÀNH minHeight: 40
     },
     sendBtn: {
       width: 36,

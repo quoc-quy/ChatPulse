@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useContext } from 'react'
-import { Smile, Send, Paperclip, ImageIcon, Mic } from 'lucide-react'
+import { Smile, Send, Paperclip, ImageIcon } from 'lucide-react'
 import EmojiPicker, { Theme } from 'emoji-picker-react'
 import { messagesApi } from '@/apis/messages.api'
 import { AppContext } from '@/context/app.context'
@@ -15,7 +15,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const [isSending, setIsSending] = useState(false)
   const [emojiTheme, setEmojiTheme] = useState<Theme>(Theme.LIGHT)
 
-  const inputRef = useRef<HTMLInputElement>(null)
+  // Đổi từ HTMLInputElement sang HTMLTextAreaElement
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
@@ -37,12 +38,36 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Hàm tự động điều chỉnh chiều cao của textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = '40px' // Đặt lại chiều cao mặc định
+      const scrollHeight = inputRef.current.scrollHeight
+
+      // Chiều cao tối đa khoảng 5 dòng (line-height: ~24px -> 5 dòng ~ 120px)
+      // Cộng thêm padding
+      if (scrollHeight > 130) {
+        inputRef.current.style.height = '130px'
+        inputRef.current.style.overflowY = 'auto'
+      } else {
+        inputRef.current.style.height = `${scrollHeight}px`
+        inputRef.current.style.overflowY = 'hidden'
+      }
+    }
+  }, [content]) // Kích hoạt mỗi khi nội dung thay đổi
+
   const handleSendText = async () => {
     if (!content.trim() || !convId || isSending) return
 
     const messageContent = content.trim()
     setContent('')
     setShowEmoji(false)
+
+    // Reset lại chiều cao textarea về ban đầu sau khi gửi
+    if (inputRef.current) {
+      inputRef.current.style.height = '40px'
+    }
+
     triggerOptimisticAndSend('text', messageContent, async () => {
       return await messagesApi.sendMessage({ convId, type: 'text', content: messageContent })
     })
@@ -51,9 +76,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file || !convId || isSending) return
-    event.target.value = '' // Reset input
+    event.target.value = ''
 
-    // Tạo nội dung nháp hiển thị tạm thời
     const tempContent = URL.createObjectURL(file)
 
     triggerOptimisticAndSend('media', tempContent, async () => {
@@ -91,7 +115,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Đổi type sự kiện sang HTMLTextAreaElement
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendText()
@@ -108,7 +133,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   }
 
   return (
-    <div className='p-4 bg-background flex items-center gap-2 relative border-t border-border/40 px-4 shadow-sm'>
+    <div className='p-4 bg-background flex items-end gap-2 relative border-t border-border/40 px-4 shadow-sm'>
       {/* File Inputs (Hidden) */}
       <input type='file' ref={fileInputRef} className='hidden' onChange={handleFileUpload} />
       <input
@@ -119,32 +144,37 @@ export function ChatFooter({ convId }: ChatFooterProps) {
         onChange={handleFileUpload}
       />
 
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className='p-2 text-muted-foreground hover:text-foreground transition-colors'
-      >
-        <Paperclip className='w-5 h-5' />
-      </button>
-      <button
-        onClick={() => mediaInputRef.current?.click()}
-        className='p-2 text-muted-foreground hover:text-foreground transition-colors'
-      >
-        <ImageIcon className='w-5 h-5' />
-      </button>
+      <div className='flex items-center pb-2'>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className='p-2 text-muted-foreground hover:text-foreground transition-colors'
+        >
+          <Paperclip className='w-5 h-5' />
+        </button>
+        <button
+          onClick={() => mediaInputRef.current?.click()}
+          className='p-2 text-muted-foreground hover:text-foreground transition-colors'
+        >
+          <ImageIcon className='w-5 h-5' />
+        </button>
+      </div>
 
-      <div className='relative flex-1 flex items-center'>
-        <input
+      {/* Sửa lại wrapper của khung nhập liệu */}
+      <div className='relative flex-1 flex items-end bg-muted rounded-3xl pb-0.5 border border-transparent focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all'>
+        {/* Sử dụng Textarea thay cho Input */}
+        <textarea
           ref={inputRef}
-          type='text'
           placeholder='Nhập tin nhắn...'
-          className='w-full bg-muted text-foreground rounded-full px-4 py-2 pr-10 outline-none focus:ring-2 focus:ring-blue-500'
+          className='w-full bg-transparent text-foreground px-4 py-[10px] pr-10 outline-none resize-none leading-relaxed'
+          style={{ minHeight: '40px', height: '40px', maxHeight: '130px' }}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
+          rows={1}
         />
         <button
           onClick={() => setShowEmoji(!showEmoji)}
-          className={`absolute right-3 p-1 transition-colors ${showEmoji ? 'text-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`absolute right-3 bottom-[8px] p-1 transition-colors ${showEmoji ? 'text-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
         >
           <Smile className='w-5 h-5' />
         </button>
@@ -156,13 +186,15 @@ export function ChatFooter({ convId }: ChatFooterProps) {
         </div>
       )}
 
-      <button
-        onClick={handleSendText}
-        disabled={!content.trim() && !isSending}
-        className='p-2 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-10 h-10'
-      >
-        <Send className='w-5 h-5 ml-1' />
-      </button>
+      <div className='pb-[2px]'>
+        <button
+          onClick={handleSendText}
+          disabled={!content.trim() && !isSending}
+          className='p-2 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-10 h-10'
+        >
+          <Send className='w-5 h-5 ml-1' />
+        </button>
+      </div>
     </div>
   )
 }
