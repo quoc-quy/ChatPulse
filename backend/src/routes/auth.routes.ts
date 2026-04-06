@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { forgotPasswordController, loginController, logoutController, registerController } from '~/controllers/users.controllers'
+import { loginController, logoutController, registerController } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
   forgotPasswordValidator,
