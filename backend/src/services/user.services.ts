@@ -413,6 +413,7 @@ class UserService {
         }
       }
     )
+    console.log(forgot_password_token)
     return {
       message: 'Kiểm tra hộp thư email để thiết lập lại mật khẩu'
     }

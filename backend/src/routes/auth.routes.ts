@@ -1,11 +1,18 @@
 import { Router } from 'express'
-import { forgotPasswordController, loginController, logoutController, registerController } from '~/controllers/users.controllers'
+import {
+  forgotPasswordController,
+  loginController,
+  logoutController,
+  registerController,
+  verifyForgotPasswordController
+} from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
   forgotPasswordValidator,
   loginValidator,
   refreshTokenValidator,
-  registerValidator
+  registerValidator,
+  verifyForgotPasswordValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -16,7 +23,6 @@ const authRoute = Router()
  * Body: {email: string, password: string}
  */
 authRoute.post('/login', loginValidator, wrapRequestHandler(loginController))
-
 
 /**
  * Register a new user
@@ -36,5 +42,11 @@ authRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapReque
  * body: {email: string}
  */
 authRoute.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
+
+/**
+ * Description: verify link in email to reset password
+ * body: {forgot-password-token: string}
+ */
+authRoute.post('/verify-forgot-password', verifyForgotPasswordValidator, wrapRequestHandler(verifyForgotPasswordController))
 
 export default authRoute
