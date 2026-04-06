@@ -34,7 +34,7 @@ import {
   useNavigation,
 } from "@react-navigation/native";
 import { suggestReplyApi } from "../apis/chat.api";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { LinearGradient } from "expo-linear-gradient";
@@ -128,6 +128,15 @@ const MessageScreen = () => {
   const [pendingMedia, setPendingMedia] = useState<any | null>(null);
   const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return '0 giây';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h} giờ ${m} phút`;
+    if (m > 0) return `${m} phút ${s} giây`;
+    return `${s} giây`;
+  };
 
   const handleSuggestReply = async () => {
     if (messages.length === 0) return;
@@ -204,7 +213,7 @@ const MessageScreen = () => {
 
   const uploadAttachment = async (fileData: any, type: "media" | "file") => {
     setIsUploading(true);
-    
+
     // Tách phần đuôi mở rộng bỏ đi tham số "?"
     const isVideoFile = fileData.type === "video" || fileData.uri.split('?')[0].match(/\.(mp4|mov)$/i);
     const mediaType = type === "media" ? (isVideoFile ? "video" : "image") : type;
@@ -217,7 +226,7 @@ const MessageScreen = () => {
       content: fileData.uri,
       createdAt: new Date().toISOString(),
       sender: { _id: currentUserId, userName: "Tôi" },
-      isSending: true, 
+      isSending: true,
     };
     setMessages((prev) => [tempMessage, ...prev]);
 
@@ -241,7 +250,7 @@ const MessageScreen = () => {
       const formattedFile = { uri: fileData.uri, name: fileName, type: mimeType };
       const res = await sendMediaMessage(conversationId, formattedFile, type);
       const realMessage = res.data?.result || res.data;
-      
+
       if (realMessage) {
         setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
       }
@@ -866,26 +875,86 @@ const MessageScreen = () => {
               <View
                 style={[
                   // Nếu là Media thì bỏ khung bubble đi
-                  !(item.type === "media" || item.type === "image" || item.type === "video") && styles.bubble,
-                  !(item.type === "media" || item.type === "image" || item.type === "video") && (isMe ? styles.bubbleMe : styles.bubbleOther),
+                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && styles.bubble,
+                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && (isMe ? styles.bubbleMe : styles.bubbleOther),
                   isRevoked && {
                     backgroundColor: isDarkMode ? "#1E2946" : "#E2E8F0",
                     opacity: 0.6,
                   },
-                  item.isSending && { opacity: 0.6 }
+                  item.isSending && { opacity: 0.6 },
+                  // Ẩn background nếu là thẻ Call để dùng style riêng
+                  item.type === "call" && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }
                 ]}
               >
                 {isRevoked ? (
                   <Text style={[styles.messageText, { fontStyle: "italic", color: COLORS.textLight, paddingRight: 5 }]}>
                     Tin nhắn đã được thu hồi
                   </Text>
+                ) : item.type === "call" ? (
+                  // GIAO DIỆN CUỘC GỌI CHUẨN ZALO (DÙNG MATERIAL ICONS)
+                  (() => {
+                    let callTitle = "Cuộc gọi";
+                    let callSub = formatDuration(item.callInfo?.duration || 0);
+                    let iconName = "phone";
+                    let iconColor = isMe ? COLORS.headerText : COLORS.text;
+                    let titleColor = isMe ? COLORS.headerText : COLORS.text;
+
+                    const callInfo = item.callInfo || {};
+                    const isVideo = callInfo.type === 'video' || displayContent.includes("Video");
+                    const status = callInfo.status || (displayContent.toLowerCase().includes("nhỡ") ? "missed" : "completed");
+
+                    if (status === 'completed') {
+                      callTitle = isMe ? "Cuộc gọi đi" : "Cuộc gọi đến";
+                      iconName = isVideo ? "video" : (isMe ? "phone-outgoing" : "phone-incoming");
+                      iconColor = isMe ? COLORS.headerText : COLORS.success;
+                    } else if (status === 'missed' || (!isMe && status === 'cancelled')) {
+                      callTitle = "Cuộc gọi nhỡ";
+                      titleColor = isMe ? COLORS.headerText : COLORS.badge;
+                      // CHÍNH LÀ ICON BẠN MUỐN TÌM: phone-missed
+                      iconName = isVideo ? "video-off" : "phone-missed"; 
+                      iconColor = isMe ? COLORS.headerText : COLORS.badge;
+                      callSub = isVideo ? 'Cuộc gọi Video' : 'Cuộc gọi thoại';
+                    } else if (status === 'rejected') {
+                      callTitle = isMe ? "Người nhận từ chối" : "Bạn đã từ chối";
+                      titleColor = isMe ? COLORS.headerText : COLORS.badge;
+                      // Dùng phone-cancel cho cuộc gọi bị từ chối
+                      iconName = isVideo ? "video-off" : "phone-cancel"; 
+                      iconColor = isMe ? COLORS.headerText : COLORS.badge;
+                      callSub = isVideo ? 'Cuộc gọi Video' : 'Cuộc gọi thoại';
+                    } else if (isMe && status === 'cancelled') {
+                      callTitle = "Cuộc gọi đi";
+                      iconName = isVideo ? "video" : "phone-outgoing";
+                      iconColor = COLORS.headerText;
+                      callSub = "Chưa kết nối";
+                    }
+
+                    return (
+                      <View style={[styles.callCard, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? COLORS.primary : COLORS.surface, borderColor: COLORS.border, borderWidth: isMe ? 0 : (isDarkMode ? 1 : 1) }]}>
+                        <View style={styles.callCardTop}>
+                          <View style={[styles.callIconWrapper, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : (isDarkMode ? "#1E293B" : "#F3F4F6") }]}>
+                            {/* ĐỔI SANG DÙNG MaterialCommunityIcons ĐỂ CÓ ICON ĐÚNG */}
+                            <MaterialCommunityIcons name={iconName as any} size={24} color={iconColor} />
+                          </View>
+                          <View style={styles.callInfo}>
+                            <Text style={[styles.callTitle, { color: titleColor }]}>
+                              {callTitle}
+                            </Text>
+                            <Text style={[styles.callSubtitle, { color: isMe ? "rgba(255,255,255,0.75)" : COLORS.textLight }]}>
+                              {callSub}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        <View style={[styles.callDivider, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : COLORS.border }]} />
+                      </View>
+                    );
+                  })()
                 ) : (item.type === "media" || item.type === "image" || item.type === "video") ? (
                   // GIAO DIỆN ẢNH / VIDEO (CÓ THỂ BẤM VÀO ĐỂ XEM)
                   <TouchableOpacity
                     style={{ position: "relative", marginBottom: 5 }}
                     activeOpacity={0.85}
                     onPress={() => {
-                      // Fix: Split URL trước khi check đuôi
                       const isVideo = item.type === "video" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i);
                       setPreviewMedia({ url: displayContent, isVideo: !!isVideo });
                     }}
@@ -901,7 +970,7 @@ const MessageScreen = () => {
                     style={[
                       styles.fileAttachmentContainer,
                       {
-                        backgroundColor: "transparent", // Xóa màu nền vì đã được bọc bởi màu bong bóng bên ngoài
+                        backgroundColor: "transparent",
                         borderWidth: 0,
                       },
                     ]}
@@ -958,7 +1027,8 @@ const MessageScreen = () => {
                 )}
               </View>
 
-              {showTime && !item.isSending && (
+              {/* THỜI GIAN */}
+              {showTime && !item.isSending && item.type !== "call" && (
                 <Text
                   style={[
                     styles.messageTime,
@@ -974,13 +1044,26 @@ const MessageScreen = () => {
                 </Text>
               )}
 
-              {/* Nếu đang gửi thì hiển thị "Đang gửi..." thay cho time */}
+              {/* Nếu là call, hiển thị giờ ngay sát dưới card cho đẹp */}
+              {showTime && item.type === "call" && (
+                <Text
+                  style={[
+                    styles.messageTime,
+                    { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight, marginTop: 2 }
+                  ]}
+                >
+                  {formatTime(item.createdAt)}
+                </Text>
+              )}
+
+              {/* Đang gửi */}
               {item.isSending && (
                 <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight }]}>
                   Đang gửi...
                 </Text>
               )}
 
+              {/* REACT CORNER */}
               {shouldShowReactionCorner && !item.isSending && (
                 <View style={styles.reactionContainer}>
                   {hasReactions ? (
@@ -1925,9 +2008,9 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 0,
-      paddingVertical: 4, 
+      paddingVertical: 4,
       marginBottom: 0,
-      width: 240, 
+      width: 240,
       borderRadius: 18,
     },
     fileIconWrapper: {
@@ -2016,7 +2099,55 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       backgroundColor: 'rgba(0,0,0,0.5)',
       padding: 2,
       borderRadius: 4,
-    }
+    },
+    // STYLE MỚI CHO CALL CARD CHUẨN ZALO
+    callCard: {
+      minWidth: 220,
+      maxWidth: 280,
+      padding: 0, // Bỏ padding cũ để chia vạch ngang full chiều rộng
+      borderRadius: 18,
+      overflow: 'hidden',
+      marginBottom: 5,
+    },
+    callCardTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    callIconWrapper: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    callInfo: {
+      flex: 1,
+    },
+    callTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 3,
+    },
+    callSubtitle: {
+      fontSize: 13,
+    },
+    callDivider: {
+      height: 1,
+      width: "100%",
+    },
+    callActionBtn: {
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      width: "100%",
+    },
+    callActionText: {
+      fontSize: 15,
+      fontWeight: "600",
+    },
   });
 
 export default MessageScreen;

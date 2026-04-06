@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
-
+import { joinGroupByLink } from "../apis/chat.api"; // Đừng quên import
 import {
   View,
   Text,
@@ -159,7 +159,7 @@ const ChatScreen = () => {
               const decoded: any = jwtDecode(token);
               resolvedUserId = decoded.user_id || decoded._id || decoded.id;
             }
-          } catch {}
+          } catch { }
         }
 
         const pinned = new Set<string>();
@@ -356,20 +356,51 @@ const ChatScreen = () => {
     setShowQRScanner(true);
   };
 
-  // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
-  // --- XỬ LÝ KHI QUÉT ĐƯỢC MÃ ---
-  const handleBarcodeScanned = ({
-    type,
-    data,
-  }: {
-    type: string;
-    data: string;
-  }) => {
-    if (scannedRef.current) return; // <--- NẾU ĐANG KHÓA THÌ DỪNG NGAY
-    scannedRef.current = true; // <--- KHÓA LẠI NGAY LẬP TỨC (ĐỒNG BỘ)
+  // ...
+  const handleBarcodeScanned = async ({ type, data }: { type: string; data: string; }) => {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
 
-    setShowQRScanner(false);
-    Alert.alert("Kết quả quét QR", `Nội dung: ${data}`);
+    setShowQRScanner(false); // Tắt camera ngay khi quét xong
+
+    // Kiểm tra xem mã QR có đúng định dạng nhóm không
+    if (data.startsWith("chatpulse://group/join/")) {
+      const groupId = data.split("chatpulse://group/join/")[1];
+
+      Alert.alert(
+        "Tham gia nhóm",
+        "Mã QR hợp lệ. Đang xử lý yêu cầu tham gia nhóm...",
+        [
+          {
+            text: "Xác nhận",
+            onPress: async () => {
+              try {
+                setLoading(true);
+                const res = await joinGroupByLink(groupId);
+                Alert.alert("Thành công", "Bạn đã tham gia nhóm thành công!");
+
+                // Refresh lại danh sách tin nhắn để hiện nhóm mới lên
+                fetchConversations(1, true);
+              } catch (error: any) {
+                console.log("Lỗi join nhóm:", error);
+                Alert.alert("Lỗi", "Không thể tham gia nhóm. Nhóm không tồn tại hoặc bạn đã ở trong nhóm.");
+              } finally {
+                setLoading(false);
+              }
+            }
+          },
+          {
+            text: "Huỷ",
+            style: "cancel",
+            onPress: () => { scannedRef.current = false; } // Reset lại trạng thái nếu huỷ
+          }
+        ]
+      );
+    } else {
+      Alert.alert("Mã QR không hợp lệ", "Mã QR này không phải là mã mời tham gia nhóm ChatPulse.", [
+        { text: "OK", onPress: () => { scannedRef.current = false; } }
+      ]);
+    }
   };
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);

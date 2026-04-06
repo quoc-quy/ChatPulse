@@ -41,6 +41,51 @@ class GroupService {
     return result
   }
 
+  async joinGroupViaLink(conversationId: string, userId: string) {
+    const conversationObjectId = new ObjectId(conversationId);
+    const userObjectId = new ObjectId(userId);
+
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId });
+
+    if (!conversation || conversation.type !== 'group') {
+      return null; // Không tìm thấy nhóm
+    }
+
+    // Kiểm tra xem đã là thành viên chưa
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId);
+    if (isMember) {
+      return conversation; // Đã là thành viên, trả về luôn nhóm
+    }
+
+    const newMember = {
+      userId: userObjectId,
+      role: 'member' as const,
+      joinedAt: new Date()
+    };
+
+    const result = await databaseService.conversations.findOneAndUpdate(
+      { _id: conversationObjectId },
+      {
+        $addToSet: { participants: userObjectId },
+        $push: { members: newMember }
+      },
+      { returnDocument: 'after' }
+    );
+
+    // Lấy thông tin user để gửi thông báo hệ thống
+    const user = await databaseService.users.findOne({ _id: userObjectId });
+    if (user) {
+      await messageService.sendMessage(
+        userId,
+        conversationId,
+        'system',
+        `${user.userName || 'Một người dùng'} đã tham gia nhóm qua liên kết.`
+      );
+    }
+
+    return result;
+  }
+
   async markAsRead(conversationId: string, userId: string, lastMessageId: string) {
     return databaseService.conversations.updateOne(
       {
