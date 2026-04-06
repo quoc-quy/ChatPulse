@@ -1,7 +1,8 @@
 import { Router } from 'express'
-import { loginController, logoutController, registerController } from '~/controllers/users.controllers'
+import { forgotPasswordController, loginController, logoutController, registerController } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
+  forgotPasswordValidator,
   loginValidator,
   refreshTokenValidator,
   registerValidator
@@ -29,5 +30,11 @@ authRoute.post('/register', registerValidator, wrapRequestHandler(registerContro
  * body: {refresh_token: string}
  */
 authRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
+
+/**
+ * Description: Submit email to reset password
+ * body: {email: string}
+ */
+authRoute.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
 
 export default authRoute
