@@ -1,11 +1,18 @@
 import { Router } from 'express'
-import { loginController, logoutController, registerController } from '~/controllers/users.controllers'
+import {
+  forgotPasswordController,
+  loginController,
+  logoutController,
+  registerController,
+  verifyForgotPasswordController
+} from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
   forgotPasswordValidator,
   loginValidator,
   refreshTokenValidator,
-  registerValidator
+  registerValidator,
+  verifyForgotPasswordValidator
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 import { forgotPasswordController, resetPasswordController } from '../controllers/forget_password.controllers'
@@ -37,6 +44,14 @@ authRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapReque
  * POST /auth/forgot-password
  * Body: { email: string }
  */
+authRoute.post('/forgot-password-token', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
+
+/**
+ * Description: verify link in email to reset password
+ * body: {forgot-password-token: string}
+ */
+authRoute.post('/verify-forgot-password', verifyForgotPasswordValidator, wrapRequestHandler(verifyForgotPasswordController))
+
 authRoute.post(
   '/forgot-password',
   validate(
