@@ -25,7 +25,12 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { Button, Input } from "../components/ui";
-import { getMeApi, updateMeApi, uploadAvatarApi } from "../apis/user.api";
+import {
+  changePasswordApi,
+  getMeApi,
+  updateMeApi,
+  uploadAvatarApi,
+} from "../apis/user.api";
 import { clearAuthData } from "../utils/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../apis/api";
@@ -70,14 +75,24 @@ const lightTheme = {
 };
 
 const ProfileScreen = ({ navigation, onLogout }: Props) => {
+  const LANGUAGE_STORAGE_KEY = "app_language";
   // Lấy trạng thái Theme từ Global Context thay vì useState
   const { isDarkMode, setIsDarkMode } = useTheme();
 
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(new Date());
+  const [language, setLanguage] = useState<"en" | "vi">("en");
+  const [passwordDraft, setPasswordDraft] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
   const [profile, setProfile] = useState({
     displayName: "",
     userName: "",
@@ -196,7 +211,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         groups: groupsCount,
       });
     } catch (error) {
-      console.error("Lỗi load profile:", error);
+      console.error("Profile load error:", error);
     }
   }, []);
 
@@ -234,6 +249,16 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     };
   }, [fetchData]);
 
+  useEffect(() => {
+    const loadLanguage = async () => {
+      const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (savedLanguage === "en" || savedLanguage === "vi") {
+        setLanguage(savedLanguage);
+      }
+    };
+    loadLanguage();
+  }, []);
+
   const pickImage = async (target: "profile" | "edit" = "profile") => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -258,7 +283,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           uploadRes.data?.result?.avatar || uploadRes.data?.avatar;
 
         if (!avatarUrl) {
-          throw new Error("Không lấy được URL avatar sau khi upload");
+          throw new Error("Could not get avatar URL after upload");
         }
 
         await updateMeApi({ avatar: avatarUrl });
@@ -267,14 +292,14 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         setEditDraft((prev) => ({ ...prev, avatar: avatarUrl }));
 
         if (target === "profile") {
-          Alert.alert("Thành công", "Đã cập nhật ảnh đại diện");
+          Alert.alert("Success", "Avatar updated successfully");
         }
       } catch (error) {
-        console.error("Lỗi upload avatar:", error);
+        console.error("Avatar upload error:", error);
         const errMsg =
           (error as any)?.response?.data?.message ||
-          "Upload ảnh thất bại, vui lòng thử lại";
-        Alert.alert("Lỗi", errMsg);
+          "Avatar upload failed, please try again";
+        Alert.alert("Error", errMsg);
       } finally {
         setUploadingAvatar(false);
       }
@@ -301,9 +326,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       if (user) {
         applyProfileFromApi(user);
       }
-      Alert.alert("Thành công", "Đã cập nhật Profile!");
+      Alert.alert("Success", "Profile updated successfully!");
     } catch (error) {
-      Alert.alert("Lỗi", "Cập nhật thất bại!");
+      Alert.alert("Error", "Profile update failed!");
     } finally {
       setLoading(false);
     }
@@ -312,7 +337,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const handleLogout = async () => {
     const doLogout = async () => {
       try {
-        console.log("Bắt đầu quá trình Logout...");
+        console.log("Starting logout process...");
         const accessToken = await AsyncStorage.getItem("access_token");
         const refreshToken = await AsyncStorage.getItem("refresh_token");
 
@@ -324,7 +349,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
         console.log("Logout API Response:", response.data);
       } catch (e: any) {
-        console.error("Lỗi Logout API:", e.response?.data || e.message);
+        console.error("Logout API error:", e.response?.data || e.message);
       } finally {
         await clearAuthData();
         resetChatContext();
@@ -332,9 +357,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       }
     };
 
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn thoát không?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Đăng xuất", style: "destructive", onPress: doLogout },
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Log Out", style: "destructive", onPress: doLogout },
     ]);
   };
 
@@ -360,7 +385,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     } catch (error) {
       setProfile((prev) => ({ ...prev, show_date_of_birth: !nextVisibility }));
       setEditDraft((prev) => ({ ...prev, showDateOfBirth: !nextVisibility }));
-      Alert.alert("Lỗi", "Không cập nhật được quyền hiển thị ngày sinh");
+      Alert.alert("Error", "Could not update birth date visibility");
     }
   };
 
@@ -377,6 +402,99 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     await handleSave(nextProfile);
     setShowDatePicker(false);
     setShowEditModal(false);
+  };
+
+  const openPrivacySettings = () => {
+    setShowPrivacyModal(true);
+  };
+
+  const openChangePasswordModal = () => {
+    setShowPrivacyModal(false);
+    setPasswordDraft({ oldPassword: "", newPassword: "", confirmPassword: "" });
+    setShowChangePasswordModal(true);
+  };
+
+  const openYourDevices = async () => {
+    setShowPrivacyModal(false);
+    const token = await AsyncStorage.getItem("access_token");
+    const platformName = Platform.OS === "ios" ? "iOS" : "Android";
+    Alert.alert(
+      "Your Devices",
+      `Current device: ${platformName} ${String(Platform.Version)}\nStatus: ${token ? "Signed in" : "Signed out"}`,
+    );
+  };
+
+  const handleLanguageChange = async (nextLanguage: "en" | "vi") => {
+    try {
+      setLanguage(nextLanguage);
+      await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+      Alert.alert(
+        "Language Updated",
+        nextLanguage === "en"
+          ? "Language set to English."
+          : "Language set to Vietnamese.",
+      );
+    } catch {
+      Alert.alert("Error", "Could not update language setting");
+    }
+  };
+
+  const openLanguagePicker = () => {
+    Alert.alert("Language", "Choose your app language", [
+      {
+        text: "English",
+        onPress: () => handleLanguageChange("en"),
+      },
+      {
+        text: "Vietnamese",
+        onPress: () => handleLanguageChange("vi"),
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]);
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordDraft.oldPassword || !passwordDraft.newPassword || !passwordDraft.confirmPassword) {
+      Alert.alert("Error", "Please fill in all password fields");
+      return;
+    }
+
+    if (passwordDraft.newPassword !== passwordDraft.confirmPassword) {
+      Alert.alert("Error", "New password and confirmation do not match");
+      return;
+    }
+
+    if (passwordDraft.newPassword.length < 6) {
+      Alert.alert("Error", "New password must be at least 6 characters");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await changePasswordApi({
+        old_password: passwordDraft.oldPassword,
+        password: passwordDraft.newPassword,
+        confirm_password: passwordDraft.confirmPassword,
+      });
+      setShowChangePasswordModal(false);
+      setPasswordDraft({ oldPassword: "", newPassword: "", confirmPassword: "" });
+      await clearAuthData();
+      resetChatContext();
+      Alert.alert(
+        "Password changed successfully",
+        "For security reasons, please sign in again.",
+        [{ text: "Sign In Again", onPress: onLogout }],
+      );
+    } catch (error: any) {
+      const errMsg =
+        error?.response?.data?.message || "Could not change password, please try again";
+      Alert.alert("Error", errMsg);
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const parseDateString = (value: string) => {
@@ -479,8 +597,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             <Text style={[styles.birthText, { color: colors.textSecondary }]}>
               {profile.show_date_of_birth
                 ? formatDateFromApi(profile.date_of_birth) ||
-                  "Chưa cập nhật ngày sinh"
-                : "Ngày sinh đã ẩn"}
+                  "Birth date not updated"
+                : "Birth date is hidden"}
             </Text>
             <TouchableOpacity
               onPress={toggleDobVisibility}
@@ -590,6 +708,17 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
+          <MenuOption
+            icon="shield-checkmark-outline"
+            label="Privacy Settings" 
+            color={colors.textPrimary}
+            subtitle="Private: password and your devices"
+            subtitleColor={colors.textSecondary}
+            iconBg={colors.cardSoft}
+            iconColor={colors.accentAlt}
+            borderColor={colors.border}
+            onPress={openPrivacySettings}
+          />
           <MenuOption
             icon="log-out-outline"
             label="Log Out"
@@ -786,7 +915,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                         { color: colors.textSecondary },
                       ]}
                     >
-                      Hiển thị ngày sinh cho người khác
+                      Show birth date to others
                     </Text>
                   </View>
                   <Switch
@@ -830,7 +959,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                             { color: colors.textSecondary },
                           ]}
                         >
-                          Hủy
+                          Cancel
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -849,7 +978,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                             { color: colors.accentAlt },
                           ]}
                         >
-                          Xong
+                          Done
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -896,6 +1025,192 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           maximumDate={new Date()}
         />
       )}
+
+      <Modal
+        visible={showPrivacyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowPrivacyModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderWidth: 1,
+              },
+            ]}
+            onPress={() => undefined}
+          >
+            <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>Privacy Settings</Text>
+            <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Manage your account privacy</Text>
+
+            <TouchableOpacity
+              style={[styles.privacyOption, { borderColor: colors.border, backgroundColor: colors.cardSoft }]}
+              onPress={openChangePasswordModal}
+            >
+              <View style={styles.menuLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.card }]}>
+                  <Ionicons name="key-outline" size={20} color={colors.accentAlt} />
+                </View>
+                <View>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Change Password</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>Update your sign-in password</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.privacyOption, { borderColor: colors.border, backgroundColor: colors.cardSoft }]}
+              onPress={openYourDevices}
+            >
+              <View style={styles.menuLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.card }]}>
+                  <Ionicons name="phone-portrait-outline" size={20} color={colors.accentAlt} />
+                </View>
+                <View>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Your Devices</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>View current device details</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.privacyOption, { borderColor: colors.border, backgroundColor: colors.cardSoft }]}
+              onPress={openLanguagePicker}
+            >
+              <View style={styles.menuLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.card }]}> 
+                  <Ionicons name="language-outline" size={20} color={colors.accentAlt} />
+                </View>
+                <View>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Language</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>Current: {language === "en" ? "English" : "Vietnamese"}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showChangePasswordModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowChangePasswordModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowChangePasswordModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardWrap}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <Pressable
+                style={[
+                  styles.modalCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                  },
+                ]}
+                onPress={() => Keyboard.dismiss()}
+              >
+                <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>Change Password</Text>
+                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Enter your current and new password</Text>
+
+                <Input
+                  label="Current password"
+                  value={passwordDraft.oldPassword}
+                  onChangeText={(text) =>
+                    setPasswordDraft((prev) => ({ ...prev, oldPassword: text }))
+                  }
+                  labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
+                  inputStyle={[
+                    styles.modalInput,
+                    {
+                      backgroundColor: colors.cardSoft,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  secureTextEntry
+                  placeholder="Enter current password"
+                  placeholderTextColor={colors.textSecondary}
+                />
+
+                <Input
+                  label="New password"
+                  value={passwordDraft.newPassword}
+                  onChangeText={(text) =>
+                    setPasswordDraft((prev) => ({ ...prev, newPassword: text }))
+                  }
+                  labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
+                  inputStyle={[
+                    styles.modalInput,
+                    {
+                      backgroundColor: colors.cardSoft,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  secureTextEntry
+                  placeholder="Enter new password"
+                  placeholderTextColor={colors.textSecondary}
+                />
+
+                <Input
+                  label="Confirm new password"
+                  value={passwordDraft.confirmPassword}
+                  onChangeText={(text) =>
+                    setPasswordDraft((prev) => ({ ...prev, confirmPassword: text }))
+                  }
+                  labelStyle={[styles.modalLabel, { color: colors.textPrimary }]}
+                  inputStyle={[
+                    styles.modalInput,
+                    {
+                      backgroundColor: colors.cardSoft,
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
+                    },
+                  ]}
+                  secureTextEntry
+                  placeholder="Re-enter new password"
+                  placeholderTextColor={colors.textSecondary}
+                />
+
+                <TouchableOpacity
+                  onPress={handleChangePassword}
+                  activeOpacity={0.9}
+                  disabled={changingPassword}
+                >
+                  <LinearGradient
+                    colors={[colors.accent, colors.accentAlt, "#D946EF"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalSaveButton}
+                  >
+                    <Text style={styles.modalSaveText}>
+                      {changingPassword ? "Updating..." : "Update Password"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Pressable>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -1079,6 +1394,27 @@ const styles = StyleSheet.create({
   },
   menuLabel: { fontSize: 16, fontWeight: "700" },
   menuSubLabel: { fontSize: 13, marginTop: 2 },
+  privacyTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  privacySubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  privacyOption: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
