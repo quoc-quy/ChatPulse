@@ -20,6 +20,7 @@ import {
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../contexts/ThemeContext";
+import { useTranslation } from "../hooks/useTranslation";
 import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -64,6 +65,7 @@ const darkColors = {
 
 const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
+  const { language, t } = useTranslation();
   const {
     setTotalUnreadCount,
     setLocalUnread,
@@ -250,24 +252,24 @@ const ChatScreen = ({ route }: any) => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return "Vừa xong";
+    if (diffMins < 1) return t.chatJustNow;
     if (diffMins < 60) return `${diffMins}p`;
     if (Math.floor(diffMins / 60) < 24 && date.getDate() === now.getDate())
       return `${Math.floor(diffMins / 60)}g`;
-    return date.toLocaleDateString("vi-VN", {
+    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
       day: "2-digit",
       month: "2-digit",
     });
   };
 
   const getChatDetails = (item: any) => {
-    let chatName = "Người dùng";
+    let chatName = t.chatUserDefault;
     let chatAvatarUrl = "";
     let isOnline = false;
     let targetUserId = null;
 
     if (item.type === "group") {
-      chatName = item.name || "Nhóm không tên";
+      chatName = item.name || t.chatUnnamedGroup;
       chatAvatarUrl = item.avatarUrl || "";
     } else {
       if (item.participants?.length > 0 && currentUserId) {
@@ -279,7 +281,7 @@ const ChatScreen = ({ route }: any) => {
             partner.displayName ||
             partner.fullName ||
             partner.userName ||
-            "Người dùng";
+            t.chatUserDefault;
           chatAvatarUrl = partner.avatar || "";
           isOnline = partner.isOnline;
           targetUserId = partner._id;
@@ -326,7 +328,7 @@ const ChatScreen = ({ route }: any) => {
         else next.add(item._id);
         return next;
       });
-      Alert.alert("Lỗi", "Không thể thực hiện thao tác này.");
+      Alert.alert(t.error, t.chatActionFailed);
     }
   };
 
@@ -355,8 +357,8 @@ const ChatScreen = ({ route }: any) => {
       const result = await requestPermission();
       if (!result.granted) {
         Alert.alert(
-          "Thông báo",
-          "Bạn cần cấp quyền truy cập Camera để quét mã QR.",
+          t.chatNotice,
+          t.chatNeedCameraPermission,
         );
         return;
       }
@@ -377,43 +379,43 @@ const ChatScreen = ({ route }: any) => {
       const groupId = data.split("chatpulse://group/join/")[1];
 
       Alert.alert(
-        "Tham gia nhóm",
-        "Mã QR hợp lệ. Đang xử lý yêu cầu tham gia nhóm...",
+        t.chatJoinGroup,
+        t.chatQrValidJoining,
         [
           {
-            text: "Xác nhận",
+            text: t.chatConfirm,
             onPress: async () => {
               try {
                 setLoading(true);
                 const res = await joinGroupByLink(groupId);
-                Alert.alert("Thành công", "Bạn đã tham gia nhóm thành công!");
+                Alert.alert(t.success, t.chatJoinedGroupSuccess);
 
                 // Refresh lại danh sách tin nhắn để hiện nhóm mới lên
                 fetchConversations(1, true);
               } catch (error: any) {
                 console.log("Lỗi join nhóm:", error);
-                Alert.alert("Lỗi", "Không thể tham gia nhóm. Nhóm không tồn tại hoặc bạn đã ở trong nhóm.");
+                Alert.alert(t.error, t.chatJoinGroupFailed);
               } finally {
                 setLoading(false);
               }
             }
           },
           {
-            text: "Huỷ",
+            text: t.cancel,
             style: "cancel",
             onPress: () => { scannedRef.current = false; } // Reset lại trạng thái nếu huỷ
           }
         ]
       );
     } else {
-      Alert.alert("Mã QR không hợp lệ", "Mã QR này không phải là mã mời tham gia nhóm ChatPulse.", [
+      Alert.alert(t.chatInvalidQrTitle, t.chatInvalidQrMessage, [
         { text: "OK", onPress: () => { scannedRef.current = false; } }
       ]);
     }
   };
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
-    let messageContent = item.lastMessage?.content || "Chưa có tin nhắn";
+    let messageContent = item.lastMessage?.content || t.chatNoMessagesYet;
     const unread = getLocalUnread(item._id);
     const isPinned = pinnedIds.has(item._id);
     return (
@@ -546,9 +548,9 @@ const ChatScreen = ({ route }: any) => {
           <SafeAreaView style={styles.safeHeader}>
             <View style={styles.headerTop}>
               <View>
-                <Text style={styles.title}>Tin nhắn</Text>
+                <Text style={styles.title}>{t.chatTitle}</Text>
                 <Text style={styles.subtitle}>
-                  {conversations.length} cuộc hội thoại
+                  {conversations.length} {t.chatConversations}
                 </Text>
               </View>
               <View style={styles.headerIcons}>
@@ -578,7 +580,7 @@ const ChatScreen = ({ route }: any) => {
                   style={{ marginLeft: 10 }}
                 />
                 <Text style={styles.searchPlaceholderText}>
-                  Tìm kiếm bạn bè, nhóm...
+                  {t.chatSearchPlaceholder}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -601,7 +603,7 @@ const ChatScreen = ({ route }: any) => {
                 activeTab === "all" && styles.tabTextActive,
               ]}
             >
-              Tất cả
+              {t.chatAll}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -617,7 +619,7 @@ const ChatScreen = ({ route }: any) => {
                 activeTab === "unread" && styles.tabTextActive,
               ]}
             >
-              Chưa đọc
+              {t.chatUnread}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -633,7 +635,7 @@ const ChatScreen = ({ route }: any) => {
                 activeTab === "groups" && styles.tabTextActive,
               ]}
             >
-              Nhóm
+              {t.groups}
             </Text>
           </TouchableOpacity>
         </View>
@@ -660,7 +662,7 @@ const ChatScreen = ({ route }: any) => {
             onEndReachedThreshold={0.5}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Chưa có cuộc hội thoại nào</Text>
+                <Text style={styles.emptyText}>{t.chatNoConversations}</Text>
               </View>
             }
           />
@@ -694,7 +696,7 @@ const ChatScreen = ({ route }: any) => {
                 />
                 <TextInput
                   style={[styles.searchModalInput, { color: COLORS.text }]}
-                  placeholder="Tìm kiếm bạn bè, nhóm..."
+                  placeholder={t.chatSearchPlaceholder}
                   placeholderTextColor={COLORS.textLight}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -736,7 +738,7 @@ const ChatScreen = ({ route }: any) => {
                     style={{ marginBottom: 10, opacity: 0.5 }}
                   />
                   <Text style={styles.emptyText}>
-                    Không tìm thấy kết quả phù hợp
+                    {t.chatNoSearchResults}
                   </Text>
                 </View>
               }
@@ -778,8 +780,8 @@ const ChatScreen = ({ route }: any) => {
               />
               <Text style={[styles.pinMenuText, { color: COLORS.text }]}>
                 {pinnedIds.has(selectedConvForPin?._id)
-                  ? "Bỏ ghim hội thoại"
-                  : "Ghim hội thoại"}
+                  ? t.chatUnpinConversation
+                  : t.chatPinConversation}
               </Text>
             </TouchableOpacity>
           </View>
@@ -796,7 +798,7 @@ const ChatScreen = ({ route }: any) => {
               <TouchableOpacity onPress={() => setShowQRScanner(false)}>
                 <Ionicons name="close" size={32} color="white" />
               </TouchableOpacity>
-              <Text style={styles.qrTitle}>Quét mã QR</Text>
+              <Text style={styles.qrTitle}>{t.chatScanQr}</Text>
               <View style={{ width: 32 }} />
             </View>
 
@@ -827,7 +829,7 @@ const ChatScreen = ({ route }: any) => {
                   opacity: 0.8,
                 }}
               >
-                Hướng camera về phía mã QR để quét
+                {t.chatScanQrHint}
               </Text>
             </View>
           </SafeAreaView>

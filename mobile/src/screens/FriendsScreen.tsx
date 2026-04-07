@@ -38,6 +38,7 @@ import { friendApi } from "../apis/friends.api";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
 import { profileStatsEvents } from "../utils/profileStats.events";
+import { useTranslation } from "../hooks/useTranslation";
 
 const lightColors = {
   primary: "#4F46E5",
@@ -117,6 +118,7 @@ const SearchResultItem = React.memo(
     sendingId,
   }: SearchResultItemProps) => {
     const { isDarkMode } = useTheme();
+    const { t } = useTranslation();
     const COLORS = isDarkMode ? darkColors : lightColors;
     const initials = (user.userName || "U").charAt(0).toUpperCase();
     const isSending = sendingId === user._id;
@@ -127,7 +129,7 @@ const SearchResultItem = React.memo(
           return (
             <View style={searchStyles.btnFriend}>
               <UserCheck size={14} color={COLORS.success} />
-              <Text style={searchStyles.btnFriendText}>Bạn bè</Text>
+              <Text style={searchStyles.btnFriendText}>{t.friends}</Text>
             </View>
           );
         case "pending_sent":
@@ -140,14 +142,14 @@ const SearchResultItem = React.memo(
               {isSending ? (
                 <ActivityIndicator size="small" color={COLORS.mutedDark} />
               ) : (
-                <Text style={searchStyles.btnPendingText}>Đã gửi</Text>
+                <Text style={searchStyles.btnPendingText}>{t.friendsSent}</Text>
               )}
             </TouchableOpacity>
           );
         case "pending_received":
           return (
             <View style={searchStyles.btnPending}>
-              <Text style={searchStyles.btnPendingText}>Muốn kết bạn</Text>
+              <Text style={searchStyles.btnPendingText}>{t.friendsWantsToConnect}</Text>
             </View>
           );
         default:
@@ -162,7 +164,7 @@ const SearchResultItem = React.memo(
               ) : (
                 <>
                   <UserPlus size={14} color="#FFFFFF" />
-                  <Text style={searchStyles.btnAddText}>Kết bạn</Text>
+                  <Text style={searchStyles.btnAddText}>{t.friendsAdd}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -206,6 +208,7 @@ const SearchResultItem = React.memo(
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function FriendsScreen({ navigation }: any) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation();
   const COLORS = isDarkMode ? darkColors : lightColors;
 
   const [friends, setFriends] = useState<any[]>([]);
@@ -335,11 +338,9 @@ export default function FriendsScreen({ navigation }: any) {
         setPhoneSearchResults(exactMatchUsers);
 
         if (exactMatchUsers.length === 0)
-          setPhoneSearchError(
-            "Không tìm thấy người dùng với số điện thoại này",
-          );
+          setPhoneSearchError(t.friendsNoUserByPhone);
       } catch {
-        setPhoneSearchError("Có lỗi xảy ra, vui lòng thử lại");
+        setPhoneSearchError(t.friendsGenericError);
       } finally {
         setPhoneSearchLoading(false);
       }
@@ -371,8 +372,8 @@ export default function FriendsScreen({ navigation }: any) {
       setSentRequests(sentRes.data.result || []);
     } catch (err: any) {
       Alert.alert(
-        "Lỗi",
-        err.response?.data?.message || "Không thể gửi lời mời kết bạn",
+        t.error,
+        err.response?.data?.message || t.friendsInviteFailed,
       );
     } finally {
       setSendingId(null);
@@ -388,7 +389,7 @@ export default function FriendsScreen({ navigation }: any) {
         r.receiver === userId,
     );
     if (!req) {
-      Alert.alert("Lỗi", "Không tìm thấy lời mời để hủy");
+      Alert.alert(t.error, t.friendsCancelNotFound);
       return;
     }
     setSendingId(userId);
@@ -403,8 +404,8 @@ export default function FriendsScreen({ navigation }: any) {
       setSentRequests(sentRes.data.result || []);
     } catch (err: any) {
       Alert.alert(
-        "Lỗi",
-        err.response?.data?.message || "Không thể hủy lời mời",
+        t.error,
+        err.response?.data?.message || t.friendsCancelFailed,
       );
     } finally {
       setSendingId(null);
@@ -424,23 +425,23 @@ export default function FriendsScreen({ navigation }: any) {
   // ── Xóa bạn ──────────────────────────────────────────────────────────────
   const handleDeleteFriend = (friendId: string, name: string) => {
     Alert.alert(
-      "Xóa bạn bè",
-      `Bạn có chắc chắn muốn xóa ${name} khỏi danh sách bạn bè không?`,
+      t.friendsDeleteTitle,
+      `${t.friendsDeleteConfirmPrefix} ${name} ${t.friendsDeleteConfirmSuffix}`,
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Xóa",
+          text: t.friendsDelete,
           style: "destructive",
           onPress: async () => {
             try {
               await friendApi.deleteFriend(friendId);
               profileStatsEvents.emit({ type: "friends_delta", delta: -1 });
-              Alert.alert("Thành công", `Đã xóa ${name} khỏi danh sách bạn bè`);
+              Alert.alert(t.success, `${t.friendsDeletedPrefix} ${name} ${t.friendsDeletedSuffix}`);
               fetchData(true);
             } catch {
               Alert.alert(
-                "Lỗi",
-                "Không thể xóa bạn lúc này. Vui lòng thử lại sau.",
+                t.error,
+                t.friendsDeleteFailed,
               );
             }
           },
@@ -499,7 +500,7 @@ export default function FriendsScreen({ navigation }: any) {
         </View>
         <View style={styles.menuTextContainer}>
           <Text style={[styles.menuText, { color: COLORS.foreground }]}>
-            Lời mời kết bạn
+            {t.friendsRequests}
           </Text>
           {requests.length > 0 && (
             <View style={styles.badge}>
@@ -519,7 +520,7 @@ export default function FriendsScreen({ navigation }: any) {
         </View>
         <View style={styles.menuTextContainer}>
           <Text style={[styles.menuText, { color: COLORS.foreground }]}>
-            Lời mời đã gửi
+            {t.friendsSentRequests}
           </Text>
         </View>
         <ChevronRight size={18} color={COLORS.muted} />
@@ -534,7 +535,7 @@ export default function FriendsScreen({ navigation }: any) {
         </View>
         <View style={styles.menuTextContainer}>
           <Text style={[styles.menuText, { color: COLORS.foreground }]}>
-            Danh sách chặn
+            {t.friendsBlockedList}
           </Text>
         </View>
         <ChevronRight size={18} color={COLORS.muted} />
@@ -559,14 +560,14 @@ export default function FriendsScreen({ navigation }: any) {
           >
             <Phone size={14} color={COLORS.primary} />
             <Text style={[styles.phoneBannerText, { color: COLORS.primary }]}>
-              Tìm kiếm bằng số điện thoại
+              {t.friendsSearchByPhone}
             </Text>
           </View>
 
           {phoneSearchLoading && (
             <View style={styles.searchPlaceholder}>
               <ActivityIndicator color={COLORS.primary} size="large" />
-              <Text style={styles.searchLoadingText}>Đang tìm kiếm...</Text>
+              <Text style={styles.searchLoadingText}>{t.friendsSearching}</Text>
             </View>
           )}
 
@@ -589,7 +590,7 @@ export default function FriendsScreen({ navigation }: any) {
               contentContainerStyle={styles.searchResultsContent}
             >
               <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
-                {phoneSearchResults.length} kết quả
+                {phoneSearchResults.length} {t.friendsResults}
               </Text>
               {phoneSearchResults.map((user) => (
                 <SearchResultItem
@@ -617,7 +618,7 @@ export default function FriendsScreen({ navigation }: any) {
           <View style={styles.searchPlaceholder}>
             <Search size={40} color={COLORS.border} />
             <Text style={styles.searchPlaceholderText}>
-              Nhập tên để tìm bạn bè{"\n"}hoặc số điện thoại để kết bạn mới
+              {t.friendsSearchHint}
             </Text>
           </View>
         )}
@@ -633,7 +634,7 @@ export default function FriendsScreen({ navigation }: any) {
                 contentContainerStyle={styles.searchResultsContent}
               >
                 <Text style={[styles.resultHeader, { color: COLORS.muted }]}>
-                  {filteredFriends.length} bạn bè
+                  {filteredFriends.length} {t.friends}
                 </Text>
                 {filteredFriends.map((friend) => (
                   <FriendItem
@@ -649,10 +650,10 @@ export default function FriendsScreen({ navigation }: any) {
               <View style={styles.searchPlaceholder}>
                 <UserCircle size={44} color={COLORS.border} />
                 <Text style={styles.searchPlaceholderText}>
-                  Không tìm thấy bạn bè tên "{searchText}"
+                  {t.friendsNoFriendNamed} "{searchText}"
                 </Text>
                 <Text style={[styles.searchHint, { color: COLORS.muted }]}>
-                  Nhập số điện thoại để tìm và kết bạn mới
+                  {t.friendsSearchPhoneHint}
                 </Text>
               </View>
             )}
@@ -696,7 +697,7 @@ export default function FriendsScreen({ navigation }: any) {
 
           <TextInput
             ref={inputRef}
-            placeholder="Tìm tên bạn bè hoặc số điện thoại..."
+            placeholder={t.friendsSearchInputPlaceholder}
             placeholderTextColor={COLORS.muted}
             style={[styles.searchInput, { color: COLORS.foreground }]}
             value={searchText}
@@ -719,7 +720,7 @@ export default function FriendsScreen({ navigation }: any) {
         {isSearchFocused ? (
           <TouchableOpacity style={styles.cancelBtn} onPress={clearSearch}>
             <Text style={[styles.cancelText, { color: COLORS.primary }]}>
-              Hủy
+              {t.cancel}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -775,7 +776,7 @@ export default function FriendsScreen({ navigation }: any) {
               )}
               ListEmptyComponent={
                 <Text style={[styles.emptyText, { color: COLORS.muted }]}>
-                  Chưa có bạn bè nào
+                  {t.friendsNoFriendsYet}
                 </Text>
               }
               contentContainerStyle={styles.listContent}
