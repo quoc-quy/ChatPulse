@@ -54,6 +54,14 @@ export const updateMeApi = (body: any) => {
   return api.patch("/users/update-profile", body);
 };
 
+export const changePasswordApi = (body: {
+  old_password: string;
+  password: string;
+  confirm_password: string;
+}) => {
+  return api.put("/users/change-password", body);
+};
+
 /**
  * Upload avatar file (multipart/form-data)
  */
