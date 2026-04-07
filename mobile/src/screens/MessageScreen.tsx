@@ -43,6 +43,7 @@ import { markConversationAsSeen } from "../apis/chat.api";
 
 // IMPORT USE THEME
 import { useTheme } from "../contexts/ThemeContext";
+import { useTranslation } from "../hooks/useTranslation";
 
 // IMPORT useChatContext để xoá badge khi đọc xong
 import { useChatContext } from "../contexts/ChatContext";
@@ -95,6 +96,7 @@ const MessageScreen = () => {
   const { id } = route.params;
 
   const { isDarkMode } = useTheme();
+  const { language, t } = useTranslation();
   const COLORS = isDarkMode ? darkColors : lightColors;
   const styles = useMemo(
     () => getStyles(COLORS, isDarkMode),
@@ -129,13 +131,13 @@ const MessageScreen = () => {
   const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const formatDuration = (seconds: number) => {
-    if (!seconds) return '0 giây';
+    if (!seconds) return t.messageDurationZero;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    if (h > 0) return `${h} giờ ${m} phút`;
-    if (m > 0) return `${m} phút ${s} giây`;
-    return `${s} giây`;
+    if (h > 0) return `${h} ${t.messageHour} ${m} ${t.messageMinute}`;
+    if (m > 0) return `${m} ${t.messageMinute} ${s} ${t.messageSecond}`;
+    return `${s} ${t.messageSecond}`;
   };
 
   const handleSuggestReply = async () => {
@@ -148,7 +150,7 @@ const MessageScreen = () => {
         setInputText(`@PulseAI ${res.data.result.trim()}`);
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Tín hiệu AI đang nhiễu, không thể gợi ý!");
+      Alert.alert(t.error, t.messageAiSuggestFailed);
     } finally {
       setIsSuggesting(false);
     }
@@ -225,7 +227,7 @@ const MessageScreen = () => {
       type: mediaType,
       content: fileData.uri,
       createdAt: new Date().toISOString(),
-      sender: { _id: currentUserId, userName: "Tôi" },
+      sender: { _id: currentUserId, userName: t.messageYou },
       isSending: true,
     };
     setMessages((prev) => [tempMessage, ...prev]);
@@ -257,17 +259,17 @@ const MessageScreen = () => {
     } catch (error) {
       console.log("Lỗi upload:", error);
       setMessages((prev) => prev.filter((msg) => msg._id !== tempId));
-      Alert.alert("Lỗi", "Không thể gửi tệp đính kèm. File quá nặng hoặc lỗi mạng!");
+      Alert.alert(t.error, t.messageAttachmentFailed);
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleAttachPress = () => {
-    Alert.alert("Đính kèm", "Chọn loại tệp bạn muốn gửi", [
-      { text: "Thư viện Ảnh / Video", onPress: handlePickMedia },
-      { text: "Tài liệu (File)", onPress: handlePickDocument },
-      { text: "Hủy", style: "cancel" },
+    Alert.alert(t.messageAttachTitle, t.messageAttachChooseType, [
+      { text: t.messageAttachMedia, onPress: handlePickMedia },
+      { text: t.messageAttachFile, onPress: handlePickDocument },
+      { text: t.cancel, style: "cancel" },
     ]);
   };
 
@@ -290,7 +292,7 @@ const MessageScreen = () => {
         type: "text",
         content: textToSend,
         createdAt: new Date().toISOString(),
-        sender: { _id: currentUserId, userName: "Tôi" },
+        sender: { _id: currentUserId, userName: t.messageMe },
       };
       setMessages((prev) => [tempMessage, ...prev]);
 
@@ -408,7 +410,7 @@ const MessageScreen = () => {
 
   const handleSummarizeChat = async () => {
     if (unreadCount === 0) {
-      Alert.alert("Thông báo", "Bạn đã đọc hết tin nhắn rồi!");
+      Alert.alert(t.chatNotice, t.messageAllRead);
       return;
     }
     setIsSummarizing(true);
@@ -428,7 +430,7 @@ const MessageScreen = () => {
     } catch (error) {
       setShowAiModal(false);
       setIsSummarizing(false);
-      Alert.alert("Lỗi", "AI đang bận, thử lại sau nhé!");
+      Alert.alert(t.error, t.messageAiBusy);
     }
   };
 
@@ -468,7 +470,7 @@ const MessageScreen = () => {
             {
               emoji,
               user_id: currentUserId,
-              user: { _id: currentUserId, userName: "Bạn" },
+              user: { _id: currentUserId, userName: t.messageYou },
             },
           ];
           return { ...msg, reactions: nextReactions };
@@ -520,12 +522,12 @@ const MessageScreen = () => {
   const getReactionUserName = (reaction: any) => {
     const reactionUserId = getReactionUserId(reaction);
     if (reactionUserId && reactionUserId === currentUserId?.toString?.())
-      return "Bạn";
+      return t.messageYou;
     return (
       reaction?.user?.userName ||
       reaction?.user?.displayName ||
       reaction?.userName ||
-      "Người dùng"
+      t.messageUser
     );
   };
 
@@ -725,7 +727,7 @@ const MessageScreen = () => {
   const formatTime = (dateString: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    return date.toLocaleTimeString("vi-VN", {
+    return date.toLocaleTimeString(language === "vi" ? "vi-VN" : "en-US", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -737,9 +739,9 @@ const MessageScreen = () => {
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return "Hôm nay";
-    if (date.toDateString() === yesterday.toDateString()) return "Hôm qua";
-    return date.toLocaleDateString("vi-VN", {
+    if (date.toDateString() === today.toDateString()) return t.messageToday;
+    if (date.toDateString() === yesterday.toDateString()) return t.messageYesterday;
+    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -888,12 +890,12 @@ const MessageScreen = () => {
               >
                 {isRevoked ? (
                   <Text style={[styles.messageText, { fontStyle: "italic", color: COLORS.textLight, paddingRight: 5 }]}>
-                    Tin nhắn đã được thu hồi
+                    {t.messageRevoked}
                   </Text>
                 ) : item.type === "call" ? (
                   // GIAO DIỆN CUỘC GỌI CHUẨN ZALO (DÙNG MATERIAL ICONS)
                   (() => {
-                    let callTitle = "Cuộc gọi";
+                    let callTitle = t.messageCall;
                     let callSub = formatDuration(item.callInfo?.duration || 0);
                     let iconName = "phone";
                     let iconColor = isMe ? COLORS.headerText : COLORS.text;
@@ -904,28 +906,28 @@ const MessageScreen = () => {
                     const status = callInfo.status || (displayContent.toLowerCase().includes("nhỡ") ? "missed" : "completed");
 
                     if (status === 'completed') {
-                      callTitle = isMe ? "Cuộc gọi đi" : "Cuộc gọi đến";
+                      callTitle = isMe ? t.messageOutgoingCall : t.messageIncomingCall;
                       iconName = isVideo ? "video" : (isMe ? "phone-outgoing" : "phone-incoming");
                       iconColor = isMe ? COLORS.headerText : COLORS.success;
                     } else if (status === 'missed' || (!isMe && status === 'cancelled')) {
-                      callTitle = "Cuộc gọi nhỡ";
+                      callTitle = t.messageMissedCall;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
                       // CHÍNH LÀ ICON BẠN MUỐN TÌM: phone-missed
                       iconName = isVideo ? "video-off" : "phone-missed"; 
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
-                      callSub = isVideo ? 'Cuộc gọi Video' : 'Cuộc gọi thoại';
+                      callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
                     } else if (status === 'rejected') {
-                      callTitle = isMe ? "Người nhận từ chối" : "Bạn đã từ chối";
+                      callTitle = isMe ? t.messageRecipientRejected : t.messageYouRejected;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
                       // Dùng phone-cancel cho cuộc gọi bị từ chối
                       iconName = isVideo ? "video-off" : "phone-cancel"; 
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
-                      callSub = isVideo ? 'Cuộc gọi Video' : 'Cuộc gọi thoại';
+                      callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
                     } else if (isMe && status === 'cancelled') {
-                      callTitle = "Cuộc gọi đi";
+                      callTitle = t.messageOutgoingCall;
                       iconName = isVideo ? "video" : "phone-outgoing";
                       iconColor = COLORS.headerText;
-                      callSub = "Chưa kết nối";
+                      callSub = t.messageNotConnected;
                     }
 
                     return (
@@ -992,7 +994,7 @@ const MessageScreen = () => {
                         ]}
                         numberOfLines={2}
                       >
-                        {displayContent.split("/").pop()?.split("?")[0] || "Tài liệu đính kèm"}
+                        {displayContent.split("/").pop()?.split("?")[0] || t.messageAttachmentDocument}
                       </Text>
                       <Text
                         style={{
@@ -1001,7 +1003,7 @@ const MessageScreen = () => {
                           marginTop: 4,
                         }}
                       >
-                        Tệp đính kèm
+                        {t.messageAttachmentFile}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1059,7 +1061,7 @@ const MessageScreen = () => {
               {/* Đang gửi */}
               {item.isSending && (
                 <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight }]}>
-                  Đang gửi...
+                  {t.updating}
                 </Text>
               )}
 
@@ -1239,7 +1241,7 @@ const MessageScreen = () => {
             </View>
             {pendingMedia.attachmentType === "file" && (
               <Text style={styles.pendingFileName} numberOfLines={1}>
-                {pendingMedia.name || "Tài liệu đính kèm"}
+                {pendingMedia.name || t.messageAttachmentDocument}
               </Text>
             )}
           </View>
@@ -1297,7 +1299,7 @@ const MessageScreen = () => {
                 paddingBottom: 10,
                 textAlignVertical: 'center',
               }}
-              placeholder="Tin nhắn..."
+              placeholder={t.messageInputPlaceholder}
               placeholderTextColor={COLORS.textLight}
               value={
                 inputText.startsWith("@PulseAI ")
@@ -1400,7 +1402,7 @@ const MessageScreen = () => {
                       fontSize: 16,
                     }}
                   >
-                    Thu hồi
+                    {t.messageRecall}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1412,7 +1414,7 @@ const MessageScreen = () => {
                 <Text
                   style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}
                 >
-                  Xóa phía tôi
+                  {t.messageDeleteForMe}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1427,7 +1429,7 @@ const MessageScreen = () => {
         >
           <Pressable style={styles.reactionDetailBox}>
             <View style={styles.reactionDetailHeader}>
-              <Text style={styles.reactionDetailTitle}>Biểu cảm</Text>
+              <Text style={styles.reactionDetailTitle}>{t.messageReactions}</Text>
               <TouchableOpacity onPress={() => setShowReactionDetails(false)}>
                 <Ionicons name="close" size={24} color={COLORS.text} />
               </TouchableOpacity>
@@ -1512,7 +1514,7 @@ const MessageScreen = () => {
                   }}
                   ListEmptyComponent={
                     <Text style={styles.reactionEmptyText}>
-                      Chưa có biểu cảm
+                      {t.messageNoReactions}
                     </Text>
                   }
                 />
@@ -1541,7 +1543,7 @@ const MessageScreen = () => {
                   color="#A78BFA"
                   style={{ marginRight: 8 }}
                 />
-                <Text style={styles.aiTitle}>AI TỔNG HỢP</Text>
+                <Text style={styles.aiTitle}>{t.messageAiSummaryTitle}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowAiModal(false)}>
                 <Ionicons name="close-circle" size={24} color="#475569" />
@@ -1555,7 +1557,7 @@ const MessageScreen = () => {
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#8B5CF6" />
                   <Text style={styles.loadingText}>
-                    Đang giải mã bối cảnh...
+                    {t.messageAiDecoding}
                   </Text>
                 </View>
               ) : (

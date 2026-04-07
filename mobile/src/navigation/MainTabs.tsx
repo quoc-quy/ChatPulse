@@ -24,6 +24,7 @@ import { askChatPulseAIApi } from "../apis/chat.api";
 import ChatScreen from "../screens/ChatScreen";
 import FriendsScreen from "../screens/FriendsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import { useTranslation } from "../hooks/useTranslation";
 
 const Tab = createBottomTabNavigator();
 
@@ -36,6 +37,7 @@ interface MainTabsProps {
 const DummyScreen = () => <View style={{ flex: 1, backgroundColor: '#111111' }} />;
 
 const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
+  const { t } = useTranslation();
   const [isAiVisible, setIsAiVisible] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [aiMessages, setAiMessages] = useState<any[]>([]);
@@ -203,7 +205,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Chats</Text>
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>{t.tabChats}</Text>
               </View>
             ),
           }}
@@ -216,7 +218,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <Users size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
-                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Contacts</Text>
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>{t.tabContacts}</Text>
               </View>
             ),
           }}
@@ -231,7 +233,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                 <View style={styles.aiIconCircle}>
                   <Sparkles size={24} color="#D1D5DB" />
                 </View>
-                <Text style={[styles.tabLabel, { color: "#9CA3AF", marginTop: 4 }]}>AI Pulse</Text>
+                <Text style={[styles.tabLabel, { color: "#9CA3AF", marginTop: 4 }]}>{t.tabAiPulse}</Text>
               </View>
             ),
           }}
@@ -251,7 +253,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <Phone size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
-                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Calls</Text>
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>{t.tabCalls}</Text>
               </View>
             ),
           }}
@@ -263,7 +265,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <User size={24} color={focused ? "#818CF8" : "#9CA3AF"} />
-                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>Profile</Text>
+                <Text style={[styles.tabLabel, { color: focused ? "#818CF8" : "#9CA3AF" }]}>{t.tabProfile}</Text>
               </View>
             ),
           }}

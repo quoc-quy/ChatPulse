@@ -41,6 +41,7 @@ import { profileStatsEvents } from "../utils/profileStats.events";
 
 // BƯỚC QUAN TRỌNG: Import useTheme từ Context
 import { useTheme } from "../contexts/ThemeContext";
+import { useTranslation } from "../hooks/useTranslation";
 
 // ✅ FIX BADGE: Import useChatContext để reset badge khi logout
 import { useChatContext } from "../contexts/ChatContext";
@@ -75,9 +76,9 @@ const lightTheme = {
 };
 
 const ProfileScreen = ({ navigation, onLogout }: Props) => {
-  const LANGUAGE_STORAGE_KEY = "app_language";
   // Lấy trạng thái Theme từ Global Context thay vì useState
   const { isDarkMode, setIsDarkMode } = useTheme();
+  const { language, setLanguage, t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -87,7 +88,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(new Date());
-  const [language, setLanguage] = useState<"en" | "vi">("en");
   const [passwordDraft, setPasswordDraft] = useState({
     oldPassword: "",
     newPassword: "",
@@ -249,16 +249,6 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     };
   }, [fetchData]);
 
-  useEffect(() => {
-    const loadLanguage = async () => {
-      const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (savedLanguage === "en" || savedLanguage === "vi") {
-        setLanguage(savedLanguage);
-      }
-    };
-    loadLanguage();
-  }, []);
-
   const pickImage = async (target: "profile" | "edit" = "profile") => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -283,7 +273,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           uploadRes.data?.result?.avatar || uploadRes.data?.avatar;
 
         if (!avatarUrl) {
-          throw new Error("Could not get avatar URL after upload");
+          throw new Error(t.noAvatarUrl);
         }
 
         await updateMeApi({ avatar: avatarUrl });
@@ -292,14 +282,14 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         setEditDraft((prev) => ({ ...prev, avatar: avatarUrl }));
 
         if (target === "profile") {
-          Alert.alert("Success", "Avatar updated successfully");
+          Alert.alert(t.success, t.avatarUpdated);
         }
       } catch (error) {
         console.error("Avatar upload error:", error);
         const errMsg =
           (error as any)?.response?.data?.message ||
-          "Avatar upload failed, please try again";
-        Alert.alert("Error", errMsg);
+          t.avatarUploadFailed;
+        Alert.alert(t.error, errMsg);
       } finally {
         setUploadingAvatar(false);
       }
@@ -326,9 +316,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       if (user) {
         applyProfileFromApi(user);
       }
-      Alert.alert("Success", "Profile updated successfully!");
+      Alert.alert(t.success, t.profileUpdated);
     } catch (error) {
-      Alert.alert("Error", "Profile update failed!");
+      Alert.alert(t.error, t.profileUpdateFailed);
     } finally {
       setLoading(false);
     }
@@ -357,9 +347,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       }
     };
 
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log Out", style: "destructive", onPress: doLogout },
+    Alert.alert(t.logoutTitle, t.logoutConfirm, [
+      { text: t.cancel, style: "cancel" },
+      { text: t.logOut, style: "destructive", onPress: doLogout },
     ]);
   };
 
@@ -385,7 +375,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     } catch (error) {
       setProfile((prev) => ({ ...prev, show_date_of_birth: !nextVisibility }));
       setEditDraft((prev) => ({ ...prev, showDateOfBirth: !nextVisibility }));
-      Alert.alert("Error", "Could not update birth date visibility");
+      Alert.alert(t.error, t.birthVisibilityUpdateFailed);
     }
   };
 
@@ -419,38 +409,38 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
     const token = await AsyncStorage.getItem("access_token");
     const platformName = Platform.OS === "ios" ? "iOS" : "Android";
     Alert.alert(
-      "Your Devices",
-      `Current device: ${platformName} ${String(Platform.Version)}\nStatus: ${token ? "Signed in" : "Signed out"}`,
+      t.yourDevices,
+      `${t.currentDevice}: ${platformName} ${String(Platform.Version)}\n${t.status}: ${token ? t.signedIn : t.signedOut}`,
     );
   };
 
   const handleLanguageChange = async (nextLanguage: "en" | "vi") => {
     try {
-      setLanguage(nextLanguage);
-      await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+      await setLanguage(nextLanguage);
       Alert.alert(
-        "Language Updated",
+        nextLanguage === "en" ? "Language Updated" : "Đã cập nhật ngôn ngữ",
         nextLanguage === "en"
           ? "Language set to English."
-          : "Language set to Vietnamese.",
+          : "Đã chuyển sang tiếng Việt.",
       );
     } catch {
-      Alert.alert("Error", "Could not update language setting");
+      Alert.alert(t.error, t.updateLanguageFailed);
     }
   };
 
   const openLanguagePicker = () => {
-    Alert.alert("Language", "Choose your app language", [
+    setShowPrivacyModal(false);
+    Alert.alert(t.language, t.chooseLanguage, [
       {
-        text: "English",
+        text: t.english,
         onPress: () => handleLanguageChange("en"),
       },
       {
-        text: "Vietnamese",
+        text: t.vietnamese,
         onPress: () => handleLanguageChange("vi"),
       },
       {
-        text: "Cancel",
+        text: t.cancel,
         style: "cancel",
       },
     ]);
@@ -458,17 +448,17 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
 
   const handleChangePassword = async () => {
     if (!passwordDraft.oldPassword || !passwordDraft.newPassword || !passwordDraft.confirmPassword) {
-      Alert.alert("Error", "Please fill in all password fields");
+      Alert.alert(t.error, t.fillAllPasswordFields);
       return;
     }
 
     if (passwordDraft.newPassword !== passwordDraft.confirmPassword) {
-      Alert.alert("Error", "New password and confirmation do not match");
+      Alert.alert(t.error, t.passwordMismatch);
       return;
     }
 
     if (passwordDraft.newPassword.length < 6) {
-      Alert.alert("Error", "New password must be at least 6 characters");
+      Alert.alert(t.error, t.passwordMinLength);
       return;
     }
 
@@ -484,14 +474,14 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
       await clearAuthData();
       resetChatContext();
       Alert.alert(
-        "Password changed successfully",
-        "For security reasons, please sign in again.",
-        [{ text: "Sign In Again", onPress: onLogout }],
+        t.passwordChanged,
+        t.signInAgainReason,
+        [{ text: t.signInAgain, onPress: onLogout }],
       );
     } catch (error: any) {
       const errMsg =
-        error?.response?.data?.message || "Could not change password, please try again";
-      Alert.alert("Error", errMsg);
+        error?.response?.data?.message || t.changePasswordFailed;
+      Alert.alert(t.error, errMsg);
     } finally {
       setChangingPassword(false);
     }
@@ -586,7 +576,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             @{profile.userName || "alexmorgan"}
           </Text>
           <Text style={[styles.bioText, { color: colors.textSecondary }]}>
-            {profile.bio || "Living the dream ✨"}
+            {profile.bio || t.defaultBio}
           </Text>
           <View style={styles.birthRow}>
             <Ionicons
@@ -597,8 +587,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             <Text style={[styles.birthText, { color: colors.textSecondary }]}>
               {profile.show_date_of_birth
                 ? formatDateFromApi(profile.date_of_birth) ||
-                  "Birth date not updated"
-                : "Birth date is hidden"}
+                  t.birthDateNotUpdated
+                : t.birthDateHidden}
             </Text>
             <TouchableOpacity
               onPress={toggleDobVisibility}
@@ -629,7 +619,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               color={colors.accentAlt}
             />
             <Text style={[styles.actionText, { color: colors.textPrimary }]}>
-              Edit Profile
+              {t.editProfile}
             </Text>
           </TouchableOpacity>
         </View>
@@ -647,7 +637,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               {stats.friends}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Friends
+              {t.friends}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -662,7 +652,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               {stats.groups}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Groups
+              {t.groups}
             </Text>
           </TouchableOpacity>
         </View>
@@ -685,12 +675,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             </View>
             <View>
               <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>
-                Dark Mode
+                {t.darkMode}
               </Text>
               <Text
                 style={[styles.menuSubLabel, { color: colors.textSecondary }]}
               >
-                {isDarkMode ? "Currently dark" : "Currently light"}
+                {isDarkMode ? t.currentlyDark : t.currentlyLight}
               </Text>
             </View>
           </View>
@@ -710,9 +700,9 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
         >
           <MenuOption
             icon="shield-checkmark-outline"
-            label="Privacy Settings" 
+            label={t.privacySettings}
             color={colors.textPrimary}
-            subtitle="Private: password and your devices"
+            subtitle={t.privacyMenuSubtitle}
             subtitleColor={colors.textSecondary}
             iconBg={colors.cardSoft}
             iconColor={colors.accentAlt}
@@ -721,8 +711,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
           />
           <MenuOption
             icon="log-out-outline"
-            label="Log Out"
-            subtitle="Sign out from this device"
+            label={t.logOut}
+            subtitle={t.signOutThisDevice}
             color={colors.danger}
             subtitleColor={colors.textSecondary}
             iconBg={colors.cardSoft}
@@ -784,7 +774,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 </TouchableOpacity>
 
                 <Text style={[styles.modalTitle, { color: colors.accentAlt }]}>
-                  Edit Profile
+                  {t.editProfile}
                 </Text>
 
                 <TouchableOpacity
@@ -820,7 +810,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 </TouchableOpacity>
 
                 <Input
-                  label="Username"
+                  label={t.username}
                   value={editDraft.userName}
                   onChangeText={(text) =>
                     setEditDraft((prev) => ({ ...prev, userName: text }))
@@ -837,12 +827,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                       color: colors.textPrimary,
                     },
                   ]}
-                  placeholder="Your username"
+                  placeholder={t.yourUsername}
                   placeholderTextColor={colors.textSecondary}
                 />
 
                 <Input
-                  label="Bio"
+                  label={t.bio}
                   value={editDraft.bio}
                   onChangeText={(text) =>
                     setEditDraft((prev) => ({ ...prev, bio: text }))
@@ -860,7 +850,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                       color: colors.textPrimary,
                     },
                   ]}
-                  placeholder="Tell us about yourself..."
+                  placeholder={t.tellUsAboutYourself}
                   placeholderTextColor={colors.textSecondary}
                   multiline
                 />
@@ -869,7 +859,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                   <Text
                     style={[styles.modalLabel, { color: colors.textPrimary }]}
                   >
-                    Date of Birth
+                    {t.dateOfBirth}
                   </Text>
                   <TouchableOpacity
                     style={[
@@ -915,7 +905,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                         { color: colors.textSecondary },
                       ]}
                     >
-                      Show birth date to others
+                      {t.showBirthDateToOthers}
                     </Text>
                   </View>
                   <Switch
@@ -959,7 +949,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                             { color: colors.textSecondary },
                           ]}
                         >
-                          Cancel
+                          {t.cancel}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -978,7 +968,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                             { color: colors.accentAlt },
                           ]}
                         >
-                          Done
+                          {t.done}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -1006,7 +996,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                     style={styles.modalSaveButton}
                   >
                     <Text style={styles.modalSaveText}>
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? t.saving : t.saveChanges}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -1047,8 +1037,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             ]}
             onPress={() => undefined}
           >
-            <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>Privacy Settings</Text>
-            <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Manage your account privacy</Text>
+            <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>{t.privacySettings}</Text>
+            <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>{t.managePrivacy}</Text>
 
             <TouchableOpacity
               style={[styles.privacyOption, { borderColor: colors.border, backgroundColor: colors.cardSoft }]}
@@ -1059,8 +1049,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                   <Ionicons name="key-outline" size={20} color={colors.accentAlt} />
                 </View>
                 <View>
-                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Change Password</Text>
-                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>Update your sign-in password</Text>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{t.changePassword}</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>{t.updateSignInPassword}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -1075,8 +1065,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                   <Ionicons name="phone-portrait-outline" size={20} color={colors.accentAlt} />
                 </View>
                 <View>
-                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Your Devices</Text>
-                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>View current device details</Text>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{t.yourDevices}</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>{t.viewCurrentDeviceDetails}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -1091,8 +1081,8 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                   <Ionicons name="language-outline" size={20} color={colors.accentAlt} />
                 </View>
                 <View>
-                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>Language</Text>
-                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>Current: {language === "en" ? "English" : "Vietnamese"}</Text>
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{t.language}</Text>
+                  <Text style={[styles.menuSubLabel, { color: colors.textSecondary }]}>{t.current}: {language === "en" ? t.english : t.vietnamese}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -1127,11 +1117,11 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                 ]}
                 onPress={() => Keyboard.dismiss()}
               >
-                <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>Change Password</Text>
-                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Enter your current and new password</Text>
+                <Text style={[styles.privacyTitle, { color: colors.textPrimary }]}>{t.changePassword}</Text>
+                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>{t.enterCurrentAndNewPassword}</Text>
 
                 <Input
-                  label="Current password"
+                  label={t.currentPassword}
                   value={passwordDraft.oldPassword}
                   onChangeText={(text) =>
                     setPasswordDraft((prev) => ({ ...prev, oldPassword: text }))
@@ -1146,12 +1136,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                     },
                   ]}
                   secureTextEntry
-                  placeholder="Enter current password"
+                  placeholder={t.enterCurrentPassword}
                   placeholderTextColor={colors.textSecondary}
                 />
 
                 <Input
-                  label="New password"
+                  label={t.newPassword}
                   value={passwordDraft.newPassword}
                   onChangeText={(text) =>
                     setPasswordDraft((prev) => ({ ...prev, newPassword: text }))
@@ -1166,12 +1156,12 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                     },
                   ]}
                   secureTextEntry
-                  placeholder="Enter new password"
+                  placeholder={t.enterNewPassword}
                   placeholderTextColor={colors.textSecondary}
                 />
 
                 <Input
-                  label="Confirm new password"
+                  label={t.confirmNewPassword}
                   value={passwordDraft.confirmPassword}
                   onChangeText={(text) =>
                     setPasswordDraft((prev) => ({ ...prev, confirmPassword: text }))
@@ -1186,7 +1176,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                     },
                   ]}
                   secureTextEntry
-                  placeholder="Re-enter new password"
+                  placeholder={t.reEnterNewPassword}
                   placeholderTextColor={colors.textSecondary}
                 />
 
@@ -1202,7 +1192,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
                     style={styles.modalSaveButton}
                   >
                     <Text style={styles.modalSaveText}>
-                      {changingPassword ? "Updating..." : "Update Password"}
+                      {changingPassword ? t.updating : t.updatePassword}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
