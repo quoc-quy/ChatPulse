@@ -125,7 +125,7 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
 
               <Input
                 label="Email hoặc username"
-                placeholder="m@example.com hoặc username"
+                placeholder="m@gmail.com hoặc username"
                 value={identifier}
                 error={errors.identifier}
                 onChangeText={(text) => {
