@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  useColorScheme,
   Linking,
   Image,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { createDirectConversation } from "../apis/chat.api";
+import { useTheme } from "../contexts/ThemeContext";
 
 // ── Color Palettes (đồng nhất với ConversationDetail) ─────────────────────────
 const lightColors = {
@@ -140,12 +140,12 @@ const InfoRow = ({
 export default function UserProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { isDarkMode } = useTheme();
 
   // Nhận params được truyền từ ConversationDetail
   const { userId, userName, userPhone, userEmail, userAvatar, userBio } =
     route.params || {};
 
-  const isDarkMode = useColorScheme() === "dark";
   const COLORS = useMemo(
     () => (isDarkMode ? darkColors : lightColors),
     [isDarkMode],
