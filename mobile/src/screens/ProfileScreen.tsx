@@ -532,11 +532,13 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
               Friends
             </Text>
           </TouchableOpacity>
-          <View
+          <TouchableOpacity
             style={[
               styles.statBox,
               { backgroundColor: colors.cardSoft, borderColor: colors.border },
             ]}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("Chat", { initialTab: "groups" })}
           >
             <Text style={[styles.statCount, { color: colors.accentAlt }]}>
               {stats.groups}
@@ -544,7 +546,7 @@ const ProfileScreen = ({ navigation, onLogout }: Props) => {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
               Groups
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View

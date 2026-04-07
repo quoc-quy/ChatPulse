@@ -62,7 +62,7 @@ const darkColors = {
   headerText: "#FFFFFF",
 };
 
-const ChatScreen = () => {
+const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const {
     setTotalUnreadCount,
@@ -83,7 +83,7 @@ const ChatScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "groups">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
@@ -109,6 +109,15 @@ const ChatScreen = () => {
     );
     setTotalUnreadCount(totalUnread);
   }, [localUnreadMap, setTotalUnreadCount]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.initialTab === "groups") {
+        setActiveTab("groups");
+        navigation.setParams({ initialTab: undefined });
+      }
+    }, [route?.params?.initialTab, navigation]),
+  );
 
   const fetchCurrentUserId = async () => {
     try {
@@ -495,10 +504,16 @@ const ChatScreen = () => {
   }, [conversations, blockedUserIds, currentUserId]);
 
   const displayConversations = useMemo(() => {
-    const list =
-      activeTab === "all"
-        ? validConversations
-        : validConversations.filter((c) => getLocalUnread(c._id) > 0);
+    let list = validConversations;
+
+    if (activeTab === "unread") {
+      list = validConversations.filter((c) => getLocalUnread(c._id) > 0);
+    }
+
+    if (activeTab === "groups") {
+      list = validConversations.filter((c) => c.type === "group");
+    }
+
     // ✅ Pinned lên đầu, giữ nguyên thứ tự bên trong từng nhóm
     return [...list].sort((a, b) => {
       const aPinned = pinnedIds.has(a._id) ? 1 : 0;
@@ -603,6 +618,22 @@ const ChatScreen = () => {
               ]}
             >
               Chưa đọc
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "groups" && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveTab("groups")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "groups" && styles.tabTextActive,
+              ]}
+            >
+              Nhóm
             </Text>
           </TouchableOpacity>
         </View>
