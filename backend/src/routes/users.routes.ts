@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { NextFunction, Request, Response, Router } from 'express'
 import {
   blockUserController,
   changePasswordController,
@@ -26,9 +26,48 @@ import {
 } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
 import multer from 'multer'
+import { ErrorWithStatus } from '~/models/errors'
+import httpStatus from '~/constants/httpStatus'
 
 const usersRouter = Router()
-const upload = multer({ storage: multer.memoryStorage() })
+
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024
+const ALLOWED_AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+const uploadAvatar = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_AVATAR_SIZE
+  },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_AVATAR_MIME_TYPES.has(file.mimetype)) {
+      return cb(
+        new ErrorWithStatus({
+          message: 'Avatar chỉ hỗ trợ định dạng jpg, png hoặc webp',
+          status: httpStatus.BAD_REQUEST
+        })
+      )
+    }
+    return cb(null, true)
+  }
+})
+
+const uploadAvatarMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  uploadAvatar.single('avatar')(req, res, (err: unknown) => {
+    if (!err) return next()
+
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return next(
+        new ErrorWithStatus({
+          message: 'Kích thước avatar tối đa là 5MB',
+          status: httpStatus.BAD_REQUEST
+        })
+      )
+    }
+
+    return next(err)
+  })
+}
 
 /**
  * Get me
@@ -55,7 +94,7 @@ usersRouter.patch('/update-profile', accessTokenValidator, updateMeValidator, wr
 usersRouter.post(
   '/upload-avatar',
   accessTokenValidator,
-  upload.single('avatar'),
+  uploadAvatarMiddleware,
   wrapRequestHandler(uploadAvatarController)
 )
 

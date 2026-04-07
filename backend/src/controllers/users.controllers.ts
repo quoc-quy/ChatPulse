@@ -14,7 +14,7 @@ import {
 } from '~/models/requests/users.requests'
 import User from '~/models/schemas/user.schema'
 import userService from '~/services/user.services'
-import { uploadImageBufferToCloudinary } from '~/utils/cloudinary'
+import { uploadAvatarToS3 } from '~/utils/s3'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { config } from 'dotenv'
@@ -159,19 +159,22 @@ export const searchUserController = async (req: Request, res: Response) => {
 }
 
 export const uploadAvatarController = async (req: Request, res: Response) => {
-  if (!req.file?.buffer) {
+  if (!req.file) {
     throw new ErrorWithStatus({
       message: 'Không tìm thấy file avatar',
       status: httpStatus.BAD_REQUEST
     })
   }
 
-  const avatarUrl = await uploadImageBufferToCloudinary(req.file.buffer)
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const avatarUrl = await uploadAvatarToS3(req.file)
+  const user = await userService.updateMe(user_id, { avatar: avatarUrl })
 
   return res.json({
     message: 'Upload avatar thành công',
     result: {
-      avatar: avatarUrl
+      avatar: avatarUrl,
+      user
     }
   })
 }

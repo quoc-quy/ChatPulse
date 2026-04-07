@@ -13,14 +13,31 @@ const s3Client = new S3Client({
 export const uploadFileToS3 = async (file: Express.Multer.File): Promise<string> => {
   const extension = path.extname(file.originalname)
   const filename = `${uuidv4()}${extension}`
+  const key = filename
 
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,
-    Key: filename,
+    Key: key,
     Body: file.buffer,
     ContentType: file.mimetype
   })
 
   await s3Client.send(command)
-  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`
+  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+}
+
+export const uploadAvatarToS3 = async (file: Express.Multer.File): Promise<string> => {
+  const extension = path.extname(file.originalname)
+  const filename = `${uuidv4()}${extension}`
+  const key = `avatars/${filename}`
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: key,
+    Body: file.buffer,
+    ContentType: file.mimetype
+  })
+
+  await s3Client.send(command)
+  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
 }
