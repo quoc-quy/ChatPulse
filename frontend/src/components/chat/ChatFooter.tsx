@@ -155,30 +155,53 @@ export function ChatFooter({ convId }: ChatFooterProps) {
       conversationId: convId,
       type: type as any,
       content: msgContent,
-      status: 'SENDING',
+      status: 'SENDING', // Hiển thị UI đang gửi
       replyToId: replyToId,
-      replyToMessage: replyToMessage || undefined, // Hiển thị mượt ngay khi chưa có phản hồi từ server
+      replyToMessage: replyToMessage || undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       sender: { _id: profile?._id || '', userName: profile?.userName || '', avatar: profile?.avatar || '' },
       deliveredTo: [],
       seenBy: []
     }
+
+    // Đẩy UI lên màn hình ngay lập tức (Optimistic UI)
     window.dispatchEvent(new CustomEvent('optimistic_send', { detail: tempMessage }))
 
-    try {
-      setIsSending(true)
-      if (apiCall) {
+    if (!apiCall) return
+
+    // BUG FIX UX: Không block state `isSending` trong suốt quá trình auto-retry.
+    // Chỉ dùng để khóa spam click trong thời gian ngắn (300ms) để user vẫn có thể gõ/gửi tin nhắn khác.
+    setIsSending(true)
+    setTimeout(() => setIsSending(false), 300)
+
+    // CẤU HÌNH AUTO-RETRY VỚI EXPONENTIAL BACKOFF
+    const MAX_RETRIES = 3
+    const BASE_DELAY = 1000 // Thời gian chờ cơ bản: 1000ms (1 giây)
+    let attempt = 0
+    let success = false
+
+    while (attempt <= MAX_RETRIES && !success) {
+      try {
         const response = await apiCall()
         window.dispatchEvent(
           new CustomEvent('optimistic_success', { detail: { tempId, realMessage: response.data.result } })
         )
+        success = true
+      } catch (error) {
+        attempt++
+        console.warn(`[Auto-Retry] Lỗi gửi tin nhắn. Đang thử lại lần ${attempt}/${MAX_RETRIES}...`, error)
+
+        if (attempt <= MAX_RETRIES) {
+          // Tính toán thời gian chờ: 1s, 2s, 4s...
+          const delay = BASE_DELAY * Math.pow(2, attempt - 1)
+          await new Promise((resolve) => setTimeout(resolve, delay))
+        } else {
+          // Khi đã hết số lần thử lại tự động mà vẫn thất bại -> Chuyển sang UI FAILED
+          console.error('[Auto-Retry] Gửi thất bại hoàn toàn. Chuyển sang manual retry.')
+          window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId, apiCall } }))
+        }
       }
-    } catch (error) {
-      console.error('Lỗi khi gửi:', error)
-      window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId, apiCall } }))
-    } finally {
-      setIsSending(false)
     }
   }
 
