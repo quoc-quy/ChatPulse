@@ -32,7 +32,7 @@ const upload = multer({
 messageRouter.post(
   '/media',
   accessTokenValidator,
-  upload.single('file'),
+  upload.array('files', 10),
   wrapRequestHandler(uploadMediaMessageController)
 )
 

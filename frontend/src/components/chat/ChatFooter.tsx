@@ -178,32 +178,38 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     if (!files.length || !convId) return
     event.target.value = ''
 
-    // BUG FIX 4 (bonus): Capture replyingTo tại thời điểm user chọn file,
-    // vì state có thể thay đổi trong vòng lặp async bên dưới.
-    // Đồng thời reset replyingTo ngay để UX nhất quán (giống handleSendText).
     const currentReplyId = replyingTo?._id
     const currentReplyInfo = replyingTo
     setReplyingTo(null)
 
+    const validFiles: File[] = []
+
+    // Lọc ra các file hợp lệ
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         alert(`File "${file.name}" vượt quá dung lượng cho phép (25MB).`)
-        continue
+      } else {
+        validFiles.push(file)
       }
-      const tempContent = URL.createObjectURL(file)
-
-      // BUG FIX 4: Trước đây truyền undefined cho replyToId — media reply không lưu vào DB.
-      // Bây giờ truyền đúng currentReplyId và currentReplyInfo để reply hoạt động với media.
-      await triggerOptimisticAndSend(
-        'media',
-        tempContent,
-        currentReplyId,
-        async () => {
-          return await messagesApi.sendMediaMessage(convId, file, currentReplyId)
-        },
-        currentReplyInfo
-      )
     }
+
+    if (validFiles.length === 0) return
+
+    // TẠO ALBUM: Gom các local Blob URL thành 1 mảng và chuyển thành chuỗi JSON
+    // Để Optimistic UI có thể đọc và render ra Grid layout ngay lập tức
+    const localUrls = validFiles.map((file) => URL.createObjectURL(file))
+    const tempContent = JSON.stringify(localUrls)
+
+    // Chỉ gọi trigger 1 lần cho cả cụm file
+    await triggerOptimisticAndSend(
+      'media',
+      tempContent,
+      currentReplyId,
+      async () => {
+        return await messagesApi.sendMediaMessage(convId, validFiles, currentReplyId)
+      },
+      currentReplyInfo
+    )
   }
 
   const triggerOptimisticAndSend = async (
