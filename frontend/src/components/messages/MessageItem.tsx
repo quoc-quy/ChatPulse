@@ -3,11 +3,11 @@ import type { Message } from '@/types/message.type'
 import { CallMessage } from '../chat/CallMessage'
 import { AppContext } from '@/context/app.context'
 import { useContext, useState } from 'react'
-import { createPortal } from 'react-dom' // <-- IMPORT CREATE PORTAL
+import { createPortal } from 'react-dom'
 import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
-import { Check, CheckCheck, Clock, AlertCircle, File as FileIcon, Download, X } from 'lucide-react'
+import { Check, CheckCheck, Clock, AlertCircle, File as FileIcon, Download, X, RefreshCcw } from 'lucide-react'
 
 interface MessageItemProps {
   message: Message
@@ -43,13 +43,30 @@ export function MessageItem({
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
 
-  const isMedia = message.type === 'media'
-  const ext = isMedia ? message.content.split('.').pop()?.toLowerCase() : ''
+  // BUG FIX 1: Backend trước đây lưu type = 'image' hoặc 'video' thay vì 'media'
+  // (do đoạn code convert mimetype trong uploadMediaMessageController).
+  // Những tin nhắn cũ trong DB vẫn có type = 'image'/'video' nên cần backward-compatible.
+  // Frontend phải nhận diện cả 3 giá trị để render đúng.
+  const isMedia = message.type === 'media' || message.type === 'image' || message.type === 'video'
+
+  const cleanUrl = isMedia ? message.content.split('?')[0].split('#')[0] : ''
+  const ext = cleanUrl.split('.').pop()?.toLowerCase() || ''
+
   const isImage =
     isMedia &&
-    (['jpg', 'jpeg', 'png', 'gif', 'webp', 'blob'].includes(ext || '') || message.content.startsWith('blob:'))
-  const isVideo = isMedia && ['mp4', 'webm', 'ogg'].includes(ext || '')
-  const isAudio = isMedia && ['mp3', 'wav', 'm4a', 'ogg'].includes(ext || '')
+    // type === 'image' từ data cũ trong DB
+    (message.type === 'image' ||
+      ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp', 'svg'].includes(ext) ||
+      message.content.startsWith('blob:') ||
+      message.content.startsWith('data:image/') ||
+      message.content.includes('/image/upload/'))
+
+  const isVideo =
+    isMedia &&
+    // type === 'video' từ data cũ trong DB
+    (message.type === 'video' || ['mp4', 'webm', 'ogg'].includes(ext))
+
+  const isAudio = isMedia && ['mp3', 'wav', 'm4a', 'ogg'].includes(ext)
   const isFile = isMedia && !isImage && !isVideo && !isAudio
 
   let rowMarginClass = 'mb-[2px]'
@@ -68,13 +85,28 @@ export function MessageItem({
     if (!isMe || isCall || isRevoked) return null
     const status = message.status || 'SENT'
 
+    // UI NÚT RETRY KHI LỖI MẠNG
+    if (status === 'FAILED') {
+      return (
+        <button
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent('retry_send', { detail: { tempId: message._id, apiCall: (message as any)._apiCall } })
+            )
+          }
+          className='flex items-center gap-1 ml-2 text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded text-[10px] hover:bg-red-500/20 transition'
+          title='Nhấn để thử gửi lại'
+        >
+          <RefreshCcw className='w-3 h-3' /> Thử lại
+        </button>
+      )
+    }
     return (
       <div className='flex items-center ml-1 opacity-70'>
         {status === 'SENDING' && <Clock className='w-[10px] h-[10px]' />}
         {status === 'SENT' && <Check className='w-[14px] h-[14px]' />}
         {status === 'DELIVERED' && <CheckCheck className='w-[14px] h-[14px] text-gray-400' />}
         {status === 'SEEN' && <CheckCheck className='w-[14px] h-[14px] text-blue-400' />}
-        {status === 'FAILED' && <AlertCircle className='w-[12px] h-[12px] text-red-500' title='Gửi thất bại' />}
       </div>
     )
   }
@@ -90,7 +122,6 @@ export function MessageItem({
               onClick={() => setIsImageModalOpen(true)}
               className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
             />
-            {/* SỬ DỤNG PORTAL ĐỂ RENDER MODAL RA NGOÀI BODY */}
             {isImageModalOpen &&
               createPortal(
                 <div
@@ -114,7 +145,7 @@ export function MessageItem({
                     />
                   </div>
                 </div>,
-                document.body // <-- Đẩy thẳng ra Body
+                document.body
               )}
           </>
         )
@@ -216,33 +247,49 @@ export function MessageItem({
                 className={`flex flex-col px-4 py-2.5 rounded-2xl border border-border/60 bg-muted/30 text-muted-foreground/80 ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}
               >
                 <p className='text-[15px] italic select-none'>Tin nhắn đã được thu hồi</p>
-                {isLastInGroup && (
-                  <span className={`text-[10px] mt-1 opacity-60 ${isMe ? 'self-end' : 'self-start'}`}>
-                    {displayTime}
-                  </span>
-                )}
               </div>
             ) : isCall ? (
               <CallMessage message={message} isMe={isMe} />
             ) : (
-              <div className={`flex flex-col rounded-2xl ${getBubbleStyles()}`}>
+              <div className={`flex flex-col rounded-2xl relative ${getBubbleStyles()}`}>
                 {!isMe && isFirstInGroup && !isImage && (
                   <span className='text-xs font-semibold text-muted-foreground mb-1'>{senderName}</span>
                 )}
 
+                {/* HIỂN THỊ UI TRÍCH DẪN (REPLY) */}
+                {message.replyToMessage && (
+                  <div
+                    className={`mb-2 p-2 rounded-lg border-l-4 border-white/50 bg-black/10 flex flex-col text-sm cursor-pointer opacity-80 hover:opacity-100 transition`}
+                    onClick={() => {
+                      // replyToMessage._id đã được backend trả về dạng string (toString)
+                      const el = document.getElementById(`message-${message.replyToMessage?._id}`)
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      el?.classList.add('bg-muted/50', 'transition-colors', 'duration-500')
+                      setTimeout(() => el?.classList.remove('bg-muted/50'), 1500)
+                    }}
+                  >
+                    <span className='font-semibold text-xs'>{message.replyToMessage.senderName}</span>
+                    <span className='truncate text-xs opacity-90 max-w-[200px]'>
+                      {message.replyToMessage.type === 'text' ? message.replyToMessage.content : '[Đa phương tiện]'}
+                    </span>
+                  </div>
+                )}
+
                 {renderMessageContent()}
+
+                {/* HIỂN THỊ ICON REACTION NẰM TRONG BONG BÓNG */}
+                {hasReactions && (
+                  <div
+                    className={`absolute -bottom-3.5 ${isMe ? 'right-2' : 'left-2'} z-10 cursor-pointer drop-shadow-sm`}
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    <ReactionBadge reactions={reactions} isMe={isMe} onClick={() => setIsModalOpen(true)} />
+                  </div>
+                )}
 
                 {isLastInGroup && (
                   <div
-                    className={`flex items-center mt-1 ${
-                      isImage
-                        ? isMe
-                          ? 'self-end text-muted-foreground mr-1'
-                          : 'self-start text-muted-foreground ml-1'
-                        : isMe
-                          ? 'self-end text-white/80'
-                          : 'self-start text-muted-foreground'
-                    }`}
+                    className={`flex items-center mt-1 ${isImage ? (isMe ? 'self-end mr-1' : 'self-start ml-1') : isMe ? 'self-end text-white/80' : 'self-start text-muted-foreground'}`}
                   >
                     <span className='text-[10px]'>{displayTime}</span>
                     {renderMessageStatus()}
@@ -251,11 +298,8 @@ export function MessageItem({
               </div>
             )}
           </div>
-
-          {hasReactions && <ReactionBadge reactions={reactions} isMe={isMe} onClick={() => setIsModalOpen(true)} />}
         </div>
       </div>
-
       <ReactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} reactions={reactions} />
     </div>
   )

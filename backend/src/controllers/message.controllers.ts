@@ -25,9 +25,6 @@ export const sendMessageController = async (req: Request, res: Response) => {
 
   const message = await messageService.sendMessage(user_id, convId, type, content, replyToId)
 
-  // TODO: Tích hợp Socket.io để emit sự kiện 'receive_message' cho các thành viên khác trong nhóm
-  // Ví dụ: socketService.io.to(convId).emit('receive_message', message)
-
   return res.status(httpStatus.OK).json({
     message: 'Gửi tin nhắn thành công',
     result: message
@@ -35,11 +32,10 @@ export const sendMessageController = async (req: Request, res: Response) => {
 }
 
 export const editMessageController = async (req: any, res: any) => {
-  const { id } = req.params // Lấy ID tin nhắn từ link
-  const { content } = req.body // Lấy nội dung mới
+  const { id } = req.params
+  const { content } = req.body
   const { user_id } = req.decoded_authorization
 
-  // Gọi đến Service để xử lý (mình sẽ viết ở Bước 2)
   const result = await messageService.editMessage(id, user_id, content)
 
   return res.json({
@@ -59,10 +55,11 @@ export const deleteMessageController = async (req: Request, res: Response) => {
     result
   })
 }
+
 export const reactMessageController = async (req: Request, res: Response) => {
-  const { id } = req.params // ID của tin nhắn
-  const { emoji } = req.body // Emoji từ client gửi lên
-  const { user_id } = req.decoded_authorization as TokenPayload // ID người thả tim
+  const { id } = req.params
+  const { emoji } = req.body
+  const { user_id } = req.decoded_authorization as TokenPayload
 
   const result = await messageService.reactMessage(id as any, user_id, emoji)
 
@@ -71,6 +68,7 @@ export const reactMessageController = async (req: Request, res: Response) => {
     result
   })
 }
+
 export const revokeMessageController = async (req: Request, res: Response) => {
   const { id } = req.params
   const { user_id } = req.decoded_authorization as TokenPayload
@@ -88,9 +86,8 @@ export const summarizeConversationController = async (req: Request, res: Respons
   const { user_id } = req.decoded_authorization as TokenPayload
 
   const limit = Number(req.query.limit) || 30
-  const unreadCount = Number(req.query.unreadCount) || 0 // Nhận unreadCount từ FE
+  const unreadCount = Number(req.query.unreadCount) || 0
 
-  // Truyền thêm unreadCount vào service
   const summary = await messageService.summarizeConversation(convId, user_id, limit, unreadCount)
 
   return res.status(httpStatus.OK).json({
@@ -136,7 +133,6 @@ export const searchMessagesController = async (req: Request, res: Response) => {
 export const uploadMediaMessageController = async (req: Request, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload
   const { convId, replyToId } = req.body
-  const type = req.body.type // Lấy type do Frontend truyền lên
   const file = req.file
 
   if (!file) {
@@ -146,16 +142,8 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
   // Upload lên S3 và lấy URL về
   const fileUrl = await uploadFileToS3(file)
 
+  const messageType: 'text' | 'media' | 'sticker' | 'system' = 'media'
 
-
-  // THÊM ĐOẠN NÀY ĐỂ BACKEND LƯU ĐÚNG TYPE LÀ 'video' hoặc 'image'
-  let messageType = req.body.type || 'media';
-  if (messageType === 'media') {
-    if (file.mimetype.startsWith('video/')) messageType = 'video';
-    else if (file.mimetype.startsWith('image/')) messageType = 'image';
-  }
-
-  // Lưu tin nhắn vào DB với chuẩn type mới
   const message = await messageService.sendMessage(user_id, convId, messageType, fileUrl, replyToId)
 
   return res.status(httpStatus.OK).json({

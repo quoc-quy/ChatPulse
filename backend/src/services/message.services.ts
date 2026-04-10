@@ -4,9 +4,44 @@ import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import Message from '~/models/schemas/message.schema'
 import socketService from './socket.services'
-// IMPORT CÁC MODULE AI MỚI TẠO
 import aiService from './ai/ai.service'
 import { ContextManager } from './ai/context.manager'
+
+const replyToLookupStages = [
+  {
+    $lookup: {
+      from: 'messages',
+      localField: 'replyToId',
+      foreignField: '_id',
+      as: 'replyToMessageInfo'
+    }
+  },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'replyToMessageInfo.senderId',
+      foreignField: '_id',
+      as: 'replyToSenderInfo'
+    }
+  }
+]
+
+// Field replyToMessage trong $project
+const replyToMessageProjection = {
+  $cond: {
+    if: { $gt: [{ $size: '$replyToMessageInfo' }, 0] },
+    then: {
+      // Trả về string để khớp với kiểu _id string ở Frontend (tránh ObjectId vs string mismatch)
+      _id: { $toString: { $arrayElemAt: ['$replyToMessageInfo._id', 0] } },
+      content: { $arrayElemAt: ['$replyToMessageInfo.content', 0] },
+      type: { $arrayElemAt: ['$replyToMessageInfo.type', 0] },
+      senderName: {
+        $ifNull: [{ $arrayElemAt: ['$replyToSenderInfo.userName', 0] }, 'Người dùng']
+      }
+    },
+    else: '$$REMOVE'
+  }
+}
 
 class MessageService {
   async getMessages(conversationId: string, userId: string, cursor?: string, limit: number = 20) {
@@ -41,6 +76,8 @@ class MessageService {
         { $limit: limit },
         { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
+        // BUG FIX 2: Populate replyToMessage để hiển thị đúng sau khi reload trang
+        ...replyToLookupStages,
         {
           $project: {
             _id: 1,
@@ -57,7 +94,8 @@ class MessageService {
             status: 1,
             deliveredTo: 1,
             seenBy: 1,
-            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
+            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
+            replyToMessage: replyToMessageProjection
           }
         }
       ])
@@ -104,6 +142,8 @@ class MessageService {
         { $match: { _id: messageId } },
         { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
+        // BUG FIX 2: Populate replyToMessage ngay khi gửi để socket payload cũng có đầy đủ data
+        ...replyToLookupStages,
         {
           $project: {
             _id: 1,
@@ -117,7 +157,8 @@ class MessageService {
             status: 1,
             deliveredTo: 1,
             seenBy: 1,
-            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
+            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
+            replyToMessage: replyToMessageProjection
           }
         }
       ])

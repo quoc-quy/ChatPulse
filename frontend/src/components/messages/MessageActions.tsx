@@ -1,4 +1,4 @@
-import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
+import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
@@ -14,16 +14,24 @@ interface MessageActionsProps {
 
 export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: MessageActionsProps) {
   const isCall = message.type === 'call'
+  const isSystem = message.type === 'system'
   const isRevoked = message.type === 'revoked'
 
-  if (isCall) return null
+  // Ẩn hoàn toàn action với tin nhắn hệ thống hoặc cuộc gọi
+  if (isCall || isSystem) return null
 
+  // Xử lý Cảm xúc (Reactions)
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
-
   const myReactions = reactions.filter((r) => r.userId === currentUserId)
   const hasMyReaction = myReactions.length > 0
   const myRecentEmoji = hasMyReaction ? myReactions[myReactions.length - 1].emoji : null
+
+  // KIỂM TRA QUY TẮC 24 GIỜ ĐỂ THU HỒI
+  // eslint-disable-next-line react-hooks/purity
+  const is24hPassed = Date.now() - new Date(message.createdAt).getTime() > 24 * 60 * 60 * 1000
+
+  // --- CÁC HÀM XỬ LÝ (HANDLERS) ---
 
   const handleReact = async (emoji: string) => {
     try {
@@ -50,11 +58,28 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
     }
   }
 
+  const handleReply = () => {
+    window.dispatchEvent(
+      new CustomEvent('set_reply', {
+        detail: {
+          _id: message._id,
+          content: message.content,
+          type: message.type,
+          senderName: message.sender.userName
+        }
+      })
+    )
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content)
+  }
+
   return (
     <div
       className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-full mr-2 flex-row-reverse' : 'left-full ml-2 flex-row'} z-20 flex items-center gap-1`}
     >
-      {/* KHỐI THẢ CẢM XÚC */}
+      {/* KHỐI THẢ CẢM XÚC (Chỉ hiện khi chưa thu hồi) */}
       {!isRevoked && (
         <div
           className={`relative group/picker transition-opacity duration-200 ${hasReactions ? 'opacity-100' : 'opacity-0 group-hover/bubble:opacity-100'}`}
@@ -97,7 +122,7 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
         </div>
       )}
 
-      {/* KHỐI NÚT 3 CHẤM */}
+      {/* KHỐI NÚT 3 CHẤM (MENU HÀNH ĐỘNG KHÁC) */}
       <div className='opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200'>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -106,7 +131,23 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align={isMe ? 'end' : 'start'} sideOffset={6} className='min-w-[170px]'>
-            {isMe && !isRevoked && (
+            {/* Nếu tin nhắn CHƯA thu hồi, mới cho phép Trả lời và Sao chép */}
+            {!isRevoked && (
+              <>
+                <DropdownMenuItem onClick={handleReply} className='cursor-pointer font-medium py-2'>
+                  <Reply className='w-4 h-4 mr-2' /> Trả lời
+                </DropdownMenuItem>
+
+                {message.type === 'text' && (
+                  <DropdownMenuItem onClick={handleCopy} className='cursor-pointer font-medium py-2'>
+                    <Copy className='w-4 h-4 mr-2' /> Sao chép
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
+
+            {/* Chỉ hiện Thu Hồi nếu là tin của mình + chưa thu hồi + CHƯA QUÁ 24H */}
+            {isMe && !isRevoked && !is24hPassed && (
               <DropdownMenuItem
                 onClick={handleRevokeMessage}
                 className='text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-medium py-2'
@@ -115,6 +156,8 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
                 Thu hồi tin nhắn
               </DropdownMenuItem>
             )}
+
+            {/* Xóa phía tôi (Luôn hiện kể cả tin nhắn đã thu hồi, để dọn dẹp UI) */}
             <DropdownMenuItem
               onClick={() => onDeleteForMe && onDeleteForMe(message._id)}
               className='cursor-pointer font-medium py-2 text-muted-foreground focus:bg-muted'

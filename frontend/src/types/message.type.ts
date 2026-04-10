@@ -15,12 +15,21 @@ export interface Reaction {
   }
 }
 
+// Thêm interface cho tin nhắn được trích dẫn (Reply)
+export interface ReplyInfo {
+  _id: string
+  content: string
+  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
+  senderName: string
+}
+
 export interface Message {
   _id: string
   conversationId: string
   type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
   content: string
   replyToId?: string
+  replyToMessage?: ReplyInfo // Thêm data trích dẫn
   reactions?: Reaction[]
   callInfo?: {
     status: 'completed' | 'missed' | 'rejected' | 'cancelled'
