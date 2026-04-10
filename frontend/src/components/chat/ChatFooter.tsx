@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect, useContext } from 'react'
-import { Smile, Send, Paperclip, ImageIcon } from 'lucide-react'
+import { Smile, Send, Paperclip, ImageIcon, X, Reply } from 'lucide-react'
 import EmojiPicker, { Theme } from 'emoji-picker-react'
 import { messagesApi } from '@/apis/messages.api'
 import { AppContext } from '@/context/app.context'
+import type { Message, ReplyInfo } from '@/types/message.type'
 
 interface ChatFooterProps {
   convId: string
 }
+
+const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
 
 export function ChatFooter({ convId }: ChatFooterProps) {
   const { profile } = useContext(AppContext)
@@ -14,12 +17,44 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [emojiTheme, setEmojiTheme] = useState<Theme>(Theme.LIGHT)
+  const [replyingTo, setReplyingTo] = useState<ReplyInfo | null>(null)
 
-  // Đổi từ HTMLInputElement sang HTMLTextAreaElement
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
+
+  // 1. TỰ ĐỘNG LƯU NHÁP VÀ LẤY NHÁP TỪ LOCALSTORAGE
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(`draft_${convId}`)
+    if (savedDraft) setContent(savedDraft)
+    else setContent('')
+    setReplyingTo(null) // Reset reply khi đổi đoạn chat
+  }, [convId])
+
+  useEffect(() => {
+    if (content.trim()) {
+      localStorage.setItem(`draft_${convId}`, content)
+    } else {
+      localStorage.removeItem(`draft_${convId}`)
+    }
+  }, [content, convId])
+
+  // Lắng nghe sự kiện bấm Reply từ MessageItem
+  useEffect(() => {
+    const handleSetReply = (e: CustomEvent<ReplyInfo>) => {
+      setReplyingTo(e.detail)
+      // BUG FIX 3: setReplyingTo là bất đồng bộ — React chưa re-render xong nên
+      // gọi focus() ngay lập tức không có tác dụng (nhất là trên mobile).
+      // Dùng setTimeout để đảm bảo focus sau khi component đã re-render
+      // và animation slide-in-from-bottom-2 của khung trích dẫn đã bắt đầu.
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 50)
+    }
+    window.addEventListener('set_reply', handleSetReply as EventListener)
+    return () => window.removeEventListener('set_reply', handleSetReply as EventListener)
+  }, [])
 
   useEffect(() => {
     const checkTheme = () =>
@@ -38,14 +73,10 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Hàm tự động điều chỉnh chiều cao của textarea
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.style.height = '40px' // Đặt lại chiều cao mặc định
+      inputRef.current.style.height = '40px'
       const scrollHeight = inputRef.current.scrollHeight
-
-      // Chiều cao tối đa khoảng 5 dòng (line-height: ~24px -> 5 dòng ~ 120px)
-      // Cộng thêm padding
       if (scrollHeight > 130) {
         inputRef.current.style.height = '130px'
         inputRef.current.style.overflowY = 'auto'
@@ -54,45 +85,79 @@ export function ChatFooter({ convId }: ChatFooterProps) {
         inputRef.current.style.overflowY = 'hidden'
       }
     }
-  }, [content]) // Kích hoạt mỗi khi nội dung thay đổi
+  }, [content])
 
   const handleSendText = async () => {
     if (!content.trim() || !convId || isSending) return
 
     const messageContent = content.trim()
+    const replyId = replyingTo?._id
+
     setContent('')
+    setReplyingTo(null)
     setShowEmoji(false)
+    localStorage.removeItem(`draft_${convId}`) // Xóa nháp
 
-    // Reset lại chiều cao textarea về ban đầu sau khi gửi
-    if (inputRef.current) {
-      inputRef.current.style.height = '40px'
-    }
+    if (inputRef.current) inputRef.current.style.height = '40px'
 
-    triggerOptimisticAndSend('text', messageContent, async () => {
-      return await messagesApi.sendMessage({ convId, type: 'text', content: messageContent })
+    triggerOptimisticAndSend('text', messageContent, replyId, async () => {
+      return await messagesApi.sendMessage({ convId, type: 'text', content: messageContent, replyToId: replyId })
     })
   }
 
+  // 2. XỬ LÝ CHỌN NHIỀU FILE VÀ VALIDATE DUNG LƯỢNG
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file || !convId || isSending) return
+    const files = Array.from(event.target.files || [])
+    if (!files.length || !convId) return
     event.target.value = ''
 
-    const tempContent = URL.createObjectURL(file)
+    // BUG FIX 4 (bonus): Capture replyingTo tại thời điểm user chọn file,
+    // vì state có thể thay đổi trong vòng lặp async bên dưới.
+    // Đồng thời reset replyingTo ngay để UX nhất quán (giống handleSendText).
+    const currentReplyId = replyingTo?._id
+    const currentReplyInfo = replyingTo
+    setReplyingTo(null)
 
-    triggerOptimisticAndSend('media', tempContent, async () => {
-      return await messagesApi.sendMediaMessage(convId, file)
-    })
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" vượt quá dung lượng cho phép (25MB).`)
+        continue
+      }
+      const tempContent = URL.createObjectURL(file)
+
+      // BUG FIX 4: Trước đây truyền undefined cho replyToId — media reply không lưu vào DB.
+      // Bây giờ truyền đúng currentReplyId và currentReplyInfo để reply hoạt động với media.
+      await triggerOptimisticAndSend(
+        'media',
+        tempContent,
+        currentReplyId,
+        async () => {
+          return await messagesApi.sendMediaMessage(convId, file, currentReplyId)
+        },
+        currentReplyInfo
+      )
+    }
   }
 
-  const triggerOptimisticAndSend = async (type: string, msgContent: string, apiCall: () => Promise<any>) => {
-    const tempId = `temp-${Date.now()}`
-    const tempMessage = {
+  const triggerOptimisticAndSend = async (
+    type: string,
+    msgContent: string,
+    replyToId?: string,
+    apiCall?: () => Promise<any>,
+    replyInfo?: ReplyInfo | null
+  ) => {
+    // Ưu tiên replyInfo được truyền vào (dành cho media), fallback về replyingTo state (cho text)
+    const replyToMessage = replyInfo !== undefined ? replyInfo : replyingTo
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const tempMessage: Message = {
       _id: tempId,
       conversationId: convId,
-      type,
+      type: type as any,
       content: msgContent,
       status: 'SENDING',
+      replyToId: replyToId,
+      replyToMessage: replyToMessage || undefined, // Hiển thị mượt ngay khi chưa có phản hồi từ server
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       sender: { _id: profile?._id || '', userName: profile?.userName || '', avatar: profile?.avatar || '' },
@@ -103,19 +168,40 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     try {
       setIsSending(true)
-      const response = await apiCall()
-      window.dispatchEvent(
-        new CustomEvent('optimistic_success', { detail: { tempId, realMessage: response.data.result } })
-      )
+      if (apiCall) {
+        const response = await apiCall()
+        window.dispatchEvent(
+          new CustomEvent('optimistic_success', { detail: { tempId, realMessage: response.data.result } })
+        )
+      }
     } catch (error) {
       console.error('Lỗi khi gửi:', error)
-      window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId } }))
+      window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId, apiCall } }))
     } finally {
       setIsSending(false)
     }
   }
 
-  // Đổi type sự kiện sang HTMLTextAreaElement
+  // Lắng nghe sự kiện Retry từ MessageItem
+  useEffect(() => {
+    const handleRetry = async (e: any) => {
+      const { tempId, apiCall } = e.detail
+      if (!apiCall) return
+      // Đổi trạng thái lại thành SENDING
+      window.dispatchEvent(new CustomEvent('optimistic_retry_start', { detail: { tempId } }))
+      try {
+        const response = await apiCall()
+        window.dispatchEvent(
+          new CustomEvent('optimistic_success', { detail: { tempId, realMessage: response.data.result } })
+        )
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId, apiCall } }))
+      }
+    }
+    window.addEventListener('retry_send', handleRetry)
+    return () => window.removeEventListener('retry_send', handleRetry)
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -133,67 +219,85 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   }
 
   return (
-    <div className='p-4 bg-background flex items-end gap-2 relative border-t border-border/40 px-4 shadow-sm'>
-      {/* File Inputs (Hidden) */}
-      <input type='file' ref={fileInputRef} className='hidden' onChange={handleFileUpload} />
-      <input
-        type='file'
-        ref={mediaInputRef}
-        accept='image/*,video/*,audio/*'
-        className='hidden'
-        onChange={handleFileUpload}
-      />
-
-      <div className='flex items-center pb-2'>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className='p-2 text-muted-foreground hover:text-foreground transition-colors'
-        >
-          <Paperclip className='w-5 h-5' />
-        </button>
-        <button
-          onClick={() => mediaInputRef.current?.click()}
-          className='p-2 text-muted-foreground hover:text-foreground transition-colors'
-        >
-          <ImageIcon className='w-5 h-5' />
-        </button>
-      </div>
-
-      {/* Sửa lại wrapper của khung nhập liệu */}
-      <div className='relative flex-1 flex items-end bg-muted rounded-3xl pb-0.5 border border-transparent focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all'>
-        {/* Sử dụng Textarea thay cho Input */}
-        <textarea
-          ref={inputRef}
-          placeholder='Nhập tin nhắn...'
-          className='w-full bg-transparent text-foreground px-4 py-[10px] pr-10 outline-none resize-none leading-relaxed'
-          style={{ minHeight: '40px', height: '40px', maxHeight: '130px' }}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={1}
-        />
-        <button
-          onClick={() => setShowEmoji(!showEmoji)}
-          className={`absolute right-3 bottom-[8px] p-1 transition-colors ${showEmoji ? 'text-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
-        >
-          <Smile className='w-5 h-5' />
-        </button>
-      </div>
-
-      {showEmoji && (
-        <div ref={emojiRef} className='absolute bottom-full right-16 mb-2 z-50 shadow-xl rounded-lg'>
-          <EmojiPicker onEmojiClick={onEmojiClick} theme={emojiTheme} searchPlaceHolder='Tìm kiếm cảm xúc...' />
+    <div className='p-4 bg-background flex flex-col gap-2 relative border-t border-border/40 px-4 shadow-sm'>
+      {/* Khung hiển thị Trích dẫn */}
+      {replyingTo && (
+        <div className='flex items-center justify-between bg-muted/50 p-2 rounded-lg border-l-4 border-[#6b45e9] mx-10 animate-in slide-in-from-bottom-2'>
+          <div className='flex items-center gap-2 overflow-hidden'>
+            <Reply className='w-4 h-4 text-muted-foreground shrink-0' />
+            <div className='flex flex-col overflow-hidden'>
+              <span className='text-xs font-semibold text-foreground'>Trả lời {replyingTo.senderName}</span>
+              <span className='text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-[400px]'>
+                {replyingTo.type === 'text' ? replyingTo.content : '[Đa phương tiện]'}
+              </span>
+            </div>
+          </div>
+          <button onClick={() => setReplyingTo(null)} className='p-1 hover:bg-muted rounded-full text-muted-foreground'>
+            <X className='w-4 h-4' />
+          </button>
         </div>
       )}
 
-      <div className='pb-[2px]'>
-        <button
-          onClick={handleSendText}
-          disabled={!content.trim() && !isSending}
-          className='p-2 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-10 h-10'
-        >
-          <Send className='w-5 h-5 ml-1' />
-        </button>
+      <div className='flex items-end gap-2'>
+        <input type='file' multiple ref={fileInputRef} className='hidden' onChange={handleFileUpload} />
+        <input
+          type='file'
+          multiple
+          ref={mediaInputRef}
+          accept='image/*,video/*'
+          className='hidden'
+          onChange={handleFileUpload}
+        />
+
+        <div className='flex items-center pb-2'>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className='p-2 text-muted-foreground hover:text-foreground transition-colors'
+          >
+            <Paperclip className='w-5 h-5' />
+          </button>
+          <button
+            onClick={() => mediaInputRef.current?.click()}
+            className='p-2 text-muted-foreground hover:text-foreground transition-colors'
+          >
+            <ImageIcon className='w-5 h-5' />
+          </button>
+        </div>
+
+        <div className='relative flex-1 flex items-end bg-muted rounded-3xl pb-0.5 border border-transparent focus-within:border-blue-500 transition-all'>
+          <textarea
+            ref={inputRef}
+            placeholder='Nhập tin nhắn...'
+            className='w-full bg-transparent text-foreground px-4 py-[10px] pr-10 outline-none resize-none leading-relaxed'
+            style={{ minHeight: '40px', height: '40px', maxHeight: '130px' }}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
+          <button
+            onClick={() => setShowEmoji(!showEmoji)}
+            className={`absolute right-3 bottom-[8px] p-1 transition-colors ${showEmoji ? 'text-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Smile className='w-5 h-5' />
+          </button>
+        </div>
+
+        {showEmoji && (
+          <div ref={emojiRef} className='absolute bottom-full right-16 mb-2 z-50 shadow-xl rounded-lg'>
+            <EmojiPicker onEmojiClick={onEmojiClick} theme={emojiTheme} searchPlaceHolder='Tìm kiếm cảm xúc...' />
+          </div>
+        )}
+
+        <div className='pb-[2px]'>
+          <button
+            onClick={handleSendText}
+            disabled={!content.trim() && !isSending && !replyingTo}
+            className='p-2 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center w-10 h-10'
+          >
+            <Send className='w-5 h-5 ml-1' />
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -113,19 +113,39 @@ export function ChatBody({ convId }: ChatBodyProps) {
           // Bỏ qua nếu tin nhắn thực sự đã tồn tại
           if (prev.some((msg) => msg._id === newMessage._id)) return prev
 
-          // FIX LỖI NHÂN ĐÔI OPTIMISTIC UI:
-          // Nếu đây là tin nhắn của CỦA MÌNH VỪA GỬI, tìm tin "ảo" (SENDING) để GHI ĐÈ ngay lập tức.
+          if (newMessage.replyToId && !newMessage.replyToMessage) {
+            const repliedMsg = prev.find((m) => m._id === newMessage.replyToId)
+            if (repliedMsg) {
+              newMessage.replyToMessage = {
+                _id: repliedMsg._id,
+                content: repliedMsg.content,
+                type: repliedMsg.type,
+                senderName: repliedMsg.sender?.userName || 'Người dùng'
+              }
+            }
+          }
+
+          // FIX 2: Xử lý nhân đôi tin nhắn cho Media (vì lúc tạm content là blob:..., lúc thật là http...)
           const isMe = newMessage.sender._id === currentUserId
           if (isMe) {
-            const tempIndex = prev.findIndex((msg) => msg.status === 'SENDING' && msg.content === newMessage.content)
+            const tempIndex = prev.findIndex(
+              (msg) =>
+                msg.status === 'SENDING' &&
+                // Kiểm tra text trùng nhau, HOẶC cả 2 đều là media
+                (msg.content === newMessage.content || (msg.type === 'media' && newMessage.type === 'media'))
+            )
+
             if (tempIndex !== -1) {
               const newArr = [...prev]
+              // Giữ lại Reply UI nếu socket chưa gắn kèm
+              if (!newMessage.replyToMessage && newArr[tempIndex].replyToMessage) {
+                newMessage.replyToMessage = newArr[tempIndex].replyToMessage
+              }
               newArr[tempIndex] = newMessage // Chuyển từ ảo thành thật
               return newArr
             }
           }
 
-          // Nếu của người khác thì nhét bình thường
           return [...prev, newMessage]
         })
 
@@ -133,7 +153,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
           if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight
         }, 50)
 
-        // ĐÁNH DẤU ĐÃ XEM CHO TIN CỦA NGƯỜI KHÁC KHI MÀN HÌNH ĐANG MỞ
         if (newMessage.sender._id !== currentUserId) {
           socket.emit('message_seen', { messageId: newMessage._id, conversationId: convId })
         }
@@ -192,24 +211,39 @@ export function ChatBody({ convId }: ChatBodyProps) {
     const handleOptSuccess = (e: any) => {
       const { tempId, realMessage } = e.detail
       setMessages((prev) => {
-        // Kiểm tra xem Socket đã tự động xử lý và add tin nhắn thật này vào chưa?
+        // GIỮ LẠI TRÍCH DẪN TỪ UI NẾU API THIẾU
+        const tempMsg = prev.find((m) => m._id === tempId)
+        if (tempMsg?.replyToMessage && !realMessage.replyToMessage) {
+          realMessage.replyToMessage = tempMsg.replyToMessage
+        }
+
         const isRealExist = prev.some((msg) => msg._id === realMessage._id)
         if (isRealExist) {
-          // Socket đã xử lý xong trước đó -> Chỉ việc xóa ID ảo đi để dọn dẹp
           return prev.filter((msg) => msg._id !== tempId)
         }
-        // Nếu Socket chưa tới mà API xong trước -> Thay thế ID ảo bằng data thật
         return prev.map((msg) => (msg._id === tempId ? realMessage : msg))
       })
     }
 
+    // 3. XỬ LÝ LỖI (OFFLINE QUEUE HIỂN THỊ)
     const handleOptFail = (e: any) => {
-      setMessages((prev) => prev.map((msg) => (msg._id === e.detail.tempId ? { ...msg, status: 'FAILED' } : msg)))
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === e.detail.tempId
+            ? { ...msg, status: 'FAILED', _apiCall: e.detail.apiCall } // Lưu lại apiCall để Retry
+            : msg
+        )
+      )
+    }
+
+    const handleOptRetryStart = (e: any) => {
+      setMessages((prev) => prev.map((msg) => (msg._id === e.detail.tempId ? { ...msg, status: 'SENDING' } : msg)))
     }
 
     window.addEventListener('optimistic_send', handleOptSend)
     window.addEventListener('optimistic_success', handleOptSuccess)
     window.addEventListener('optimistic_fail', handleOptFail)
+    window.addEventListener('optimistic_retry_start', handleOptRetryStart)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
@@ -220,6 +254,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
       window.removeEventListener('optimistic_send', handleOptSend)
       window.removeEventListener('optimistic_success', handleOptSuccess)
       window.removeEventListener('optimistic_fail', handleOptFail)
+      window.removeEventListener('optimistic_retry_start', handleOptRetryStart)
     }
   }, [currentUserId, convId, socket])
 
