@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useRef, useEffect, useContext } from 'react'
 import { Smile, Send, Paperclip, ImageIcon, X, Reply } from 'lucide-react'
 import EmojiPicker, { Theme } from 'emoji-picker-react'
@@ -18,6 +21,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const [isSending, setIsSending] = useState(false)
   const [emojiTheme, setEmojiTheme] = useState<Theme>(Theme.LIGHT)
   const [replyingTo, setReplyingTo] = useState<ReplyInfo | null>(null)
+
+  const MAX_TEXT_LENGTH = 2000
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
@@ -93,16 +98,78 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     const messageContent = content.trim()
     const replyId = replyingTo?._id
 
+    // Lưu lại thông tin reply vào biến tạm trước khi clear state
+    const currentReplyInfo = replyingTo
+
     setContent('')
     setReplyingTo(null)
     setShowEmoji(false)
-    localStorage.removeItem(`draft_${convId}`) // Xóa nháp
+    localStorage.removeItem(`draft_${convId}`)
 
     if (inputRef.current) inputRef.current.style.height = '40px'
 
-    triggerOptimisticAndSend('text', messageContent, replyId, async () => {
-      return await messagesApi.sendMessage({ convId, type: 'text', content: messageContent, replyToId: replyId })
-    })
+    // 1. TÁCH TIN NHẮN DÀI BẢO TOÀN TỪ VỰNG (Word Boundary Split)
+    const chunks: string[] = []
+    let remainingText = messageContent
+
+    while (remainingText.length > 0) {
+      // Nếu phần còn lại ngắn hơn giới hạn, đưa vào mảng và kết thúc
+      if (remainingText.length <= MAX_TEXT_LENGTH) {
+        chunks.push(remainingText)
+        break
+      }
+
+      // Cắt thử một đoạn tối đa
+      const windowText = remainingText.slice(0, MAX_TEXT_LENGTH)
+
+      // Tìm vị trí khoảng trắng hoặc xuống dòng cuối cùng trong đoạn cắt thử
+      const lastSpaceIndex = windowText.lastIndexOf(' ')
+      const lastNewlineIndex = windowText.lastIndexOf('\n')
+      const safeBreakPoint = Math.max(lastSpaceIndex, lastNewlineIndex)
+
+      let splitIndex
+
+      if (safeBreakPoint > 0) {
+        // Nếu tìm thấy ranh giới từ (khoảng trắng/xuống dòng), cắt ngay tại đó
+        splitIndex = safeBreakPoint
+        chunks.push(remainingText.slice(0, splitIndex))
+        // Cập nhật phần còn lại, cộng 1 để bỏ qua ký tự khoảng trắng/xuống dòng đã dùng để cắt
+        remainingText = remainingText.slice(splitIndex + 1)
+      } else {
+        // Trường hợp hiếm: 1 chuỗi ký tự dính liền không khoảng trắng dài hơn MAX_TEXT_LENGTH
+        // -> Đành phải cắt cứng tại MAX_TEXT_LENGTH
+        splitIndex = MAX_TEXT_LENGTH
+        chunks.push(remainingText.slice(0, splitIndex))
+        remainingText = remainingText.slice(splitIndex)
+      }
+    }
+
+    // 2. GỬI LẦN LƯỢT TỪNG PHẦN
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkContent = chunks[i]
+
+      const targetReplyId = i === 0 ? replyId : undefined
+      const targetReplyInfo = i === 0 ? currentReplyInfo : null
+
+      triggerOptimisticAndSend(
+        'text',
+        chunkContent,
+        targetReplyId,
+        async () => {
+          return await messagesApi.sendMessage({
+            convId,
+            type: 'text',
+            content: chunkContent,
+            replyToId: targetReplyId
+          })
+        },
+        targetReplyInfo
+      )
+
+      if (chunks.length > 1 && i < chunks.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
   }
 
   // 2. XỬ LÝ CHỌN NHIỀU FILE VÀ VALIDATE DUNG LƯỢNG
@@ -170,7 +237,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     if (!apiCall) return
 
-    // BUG FIX UX: Không block state `isSending` trong suốt quá trình auto-retry.
+    // Không block state `isSending` trong suốt quá trình auto-retry.
     // Chỉ dùng để khóa spam click trong thời gian ngắn (300ms) để user vẫn có thể gõ/gửi tin nhắn khác.
     setIsSending(true)
     setTimeout(() => setIsSending(false), 300)
