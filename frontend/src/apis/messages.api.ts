@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import http from '@/utils/http'
 import type { GetMessagesResponse, Message } from '@/types/message.type'
 
@@ -55,11 +56,15 @@ export const messagesApi = {
     })
   },
 
-  // BUG FIX 4: Thêm tham số replyToId vào sendMediaMessage.
-  sendMediaMessage: (convId: string, file: File, replyToId?: string) => {
+  sendMediaMessage: (convId: string, files: File[], replyToId?: string) => {
     const formData = new FormData()
     formData.append('convId', convId)
-    formData.append('file', file)
+
+    // Nối tất cả các file vào FormData (Backend cần sử dụng upload.array('files'))
+    files.forEach((file) => {
+      formData.append('files', file)
+    })
+
     if (replyToId) formData.append('replyToId', replyToId)
 
     return http.post<{ message: string; result: Message }>('/messages/media', formData, {

@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom'
 import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
-import { Check, CheckCheck, Clock, AlertCircle, File as FileIcon, Download, X, RefreshCcw } from 'lucide-react'
+import { Check, CheckCheck, Clock, File as FileIcon, Download, X, RefreshCcw } from 'lucide-react'
 
 interface MessageItemProps {
   message: Message
@@ -36,36 +36,38 @@ export function MessageItem({
   const currentUserId = profile?._id || ''
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
 
   const isCall = message.type === 'call'
   const isRevoked = message.type === 'revoked'
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
 
-  // BUG FIX 1: Backend trước đây lưu type = 'image' hoặc 'video' thay vì 'media'
-  // (do đoạn code convert mimetype trong uploadMediaMessageController).
-  // Những tin nhắn cũ trong DB vẫn có type = 'image'/'video' nên cần backward-compatible.
-  // Frontend phải nhận diện cả 3 giá trị để render đúng.
   const isMedia = message.type === 'media' || message.type === 'image' || message.type === 'video'
 
-  const cleanUrl = isMedia ? message.content.split('?')[0].split('#')[0] : ''
+  // Parse nội dung tin nhắn để hỗ trợ mảng URL (cho layout Album ảnh/video)
+  let mediaUrls: string[] = []
+  if (isMedia) {
+    try {
+      const parsed = JSON.parse(message.content)
+      mediaUrls = Array.isArray(parsed) ? parsed : [message.content]
+    } catch {
+      mediaUrls = [message.content]
+    }
+  }
+
+  const firstUrl = mediaUrls[0] || ''
+  const cleanUrl = firstUrl.split('?')[0].split('#')[0]
   const ext = cleanUrl.split('.').pop()?.toLowerCase() || ''
 
   const isImage =
     isMedia &&
-    // type === 'image' từ data cũ trong DB
     (message.type === 'image' ||
       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp', 'svg'].includes(ext) ||
-      message.content.startsWith('blob:') ||
-      message.content.startsWith('data:image/') ||
-      message.content.includes('/image/upload/'))
-
-  const isVideo =
-    isMedia &&
-    // type === 'video' từ data cũ trong DB
-    (message.type === 'video' || ['mp4', 'webm', 'ogg'].includes(ext))
-
+      firstUrl.startsWith('blob:') ||
+      firstUrl.startsWith('data:image/') ||
+      firstUrl.includes('/image/upload/'))
+  const isVideo = isMedia && (message.type === 'video' || ['mp4', 'webm', 'ogg'].includes(ext))
   const isAudio = isMedia && ['mp3', 'wav', 'm4a', 'ogg'].includes(ext)
   const isFile = isMedia && !isImage && !isVideo && !isAudio
 
@@ -85,7 +87,6 @@ export function MessageItem({
     if (!isMe || isCall || isRevoked) return null
     const status = message.status || 'SENT'
 
-    // UI NÚT RETRY KHI LỖI MẠNG
     if (status === 'FAILED') {
       return (
         <button
@@ -113,45 +114,94 @@ export function MessageItem({
 
   const renderMessageContent = () => {
     if (isMedia) {
-      if (isImage) {
+      if (isImage || isVideo) {
         return (
           <>
-            <img
-              src={message.content}
-              alt='media'
-              onClick={() => setIsImageModalOpen(true)}
-              className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
-            />
-            {isImageModalOpen &&
+            {mediaUrls.length === 1 ? (
+              isVideo ? (
+                <video
+                  src={mediaUrls[0]}
+                  controls
+                  className='max-w-[260px] max-h-[320px] rounded-xl bg-black shadow-sm'
+                />
+              ) : (
+                <img
+                  src={mediaUrls[0]}
+                  alt='media'
+                  onClick={() => setSelectedMediaUrl(mediaUrls[0])}
+                  className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
+                />
+              )
+            ) : (
+              <div
+                className={`grid gap-1 max-w-[280px] rounded-xl overflow-hidden shadow-sm border border-border/20 ${mediaUrls.length >= 2 ? 'grid-cols-2' : ''}`}
+              >
+                {mediaUrls.slice(0, 4).map((url, index) => {
+                  const isLastItem = index === 3 && mediaUrls.length > 4
+                  const isItemVideo = ['mp4', 'webm', 'ogg'].includes(
+                    url.split('?')[0].split('.').pop()?.toLowerCase() || ''
+                  )
+                  const itemClass = mediaUrls.length === 3 && index === 0 ? 'col-span-2 aspect-video' : 'aspect-square'
+
+                  return (
+                    <div
+                      key={index}
+                      className={`relative w-full bg-muted cursor-pointer hover:opacity-90 transition ${itemClass}`}
+                      onClick={() => setSelectedMediaUrl(url)}
+                    >
+                      {isItemVideo ? (
+                        <video src={url} className='w-full h-full object-cover' />
+                      ) : (
+                        <img src={url} alt='media' className='w-full h-full object-cover' />
+                      )}
+                      {isLastItem && (
+                        <div className='absolute inset-0 bg-black/60 flex items-center justify-center text-white font-medium text-xl backdrop-blur-[2px]'>
+                          +{mediaUrls.length - 4}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {selectedMediaUrl &&
               createPortal(
                 <div
                   className='fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm'
-                  onClick={() => setIsImageModalOpen(false)}
+                  onClick={() => setSelectedMediaUrl(null)}
                 >
                   <div className='relative max-w-[90vw] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 flex items-center justify-center'>
                     <button
                       className='absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors bg-white/10 rounded-full z-50'
                       onClick={(e) => {
                         e.stopPropagation()
-                        setIsImageModalOpen(false)
+                        setSelectedMediaUrl(null)
                       }}
                     >
                       <X className='w-6 h-6' />
                     </button>
-                    <img
-                      src={message.content}
-                      alt='Zoomed media'
-                      className='max-w-full max-h-[85vh] object-contain rounded-md'
-                    />
+                    {['mp4', 'webm', 'ogg'].includes(
+                      selectedMediaUrl.split('?')[0].split('.').pop()?.toLowerCase() || ''
+                    ) ? (
+                      <video
+                        src={selectedMediaUrl}
+                        controls
+                        autoPlay
+                        className='max-w-full max-h-[85vh] rounded-md shadow-2xl'
+                      />
+                    ) : (
+                      <img
+                        src={selectedMediaUrl}
+                        alt='Zoomed media'
+                        className='max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl'
+                      />
+                    )}
                   </div>
                 </div>,
                 document.body
               )}
           </>
-        )
-      } else if (isVideo) {
-        return (
-          <video src={message.content} controls className='max-w-[260px] max-h-[320px] rounded-xl bg-black shadow-sm' />
         )
       } else if (isAudio) {
         return <audio src={message.content} controls className='max-w-[240px]' />
@@ -256,12 +306,10 @@ export function MessageItem({
                   <span className='text-xs font-semibold text-muted-foreground mb-1'>{senderName}</span>
                 )}
 
-                {/* HIỂN THỊ UI TRÍCH DẪN (REPLY) */}
                 {message.replyToMessage && (
                   <div
                     className={`mb-2 p-2 rounded-lg border-l-4 border-white/50 bg-black/10 flex flex-col text-sm cursor-pointer opacity-80 hover:opacity-100 transition`}
                     onClick={() => {
-                      // replyToMessage._id đã được backend trả về dạng string (toString)
                       const el = document.getElementById(`message-${message.replyToMessage?._id}`)
                       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                       el?.classList.add('bg-muted/50', 'transition-colors', 'duration-500')
@@ -277,7 +325,6 @@ export function MessageItem({
 
                 {renderMessageContent()}
 
-                {/* HIỂN THỊ ICON REACTION NẰM TRONG BONG BÓNG */}
                 {hasReactions && (
                   <div
                     className={`absolute -bottom-3.5 ${isMe ? 'right-2' : 'left-2'} z-10 cursor-pointer drop-shadow-sm`}
