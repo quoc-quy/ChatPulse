@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import * as groupController from '~/controllers/group.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
-import { /* ... */ joinGroupController } from '~/controllers/group.controllers';
-import { wrapRequestHandler } from '~/utils/handlers';
+import { /* ... */ joinGroupController } from '~/controllers/group.controllers'
+import { wrapRequestHandler } from '~/utils/handlers'
+import multer from 'multer'
 
 const groupRouter = Router()
-
+const upload = multer({ storage: multer.memoryStorage() })
 groupRouter.use(accessTokenValidator)
 
 // Thêm nhiều thành viên
@@ -49,6 +50,8 @@ groupRouter.get('/:id/media', groupController.getMediaFilesController)
  */
 groupRouter.get('/:id/links', groupController.getSharedLinksController)
 
-groupRouter.post('/join', accessTokenValidator, wrapRequestHandler(joinGroupController));
+groupRouter.post('/join', accessTokenValidator, wrapRequestHandler(joinGroupController))
+
+groupRouter.post('/:id/avatar/upload', upload.single('file'), groupController.uploadGroupAvatarController)
 
 export default groupRouter

@@ -434,6 +434,78 @@ class GroupService {
 
     return updatedConversation
   }
+  // ── Kiểm tra user có là thành viên nhóm không ────────────────────────────────
+  async isGroupMember(conversationId: string, userId: string): Promise<boolean> {
+    const conversation = await databaseService.conversations.findOne({
+      _id: new ObjectId(conversationId)
+    })
+    if (!conversation) return false
+    return (conversation.participants || []).some(
+      (p: ObjectId) => p.toString() === userId
+    )
+  }
+ 
+  // ── Cập nhật avatar nhóm (tất cả thành viên đều được phép) ──────────────────
+  async updateGroupAvatar(conversationId: string, userId: string, avatarUrl: string) {
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
+ 
+    const updatedConversation = await databaseService.conversations.findOneAndUpdate(
+      { _id: conversationObjectId },
+      { $set: { avatarUrl, updated_at: new Date() } },
+      { returnDocument: 'after' }
+    )
+ 
+    if (!updatedConversation) throw new Error('Không tìm thấy cuộc hội thoại')
+ 
+    const user = await databaseService.users.findOne({ _id: userObjectId })
+    const userName = user?.userName || 'Một thành viên'
+ 
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: userObjectId,
+      type: 'system',
+      content: `${userName} đã thay đổi ảnh nhóm`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+ 
+    await databaseService.messages.insertOne(systemMessage as any)
+ 
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      { $set: { last_message_id: systemMessageId } }
+    )
+ 
+    const targetUserIds = new Set<string>()
+    if (updatedConversation.participants) {
+      updatedConversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+    }
+ 
+    const populatedMessage = {
+      ...systemMessage,
+      sender: {
+        _id: user?._id?.toString(),
+        userName,
+        avatar: user?.avatar
+      }
+    }
+ 
+    targetUserIds.forEach((id) => {
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+      socketService.emitToUser(id, 'conversation_updated', { conversationId, avatarUrl })
+    })
+ 
+    return updatedConversation
+  }
 }
+
 
 export const groupService = new GroupService()

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express'
 import { groupService } from '~/services/group.services'
 import httpStatus from '~/constants/httpStatus'
-import { TokenPayload } from '~/models/requests/users.requests'; // Đảm bảo đường dẫn này đúng với dự án của bạn
-
+import { TokenPayload } from '~/models/requests/users.requests' // Đảm bảo đường dẫn này đúng với dự án của bạn
+import { uploadAvatarToS3 } from '../utils/s3'
 // Thêm thành viên
 export const addMembersController = async (req: Request, res: Response) => {
   const id = req.params.id as string
@@ -140,21 +140,43 @@ export const renameGroupController = async (req: Request, res: Response) => {
 }
 
 export const joinGroupController = async (req: Request, res: Response) => {
-  const { user_id } = req.decoded_authorization as TokenPayload;
-  const { conversationId } = req.body;
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { conversationId } = req.body
 
   if (!conversationId) {
-    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Thiếu conversationId' });
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Thiếu conversationId' })
   }
 
-  const result = await groupService.joinGroupViaLink(conversationId, user_id);
+  const result = await groupService.joinGroupViaLink(conversationId, user_id)
 
   if (!result) {
-    return res.status(httpStatus.NOT_FOUND).json({ message: 'Nhóm không tồn tại hoặc bạn đã ở trong nhóm này' });
+    return res.status(httpStatus.NOT_FOUND).json({ message: 'Nhóm không tồn tại hoặc bạn đã ở trong nhóm này' })
   }
 
   return res.status(httpStatus.OK).json({
     message: 'Tham gia nhóm thành công',
     result
-  });
-};
+  })
+}
+// ── Cập nhật avatar nhóm (tất cả thành viên đều được phép) ──────────────────
+export const uploadGroupAvatarController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const userId = req.decoded_authorization?.user_id as string
+
+  if (!req.file) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Không có file được gửi lên' })
+  }
+
+  const isMember = await groupService.isGroupMember(id, userId)
+  if (!isMember) {
+    return res.status(httpStatus.FORBIDDEN).json({ message: 'Bạn không phải thành viên nhóm này' })
+  }
+
+  const avatarUrl = await uploadAvatarToS3(req.file)
+  const updatedGroup = await groupService.updateGroupAvatar(id, userId, avatarUrl)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Cập nhật ảnh nhóm thành công',
+    result: updatedGroup
+  })
+}
