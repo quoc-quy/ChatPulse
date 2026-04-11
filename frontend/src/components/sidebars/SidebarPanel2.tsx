@@ -12,12 +12,12 @@ import { AddMemberModal } from '../chat/info-panel/AddMemberModal' // Import Mod
 import Settings from '../settings/Setting'
 import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
+import { AppContext } from '@/context/app.context'
 
 interface SidebarPanel2Props {
   activeItem: any
   isLoading: boolean
   chatList: any[]
-  activeChat: any
   setActiveChat: (chat: any) => void
   setChatList: React.Dispatch<React.SetStateAction<any[]>>
   profileId: string
@@ -27,13 +27,14 @@ export function SidebarPanel2({
   activeItem,
   isLoading,
   chatList,
-  activeChat,
   setActiveChat,
   setChatList,
   profileId
 }: SidebarPanel2Props) {
   const navigate = useNavigate()
   const location = useLocation()
+
+  const { activeChat } = React.useContext(AppContext)
 
   const [open, setOpen] = React.useState(false) // State cho modal kết bạn
   const [openCreateGroup, setOpenCreateGroup] = React.useState(false) // State cho modal tạo nhóm
@@ -241,14 +242,28 @@ export function SidebarPanel2({
                           <div
                             className={`text-xs shrink-0 ${chat.unreadCount > 0 && !isActive ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}
                           >
-                            {chat.time}
+                            <span className='text-xs text-muted-foreground'>
+                              {chat.draftContent && String(chat.id) !== String(activeChat?.id) ? (
+                                <span className='text-red-500 font-medium'>Chưa gửi</span>
+                              ) : (
+                                chat.time
+                              )}
+                            </span>
                           </div>
                         </div>
                         <div className='flex justify-between items-center gap-2'>
                           <div
                             className={`text-sm truncate flex-1 ${chat.unreadCount > 0 && !isActive ? 'text-foreground font-medium' : 'text-muted-foreground'} ${chat.message === 'Tin nhắn đã được thu hồi' ? 'italic opacity-80' : ''}`}
                           >
-                            {chat.message}
+                            <p className='text-sm text-muted-foreground truncate'>
+                              {chat.draftContent && String(chat.id) !== String(activeChat?.id) ? (
+                                <>
+                                  <span className='text-red-500 font-medium'>[Bản nháp]</span> {chat.draftContent}
+                                </>
+                              ) : (
+                                chat.message
+                              )}
+                            </p>
                           </div>
                           {chat.unreadCount > 0 && !isActive && (
                             <div className='flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-[#6b45e9] to-[#a139e4] px-1.5 text-[10px] font-bold text-white shrink-0'>

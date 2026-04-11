@@ -43,6 +43,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     } else {
       localStorage.removeItem(`draft_${convId}`)
     }
+    // Phát sự kiện để Sidebar cập nhật bản nháp realtime
+    window.dispatchEvent(new CustomEvent('draft_updated', { detail: { convId, content: content.trim() } }))
   }, [content, convId])
 
   // Lắng nghe sự kiện bấm Reply từ MessageItem
@@ -105,6 +107,8 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     setReplyingTo(null)
     setShowEmoji(false)
     localStorage.removeItem(`draft_${convId}`)
+    // Xoá bản nháp ở Sidebar sau khi gửi
+    window.dispatchEvent(new CustomEvent('draft_updated', { detail: { convId, content: '' } }))
 
     if (inputRef.current) inputRef.current.style.height = '40px'
 
