@@ -38,12 +38,12 @@ export const sendMessage = (
 export const sendMediaMessage = (
   conversationId: string,
   fileAsset: any,
-  type: "media" | "file" = "media"
+  type: "media" | "file" = "media",
 ) => {
   const formData = new FormData();
   formData.append("convId", conversationId);
   formData.append("type", type);
-  
+
   // Xử lý dữ liệu file cho React Native FormData
   formData.append("file", {
     uri: fileAsset.uri,
@@ -193,5 +193,23 @@ export const pinConversation = (conversationId: string, is_pin: boolean) =>
   api.patch(`/conversations/${conversationId}/pin`, { is_pin });
 
 export const joinGroupByLink = (conversationId: string) => {
-  return api.post('/groups/join', { conversationId });
+  return api.post("/groups/join", { conversationId });
+};
+export const updateGroupAvatar = (
+  conversationId: string,
+  avatarUrl: string,
+) => {
+  return api.patch(`/groups/${conversationId}/avatar`, { avatarUrl });
+};
+export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
+  const filename = uri.split("/").pop() || "avatar.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+
+  const formData = new FormData();
+  formData.append("file", { uri, name: filename, type } as any);
+
+  return api.post(`/groups/${conversationId}/avatar/upload`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 };
