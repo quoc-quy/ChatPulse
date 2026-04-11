@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   X,
   Bell,
@@ -16,12 +17,13 @@ import {
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { AppContext, type ChatItem } from '@/context/app.context'
-import { MediaCollapsible, type MediaItem } from './MediaCollapsible'
+import { MediaCollapsible } from './MediaCollapsible'
 import { useContext, useState, useEffect } from 'react'
 import { groupApi } from '@/apis/group.api'
 import { messagesApi } from '@/apis/messages.api'
 import { toast } from 'sonner'
 import { ChatAvatar } from '@/components/chat-avatar'
+import { useSocket } from '@/context/socket.context'
 
 interface InfoPanelMainProps {
   chat: ChatItem
@@ -37,66 +39,64 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
   const [tempName, setTempName] = useState(chat.name || '')
   const [isSavingName, setIsSavingName] = useState(false)
   const { profile } = useContext(AppContext)
+  const { socket } = useSocket()
 
-  // State lưu trữ dữ liệu Media
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [fileItems, setFileItems] = useState<MediaItem[]>([])
-  const [linkItems, setLinkItems] = useState<MediaItem[]>([])
+  // State duy nhất lưu toàn bộ messages cho Panel (Phục vụ Media/File/Link)
+  const [panelMessages, setPanelMessages] = useState<any[]>([])
 
+  // FETCH TIN NHẮN BAN ĐẦU
   useEffect(() => {
-    const fetchSharedMedia = async () => {
+    if (!chat.id) return
+    const fetchSharedData = async () => {
       try {
-        // Lấy 100 tin nhắn gần nhất để lọc media
-        const res = await messagesApi.getMessages({ convId: chat.id, limit: 100 })
-        const messages = res.data.result || []
-
-        const medias: MediaItem[] = []
-        const files: MediaItem[] = []
-        const links: MediaItem[] = []
-        const urlRegex = /(https?:\/\/[^\s]+)/g
-
-        messages.forEach((msg: any) => {
-          if (msg.type === 'media') {
-            const ext = msg.content.split('.').pop()?.toLowerCase() || ''
-            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) || msg.content.startsWith('blob:')
-            const isVideo = ['mp4', 'webm', 'ogg'].includes(ext)
-
-            if (isImage || isVideo) {
-              medias.push({
-                id: msg._id,
-                url: msg.content,
-                isVideo: isVideo
-              })
-            } else {
-              files.push({
-                id: msg._id,
-                url: msg.content,
-                name: msg.content.split('/').pop()?.split('?')[0] || 'Tài liệu không tên'
-              })
-            }
-          } else if (msg.type === 'text') {
-            const foundLinks = msg.content.match(urlRegex)
-            if (foundLinks) {
-              foundLinks.forEach((link: string, idx: number) => {
-                links.push({
-                  id: `${msg._id}-${idx}`,
-                  url: link
-                })
-              })
-            }
-          }
+        const res = await messagesApi.getMessages({
+          convId: chat.id,
+          limit: 100
         })
-
-        setMediaItems(medias)
-        setFileItems(files)
-        setLinkItems(links)
+        const messages = res.data.result || res.data || []
+        setPanelMessages(messages)
       } catch (error) {
-        console.error('Lỗi khi tải dữ liệu media:', error)
+        console.error('Lỗi khi tải dữ liệu info panel:', error)
+      }
+    }
+    fetchSharedData()
+  }, [chat.id])
+
+  // LẮNG NGHE REALTIME SOCKET
+  useEffect(() => {
+    if (!socket || !profile || !chat.id) return
+
+    const handleReceiveMessage = (newMessage: any) => {
+      if (String(newMessage.conversationId) === String(chat.id)) {
+        setPanelMessages((prev) => [newMessage, ...prev])
       }
     }
 
-    if (chat.id) fetchSharedMedia()
-  }, [chat.id])
+    const handleMessageRevoked = ({ messageId, conversationId }: any) => {
+      if (String(conversationId) === String(chat.id)) {
+        setPanelMessages((prev) =>
+          prev.map((msg) => (String(msg._id) === String(messageId) ? { ...msg, type: 'revoked', content: '' } : msg))
+        )
+      }
+    }
+
+    const handleLocalDelete = (e: any) => {
+      const { conversationId, deletedMessageId } = e.detail
+      if (String(conversationId) === String(chat.id)) {
+        setPanelMessages((prev) => prev.filter((msg) => String(msg._id) !== String(deletedMessageId)))
+      }
+    }
+
+    socket.on('receive_message', handleReceiveMessage)
+    socket.on('message_revoked', handleMessageRevoked)
+    window.addEventListener('local_message_deleted', handleLocalDelete)
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+      socket.off('message_revoked', handleMessageRevoked)
+      window.removeEventListener('local_message_deleted', handleLocalDelete)
+    }
+  }, [socket, profile, chat.id])
 
   const handleSaveName = async () => {
     if (!tempName.trim() || tempName.trim() === chat.name) {
@@ -226,30 +226,33 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
             </div>
           )}
 
-          <MediaCollapsible
-            title='Ảnh/Video'
-            icon={ImageIcon}
-            emptyText='Chưa có ảnh/video được chia sẻ trong cuộc hội thoại này'
-            defaultOpen={!isGroup}
-            type='media'
-            items={mediaItems}
-          />
-          <MediaCollapsible
-            title='File'
-            icon={FileText}
-            emptyText='Chưa có file được chia sẻ trong cuộc hội thoại này'
-            defaultOpen={false}
-            type='file'
-            items={fileItems}
-          />
-          <MediaCollapsible
-            title='Link'
-            icon={Link2}
-            emptyText='Chưa có link được chia sẻ trong cuộc hội thoại này'
-            defaultOpen={false}
-            type='link'
-            items={linkItems}
-          />
+          <div className='flex flex-col mt-2'>
+            {/* TRUYỀN PANEL MESSAGES VÀO MEDIA COLLAPSIBLE */}
+            <MediaCollapsible
+              title='Ảnh/Video'
+              icon={ImageIcon}
+              emptyText='Chưa có ảnh/video được chia sẻ'
+              defaultOpen={!isGroup}
+              type='media'
+              messages={panelMessages}
+            />
+            <MediaCollapsible
+              title='File'
+              icon={FileText}
+              emptyText='Chưa có file được chia sẻ'
+              defaultOpen={false}
+              type='file'
+              messages={panelMessages}
+            />
+            <MediaCollapsible
+              title='Link'
+              icon={Link2}
+              emptyText='Chưa có link được chia sẻ'
+              defaultOpen={false}
+              type='link'
+              messages={panelMessages}
+            />
+          </div>
         </div>
 
         <Separator className='bg-border/60 h-1.5' />
