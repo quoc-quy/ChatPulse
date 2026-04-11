@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useContext, useMemo, useCallback } from 'react'
 import { useSocket } from '@/context/socket.context'
 import { AppContext } from '@/context/app.context'
@@ -17,8 +18,22 @@ export function useConversations() {
     activeChatRef.current = activeChat
   }, [activeChat])
 
+  // --- HÀM HELPER SẮP XẾP ---
+  // Ưu tiên đoạn chat có bản nháp lên trên cùng, sau đó mới đến thời gian mới nhất
+  const sortChats = useCallback((chats: any[]) => {
+    return chats.sort((a, b) => {
+      const activeIdStr = String(activeChatRef.current?.id || '')
+      // Draft chỉ ưu tiên nhảy lên top khi nó CÓ NỘI DUNG và KHÔNG PHẢI là box đang mở
+      const aIsDraftVisible = a.draftContent && String(a.id) !== activeIdStr
+      const bIsDraftVisible = b.draftContent && String(b.id) !== activeIdStr
+
+      if (aIsDraftVisible && !bIsDraftVisible) return -1
+      if (!aIsDraftVisible && bIsDraftVisible) return 1
+      return b.timestamp - a.timestamp
+    })
+  }, [])
+
   // --- 1. LẤY DANH SÁCH CUỘC TRÒ CHUYỆN ---
-  // // Bọc trong useCallback để tránh re-create hàm liên tục
   const fetchChats = useCallback(async () => {
     if (!profile) return
     setIsLoading(true)
@@ -65,13 +80,11 @@ export function useConversations() {
           } else if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
             content = '[Hình ảnh/Video]'
           } else if (conv.lastMessage.type === 'system') {
-            // Xử lý không hiển thị tiền tố cho tin nhắn hệ thống
             prefix = ''
           } else if (!content) {
             content = 'Tin nhắn'
           }
 
-          //  Thêm điều kiện conv.lastMessage.type !== 'system'
           if (
             conv.lastMessage.type !== 'revoked' &&
             conv.lastMessage.type !== 'system' &&
@@ -94,6 +107,9 @@ export function useConversations() {
 
         const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0
 
+        // Đọc bản nháp từ LocalStorage khi khởi tạo
+        const draftContent = localStorage.getItem(`draft_${conv._id}`) || ''
+
         return {
           id: conv._id,
           name: chatName,
@@ -107,7 +123,8 @@ export function useConversations() {
           admin_id: conv.admin_id,
           isOnline,
           lastActiveAt,
-          unreadCount
+          unreadCount,
+          draftContent // Thêm field đánh dấu bản nháp
         }
       })
 
@@ -117,20 +134,41 @@ export function useConversations() {
       })
 
       const uniqueChats = Array.from(uniqueChatsMap.values())
-      uniqueChats.sort((a, b) => b.timestamp - a.timestamp)
-      setChatList(uniqueChats)
+
+      // Khởi tạo List, luôn ưu tiên draft lên đầu
+      setChatList(sortChats(uniqueChats))
     } catch (error) {
       console.error('Lỗi khi tải danh sách:', error)
     } finally {
       setIsLoading(false)
     }
-  }, [profile])
+  }, [profile, sortChats])
 
   useEffect(() => {
     fetchChats()
   }, [fetchChats, refetchTrigger])
 
-  // --- 2. LẮNG NGHE SOCKET REALTIME ---
+  // --- 2. LẮNG NGHE SỰ KIỆN DRAFT THAY ĐỔI TỪ CHAT FOOTER ---
+  useEffect(() => {
+    const handleDraftUpdate = (e: any) => {
+      const { convId, content } = e.detail
+      setChatList((prevChats) => {
+        const updatedChats = prevChats.map((chat) => {
+          if (String(chat.id) === String(convId)) {
+            return { ...chat, draftContent: content }
+          }
+          return chat
+        })
+        // Cứ mỗi khi nháp thay đổi, sort lại để đưa lên đầu hoặc trả về vị trí cũ
+        return sortChats(updatedChats)
+      })
+    }
+
+    window.addEventListener('draft_updated', handleDraftUpdate)
+    return () => window.removeEventListener('draft_updated', handleDraftUpdate)
+  }, [sortChats])
+
+  // --- 3. LẮNG NGHE SOCKET REALTIME ---
   useEffect(() => {
     if (!profile || !socket) return
 
@@ -172,9 +210,11 @@ export function useConversations() {
               chatToUpdate.unreadCount = (chatToUpdate.unreadCount || 0) + 1
             }
           }
+
           updatedChats.splice(existingChatIndex, 1)
-          updatedChats.unshift(chatToUpdate)
-          return updatedChats
+          // Đẩy vào mảng và sort lại để không giật mất top 1 của cuộc trò chuyện đang có nháp
+          updatedChats.push(chatToUpdate)
+          return sortChats(updatedChats)
         } else {
           setRefetchTrigger((prev) => prev + 1)
           return prevChats
@@ -223,9 +263,7 @@ export function useConversations() {
     }
 
     const handleConvUpdated = ({ conversationId, name }: { conversationId: string; name: string }) => {
-      // 1. Đổi tên ở Sidebar Panel
       setChatList((prev) => prev.map((c) => (c.id === conversationId ? { ...c, name } : c)))
-      // 2. Đổi tên ở màn hình Chat hiện tại
       setActiveChat((prev) => {
         if (prev && prev.id === conversationId) {
           return { ...prev, name }
@@ -235,7 +273,6 @@ export function useConversations() {
     }
 
     socket.on('conversation_updated', handleConvUpdated)
-
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('user_status_change', handleUserStatusChange)
@@ -246,9 +283,9 @@ export function useConversations() {
       socket.off('user_status_change', handleUserStatusChange)
       socket.off('conversation_updated', handleConvUpdated)
     }
-  }, [profile, socket])
+  }, [profile, socket, sortChats])
 
-  // --- 3. ĐỒNG BỘ TRẠNG THÁI ---
+  // --- 4. ĐỒNG BỘ TRẠNG THÁI ---
   useEffect(() => {
     if (activeChat) {
       const currentInList = chatList.find((c) => String(c.id) === String(activeChat.id))
@@ -328,6 +365,21 @@ export function useConversations() {
   const hasUnreadMessages = useMemo(() => {
     return chatList.some((chat) => chat.unreadCount > 0)
   }, [chatList])
+
+  useEffect(() => {
+    setChatList((prevChats) => {
+      if (prevChats.length === 0) return prevChats
+
+      // Kiểm tra xem có cần thiết phải sort lại không.
+      // Chỉ sort lại nếu có ít nhất 1 cuộc trò chuyện có bản nháp.
+      // Điều này giúp tiết kiệm tài nguyên và chống giật khi user chỉ đơn thuần click qua lại các chat bình thường.
+      const hasAnyDrafts = prevChats.some((c) => c.draftContent)
+      if (!hasAnyDrafts) return prevChats
+
+      // Nếu có nháp, thực hiện sort (mảng mới)
+      return sortChats([...prevChats])
+    })
+  }, [activeChat, sortChats])
 
   return {
     chatList,
