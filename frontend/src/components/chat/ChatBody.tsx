@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useRef, useCallback, useContext, useLayoutEffect } from 'react'
 import { useSocket } from '@/context/socket.context'
 import { messagesApi } from '@/apis/messages.api'
@@ -193,6 +194,17 @@ export function ChatBody({ convId }: ChatBodyProps) {
       }
     }
 
+    const handleOptimisticBlocked = (e: any) => {
+      const { tempId, errorMessage } = e.detail
+      setMessages((prev: any[]) =>
+        prev.map((msg) =>
+          msg._id === tempId
+            ? { ...msg, type: 'system', content: errorMessage, isWarning: true } // Đổi type thành system, gắn cờ isWarning
+            : msg
+        )
+      )
+    }
+
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_status_update', handleMessageStatusUpdate)
     socket.on('message_reacted', handleMessageReacted)
@@ -244,6 +256,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
     window.addEventListener('optimistic_success', handleOptSuccess)
     window.addEventListener('optimistic_fail', handleOptFail)
     window.addEventListener('optimistic_retry_start', handleOptRetryStart)
+    window.addEventListener('optimistic_blocked', handleOptimisticBlocked)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
@@ -255,6 +268,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
       window.removeEventListener('optimistic_success', handleOptSuccess)
       window.removeEventListener('optimistic_fail', handleOptFail)
       window.removeEventListener('optimistic_retry_start', handleOptRetryStart)
+      window.removeEventListener('optimistic_blocked', handleOptimisticBlocked)
     }
   }, [currentUserId, convId, socket])
 

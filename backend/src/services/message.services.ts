@@ -115,6 +115,41 @@ class MessageService {
 
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
+    console.log('user_blocks', databaseService.user_blocks)
+
+    if (conversation.type === 'direct' && conversation.participants) {
+      // Tìm ID của đối phương trong cuộc trò chuyện 1-1
+      const otherUserId = conversation.participants.find((p: ObjectId) => p.toString() !== userId)
+
+      if (otherUserId) {
+        // 1. Kiểm tra: Người nhận có đang chặn Người gửi không?
+        // SỬA: Dùng đúng field 'user_id' và 'blocked_user_id' theo schema
+        const isBlockedByReceiver = await databaseService.user_blocks.findOne({
+          user_id: new ObjectId(otherUserId),
+          blocked_user_id: userObjectId
+        })
+
+        if (isBlockedByReceiver) {
+          throw new ErrorWithStatus({
+            message: 'Xin lỗi! Hiện tại tôi không muốn nhận tin nhắn.',
+            status: httpStatus.FORBIDDEN
+          })
+        }
+
+        // 2. Kiểm tra: Người gửi có đang chặn Người nhận không?
+        const isBlockedBySender = await databaseService.user_blocks.findOne({
+          user_id: userObjectId,
+          blocked_user_id: new ObjectId(otherUserId)
+        })
+
+        if (isBlockedBySender) {
+          throw new ErrorWithStatus({
+            message: 'Tin nhắn chưa được gửi. Bạn cần bỏ chặn người này để tiếp tục trò chuyện.',
+            status: httpStatus.FORBIDDEN
+          })
+        }
+      }
+    }
 
     const newMessage = new Message({
       conversationId: convObjectId,

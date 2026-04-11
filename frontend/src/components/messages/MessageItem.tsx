@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { Message } from '@/types/message.type'
 import { CallMessage } from '../chat/CallMessage'
@@ -238,6 +239,9 @@ export function MessageItem({
   }
 
   if (message.type === 'system') {
+    // Ép kiểu để lấy cờ isWarning tự định nghĩa từ phía trên
+    const isWarning = (message as any).isWarning
+
     return (
       <div id={`message-${message._id}`} className='flex flex-col w-full my-3'>
         {showTimeDivider && (
@@ -248,7 +252,13 @@ export function MessageItem({
           </div>
         )}
         <div className='flex justify-center w-full animate-in fade-in zoom-in-95 duration-300'>
-          <span className='px-4 py-1.5 bg-muted/60 text-muted-foreground text-[12px] font-medium rounded-full shadow-sm text-center max-w-[85%] break-words'>
+          <span
+            className={`px-4 py-1.5 text-[12px] font-medium rounded-full shadow-sm text-center max-w-[85%] break-words ${
+              isWarning
+                ? 'bg-red-500/10 text-red-500 border border-red-500/20' // Màu đỏ nhạt cảnh báo
+                : 'bg-muted/60 text-muted-foreground' // Màu xám bình thường của hệ thống
+            }`}
+          >
             {message.content}
           </span>
         </div>

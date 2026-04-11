@@ -5,7 +5,6 @@ import { ChatArea } from '@/components/chat/ChatArea'
 
 export default function ChatAppPage() {
   const { activeChat } = useContext(AppContext)
-  console.log(activeChat)
 
   if (!activeChat) {
     return (
