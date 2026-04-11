@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import QRCode from 'react-native-qrcode-svg';
+import QRCode from "react-native-qrcode-svg";
 import {
   View,
   Text,
@@ -16,11 +16,13 @@ import {
   TextInput,
   Linking,
   Pressable,
+  Image,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
+import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../contexts/ThemeContext";
 import { profileStatsEvents } from "../utils/profileStats.events";
 import {
@@ -32,6 +34,8 @@ import {
   getMediaFiles,
   getSharedLinks,
   renameGroup,
+  updateGroupAvatar,
+  uploadGroupAvatarApi,
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
@@ -245,6 +249,10 @@ export default function ConversationDetailScreen() {
   const [renameText, setRenameText] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
 
+  // ── Avatar nhóm ──
+  const [groupAvatar, setGroupAvatar] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
   // ── Media & Links ──
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [showLinksModal, setShowLinksModal] = useState(false);
@@ -260,7 +268,7 @@ export default function ConversationDetailScreen() {
           const decoded: any = jwtDecode(token);
           const uid = decoded.user_id || decoded._id || decoded.id || "";
           setCurrentUserId(uid);
-        } catch { }
+        } catch {}
       }
     });
   }, []);
@@ -273,8 +281,6 @@ export default function ConversationDetailScreen() {
         const res = await getConversationDetail(conversationId);
         const conv = res.data.result;
         setConversation(conv);
-
-        // mute sẽ được sync trong useEffect riêng bên dưới
       } catch {
         Alert.alert("Lỗi", "Không thể tải thông tin hội thoại");
       } finally {
@@ -291,7 +297,7 @@ export default function ConversationDetailScreen() {
     fetchDetail();
   }, [fetchDetail]);
 
-  // Sync trạng thái mute riêng — chạy sau khi cả conversation lẫn currentUserId đã sẵn sàng
+  // Sync trạng thái mute
   useEffect(() => {
     if (!conversation || !currentUserId) return;
     const myMeta = (conversation.members || []).find(
@@ -301,6 +307,13 @@ export default function ConversationDetailScreen() {
       setMuteEnabled(myMeta.hasMuted);
     }
   }, [conversation, currentUserId]);
+
+  // Sync avatar từ conversation
+  useEffect(() => {
+    if (conversation?.avatarUrl) {
+      setGroupAvatar(conversation.avatarUrl);
+    }
+  }, [conversation]);
 
   // Derived
   const isGroupChat = conversation?.type === "group" || isGroup;
@@ -328,7 +341,6 @@ export default function ConversationDetailScreen() {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  // Thực sự rời nhóm
   const doLeaveGroup = useCallback(async () => {
     try {
       await leaveGroup(conversationId);
@@ -339,7 +351,6 @@ export default function ConversationDetailScreen() {
     }
   }, [conversationId, navigation]);
 
-  // Chuyển quyền rồi rời nhóm
   const handleTransferAndLeave = useCallback(
     async (newAdminId: string) => {
       setTransferring(true);
@@ -435,12 +446,12 @@ export default function ConversationDetailScreen() {
 
   // ── Tắt/bật thông báo ────────────────────────────────────────────────────
   const handleToggleMute = async (value: boolean) => {
-    setMuteEnabled(value); // optimistic
+    setMuteEnabled(value);
     setMuteSaving(true);
     try {
       await muteConversation(conversationId, value);
     } catch {
-      setMuteEnabled(!value); // rollback
+      setMuteEnabled(!value);
       Alert.alert("Lỗi", "Không thể thay đổi cài đặt thông báo.");
     } finally {
       setMuteSaving(false);
@@ -475,10 +486,47 @@ export default function ConversationDetailScreen() {
     }
   };
 
+  const handleChangeAvatar = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Lỗi", "Cần cấp quyền truy cập thư viện ảnh");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    setAvatarUploading(true);
+    try {
+      // Upload file lên S3 và update avatar nhóm trong 1 request
+      const res = await uploadGroupAvatarApi(
+        conversationId,
+        result.assets[0].uri,
+      );
+      //const newAvatarUrl = res.data?.result?.avatarUrl;
+      const newAvatarUrl = res.data?.result?.avatarUrl;
+
+      // Thêm dòng này để xem response trả về gì
+      console.log("Avatar upload response:", JSON.stringify(res.data));
+      setGroupAvatar(newAvatarUrl);
+      await fetchDetail();
+      Alert.alert("Thành công", "Đã cập nhật ảnh nhóm");
+    } catch {
+      Alert.alert("Lỗi", "Không thể cập nhật ảnh nhóm");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
   // ── Ảnh/Video/File ───────────────────────────────────────────────────────
   const openMediaModal = async () => {
     setShowMediaModal(true);
-    if (mediaFiles.length > 0) return; // đã load rồi
+    if (mediaFiles.length > 0) return;
     setMediaLoading(true);
     try {
       const res = await getMediaFiles(conversationId);
@@ -505,11 +553,11 @@ export default function ConversationDetailScreen() {
     }
   };
 
-  // Trích xuất URL đầu tiên từ nội dung tin nhắn
   const extractUrl = (text: string): string => {
     const match = text.match(/https?:\/\/[^\s]+/);
     return match ? match[0] : text;
   };
+
   if (loading) {
     return (
       <SafeAreaView
@@ -586,11 +634,55 @@ export default function ConversationDetailScreen() {
             },
           ]}
         >
-          <Avatar
-            name={chatName}
-            size={80}
-            bgColor={isGroupChat ? COLORS.secondary : COLORS.primary}
-          />
+          {/* Avatar — tất cả thành viên trong nhóm đều có thể nhấn để đổi ảnh */}
+          <TouchableOpacity
+            onPress={isGroupChat ? handleChangeAvatar : undefined}
+            activeOpacity={isGroupChat ? 0.8 : 1}
+            disabled={avatarUploading}
+          >
+            <View style={{ position: "relative" }}>
+              {isGroupChat && groupAvatar ? (
+                <Image
+                  source={{ uri: groupAvatar }}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                />
+              ) : (
+                <Avatar
+                  name={chatName}
+                  size={80}
+                  bgColor={isGroupChat ? COLORS.secondary : COLORS.primary}
+                />
+              )}
+
+              {/* Icon camera overlay — hiện với tất cả thành viên nhóm */}
+              {isGroupChat && (
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    right: 0,
+                    backgroundColor: avatarUploading
+                      ? COLORS.mutedForeground
+                      : COLORS.primary,
+                    borderRadius: 12,
+                    width: 24,
+                    height: 24,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderWidth: 2,
+                    borderColor: COLORS.card,
+                  }}
+                >
+                  {avatarUploading ? (
+                    <ActivityIndicator size={10} color="#FFF" />
+                  ) : (
+                    <Ionicons name="camera" size={12} color="#FFF" />
+                  )}
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
           <Text style={[styles.heroName, { color: COLORS.foreground }]}>
             {chatName}
           </Text>
@@ -688,7 +780,6 @@ export default function ConversationDetailScreen() {
             <TouchableOpacity
               style={styles.quickBtn}
               onPress={() => {
-                // Lấy thông tin người kia (không phải currentUser)
                 const otherUser = members.find(
                   (m: any) =>
                     (m._id || m.userId || "").toString() !== currentUserId,
@@ -767,29 +858,6 @@ export default function ConversationDetailScreen() {
                   color={COLORS.mutedForeground}
                 />
               </TouchableOpacity>
-
-              {/* {members.slice(0, 3).map((m: any, i: number) => {
-                const memberId = (m._id || m.userId || "").toString();
-                const isMe = memberId === currentUserId;
-                const memberRole =
-                  conversation?.members?.find(
-                    (cm: any) =>
-                      (cm.userId?.toString?.() || cm._id?.toString?.()) ===
-                      memberId,
-                  )?.role || "member";
-
-                return (
-                  <MemberItem
-                    key={memberId || i}
-                    member={{ ...m, role: memberRole }}
-                    isCurrentUser={isMe}
-                    currentUserIsAdmin={currentUserIsAdmin}
-                    COLORS={COLORS}
-                    onKick={handleKickMember}
-                    onPromote={handlePromoteAdmin}
-                  />
-                );
-              })} */}
 
               {members.length > 3 && (
                 <TouchableOpacity
@@ -1120,8 +1188,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                              "vi-VN",
-                            )
+                                "vi-VN",
+                              )
                             : ""}
                         </Text>
                       </View>
@@ -1227,8 +1295,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                              "vi-VN",
-                            )
+                                "vi-VN",
+                              )
                             : ""}
                         </Text>
                       </View>
@@ -1369,55 +1437,91 @@ export default function ConversationDetailScreen() {
           </View>
         </View>
       </Modal>
-      {/* ========================================== */}
-      {/* MODAL MÃ QR CỦA NHÓM */}
-      {/* ========================================== */}
+
+      {/* ── Modal: Mã QR nhóm ───────────────────────────────────────────────── */}
       <Modal
         visible={showGroupQRModal}
         animationType="fade"
         transparent
         onRequestClose={() => setShowGroupQRModal(false)}
       >
-        {/* Dùng Pressable bọc ngoài cùng: Bấm vào vùng mờ sẽ đóng Modal */}
-        <Pressable style={styles.modalOverlay} onPress={() => setShowGroupQRModal(false)}>
-
-          {/* Dùng Pressable bọc nội dung (không có sự kiện onPress): Ngăn chặn việc bấm vào khối trắng bị đóng Modal */}
-          <Pressable style={[styles.modalBox, { backgroundColor: COLORS.card, alignItems: 'center', position: 'relative' }]}>
-
-            {/* Nút X nằm ở góc trên bên phải của Box trắng */}
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowGroupQRModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalBox,
+              {
+                backgroundColor: COLORS.card,
+                alignItems: "center",
+                position: "relative",
+              },
+            ]}
+          >
             <TouchableOpacity
-              style={{ position: "absolute", top: 12, right: 12, zIndex: 10, padding: 8 }}
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                zIndex: 10,
+                padding: 8,
+              }}
               onPress={() => setShowGroupQRModal(false)}
             >
               <Ionicons name="close" size={24} color={COLORS.mutedForeground} />
             </TouchableOpacity>
 
-            <Text style={[styles.modalTitle, { color: COLORS.foreground, marginBottom: 20, marginTop: 10 }]}>
+            <Text
+              style={[
+                styles.modalTitle,
+                { color: COLORS.foreground, marginBottom: 20, marginTop: 10 },
+              ]}
+            >
               Mã QR của nhóm
             </Text>
 
-            <View style={{ padding: 20, backgroundColor: '#FFF', borderRadius: 20 }}>
+            <View
+              style={{ padding: 20, backgroundColor: "#FFF", borderRadius: 20 }}
+            >
               <QRCode
                 value={`chatpulse://group/join/${conversationId}`}
                 size={220}
                 color="#000"
                 backgroundColor="#FFF"
                 logoSize={40}
-                logoBackgroundColor='transparent'
+                logoBackgroundColor="transparent"
               />
             </View>
 
-            <Text style={[{ color: COLORS.mutedForeground, textAlign: 'center', marginTop: 20, marginBottom: 20, paddingHorizontal: 10 }]}>
-              Bạn bè có thể dùng tính năng quét QR trên màn hình chính để quét mã này và tham gia nhóm.
+            <Text
+              style={[
+                {
+                  color: COLORS.mutedForeground,
+                  textAlign: "center",
+                  marginTop: 20,
+                  marginBottom: 20,
+                  paddingHorizontal: 10,
+                },
+              ]}
+            >
+              Bạn bè có thể dùng tính năng quét QR trên màn hình chính để quét
+              mã này và tham gia nhóm.
             </Text>
 
             <TouchableOpacity
-              style={[styles.modalBtn, { borderColor: COLORS.border, width: '100%' }]}
+              style={[
+                styles.modalBtn,
+                { borderColor: COLORS.border, width: "100%" },
+              ]}
               onPress={() => setShowGroupQRModal(false)}
             >
-              <Text style={{ color: COLORS.mutedForeground, fontWeight: "600" }}>Đóng</Text>
+              <Text
+                style={{ color: COLORS.mutedForeground, fontWeight: "600" }}
+              >
+                Đóng
+              </Text>
             </TouchableOpacity>
-
           </Pressable>
         </Pressable>
       </Modal>
@@ -1519,13 +1623,11 @@ const styles = StyleSheet.create({
   menuRowLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
   menuRowLabel: { fontSize: 16 },
 
-  // ── Modals ──────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
-  // Sheet (slide up từ dưới) — dùng cho Media, Links, Transfer
   modalSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1533,7 +1635,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     overflow: "hidden",
   },
-  // Box nhỏ giữa màn hình — dùng cho Rename
   modalBox: {
     marginHorizontal: 24,
     marginBottom: "auto",
@@ -1571,7 +1672,6 @@ const styles = StyleSheet.create({
   },
   modalBtnPrimary: { borderWidth: 0 },
 
-  // Rename input
   renameInput: {
     height: 44,
     borderRadius: 10,
@@ -1579,9 +1679,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
   },
-  searchBg: { backgroundColor: "transparent" }, // placeholder, overridden inline
 
-  // Media & Links list items
   mediaItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -1620,11 +1718,9 @@ const styles = StyleSheet.create({
   },
   linkUrl: { fontSize: 13, fontWeight: "500" },
 
-  // Empty state
   emptyState: { alignItems: "center", marginTop: 60, gap: 12 },
   emptyText: { fontSize: 14 },
 
-  // Loading overlay cho Transfer modal
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
