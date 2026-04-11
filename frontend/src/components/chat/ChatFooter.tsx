@@ -276,7 +276,25 @@ export function ChatFooter({ convId }: ChatFooterProps) {
           new CustomEvent('optimistic_success', { detail: { tempId, realMessage: response.data.result } })
         )
         success = true
-      } catch (error) {
+      } catch (error: any) {
+        // ======================================================================
+        // XỬ LÝ LỖI BLOCK TỪ BACKEND
+        // ======================================================================
+        const status = error.response?.status || error.status
+        const errorMessage = error.response?.data?.message || error.message || ''
+        const isBlockError =
+          status === 403 || errorMessage.includes('chặn') || errorMessage.includes('không muốn nhận tin nhắn')
+
+        if (isBlockError) {
+          console.warn('[Message] Bị chặn. Chuyển thành tin nhắn hệ thống cảnh báo cục bộ.')
+
+          // Phát sự kiện để báo cho ChatBody hô biến tin nhắn này thành tin hệ thống
+          window.dispatchEvent(new CustomEvent('optimistic_blocked', { detail: { tempId, errorMessage } }))
+          break // Phá vỡ vòng lặp auto-retry
+        }
+        // ======================================================================
+        // NẾU LÀ LỖI MẠNG THÔNG THƯỜNG THÌ TIẾP TỤC RETRY
+        // ======================================================================
         attempt++
         console.warn(`[Auto-Retry] Lỗi gửi tin nhắn. Đang thử lại lần ${attempt}/${MAX_RETRIES}...`, error)
 
