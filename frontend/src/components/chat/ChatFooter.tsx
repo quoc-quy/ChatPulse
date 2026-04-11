@@ -7,12 +7,14 @@ import EmojiPicker, { Theme } from 'emoji-picker-react'
 import { messagesApi } from '@/apis/messages.api'
 import { AppContext } from '@/context/app.context'
 import type { Message, ReplyInfo } from '@/types/message.type'
+import { toast } from 'sonner'
 
 interface ChatFooterProps {
   convId: string
 }
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll']
 
 export function ChatFooter({ convId }: ChatFooterProps) {
   const { profile } = useContext(AppContext)
@@ -190,8 +192,17 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     // Lọc ra các file hợp lệ
     for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`File "${file.name}" vượt quá dung lượng cho phép (25MB).`)
+      // Lấy đuôi file (extension)
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+      if (BLOCKED_EXTENSIONS.includes(ext)) {
+        toast.error(`File "${file.name}" không được hỗ trợ.`, {
+          description: 'Vì lý do bảo mật, hệ thống không cho phép gửi file thực thi hoặc script.'
+        })
+      } else if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File "${file.name}" vượt quá dung lượng cho phép (10MB).`, {
+          description: 'Vui lòng chọn file nhỏ hơn để tiết kiệm không gian lưu trữ.'
+        })
       } else {
         validFiles.push(file)
       }

@@ -17,10 +17,24 @@ import { wrapRequestHandler } from '~/utils/handlers'
 
 const messageRouter = Router()
 
+// Danh sách các đuôi file bị cấm (Blacklist)
+const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll']
+
 // Cấu hình Multer lưu vào RAM
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // Giới hạn 10MB mỗi file để tiết kiệm dung lượng Free Tier
+  limits: { fileSize: 10 * 1024 * 1024 }, // Giới hạn 10MB
+  fileFilter: (req, file, cb) => {
+    const ext = file.originalname.split('.').pop()?.toLowerCase() || ''
+
+    if (BLOCKED_EXTENSIONS.includes(ext)) {
+      // Từ chối file và ném ra lỗi (Middleware xử lý lỗi chung của bạn sẽ hứng được cái này)
+      return cb(new Error(`Bảo mật: Không được phép tải lên định dạng file .${ext}`))
+    }
+
+    // Chấp nhận file
+    cb(null, true)
+  }
 })
 
 /**
