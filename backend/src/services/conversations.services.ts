@@ -212,6 +212,7 @@ class ChatService {
             _id: 1,
             type: 1,
             name: 1,
+            avatarUrl: 1,
             admin_id: 1,
             updated_at: 1,
             created_at: 1,
