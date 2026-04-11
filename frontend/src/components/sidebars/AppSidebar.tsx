@@ -18,7 +18,7 @@ const navMain = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [activeItem, setActiveItem] = useState(navMain[0])
-  const { chatList, setChatList, isLoading, hasUnreadMessages, profile, activeChat, setActiveChat } = useConversations()
+  const { chatList, setChatList, isLoading, hasUnreadMessages, profile, setActiveChat } = useConversations()
 
   const currentUser = {
     name: profile?.userName || 'Người dùng',
@@ -49,7 +49,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           activeItem={activeItem}
           isLoading={isLoading}
           chatList={chatList}
-          activeChat={activeChat}
+          // activeChat={activeChat}
           setActiveChat={setActiveChat}
           setChatList={setChatList}
           profileId={profile?._id || ''}
