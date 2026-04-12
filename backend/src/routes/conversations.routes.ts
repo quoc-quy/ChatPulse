@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   askAIController,
   createConversationController,
+  deleteConversationController,
   getConversationController,
   getConversationsController,
   markConversationAsSeenController,
@@ -108,5 +109,13 @@ chatRouter.patch('/:id/pin', accessTokenValidator, wrapRequestHandler(pinControl
 chatRouter.post('/summarize', accessTokenValidator, wrapRequestHandler(summarizeChatController))
 
 chatRouter.post('/ask-ai', accessTokenValidator, wrapRequestHandler(askAIController))
+
+/**
+ * Description: Delete/Hide conversation history
+ * Path: /conversations/:id
+ * Method: DELETE
+ * Header: { Authorization: Bearer <access_token> }
+ */
+chatRouter.delete('/:id', accessTokenValidator, wrapRequestHandler(deleteConversationController))
 
 export default chatRouter

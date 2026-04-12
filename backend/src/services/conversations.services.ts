@@ -133,16 +133,45 @@ class ChatService {
       ])
       .toArray()
 
-    // Bắt trạng thái online từ Socket mới nhất
-    return conversations.map((conv) => {
-      if (conv.participants && Array.isArray(conv.participants)) {
-        conv.participants = conv.participants.map((p: any) => ({
-          ...p,
-          isOnline: socketService.usersOnline.has(p._id.toString())
-        }))
-      }
-      return conv
-    })
+    // Bắt trạng thái online từ Socket mới nhất VÀ kiểm tra trạng thái bạn bè
+    // ======================================================================
+    // MAP TRẠNG THÁI ONLINE VÀ KIỂM TRA BẠN BÈ TRƯỚC KHI TRẢ VỀ FRONTEND
+    // ======================================================================
+    const finalConversations = await Promise.all(
+      conversations.map(async (conv) => {
+        // 1. Map trạng thái online
+        if (conv.participants && Array.isArray(conv.participants)) {
+          conv.participants = conv.participants.map((p: any) => ({
+            ...p,
+            isOnline: socketService.usersOnline.has(p._id.toString())
+          }))
+        }
+
+        // 2. Kiểm tra trạng thái bạn bè (Lọc chặt chẽ 2 chiều)
+        if (conv.type === 'direct') {
+          const otherUser = conv.participants.find((p: any) => p._id.toString() !== userObjectId.toString())
+          if (otherUser) {
+            const isFriendDoc = await databaseService.friends.findOne({
+              $or: [
+                { user_id: userObjectId, friend_id: new ObjectId(otherUser._id) },
+                { user_id: new ObjectId(otherUser._id), friend_id: userObjectId }
+              ]
+            })
+            // Ép kiểu boolean rõ ràng: có doc là true (bạn bè), null là false (đã hủy)
+            conv.isFriend = isFriendDoc !== null
+          } else {
+            conv.isFriend = true
+          }
+        } else {
+          // Group chat không bị ảnh hưởng bởi hủy kết bạn
+          conv.isFriend = true
+        }
+
+        return conv
+      })
+    )
+
+    return finalConversations
   }
 
   async createConversation(userId: string, type: 'direct' | 'group', members: string[], name?: string) {
@@ -382,6 +411,28 @@ class ChatService {
     const answer = await aiService.answerQuestion(globalContextStr, userMetadataStr, chatContext, question)
 
     return answer
+  }
+
+  async deleteConversation(userId: string, conversationId: string) {
+    const userObjId = new ObjectId(userId)
+    const convObjId = new ObjectId(conversationId)
+
+    // 1. Đánh dấu cuộc trò chuyện là đã bị ẩn bởi user này
+    // Sử dụng $addToSet để đảm bảo ID không bị trùng lặp
+    const result = await databaseService.conversations.findOneAndUpdate(
+      { _id: convObjId },
+      { $addToSet: { deletedByUsers: userObjId } as any },
+      { returnDocument: 'after' }
+    )
+
+    // 2. Đánh dấu tất cả các tin nhắn TRONG QUÁ KHỨ của box chat này là đã bị xóa bởi user này
+    // (Để lỡ 2 người có nhắn lại, họ sẽ chỉ thấy các tin nhắn mới gửi từ thời điểm hiện tại trở đi)
+    await databaseService.messages.updateMany(
+      { conversationId: convObjId },
+      { $addToSet: { deletedByUsers: userObjId } as any }
+    )
+
+    return result
   }
 }
 

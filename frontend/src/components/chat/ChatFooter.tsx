@@ -17,7 +17,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll']
 
 export function ChatFooter({ convId }: ChatFooterProps) {
-  const { profile } = useContext(AppContext)
+  const { profile, activeChat } = useContext(AppContext)
   const [content, setContent] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -36,7 +36,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     const savedDraft = localStorage.getItem(`draft_${convId}`)
     if (savedDraft) setContent(savedDraft)
     else setContent('')
-    setReplyingTo(null) // Reset reply khi đổi đoạn chat
+    setReplyingTo(null)
   }, [convId])
 
   useEffect(() => {
@@ -45,18 +45,12 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     } else {
       localStorage.removeItem(`draft_${convId}`)
     }
-    // Phát sự kiện để Sidebar cập nhật bản nháp realtime
     window.dispatchEvent(new CustomEvent('draft_updated', { detail: { convId, content: content.trim() } }))
   }, [content, convId])
 
-  // Lắng nghe sự kiện bấm Reply từ MessageItem
   useEffect(() => {
     const handleSetReply = (e: CustomEvent<ReplyInfo>) => {
       setReplyingTo(e.detail)
-      // BUG FIX 3: setReplyingTo là bất đồng bộ — React chưa re-render xong nên
-      // gọi focus() ngay lập tức không có tác dụng (nhất là trên mobile).
-      // Dùng setTimeout để đảm bảo focus sau khi component đã re-render
-      // và animation slide-in-from-bottom-2 của khung trích dẫn đã bắt đầu.
       setTimeout(() => {
         inputRef.current?.focus()
       }, 50)
@@ -101,34 +95,26 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     const messageContent = content.trim()
     const replyId = replyingTo?._id
-
-    // Lưu lại thông tin reply vào biến tạm trước khi clear state
     const currentReplyInfo = replyingTo
 
     setContent('')
     setReplyingTo(null)
     setShowEmoji(false)
     localStorage.removeItem(`draft_${convId}`)
-    // Xoá bản nháp ở Sidebar sau khi gửi
     window.dispatchEvent(new CustomEvent('draft_updated', { detail: { convId, content: '' } }))
 
     if (inputRef.current) inputRef.current.style.height = '40px'
 
-    // 1. TÁCH TIN NHẮN DÀI BẢO TOÀN TỪ VỰNG (Word Boundary Split)
     const chunks: string[] = []
     let remainingText = messageContent
 
     while (remainingText.length > 0) {
-      // Nếu phần còn lại ngắn hơn giới hạn, đưa vào mảng và kết thúc
       if (remainingText.length <= MAX_TEXT_LENGTH) {
         chunks.push(remainingText)
         break
       }
 
-      // Cắt thử một đoạn tối đa
       const windowText = remainingText.slice(0, MAX_TEXT_LENGTH)
-
-      // Tìm vị trí khoảng trắng hoặc xuống dòng cuối cùng trong đoạn cắt thử
       const lastSpaceIndex = windowText.lastIndexOf(' ')
       const lastNewlineIndex = windowText.lastIndexOf('\n')
       const safeBreakPoint = Math.max(lastSpaceIndex, lastNewlineIndex)
@@ -136,24 +122,18 @@ export function ChatFooter({ convId }: ChatFooterProps) {
       let splitIndex
 
       if (safeBreakPoint > 0) {
-        // Nếu tìm thấy ranh giới từ (khoảng trắng/xuống dòng), cắt ngay tại đó
         splitIndex = safeBreakPoint
         chunks.push(remainingText.slice(0, splitIndex))
-        // Cập nhật phần còn lại, cộng 1 để bỏ qua ký tự khoảng trắng/xuống dòng đã dùng để cắt
         remainingText = remainingText.slice(splitIndex + 1)
       } else {
-        // Trường hợp hiếm: 1 chuỗi ký tự dính liền không khoảng trắng dài hơn MAX_TEXT_LENGTH
-        // -> Đành phải cắt cứng tại MAX_TEXT_LENGTH
         splitIndex = MAX_TEXT_LENGTH
         chunks.push(remainingText.slice(0, splitIndex))
         remainingText = remainingText.slice(splitIndex)
       }
     }
 
-    // 2. GỬI LẦN LƯỢT TỪNG PHẦN
     for (let i = 0; i < chunks.length; i++) {
       const chunkContent = chunks[i]
-
       const targetReplyId = i === 0 ? replyId : undefined
       const targetReplyInfo = i === 0 ? currentReplyInfo : null
 
@@ -178,7 +158,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }
   }
 
-  // 2. XỬ LÝ CHỌN NHIỀU FILE VÀ VALIDATE DUNG LƯỢNG
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
     if (!files.length || !convId) return
@@ -190,9 +169,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     const validFiles: File[] = []
 
-    // Lọc ra các file hợp lệ
     for (const file of files) {
-      // Lấy đuôi file (extension)
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
 
       if (BLOCKED_EXTENSIONS.includes(ext)) {
@@ -210,12 +187,9 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     if (validFiles.length === 0) return
 
-    // TẠO ALBUM: Gom các local Blob URL thành 1 mảng và chuyển thành chuỗi JSON
-    // Để Optimistic UI có thể đọc và render ra Grid layout ngay lập tức
     const localUrls = validFiles.map((file) => URL.createObjectURL(file))
     const tempContent = JSON.stringify(localUrls)
 
-    // Chỉ gọi trigger 1 lần cho cả cụm file
     await triggerOptimisticAndSend(
       'media',
       tempContent,
@@ -234,7 +208,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     apiCall?: () => Promise<any>,
     replyInfo?: ReplyInfo | null
   ) => {
-    // Ưu tiên replyInfo được truyền vào (dành cho media), fallback về replyingTo state (cho text)
     const replyToMessage = replyInfo !== undefined ? replyInfo : replyingTo
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -243,7 +216,7 @@ export function ChatFooter({ convId }: ChatFooterProps) {
       conversationId: convId,
       type: type as any,
       content: msgContent,
-      status: 'SENDING', // Hiển thị UI đang gửi
+      status: 'SENDING',
       replyToId: replyToId,
       replyToMessage: replyToMessage || undefined,
       createdAt: new Date().toISOString(),
@@ -253,19 +226,15 @@ export function ChatFooter({ convId }: ChatFooterProps) {
       seenBy: []
     }
 
-    // Đẩy UI lên màn hình ngay lập tức (Optimistic UI)
     window.dispatchEvent(new CustomEvent('optimistic_send', { detail: tempMessage }))
 
     if (!apiCall) return
 
-    // Không block state `isSending` trong suốt quá trình auto-retry.
-    // Chỉ dùng để khóa spam click trong thời gian ngắn (300ms) để user vẫn có thể gõ/gửi tin nhắn khác.
     setIsSending(true)
     setTimeout(() => setIsSending(false), 300)
 
-    // CẤU HÌNH AUTO-RETRY VỚI EXPONENTIAL BACKOFF
     const MAX_RETRIES = 3
-    const BASE_DELAY = 1000 // Thời gian chờ cơ bản: 1000ms (1 giây)
+    const BASE_DELAY = 1000
     let attempt = 0
     let success = false
 
@@ -277,9 +246,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
         )
         success = true
       } catch (error: any) {
-        // ======================================================================
-        // XỬ LÝ LỖI BLOCK TỪ BACKEND
-        // ======================================================================
         const status = error.response?.status || error.status
         const errorMessage = error.response?.data?.message || error.message || ''
         const isBlockError =
@@ -287,23 +253,17 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
         if (isBlockError) {
           console.warn('[Message] Bị chặn. Chuyển thành tin nhắn hệ thống cảnh báo cục bộ.')
-
-          // Phát sự kiện để báo cho ChatBody hô biến tin nhắn này thành tin hệ thống
           window.dispatchEvent(new CustomEvent('optimistic_blocked', { detail: { tempId, errorMessage } }))
-          break // Phá vỡ vòng lặp auto-retry
+          break
         }
-        // ======================================================================
-        // NẾU LÀ LỖI MẠNG THÔNG THƯỜNG THÌ TIẾP TỤC RETRY
-        // ======================================================================
+
         attempt++
         console.warn(`[Auto-Retry] Lỗi gửi tin nhắn. Đang thử lại lần ${attempt}/${MAX_RETRIES}...`, error)
 
         if (attempt <= MAX_RETRIES) {
-          // Tính toán thời gian chờ: 1s, 2s, 4s...
           const delay = BASE_DELAY * Math.pow(2, attempt - 1)
           await new Promise((resolve) => setTimeout(resolve, delay))
         } else {
-          // Khi đã hết số lần thử lại tự động mà vẫn thất bại -> Chuyển sang UI FAILED
           console.error('[Auto-Retry] Gửi thất bại hoàn toàn. Chuyển sang manual retry.')
           window.dispatchEvent(new CustomEvent('optimistic_fail', { detail: { tempId, apiCall } }))
         }
@@ -311,12 +271,10 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }
   }
 
-  // Lắng nghe sự kiện Retry từ MessageItem
   useEffect(() => {
     const handleRetry = async (e: any) => {
       const { tempId, apiCall } = e.detail
       if (!apiCall) return
-      // Đổi trạng thái lại thành SENDING
       window.dispatchEvent(new CustomEvent('optimistic_retry_start', { detail: { tempId } }))
       try {
         const response = await apiCall()
@@ -347,9 +305,21 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }, 10)
   }
 
+  // KIỂM TRA TRẠNG THÁI BẠN BÈ
+  const isUnfriended = activeChat && activeChat.isFriend === false
+
+  if (isUnfriended) {
+    return (
+      <div className='p-4 bg-muted/40 border-t border-border flex items-center justify-center min-h-[72px]'>
+        <p className='text-[13px] text-muted-foreground font-medium text-center'>
+          Bạn không thể tiếp tục trò chuyện do hai người không còn là bạn bè.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className='p-4 bg-background flex flex-col gap-2 relative border-t border-border/40 px-4 shadow-sm'>
-      {/* Khung hiển thị Trích dẫn */}
       {replyingTo && (
         <div className='flex items-center justify-between bg-muted/50 p-2 rounded-lg border-l-4 border-[#6b45e9] mx-10 animate-in slide-in-from-bottom-2'>
           <div className='flex items-center gap-2 overflow-hidden'>

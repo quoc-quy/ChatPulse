@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { Loader2, UserPlus, Bot, Users } from 'lucide-react'
+import { Loader2, UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -8,11 +8,12 @@ import { conversationsApi } from '@/apis/conversations.api'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
 import AddFriendModal from '@/pages/AddFriendModal'
-import { AddMemberModal } from '../chat/info-panel/AddMemberModal' // Import Modal vừa sửa
+import { AddMemberModal } from '../chat/info-panel/AddMemberModal'
 import Settings from '../settings/Setting'
 import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
 import { AppContext } from '@/context/app.context'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -36,8 +37,8 @@ export function SidebarPanel2({
 
   const { activeChat } = React.useContext(AppContext)
 
-  const [open, setOpen] = React.useState(false) // State cho modal kết bạn
-  const [openCreateGroup, setOpenCreateGroup] = React.useState(false) // State cho modal tạo nhóm
+  const [open, setOpen] = React.useState(false)
+  const [openCreateGroup, setOpenCreateGroup] = React.useState(false)
 
   const { setOpenMobile, isMobile } = useSidebar()
   const [keyword, setKeyword] = React.useState('')
@@ -83,7 +84,8 @@ export function SidebarPanel2({
       lastActiveAt: actualLastActiveAt,
       unreadCount: targetChat.unreadCount,
       participants: targetChat.participants,
-      admin_id: targetChat.admin_id
+      admin_id: targetChat.admin_id,
+      isFriend: targetChat.isFriend // Kế thừa cờ bạn bè
     })
 
     setChatList((currentChatList) =>
@@ -110,7 +112,6 @@ export function SidebarPanel2({
         <div className='flex w-full items-center justify-between'>
           <div className='text-base font-medium text-foreground'>{activeItem.title}</div>
 
-          {/* VÙNG NÚT ĐIỀU KHIỂN BÊN PHẢI */}
           <div className='flex items-center gap-1.5'>
             <button
               onClick={() => setOpenCreateGroup(true)}
@@ -129,7 +130,6 @@ export function SidebarPanel2({
           </div>
         </div>
 
-        {/* NHÚNG CÁC MODALS */}
         <AddFriendModal open={open} onOpenChange={setOpen} />
         <AddMemberModal isOpen={openCreateGroup} onClose={() => setOpenCreateGroup(false)} mode='create' />
 
@@ -221,13 +221,16 @@ export function SidebarPanel2({
                 chatList.map((chat) => {
                   const displayUnread = chat.unreadCount > 99 ? '99+' : chat.unreadCount
                   const isActive = String(activeChat?.id) === String(chat.id)
+                  const isUnfriended = chat.isFriend === false
+
                   return (
                     <div
                       key={chat.id}
                       onClick={() => handleChatSelect(chat.id)}
-                      className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden ${
-                        isActive ? 'bg-muted/80' : 'hover:bg-muted/50'
-                      }`}
+                      // 1. SỬA Ở ĐÂY: Đổi 'group' thành 'group/chat'
+                      className={`group/chat relative flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-all duration-200 w-full overflow-hidden ${
+                        isActive ? 'bg-[#e5efff] dark:bg-muted' : 'hover:bg-muted/50'
+                      } ${isUnfriended ? 'opacity-70 bg-muted/40 border border-border/50' : ''}`}
                     >
                       <div className='shrink-0'>
                         <ChatAvatar chat={chat} currentUserId={profileId} />
@@ -272,6 +275,37 @@ export function SidebarPanel2({
                           )}
                         </div>
                       </div>
+
+                      {/* NÚT 3 CHẤM - CHỈ HIỆN KHI ĐÃ HỦY KẾT BẠN */}
+                      {isUnfriended && (
+                        // 2. SỬA Ở ĐÂY: Đổi 'group-hover:opacity-100' thành 'group-hover/chat:opacity-100'
+                        <div className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/chat:opacity-100 transition-opacity z-50'>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <button className='p-1.5 bg-background border border-border shadow-md rounded-full text-foreground hover:bg-muted'>
+                                <MoreHorizontal className='w-4 h-4' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end' className='w-48 z-[99]'>
+                              <DropdownMenuItem
+                                className='text-red-500 font-medium cursor-pointer'
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  try {
+                                    await conversationsApi.deleteConversation(chat.id)
+                                    setChatList((prev) => prev.filter((c) => String(c.id) !== String(chat.id)))
+                                    if (activeChat?.id === chat.id) setActiveChat(null)
+                                  } catch (error) {
+                                    console.error('Lỗi khi xóa cuộc trò chuyện:', error)
+                                  }
+                                }}
+                              >
+                                <Trash2 className='w-4 h-4 mr-2' /> Xóa lịch sử trò chuyện
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
                   )
                 })

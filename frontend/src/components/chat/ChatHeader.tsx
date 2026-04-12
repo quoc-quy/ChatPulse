@@ -23,6 +23,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
   const [selectedUser, setSelectedUser] = useState(null)
 
   const isAI = chat.type === 'ai'
+  const isUnfriended = chat.isFriend === false // Kiểm tra trạng thái bạn bè
 
   const formatLastActive = (dateString?: string) => {
     if (!dateString) return 'Truy cập gần đây'
@@ -44,7 +45,6 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
   const handleClickAvatar = () => {
     if (chat.type === 'direct') {
       const otherUser = chat.participants?.find((p: any) => p._id !== profile?._id)
-      console.log(otherUser)
       if (otherUser) {
         setSelectedUser(otherUser)
         setOpenUserModal(true)
@@ -104,18 +104,25 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
               <Sparkles className='h-5 w-5' />
             </button>
           )}
-          <button
-            onClick={() => onStartCall && onStartCall('audio')}
-            className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
-          >
-            <Phone className='h-5 w-5' />
-          </button>
-          <button
-            onClick={() => onStartCall && onStartCall('video')}
-            className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
-          >
-            <Video className='h-5 w-5' />
-          </button>
+
+          {/* Ẩn nút Gọi điện và Gọi video nếu đã hủy kết bạn */}
+          {!isUnfriended && (
+            <div className='flex items-center gap-1'>
+              <button
+                onClick={() => onStartCall && onStartCall('audio')}
+                className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
+              >
+                <Phone className='h-5 w-5' />
+              </button>
+              <button
+                onClick={() => onStartCall && onStartCall('video')}
+                className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
+              >
+                <Video className='h-5 w-5' />
+              </button>
+            </div>
+          )}
+
           <Separator orientation='vertical' className='h-5 mx-1 hidden sm:block' />
           <button className='p-2 hover:bg-muted hover:text-foreground rounded-full transition-colors hidden sm:block'>
             <Search className='h-5 w-5' />

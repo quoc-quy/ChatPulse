@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import http from '@/utils/http'
 
 export const conversationsApi = {
@@ -12,5 +13,9 @@ export const conversationsApi = {
 
   markAsSeen: (conversationId: string) => {
     return http.patch(`/conversations/${conversationId}/seen`, {})
+  },
+
+  deleteConversation: (conversationId: string) => {
+    return http.delete<{ message: string; result: any }>(`/conversations/${conversationId}`)
   }
 }
