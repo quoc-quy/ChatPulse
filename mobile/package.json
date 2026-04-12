@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@livekit/react-native": "^2.10.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/bottom-tabs": "^7.15.2",
@@ -27,6 +28,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.16",
     "jwt-decode": "^4.0.0",
+    "livekit-client": "^2.18.1",
     "lodash": "^4.17.23",
     "lucide-react-native": "^0.576.0",
     "react": "19.1.0",

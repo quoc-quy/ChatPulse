@@ -88,12 +88,15 @@ const darkColors = {
 
 const REACTION_LIST = ["👍", "❤️", "🤣", "😮", "😭", "😡"];
 
+const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 const MessageScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const flatListRef = useRef<FlatList>(null);
   const lastTap = useRef(0);
-  const { id } = route.params;
+  const { id } = route.params || {};
 
   const { isDarkMode } = useTheme();
   const { language, t } = useTranslation();
@@ -127,7 +130,7 @@ const MessageScreen = () => {
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   // STATE MỚI: Quản lý file chờ gửi (để hiện preview lên trước)
-  const [pendingMedia, setPendingMedia] = useState<any | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<any[]>([]);
   const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const formatDuration = (seconds: number) => {
@@ -194,11 +197,17 @@ const MessageScreen = () => {
   const handlePickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsMultipleSelection: true,
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) {
-      // FIX: Gán vào chờ gửi thay vì upload ngay lập tức
-      setPendingMedia({ ...result.assets[0], attachmentType: "media" });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const validAssets: any[] = [];
+      for (const asset of result.assets) {
+        validAssets.push({ ...asset, attachmentType: "media" });
+      }
+      if (validAssets.length > 0) {
+        setPendingMedia((prev) => [...prev, ...validAssets]);
+      }
     }
   };
 
@@ -206,10 +215,29 @@ const MessageScreen = () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: "*/*",
       copyToCacheDirectory: true,
+      multiple: true,
     });
-    if (!result.canceled && result.assets[0]) {
-      // FIX: Gán vào chờ gửi thay vì upload ngay lập tức
-      setPendingMedia({ ...result.assets[0], attachmentType: "file" });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const validAssets: any[] = [];
+      for (const asset of result.assets) {
+        if (asset.size && asset.size > MAX_FILE_SIZE) {
+          Alert.alert(t.error || "Lỗi", "Không thể gửi file lớn hơn 10MB");
+          continue;
+        }
+
+        // SỬA Ở DÒNG NÀY: Xóa asset.fileName đi, chỉ giữ lại asset.name
+        const fileName = asset.name || "";
+
+        const extension = fileName.split('.').pop()?.toLowerCase() || "";
+        if (BLOCKED_EXTENSIONS.includes(extension)) {
+          Alert.alert("Lỗi bảo mật", `Không được phép gửi tệp tin định dạng .${extension}`);
+          continue;
+        }
+        validAssets.push({ ...asset, attachmentType: "file" });
+      }
+      if (validAssets.length > 0) {
+        setPendingMedia((prev) => [...prev, ...validAssets]);
+      }
     }
   };
 
@@ -234,7 +262,8 @@ const MessageScreen = () => {
 
     try {
       let mimeType = fileData.mimeType;
-      let fileName = fileData.name || fileData.fileName;
+      // Thêm fallback an toàn cho fileName để tránh lỗi undefined
+      let fileName = fileData.name || fileData.fileName || fileData.uri.split('/').pop();
 
       if (type === "media") {
         if (isVideoFile) {
@@ -274,16 +303,29 @@ const MessageScreen = () => {
   };
 
   const handleSend = async () => {
-    const textToSend = inputText.trim() === "@PulseAI " ? "" : inputText.trim();
-    const mediaToSend = pendingMedia;
+    // 1. Xử lý text (bỏ qua tag nếu trống)
+    let textToSend = inputText.trim();
+    if (textToSend === "@PulseAI ") textToSend = "";
 
-    if (textToSend.length === 0 && !mediaToSend) return;
+    // 2. CHẶN VÀ CẢNH BÁO NẾU VƯỢT QUÁ 2000 KÝ TỰ
+    if (textToSend.length > 2000) {
+      Alert.alert(
+        t.error || "Cảnh báo",
+        `Tin nhắn quá dài (${textToSend.length}/2000 ký tự). Vui lòng rút gọn nội dung trước khi gửi.`
+      );
+      return; // Dừng lại, không cho gửi
+    }
 
-    // Reset UI ngay lập tức
+    const mediaToSend = [...pendingMedia]; // Lấy danh sách file chờ
+
+    // Nếu không có cả text và file thì không làm gì cả
+    if (textToSend.length === 0 && mediaToSend.length === 0) return;
+
+    // Reset UI ngay lập tức để tạo cảm giác mượt mà
     setInputText("");
-    setPendingMedia(null);
+    setPendingMedia([]);
 
-    // Xử lý gửi tin nhắn TEXT
+    // 3. Gửi Text (nếu có)
     if (textToSend.length > 0) {
       const tempId = Date.now().toString();
       const tempMessage = {
@@ -297,7 +339,7 @@ const MessageScreen = () => {
       setMessages((prev) => [tempMessage, ...prev]);
 
       try {
-        const res = await sendMessage(conversationId, textToSend, "type");
+        const res = await sendMessage(conversationId, textToSend, "text");
         const realMessage = res.data.result || res.data;
         if (realMessage) {
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
@@ -307,9 +349,9 @@ const MessageScreen = () => {
       }
     }
 
-    // Xử lý gửi MEDIA / FILE
-    if (mediaToSend) {
-      uploadAttachment(mediaToSend, mediaToSend.attachmentType);
+    // 4. Gửi lần lượt tất cả ảnh/file trong mảng (nếu có)
+    for (const media of mediaToSend) {
+      await uploadAttachment(media, media.attachmentType);
     }
   };
 
@@ -407,6 +449,48 @@ const MessageScreen = () => {
       if (userId) fetchMuteState(userId);
     });
   }, [conversationId]);
+
+  // LOGIC NHÓM ẢNH ĐỂ TẠO GRID LAYOUT
+  const groupedMessages = useMemo(() => {
+    const result = [];
+    let currentGroup: any = null;
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      const isMedia = (msg.type === "media" || msg.type === "image");
+      const isVideo = msg.content?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i) || msg.type === "video";
+      const isImage = isMedia && !isVideo;
+
+      if (isImage && !msg.isSending) {
+        if (currentGroup && currentGroup.senderId === (msg.sender?._id || msg.senderId)) {
+          const timeDiff = Math.abs(new Date(currentGroup.createdAt).getTime() - new Date(msg.createdAt).getTime());
+          if (timeDiff < 60000) { // Gộp ảnh gửi trong vòng 60 giây
+            currentGroup.images.push(msg);
+            continue;
+          }
+        }
+        if (currentGroup) {
+          result.push(currentGroup);
+        }
+        currentGroup = {
+          isGroup: true,
+          _id: `group_${msg._id}`,
+          senderId: msg.sender?._id || msg.senderId,
+          sender: msg.sender,
+          createdAt: msg.createdAt,
+          images: [msg]
+        };
+      } else {
+        if (currentGroup) {
+          result.push(currentGroup);
+          currentGroup = null;
+        }
+        result.push(msg);
+      }
+    }
+    if (currentGroup) result.push(currentGroup);
+    return result;
+  }, [messages]);
 
   const handleSummarizeChat = async () => {
     if (unreadCount === 0) {
@@ -782,10 +866,122 @@ const MessageScreen = () => {
 
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
+
+    // --- LOGIC MỚI: RENDER ALBUM GROUP IMAGE (ZALO STYLE) ---
+    if (item.isGroup) {
+      const showAvatar = !isMe;
+      const orderedImages = item.images.slice().reverse();
+      const count = orderedImages.length;
+      const displayImages = orderedImages.slice(0, 5); // Hiển thị tối đa 5 ảnh
+      const hiddenCount = count - 5;
+
+      const W = 240; // Chiều rộng tổng của khung chat ảnh
+      const gap = 3; // Khoảng cách giữa các ảnh
+
+      // Hàm con: Render từng bức ảnh
+      const renderImg = (imgMsg: any, style: any, isLast: boolean = false) => (
+        <TouchableOpacity
+          key={imgMsg._id}
+          style={[styles.gridImageWrapper, style]}
+          activeOpacity={0.85}
+          onPress={() => setPreviewMedia({ url: imgMsg.content, isVideo: false })}
+          onLongPress={(e) => handleLongPress(e, imgMsg)}
+        >
+          <Image source={{ uri: imgMsg.content }} style={styles.fullImage} resizeMode="cover" />
+          {/* Hiển thị lớp mờ +số lượng ảnh bị ẩn (Nếu có > 5 ảnh) */}
+          {isLast && hiddenCount > 0 && (
+            <View style={styles.moreOverlay}>
+              <Text style={styles.moreText}>+{hiddenCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+
+      return (
+        <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
+          {!isMe && (
+            <View style={styles.avatarPlaceholder}>
+              {showAvatar && (
+                <View style={styles.avatarSmall}>
+                  <Text style={styles.avatarText}>{item.sender?.userName?.charAt(0).toUpperCase() || "U"}</Text>
+                </View>
+              )}
+            </View>
+          )}
+          <View style={[styles.messageContent, isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
+
+            {/* KHUNG GRID CHÍNH */}
+            <View style={[styles.imageGridContainer, { borderRadius: 14, overflow: 'hidden' }]}>
+
+              {/* TRƯỜNG HỢP: 1 ẢNH */}
+              {count === 1 && renderImg(displayImages[0], { width: W, height: 300 })}
+
+              {/* TRƯỜNG HỢP: 2 ẢNH (Chia đôi) */}
+              {count === 2 && (
+                <View style={styles.gridRow}>
+                  {renderImg(displayImages[0], { width: (W - gap) / 2, height: W * 0.8 })}
+                  {renderImg(displayImages[1], { width: (W - gap) / 2, height: W * 0.8 })}
+                </View>
+              )}
+
+              {/* TRƯỜNG HỢP: 3 ẢNH (1 trên to, 2 dưới nhỏ) */}
+              {count === 3 && (
+                <View style={styles.gridCol}>
+                  <View style={{ marginBottom: gap }}>
+                    {renderImg(displayImages[0], { width: W, height: W * 0.65 })}
+                  </View>
+                  <View style={styles.gridRow}>
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                  </View>
+                </View>
+              )}
+
+              {/* TRƯỜNG HỢP: 4 ẢNH (2 trên, 2 dưới) */}
+              {count === 4 && (
+                <View style={styles.gridCol}>
+                  <View style={[styles.gridRow, { marginBottom: gap }]}>
+                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                  </View>
+                  <View style={styles.gridRow}>
+                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[3], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                  </View>
+                </View>
+              )}
+
+              {/* TRƯỜNG HỢP: >= 5 ẢNH (2 trên, 3 dưới) */}
+              {count >= 5 && (
+                <View style={styles.gridCol}>
+                  <View style={[styles.gridRow, { marginBottom: gap }]}>
+                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                  </View>
+                  <View style={styles.gridRow}>
+                    {renderImg(displayImages[2], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
+                    {renderImg(displayImages[3], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
+                    {/* Ảnh thứ 5 sẽ kèm theo thông báo số lượng ảnh ẩn */}
+                    {renderImg(displayImages[4], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, true)}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight, marginTop: 4 }]}>
+              {formatTime(item.createdAt)}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+    // --- HẾT LOGIC MỚI ---
+
     const isRevoked = item.type === "revoked";
 
-    const olderItem = index < messages.length - 1 ? messages[index + 1] : null;
-    const newerItem = index > 0 ? messages[index - 1] : null;
+    // Cần sửa messages thành groupedMessages ở 2 dòng này
+    const olderItem = index < groupedMessages.length - 1 ? groupedMessages[index + 1] : null;
+    const newerItem = index > 0 ? groupedMessages[index - 1] : null;
 
     if (item.type === "system") {
       const currentDate = new Date(item.createdAt).toDateString();
@@ -913,14 +1109,14 @@ const MessageScreen = () => {
                       callTitle = t.messageMissedCall;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
                       // CHÍNH LÀ ICON BẠN MUỐN TÌM: phone-missed
-                      iconName = isVideo ? "video-off" : "phone-missed"; 
+                      iconName = isVideo ? "video-off" : "phone-missed";
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
                       callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
                     } else if (status === 'rejected') {
                       callTitle = isMe ? t.messageRecipientRejected : t.messageYouRejected;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
                       // Dùng phone-cancel cho cuộc gọi bị từ chối
-                      iconName = isVideo ? "video-off" : "phone-cancel"; 
+                      iconName = isVideo ? "video-off" : "phone-cancel";
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
                       callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
                     } else if (isMe && status === 'cancelled') {
@@ -946,7 +1142,7 @@ const MessageScreen = () => {
                             </Text>
                           </View>
                         </View>
-                        
+
                         <View style={[styles.callDivider, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : COLORS.border }]} />
                       </View>
                     );
@@ -1193,7 +1389,7 @@ const MessageScreen = () => {
         <FlatList
           ref={flatListRef}
           inverted={true}
-          data={messages}
+          data={groupedMessages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
@@ -1212,38 +1408,43 @@ const MessageScreen = () => {
           viewabilityConfig={viewabilityConfig.current}
         />
 
-        {/* UI HIỂN THỊ FILE/ẢNH ĐANG CHỜ GỬI NẰM NGAY TRÊN Ô NHẬP TEXT */}
-        {pendingMedia && (
-          <View style={styles.pendingContainer}>
-            <View style={styles.pendingMediaWrap}>
-              <TouchableOpacity
-                style={styles.removePendingBtn}
-                onPress={() => setPendingMedia(null)}
-              >
-                <Ionicons name="close" size={14} color="#FFF" />
-              </TouchableOpacity>
+        {/* UI HIỂN THỊ FILE/ẢNH ĐANG CHỜ GỬI (Nhiều file) */}
+        {pendingMedia.length > 0 && (
+          <View style={styles.pendingContainerWrap}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pendingContainer}>
+              {pendingMedia.map((media, index) => (
+                <View key={index} style={styles.pendingMediaWrap}>
+                  <TouchableOpacity
+                    style={styles.removePendingBtn}
+                    onPress={() => {
+                      const newPending = [...pendingMedia];
+                      newPending.splice(index, 1);
+                      setPendingMedia(newPending);
+                    }}
+                  >
+                    <Ionicons name="close" size={14} color="#FFF" />
+                  </TouchableOpacity>
 
-              {pendingMedia.attachmentType === "media" ? (
-                <Image
-                  source={{ uri: pendingMedia.uri }}
-                  style={styles.pendingImage}
-                />
-              ) : (
-                <View style={styles.pendingFile}>
-                  <Ionicons name="document-text" size={30} color={COLORS.primary} />
+                  {media.attachmentType === "media" ? (
+                    <Image source={{ uri: media.uri }} style={styles.pendingImage} />
+                  ) : (
+                    <View style={styles.pendingFile}>
+                      <Ionicons name="document-text" size={30} color={COLORS.primary} />
+                    </View>
+                  )}
+                  {(media.type === "video" || media.mimeType?.startsWith('video/')) && (
+                    <View style={styles.pendingVideoIcon}>
+                      <Ionicons name="videocam" size={14} color="#FFF" />
+                    </View>
+                  )}
+                  {media.attachmentType === "file" && (
+                    <Text style={styles.pendingFileNameOverlay} numberOfLines={1}>
+                      {media.name || t.messageAttachmentDocument}
+                    </Text>
+                  )}
                 </View>
-              )}
-              {pendingMedia.type === "video" && (
-                <View style={styles.pendingVideoIcon}>
-                  <Ionicons name="videocam" size={14} color="#FFF" />
-                </View>
-              )}
-            </View>
-            {pendingMedia.attachmentType === "file" && (
-              <Text style={styles.pendingFileName} numberOfLines={1}>
-                {pendingMedia.name || t.messageAttachmentDocument}
-              </Text>
-            )}
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -1288,6 +1489,7 @@ const MessageScreen = () => {
             )}
             <TextInput
               multiline={true}
+              maxLength={2000}
               style={{
                 flex: 1,
                 color: COLORS.text,
@@ -2047,61 +2249,36 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       width: "100%",
       height: "80%",
     },
-    // STYLE MỚI CHO PREVIEW MEDIA TRƯỚC KHI GỬI
-    pendingContainer: {
-      padding: 10,
-      backgroundColor: COLORS.surface,
-      borderTopWidth: 1,
-      borderColor: COLORS.border,
-      flexDirection: 'row',
-      alignItems: 'center',
+    // STYLE CẬP NHẬT CHO HÀNG CHỜ FILE/MEDIA (Nhiều item)
+    pendingContainerWrap: { backgroundColor: COLORS.surface, borderTopWidth: 1, borderColor: COLORS.border },
+    pendingContainer: { paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' },
+    pendingMediaWrap: { position: 'relative', width: 60, height: 60, borderRadius: 8, marginRight: 15 },
+    pendingImage: { width: '100%', height: '100%', borderRadius: 8 },
+    pendingFile: { width: '100%', height: '100%', borderRadius: 8, backgroundColor: COLORS.surfaceSoft, justifyContent: 'center', alignItems: 'center' },
+    removePendingBtn: { position: 'absolute', top: -8, right: -8, backgroundColor: COLORS.badge, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+    pendingFileNameOverlay: { position: 'absolute', bottom: -18, left: 0, width: 60, fontSize: 10, color: COLORS.text, textAlign: 'center' },
+    pendingVideoIcon: { position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.5)', padding: 2, borderRadius: 4 },
+
+    // GRID LAYOUT ẢNH CHUẨN ZALO
+    imageGridContainer: {
+      width: 240,
+      marginTop: 5,
+      backgroundColor: 'transparent',
+      // Thêm viền nhẹ ngoài cùng cho đẹp
+      borderWidth: 0.5,
+      borderColor: 'rgba(0,0,0,0.05)',
     },
-    pendingMediaWrap: {
-      position: 'relative',
-      width: 60,
-      height: 60,
-      borderRadius: 8,
-      marginRight: 10,
-    },
-    pendingImage: {
-      width: '100%',
-      height: '100%',
-      borderRadius: 8,
-    },
-    pendingFile: {
-      width: '100%',
-      height: '100%',
-      borderRadius: 8,
-      backgroundColor: COLORS.surfaceSoft,
+    gridRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    gridCol: { flexDirection: 'column' },
+    gridImageWrapper: { backgroundColor: '#E2E8F0', overflow: 'hidden' },
+    fullImage: { width: '100%', height: '100%' },
+    moreOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.55)',
       justifyContent: 'center',
-      alignItems: 'center',
+      alignItems: 'center'
     },
-    removePendingBtn: {
-      position: 'absolute',
-      top: -8,
-      right: -8,
-      backgroundColor: COLORS.badge,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10,
-    },
-    pendingFileName: {
-      flex: 1,
-      color: COLORS.text,
-      fontSize: 14,
-      fontWeight: '500',
-    },
-    pendingVideoIcon: {
-      position: 'absolute',
-      bottom: 4,
-      left: 4,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      padding: 2,
-      borderRadius: 4,
-    },
+    moreText: { color: 'white', fontSize: 24, fontWeight: '700' },
     // STYLE MỚI CHO CALL CARD CHUẨN ZALO
     callCard: {
       minWidth: 220,
@@ -2150,6 +2327,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       fontSize: 15,
       fontWeight: "600",
     },
+
   });
 
 export default MessageScreen;

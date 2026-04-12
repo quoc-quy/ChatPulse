@@ -134,24 +134,21 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
   const { user_id } = req.decoded_authorization as TokenPayload
   const { convId, replyToId } = req.body
 
-  // 1. Lấy mảng files thay vì req.file đơn lẻ
   const files = req.files as Express.Multer.File[]
 
   if (!files || files.length === 0) {
     return res.status(httpStatus.BAD_REQUEST).json({ message: 'Không tìm thấy file tải lên' })
   }
 
-  // 2. Upload tất cả các file lên S3 song song (Promise.all giúp tiết kiệm thời gian)
   const uploadPromises = files.map((file) => uploadFileToS3(file))
   const fileUrls = await Promise.all(uploadPromises)
 
   const messageType: 'text' | 'media' | 'sticker' | 'system' = 'media'
 
-  // 3. Gom mảng URL thành chuỗi JSON để lưu vào DB (Giống như Frontend đang mong đợi)
-  // Ví dụ: '["url1", "url2", "url3"]'
-  const content = JSON.stringify(fileUrls)
+  // SỬA Ở ĐÂY: Vì Mobile gửi từng file một, nên mảng fileUrls chỉ có 1 link.
+  // Ta bóc lấy link đầu tiên ra lưu luôn, KHÔNG dùng JSON.stringify để Mobile load được ảnh.
+  const content = fileUrls[0] 
 
-  // 4. Lưu vào Database
   const message = await messageService.sendMessage(user_id, convId, messageType, content, replyToId)
 
   return res.status(httpStatus.OK).json({
