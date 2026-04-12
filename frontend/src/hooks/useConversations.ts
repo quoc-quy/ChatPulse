@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useContext, useMemo, useCallback } from 'r
 import { useSocket } from '@/context/socket.context'
 import { AppContext } from '@/context/app.context'
 import { conversationsApi } from '@/apis/conversations.api'
+import { toast } from 'sonner'
 
 export function useConversations() {
   const { profile, activeChat, setActiveChat } = useContext(AppContext)
@@ -109,6 +110,7 @@ export function useConversations() {
 
         // Đọc bản nháp từ LocalStorage khi khởi tạo
         const draftContent = localStorage.getItem(`draft_${conv._id}`) || ''
+        const isFriendStatus = conv.isFriend === false ? false : true
 
         return {
           id: conv._id,
@@ -124,7 +126,8 @@ export function useConversations() {
           isOnline,
           lastActiveAt,
           unreadCount,
-          draftContent // Thêm field đánh dấu bản nháp
+          draftContent,
+          isFriend: isFriendStatus
         }
       })
 
@@ -272,16 +275,37 @@ export function useConversations() {
       })
     }
 
+    const handleUnfriended = (data: { conversationId: string; unfrienderId: string }) => {
+      // Nếu mình là User2 (người BỊ hủy kết bạn)
+      if (String(data.unfrienderId) !== String(profile._id)) {
+        toast.warning('Cập nhật trạng thái bạn bè', {
+          description: 'Người này đã hủy kết bạn với bạn. Tính năng nhắn tin & gọi điện đã bị khóa.'
+        })
+      }
+
+      // Vô hiệu hóa cuộc trò chuyện trong list
+      setChatList((prev) =>
+        prev.map((chat) => (String(chat.id) === String(data.conversationId) ? { ...chat, isFriend: false } : chat))
+      )
+
+      // Nếu đang mở đúng box chat đó, cập nhật luôn
+      setActiveChat((prev: any) =>
+        prev && String(prev.id) === String(data.conversationId) ? { ...prev, isFriend: false } : prev
+      )
+    }
+
     socket.on('conversation_updated', handleConvUpdated)
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('user_status_change', handleUserStatusChange)
+    socket.on('unfriended', handleUnfriended)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_revoked', handleMessageRevoked)
       socket.off('user_status_change', handleUserStatusChange)
       socket.off('conversation_updated', handleConvUpdated)
+      socket.off('unfriended', handleUnfriended)
     }
   }, [profile, socket, sortChats])
 

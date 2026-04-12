@@ -7,6 +7,7 @@ import { FriendStatus } from '~/constants/friendStatus'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import messageService from './message.services'
+import socketService from './socket.services'
 
 class FriendService {
   async createFriendRequest(sender_id: string, receiver_id: string) {
@@ -171,6 +172,23 @@ class FriendService {
         ]
       })
     ])
+
+    // Tìm đoạn chat direct chung giữa 2 người
+    const conversation = await databaseService.conversations.findOne({
+      type: 'direct',
+      participants: { $all: [ObjectId, new ObjectId(friend_id)] }
+    })
+
+    if (conversation) {
+      // Bắn sự kiện realtime cho CẢ HAI ĐỂ UI KHÓA CHAT NGAY LẬP TỨC
+      const payload = {
+        conversationId: conversation._id.toString(),
+        unfrienderId: user_id.toString()
+      }
+      socketService.emitToUser(friend_id.toString(), 'unfriended', payload)
+      socketService.emitToUser(user_id.toString(), 'unfriended', payload)
+    }
+
     if (friendsDeleted.deletedCount === 0) {
       throw new ErrorWithStatus({
         message: 'Hai người hiện không phải là bạn bè hoặc đã hủy kết bạn trước đó',

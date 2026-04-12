@@ -182,3 +182,15 @@ export const suggestReplyController = async (req: Request, res: Response) => {
     })
   }
 }
+
+export const deleteConversationController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { id } = req.params as { id: string }
+
+  const result = await chatService.deleteConversation(user_id, id)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Xóa lịch sử trò chuyện thành công',
+    result
+  })
+}

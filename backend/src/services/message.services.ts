@@ -129,6 +129,20 @@ class MessageService {
           blocked_user_id: userObjectId
         })
 
+        const isFriend = await databaseService.friends.findOne({
+          $or: [
+            { user_id: userObjectId, friend_id: new ObjectId(otherUserId) },
+            { user_id: new ObjectId(otherUserId), friend_id: userObjectId }
+          ]
+        })
+
+        if (!isFriend) {
+          throw new ErrorWithStatus({
+            message: 'Không thể thực hiện. Hai bạn hiện không còn là bạn bè.',
+            status: httpStatus.FORBIDDEN
+          })
+        }
+
         if (isBlockedByReceiver) {
           throw new ErrorWithStatus({
             message: 'Xin lỗi! Hiện tại tôi không muốn nhận tin nhắn.',
