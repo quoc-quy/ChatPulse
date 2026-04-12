@@ -79,7 +79,7 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
                     {...register('email')}
                     errorMessage={errors.email?.message}
                     type='email'
-                    placeholder='m@example.com'
+                    placeholder='example@gmail.com'
                   />
                 </Field>
 

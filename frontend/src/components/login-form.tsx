@@ -132,14 +132,16 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
                   {...register('email')}
                   errorMessage={errors.email?.message}
                   type='email'
-                  placeholder='m@example.com'
+                  placeholder='example@gmail.com'
                 />
+                {errors.email?.message && <p className='text-red-500 text-sm mt-1'>{errors.email.message}</p>}
               </Field>
               <Field>
                 <div className='flex items-center'>
                   <FieldLabel htmlFor='password'>Password</FieldLabel>
                 </div>
                 <Input {...register('password')} errorMessage={errors.password?.message} type='password' />
+                {errors.password?.message && <p className='text-red-500 text-sm mt-1'>{errors.password.message}</p>}
               </Field>
               <Field>
                 <Button type='submit' className='cursor-pointer'>
