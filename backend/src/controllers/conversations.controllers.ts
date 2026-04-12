@@ -103,7 +103,7 @@ QUY TẮC TƯ DUY:
         { role: 'system', content: systemInstruction },
         { role: 'user', content: `Dưới đây là nội dung cuộc trò chuyện:\n\n${chatTextWithIds}` }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3
     })
 

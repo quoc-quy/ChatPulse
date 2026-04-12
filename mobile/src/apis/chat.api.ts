@@ -44,14 +44,13 @@ export const sendMediaMessage = (
   formData.append("convId", conversationId);
   formData.append("type", type);
 
-  // Xử lý dữ liệu file cho React Native FormData
-  formData.append("file", {
+  // SỬA "file" THÀNH "files" CHO KHỚP VỚI BACKEND
+  formData.append("files", { 
     uri: fileAsset.uri,
     name: fileAsset.name || fileAsset.fileName || `file_${Date.now()}`,
     type: fileAsset.mimeType || "application/octet-stream",
   } as any);
 
-  // Quan trọng: Gửi dưới dạng multipart/form-data
   return api.post(`/messages/media`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
