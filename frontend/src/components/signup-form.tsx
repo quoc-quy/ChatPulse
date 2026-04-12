@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
@@ -82,6 +82,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                   errorMessage={errors.email?.message}
                   placeholder='example@gmail.com'
                 />
+                {errors.email?.message && <p className='text-red-500 text-sm mt-1'>{errors.email.message}</p>}
               </Field>
               <Field>
                 <Field className='grid grid-cols-2 gap-4'>
@@ -93,6 +94,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                       errorMessage={errors.password?.message}
                       type='password'
                     />
+                    {errors.password?.message && <p className='text-red-500 text-sm mt-1'>{errors.password.message}</p>}
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='confirm-password'>Confirm Password</FieldLabel>
@@ -102,6 +104,9 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                       errorMessage={errors.confirm_password?.message}
                       type='password'
                     />
+                    {errors.confirm_password?.message && (
+                      <p className='text-red-500 text-sm mt-1'>{errors.confirm_password.message}</p>
+                    )}
                   </Field>
                 </Field>
               </Field>
@@ -115,10 +120,12 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                       errorMessage={errors.userName?.message}
                       type='text'
                     />
+                    {errors.userName?.message && <p className='text-red-500 text-sm mt-1'>{errors.userName.message}</p>}
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='phone'>Phone</FieldLabel>
                     <Input id='phone' {...register('phone')} errorMessage={errors.phone?.message} type='text' />
+                    {errors.phone?.message && <p className='text-red-500 text-sm mt-1'>{errors.phone.message}</p>}
                   </Field>
                 </Field>
               </Field>
