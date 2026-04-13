@@ -10,6 +10,10 @@ interface ChatContextType {
   clearLocalUnread: (conversationId: string) => void;
   getLocalUnread: (conversationId: string) => number;
   resetChatContext: () => void;
+  
+  // 🔥 DRAFTS: Lưu tin nhắn nháp
+  drafts: Record<string, string>;
+  updateDraft: (conversationId: string, text: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -20,13 +24,17 @@ const ChatContext = createContext<ChatContextType>({
   clearLocalUnread: () => {},
   getLocalUnread: () => 0,
   resetChatContext: () => {},
+  drafts: {},
+  updateDraft: () => {},
 });
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
-  const [localUnreadMap, setLocalUnreadMap] = useState<Record<string, number>>(
-    {},
-  );
+  const [localUnreadMap, setLocalUnreadMap] = useState<Record<string, number>>({});
+  
+  // STATE LƯU NHÁP
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
   const setLocalUnread = useCallback(
     (conversationId: string, count: number) => {
       setLocalUnreadMap((prev) => ({
@@ -36,6 +44,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     },
     [],
   );
+
   const clearLocalUnread = useCallback((conversationId: string) => {
     setLocalUnreadMap((prev) => ({
       ...prev,
@@ -43,18 +52,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }));
   }, []);
 
-  // Lấy unread_count của 1 conversation
   const getLocalUnread = useCallback(
     (conversationId: string) => localUnreadMap[conversationId] ?? 0,
     [localUnreadMap],
   );
-  // ✅ FIX LOGOUT BUG: reset toàn bộ state về 0
-  // auth.ts chỉ xóa AsyncStorage, nhưng localUnreadMap và totalUnreadCount
-  // vẫn còn trong RAM → badge vẫn hiện sau khi login lại.
+
+  // HÀM CẬP NHẬT NHÁP
+  const updateDraft = useCallback((conversationId: string, text: string) => {
+    setDrafts((prev) => ({ ...prev, [conversationId]: text }));
+  }, []);
+
   const resetChatContext = useCallback(() => {
     setTotalUnreadCount(0);
     setLocalUnreadMap({});
+    setDrafts({}); // Xóa nháp khi đăng xuất
   }, []);
+
   return (
     <ChatContext.Provider
       value={{
@@ -65,6 +78,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         clearLocalUnread,
         getLocalUnread,
         resetChatContext,
+        drafts,
+        updateDraft,
       }}
     >
       {children}

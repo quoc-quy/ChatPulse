@@ -13,6 +13,7 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { createDirectConversation } from "../apis/chat.api";
+import { friendApi } from "../apis/friends.api";
 import { useTheme } from "../contexts/ThemeContext";
 
 // ── Color Palettes (đồng nhất với ConversationDetail) ─────────────────────────
@@ -181,6 +182,31 @@ export default function UserProfileScreen() {
     }
   };
 
+  // ── THÊM MỚI: Hàm xử lý hủy kết bạn ──
+  const handleUnfriend = () => {
+    Alert.alert(
+      "Hủy kết bạn",
+      `Bạn có chắc chắn muốn hủy kết bạn với ${displayName}? \n\nLưu ý: Sau khi hủy kết bạn, bạn sẽ không thể nhắn tin hay gọi điện cho người này nữa.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        { 
+          text: "Đồng ý", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              // Gọi API hủy kết bạn
+              await friendApi.deleteFriend(userId); 
+              Alert.alert("Thành công", `Đã hủy kết bạn với ${displayName}`);
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert("Lỗi", "Không thể hủy kết bạn lúc này. Vui lòng thử lại.");
+            }
+          } 
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: COLORS.background }]}
@@ -308,8 +334,21 @@ export default function UserProfileScreen() {
 
         {/* ── Hành động nguy hiểm ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
+          
+          {/* THÊM MỚI: NÚT HỦY KẾT BẠN */}
           <TouchableOpacity
             style={[styles.actionRow, { borderBottomColor: COLORS.border }]}
+            onPress={handleUnfriend}
+            activeOpacity={0.7}
+          >
+            <Feather name="user-x" size={20} color={COLORS.destructive} />
+            <Text style={[styles.actionLabel, { color: COLORS.destructive }]}>
+              Hủy kết bạn
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionRow, { borderBottomWidth: 0 }]} // Bỏ viền dưới cho nút cuối
             onPress={() =>
               Alert.alert(
                 "Xác nhận",

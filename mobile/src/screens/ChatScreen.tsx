@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
-import { joinGroupByLink } from "../apis/chat.api"; // Đừng quên import
+import { joinGroupByLink } from "../apis/chat.api";
 import {
   View,
   Text,
@@ -25,8 +25,6 @@ import { jwtDecode } from "jwt-decode";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useChatContext } from "../contexts/ChatContext";
-
-// --- THÊM IMPORT CAMERA TỪ EXPO ---
 import { CameraView, useCameraPermissions } from "expo-camera";
 
 import { getConversations, pinConversation } from "../apis/chat.api";
@@ -66,12 +64,15 @@ const darkColors = {
 const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const { language, t } = useTranslation();
+
+  // ✅ Lấy thêm drafts từ Context
   const {
     setTotalUnreadCount,
     setLocalUnread,
     getLocalUnread,
     localUnreadMap,
-  } = useChatContext();
+    drafts = {}, // Lấy object chứa các tin nhắn nháp
+  } = useChatContext() as any;
 
   const { isDarkMode } = useTheme();
   const COLORS = isDarkMode ? darkColors : lightColors;
@@ -89,24 +90,20 @@ const ChatScreen = ({ route }: any) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
-  // ✅ PIN: state lưu set các conversationId đang được ghim
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [selectedConvForPin, setSelectedConvForPin] = useState<any>(null);
-  // const { getLocalUnread } = useChatContext();
 
-  // --- STATE TÌM KIẾM ---
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // --- STATE CAMERA (QUÉT QR) ---
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const scannedRef = useRef(false); // <--- DÙNG USEREF THAY VÌ USESTATE
+  const scannedRef = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   React.useEffect(() => {
     const totalUnread = Object.values(localUnreadMap).reduce(
-      (sum, count) => sum + (count || 0),
+      (sum: any, count: any) => sum + (count || 0),
       0,
     );
     setTotalUnreadCount(totalUnread);
@@ -132,23 +129,21 @@ const ChatScreen = ({ route }: any) => {
       console.log("Lỗi giải mã token:", error);
     }
   };
+
   const initializedConvsRef = React.useRef<Set<string>>(new Set());
 
-  // ✅ FIX LOGOUT BUG: Khi resetChatContext() được gọi lúc logout,
-  // localUnreadMap sẽ về {} (empty). Lúc đó clear initializedConvsRef
-  // để lần fetch tiếp theo (sau login) sẽ set lại unread từ server.
   React.useEffect(() => {
     if (Object.keys(localUnreadMap).length === 0) {
       initializedConvsRef.current.clear();
     }
   }, [localUnreadMap]);
 
-  // Clear ref khi component unmount
   React.useEffect(() => {
     return () => {
       initializedConvsRef.current.clear();
     };
   }, []);
+
   const fetchConversations = async (pageNumber = 1, isRefresh = false) => {
     try {
       if (pageNumber === 1 && !isRefresh) setLoading(true);
@@ -159,9 +154,6 @@ const ChatScreen = ({ route }: any) => {
       if (isRefresh || pageNumber === 1) {
         setConversations(newConversations);
 
-        // ✅ Luôn đọc lại isPinned từ server mỗi lần refresh
-        // Tách biệt hoàn toàn với initializedConvsRef (chỉ dùng cho unread)
-        // currentUserId có thể chưa có lúc mount → dùng giá trị mới nhất từ token
         let resolvedUserId = currentUserId;
         if (!resolvedUserId) {
           try {
@@ -176,12 +168,10 @@ const ChatScreen = ({ route }: any) => {
         const pinned = new Set<string>();
         newConversations.forEach((conv: any) => {
           if (!conv._id) return;
-          // Unread: chỉ set lần đầu
           if (!initializedConvsRef.current.has(conv._id)) {
             initializedConvsRef.current.add(conv._id);
             setLocalUnread(conv._id, conv.unread_count || 0);
           }
-          // Pin: luôn đọc lại từ server mỗi lần fetch
           if (resolvedUserId) {
             const myMember = (conv.members || []).find(
               (m: any) => m.userId?.toString() === resolvedUserId,
@@ -190,8 +180,6 @@ const ChatScreen = ({ route }: any) => {
           }
         });
 
-        // Chỉ ghi đè pinnedIds nếu resolvedUserId hợp lệ
-        // (tránh reset về rỗng khi userId chưa load xong)
         if (resolvedUserId) {
           setPinnedIds(pinned);
         }
@@ -221,9 +209,7 @@ const ChatScreen = ({ route }: any) => {
         (u._id || "").toString(),
       );
       setBlockedUserIds(new Set(ids));
-    } catch {
-      // silent fail
-    }
+    } catch { }
   };
 
   useFocusEffect(
@@ -300,18 +286,15 @@ const ChatScreen = ({ route }: any) => {
     return myMember?.hasMuted === true;
   };
 
-  // ✅ Long press → mở menu pin
   const handleLongPressConv = (item: any) => {
     setSelectedConvForPin(item);
     setShowPinMenu(true);
   };
 
-  // ✅ Gọi API pin/unpin và cập nhật local state
   const handleTogglePin = async (item: any) => {
     const isCurrentlyPinned = pinnedIds.has(item._id);
     const newIsPinned = !isCurrentlyPinned;
     setShowPinMenu(false);
-    // Optimistic update
     setPinnedIds((prev) => {
       const next = new Set(prev);
       if (newIsPinned) next.add(item._id);
@@ -321,7 +304,6 @@ const ChatScreen = ({ route }: any) => {
     try {
       await pinConversation(item._id, newIsPinned);
     } catch (e) {
-      // Rollback nếu API lỗi
       setPinnedIds((prev) => {
         const next = new Set(prev);
         if (newIsPinned) next.delete(item._id);
@@ -335,7 +317,6 @@ const ChatScreen = ({ route }: any) => {
   const navigateToChat = (item: any) => {
     const { chatName, targetUserId } = getChatDetails(item);
 
-    // Nếu đang mở bảng tìm kiếm thì phải đóng lại trước khi chuyển trang
     if (showSearchModal) {
       setShowSearchModal(false);
       setSearchQuery("");
@@ -351,7 +332,6 @@ const ChatScreen = ({ route }: any) => {
     });
   };
 
-  // --- LOGIC MỞ CAMERA QUÉT QR ---
   const handleOpenQRScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -363,18 +343,16 @@ const ChatScreen = ({ route }: any) => {
         return;
       }
     }
-    scannedRef.current = false; // <--- MỞ KHÓA TRƯỚC KHI QUÉT
+    scannedRef.current = false;
     setShowQRScanner(true);
   };
 
-  // ...
   const handleBarcodeScanned = async ({ type, data }: { type: string; data: string; }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
 
-    setShowQRScanner(false); // Tắt camera ngay khi quét xong
+    setShowQRScanner(false);
 
-    // Kiểm tra xem mã QR có đúng định dạng nhóm không
     if (data.startsWith("chatpulse://group/join/")) {
       const groupId = data.split("chatpulse://group/join/")[1];
 
@@ -389,11 +367,8 @@ const ChatScreen = ({ route }: any) => {
                 setLoading(true);
                 const res = await joinGroupByLink(groupId);
                 Alert.alert(t.success, t.chatJoinedGroupSuccess);
-
-                // Refresh lại danh sách tin nhắn để hiện nhóm mới lên
                 fetchConversations(1, true);
               } catch (error: any) {
-                console.log("Lỗi join nhóm:", error);
                 Alert.alert(t.error, t.chatJoinGroupFailed);
               } finally {
                 setLoading(false);
@@ -403,7 +378,7 @@ const ChatScreen = ({ route }: any) => {
           {
             text: t.cancel,
             style: "cancel",
-            onPress: () => { scannedRef.current = false; } // Reset lại trạng thái nếu huỷ
+            onPress: () => { scannedRef.current = false; }
           }
         ]
       );
@@ -413,11 +388,35 @@ const ChatScreen = ({ route }: any) => {
       ]);
     }
   };
+
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
-    let messageContent = item.lastMessage?.content || t.chatNoMessagesYet;
+
+    // --- LOGIC XỬ LÝ NỘI DUNG TIN NHẮN CUỐI CÙNG ---
+    let messageContent = t.chatNoMessagesYet;
+    if (item.lastMessage) {
+      if (item.lastMessage.type === "image" || item.lastMessage.type === "media" || item.lastMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+        messageContent = "[Hình ảnh]";
+      } else if (item.lastMessage.type === "video" || item.lastMessage.content?.match(/\.(mp4|mov)(\?.*)?$/i)) {
+        messageContent = "[Video]";
+      } else if (item.lastMessage.type === "file") {
+        messageContent = "[Tệp đính kèm]";
+      } else if (item.lastMessage.type === "call") {
+        messageContent = "[Cuộc gọi]";
+      } else if (item.lastMessage.type === "revoked") {
+        messageContent = t.messageRevoked || "Tin nhắn đã thu hồi";
+      } else {
+        messageContent = item.lastMessage.content || t.chatNoMessagesYet;
+      }
+    }
+    // --- KẾT THÚC LOGIC ---
+
     const unread = getLocalUnread(item._id);
     const isPinned = pinnedIds.has(item._id);
+
+    // Kiểm tra xem cuộc hội thoại này có tin nhắn nháp không
+    const draftText = drafts[item._id];
+
     return (
       <TouchableOpacity
         style={styles.chatCard}
@@ -425,7 +424,6 @@ const ChatScreen = ({ route }: any) => {
         onLongPress={() => handleLongPressConv(item)}
         delayLongPress={400}
       >
-        {/* AVATAR + PIN BADGE */}
         <View style={styles.avatarWrapper}>
           <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
             {chatAvatarUrl ? (
@@ -439,12 +437,6 @@ const ChatScreen = ({ route }: any) => {
             )}
           </View>
           {isOnline && !isPinned && <View style={styles.onlineDot} />}
-          {/* ✅ Icon ghim nằm góc dưới phải avatar, đè lên onlineDot */}
-          {/* {isPinned && (
-            <View style={styles.pinBadge}>
-              <Ionicons name="pin" size={9} color="#fff" />
-            </View>
-          )} */}
         </View>
 
         <View style={styles.chatContent}>
@@ -469,25 +461,39 @@ const ChatScreen = ({ route }: any) => {
           </View>
 
           <View style={styles.chatFooter}>
+
+            {/* 1. BÊN TRÁI: Luôn hiển thị nội dung tin nhắn gốc (lastMessage) */}
             <Text
               style={[styles.message, unread > 0 && styles.unreadMessage]}
               numberOfLines={1}
             >
               {messageContent}
             </Text>
-            {/* ✅ Nếu có unread → badge số, nếu không có unread nhưng ghim → icon ghim nhỏ góc phải */}
-            {unread > 0 ? (
-              <LinearGradient
-                colors={[COLORS.primary, COLORS.accent]}
-                style={styles.badge}
-              >
-                <Text style={styles.badgeText}>
-                  {unread > 9 ? "9+" : unread}
+
+            {/* 2. BÊN PHẢI: Cụm chứa chữ [Chưa gửi] và Badge/Pin */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+
+              {/* Hiện chữ [Chưa gửi] màu đỏ nếu có nháp */}
+              {draftText && draftText.trim() !== "" && (
+                <Text style={{ color: COLORS.badge, fontSize: 12, fontWeight: "600", fontStyle: "italic" }}>
+                  Chưa gửi
                 </Text>
-              </LinearGradient>
-            ) : isPinned ? (
-              <Ionicons name="pin-outline" size={15} color={COLORS.textLight} />
-            ) : null}
+              )}
+
+              {unread > 0 ? (
+                <LinearGradient
+                  colors={[COLORS.primary, COLORS.accent]}
+                  style={styles.badge}
+                >
+                  <Text style={styles.badgeText}>
+                    {unread > 9 ? "9+" : unread}
+                  </Text>
+                </LinearGradient>
+              ) : isPinned ? (
+                <Ionicons name="pin-outline" size={15} color={COLORS.textLight} />
+              ) : null}
+            </View>
+
           </View>
         </View>
       </TouchableOpacity>
@@ -516,13 +522,21 @@ const ChatScreen = ({ route }: any) => {
       list = validConversations.filter((c) => c.type === "group");
     }
 
-    // ✅ Pinned lên đầu, giữ nguyên thứ tự bên trong từng nhóm
+    // ✅ SORTING LOGIC MỚI: 1. Pinned -> 2. Nháp -> 3. Thời gian mới nhất
     return [...list].sort((a, b) => {
       const aPinned = pinnedIds.has(a._id) ? 1 : 0;
       const bPinned = pinnedIds.has(b._id) ? 1 : 0;
-      return bPinned - aPinned;
+      if (aPinned !== bPinned) return bPinned - aPinned; // Pinned lên đầu
+
+      const aDraft = drafts[a._id] && drafts[a._id].trim() !== "" ? 1 : 0;
+      const bDraft = drafts[b._id] && drafts[b._id].trim() !== "" ? 1 : 0;
+      if (aDraft !== bDraft) return bDraft - aDraft; // Nháp lên nhì
+
+      const dateA = new Date(a.updated_at || 0).getTime();
+      const dateB = new Date(b.updated_at || 0).getTime();
+      return dateB - dateA; // Mới nhất lên ba
     });
-  }, [validConversations, activeTab, pinnedIds]);
+  }, [validConversations, activeTab, pinnedIds, drafts]); // <-- Nhớ add drafts vào dependency
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return validConversations;
@@ -554,7 +568,6 @@ const ChatScreen = ({ route }: any) => {
                 </Text>
               </View>
               <View style={styles.headerIcons}>
-                {/* NÚT MỞ MÀN HÌNH QUÉT QR CỦA BẠN ĐÂY */}
                 <TouchableOpacity
                   style={styles.iconBtn}
                   onPress={handleOpenQRScanner}
@@ -669,9 +682,6 @@ const ChatScreen = ({ route }: any) => {
         )}
       </View>
 
-      {/* ========================================== */}
-      {/* MODAL MÀN HÌNH TÌM KIẾM */}
-      {/* ========================================== */}
       <Modal
         visible={showSearchModal}
         animationType="slide"
@@ -747,9 +757,6 @@ const ChatScreen = ({ route }: any) => {
         </View>
       </Modal>
 
-      {/* ========================================== */}
-      {/* MODAL GHIM / BỎ GHIM HỘI THOẠI */}
-      {/* ========================================== */}
       <Modal
         visible={showPinMenu}
         transparent
@@ -788,9 +795,6 @@ const ChatScreen = ({ route }: any) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* ========================================== */}
-      {/* MODAL CAMERA QUÉT QR */}
-      {/* ========================================== */}
       <Modal visible={showQRScanner} animationType="slide" transparent={false}>
         <View style={{ flex: 1, backgroundColor: "#000000" }}>
           <SafeAreaView style={{ flex: 1 }}>
@@ -807,14 +811,12 @@ const ChatScreen = ({ route }: any) => {
                 <CameraView
                   style={StyleSheet.absoluteFillObject}
                   facing="back"
-                  // Không cần check điều kiện ở đây nữa, cứ truyền thẳng hàm vào
                   onBarcodeScanned={handleBarcodeScanned}
                   barcodeScannerSettings={{
                     barcodeTypes: ["qr"],
                   }}
                 />
               )}
-              {/* Khung ngắm quét QR mờ ảo */}
               <View style={styles.qrTargetOverlay}>
                 <View style={styles.qrTargetBox} />
               </View>
@@ -839,9 +841,6 @@ const ChatScreen = ({ route }: any) => {
   );
 };
 
-// ==========================================
-// 2. STYLES CHI TIẾT
-// ==========================================
 const getStyles = (COLORS: any, isDarkMode: boolean) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: COLORS.background },
@@ -878,8 +877,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginLeft: 12,
     },
 
-    // --- STYLES THANH TÌM KIẾM ---
-    // --- STYLES THANH TÌM KIẾM FAKE TRÊN HEADER ---
     searchWrapper: { marginTop: 10, paddingHorizontal: 20 },
     searchBarFake: {
       flexDirection: "row",
@@ -897,7 +894,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginLeft: 8,
     },
 
-    // --- STYLES MODAL TÌM KIẾM ---
     searchModalHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -924,7 +920,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       paddingVertical: 0,
     },
 
-    // --- STYLES MODAL QUÉT QR ---
     qrHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -997,7 +992,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderWidth: 1,
       borderColor: COLORS.border,
     },
-    // ✅ Badge ghim nhỏ góc dưới phải avatar (giống Zalo)
     pinBadge: {
       position: "absolute",
       bottom: 0,
