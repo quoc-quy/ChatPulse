@@ -6,7 +6,6 @@ import SignUpPage from './pages/SignUpPage'
 import SignInPage from './pages/SignInPage'
 import { useContext } from 'react'
 import { AppContext } from './context/app.context'
-import ProfilePage from './pages/ProfilePage'
 import FriendPage from './pages/FriendPage'
 import FriendInvitationPage from './pages/FriendInvitationPage'
 import BlockUserPage from './pages/BlockUserPage'
@@ -15,6 +14,7 @@ import ChangePassword from './pages/ChangePassword'
 import VerifyForgotPasswordToken from './pages/VerifyForgotPasswordToken'
 import ResetPassword from './pages/ResetPassword'
 import { ForgotPasswordForm } from './pages/ForgotPasswordForm'
+import VerifyEmail from './pages/VerifyEmail'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -119,6 +119,10 @@ export default function useRouteElements() {
     {
       path: '/reset-password',
       element: <ResetPassword />
+    },
+    {
+      path: '/verify-email',
+      element: <VerifyEmail />
     }
   ])
   return routeElements
