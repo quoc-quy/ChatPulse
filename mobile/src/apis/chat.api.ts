@@ -44,11 +44,11 @@ export const sendMediaMessage = (
   formData.append("convId", conversationId);
   formData.append("type", type);
 
-  // SỬA "file" THÀNH "files" CHO KHỚP VỚI BACKEND
-  formData.append("files", { 
+  formData.append("files", {
     uri: fileAsset.uri,
     name: fileAsset.name || fileAsset.fileName || `file_${Date.now()}`,
-    type: fileAsset.mimeType || "application/octet-stream",
+    // CHỈNH SỬA Ở DÂY: Ưu tiên lấy fileAsset.mimeType, nếu không có mới lấy fileAsset.type
+    type: fileAsset.mimeType || fileAsset.type || "application/octet-stream",
   } as any);
 
   return api.post(`/messages/media`, formData, {
