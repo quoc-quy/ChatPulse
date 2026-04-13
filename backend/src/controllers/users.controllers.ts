@@ -19,6 +19,7 @@ import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { config } from 'dotenv'
 import forgotPasswordService from '~/services/forget_password.services' // Đảm bảo đúng tên file .ts của bạn
+import databaseService from '~/services/database.services'
 
 config()
 
@@ -231,4 +232,30 @@ export const resetPasswordMobileController = async (
   // Gọi service xác thực mã số và cập nhật DB
   const result = await forgotPasswordService.resetPassword(email, otp, password)
   return res.json(result)
+}
+
+export const emailVerifyValidator = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_email_verify_token as TokenPayload
+
+  const user = await databaseService.users.findOne({ _id: new ObjectId(user_id) })
+  //Nếu không tìm thấy user
+  if (!user) {
+    return res.status(404).json({
+      message: 'User not found'
+    })
+  }
+
+  //Nếu token bằng rỗng thì đã verify rồi
+  if (user.email_verify_token === '') {
+    return res.json({
+      message: 'Email already verified before'
+    })
+  }
+
+  const result = await userService.verifyEmail(user_id)
+
+  return res.json({
+    message: 'Email verify successfully',
+    result
+  })
 }

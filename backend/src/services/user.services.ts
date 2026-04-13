@@ -50,19 +50,35 @@ class UserService {
     })
   }
 
+  private signEmailVerifyToken(user_id: string) {
+    return signToken({
+      payload: {
+        user_id,
+        token_type: TokenType.EmailVerifyToken
+      },
+      privateKey: process.env.JWT_SECRET_EMAIL_VERIFY_TOKEN as string,
+      options: {
+        expiresIn: '7d'
+      }
+    })
+  }
+
   private signAccessAndRefreshToken(user_id: string) {
     return Promise.all([this.signAccessToken(user_id), this.signRefreshToken(user_id)])
   }
 
   async register(payload: RegisterReqBody) {
-    const result = await databaseService.users.insertOne(
+    const user_id = new ObjectId()
+    const email_verify_token = await this.signEmailVerifyToken(user_id.toString())
+    await databaseService.users.insertOne(
       new User({
         ...payload,
+        _id: user_id,
         date_of_birth: new Date(payload.date_of_birth),
+        email_verify_token,
         password: hashPassword(payload.password)
       })
     )
-    const user_id = result.insertedId.toString()
     const user = await databaseService.users.findOne(
       {
         _id: new ObjectId(user_id)
@@ -75,13 +91,13 @@ class UserService {
         }
       }
     )
-    const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id)
+    const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id.toString())
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
     )
 
     // await sendEmailNotification(payload.email)
-
+    console.log('email_verify_token:', email_verify_token)
     return { access_token, refresh_token, user }
   }
 
@@ -435,6 +451,28 @@ class UserService {
 
     return {
       message: 'Thay đổi mật khẩu thành công'
+    }
+  }
+
+  async verifyEmail(user_id: string) {
+    const [token] = await Promise.all([
+      this.signAccessAndRefreshToken(user_id),
+      databaseService.users.updateOne(
+        {
+          _id: new ObjectId(user_id)
+        },
+        {
+          $set: {
+            email_verify_token: '',
+            updated_at: new Date()
+          }
+        }
+      )
+    ])
+    const [access_token, refresh_token] = token
+    return {
+      access_token,
+      refresh_token
     }
   }
 }

@@ -584,3 +584,42 @@ export const resetPasswordValidator = validate(
     }
   })
 )
+
+export const emailVerifyTokenValidator = validate(
+  checkSchema(
+    {
+      email_verify_token: {
+        trim: true,
+        custom: {
+          options: async (value, { req }) => {
+            if (!value) {
+              throw new ErrorWithStatus({
+                message: 'Email Verify Token is required',
+                status: httpStatus.UNAUTHORIZED
+              })
+            }
+
+            try {
+              const decoded_email_verify_token = await verifyToken({
+                token: value,
+                secretOrPublicKey: process.env.JWT_SECRET_EMAIL_VERIFY_TOKEN as string
+              })
+
+              ;(req as Request).decoded_email_verify_token = decoded_email_verify_token
+            } catch (error) {
+              if (error instanceof JsonWebTokenError) {
+                throw new ErrorWithStatus({
+                  message: capitalize((error as JsonWebTokenError).message),
+                  status: httpStatus.UNAUTHORIZED
+                })
+              }
+            }
+
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
