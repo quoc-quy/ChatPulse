@@ -9,6 +9,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { sendMediaMessage } from "../apis/chat.api";
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { E2E } from "../utils/e2e.utils"; // Import file tiện ích E2E đã tạo
 import {
   View,
   Text,
@@ -169,6 +170,10 @@ const MessageScreen = () => {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+  const [myPrivateKey, setMyPrivateKey] = useState<string>("");
+  const [myPublicKey, setMyPublicKey] = useState<string>("");
+  const [targetPublicKey, setTargetPublicKey] = useState<string>("");
+  const [isE2EEnabled, setIsE2EEnabled] = useState<boolean>(true); // Bật/tắt E2E (Tùy chọn)
 
   const [pendingMedia, setPendingMedia] = useState<any[]>([]);
   // Thay thế dòng cũ bằng dòng này:
@@ -192,6 +197,38 @@ const MessageScreen = () => {
     if (h > 0) return `${h} ${t.messageHour} ${m} ${t.messageMinute}`;
     if (m > 0) return `${m} ${t.messageMinute} ${s} ${t.messageSecond}`;
     return `${s} ${t.messageSecond}`;
+  };
+
+  const processEncryptedMessages = (rawMsgs: any[], privateKey: string, myId: string) => {
+    return rawMsgs.map((msg) => {
+      // Chỉ giải mã nếu tin nhắn là E2E và là text
+      if (msg.isE2E && msg.type === "text" && msg.encryptedKeys) {
+
+        // Lấy chìa khóa đã mã hóa dành riêng cho ID của mình
+        const myEncryptedAesKey = msg.encryptedKeys[myId];
+
+        if (myEncryptedAesKey && privateKey) {
+          // 1. Giải mã khóa AES bằng Private Key của mình
+          const aesKey = E2E.decryptAESKeyWithRSA(myEncryptedAesKey, privateKey);
+          if (aesKey) {
+            // 2. Giải mã nội dung bằng khóa AES
+            const decryptedContent = E2E.decryptMessageAES(msg.content, aesKey);
+            msg.content = decryptedContent;
+          } else {
+            msg.content = "🔒 Lỗi giải mã khóa AES";
+          }
+        } else {
+          // 🔴 BẮT BỆNH: In ra log xem thiếu myId hay thiếu PrivateKey
+          console.log("❌ LỖI QUYỀN GIẢI MÃ:");
+          console.log("- myId đang tìm:", myId);
+          console.log("- Các ID có trong tin nhắn:", Object.keys(msg.encryptedKeys));
+          console.log("- Có PrivateKey chưa:", !!privateKey);
+
+          msg.content = "🔒 Không có quyền giải mã";
+        }
+      }
+      return msg;
+    });
   };
 
   const handleSuggestReply = async () => {
@@ -378,6 +415,11 @@ const MessageScreen = () => {
   const handleSend = async () => {
     let textToSend = inputText.trim();
     if (textToSend === "@PulseAI ") textToSend = "";
+    console.log("=== KIỂM TRA LÚC BẤM NÚT GỬI ===");
+    console.log("1. isE2EEnabled:", isE2EEnabled);
+    console.log("2. targetUserId:", targetUserId || "THIẾU (undefined)");
+    console.log("3. myPublicKey có chưa:", myPublicKey ? "CÓ" : "THIẾU");
+    console.log("4. targetPublicKey có chưa:", targetPublicKey ? "CÓ" : "THIẾU");
 
     if (textToSend.length > 2000) {
       Alert.alert(
@@ -395,22 +437,49 @@ const MessageScreen = () => {
     if (updateDraft && conversationId) updateDraft(conversationId, "");
 
     if (textToSend.length > 0) {
+      // ... KHAI BÁO BIẾN MỚI CHO E2E
+      let finalContent = textToSend;
+      let isE2E = false;
+      let finalEncryptedKeys: Record<string, string> = {};
+
+      // Nếu là chat 1-1, có khóa của đối phương và E2E đang bật
+      if (isE2EEnabled && targetPublicKey && myPublicKey && targetUserId) {
+        isE2E = true;
+        // 1. Tạo khóa AES ngẫu nhiên
+        const aesKey = await E2E.generateRandomAESKey();
+
+
+        // 2. Mã hóa nội dung
+        finalContent = E2E.encryptMessageAES(textToSend, aesKey);
+
+        // 3. Mã hóa khóa AES cho mình và cho người nhận
+        finalEncryptedKeys[currentUserId] = E2E.encryptAESKeyWithRSA(aesKey, myPublicKey);
+        finalEncryptedKeys[targetUserId] = E2E.encryptAESKeyWithRSA(aesKey, targetPublicKey);
+      }
+
       const tempId = Date.now().toString();
       const tempMessage = {
         _id: tempId,
         conversationId,
         type: "text",
-        content: textToSend,
+        content: textToSend, // UI vẫn hiển thị text gốc cho mượt
         createdAt: new Date().toISOString(),
         sender: { _id: currentUserId, userName: t.messageMe },
         isSending: true,
+        isE2E: isE2E // Hiển thị biểu tượng 🔒 nếu muốn
       };
       setMessages((prev) => [tempMessage, ...prev]);
 
       try {
-        const res = await sendMessage(conversationId, textToSend, "text");
-        const realMessage = res.data.result || res.data;
+        // TRUYỀN THÊM isE2E và finalEncryptedKeys VÀO API
+        const res = await sendMessage(conversationId, finalContent, "text", isE2E, finalEncryptedKeys);
+        let realMessage = res.data.result || res.data;
+
         if (realMessage) {
+          // Vì backend trả về ciphertext, ta cần gắn lại plaintext để UI hiển thị đúng
+          if (realMessage.isE2E) {
+            realMessage.content = textToSend;
+          }
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
           unarchiveChat(conversationId);
         }
@@ -447,7 +516,10 @@ const MessageScreen = () => {
       const rawData = res.data.result || res.data.data || [];
       if (rawData.length > 0) {
         setCursor(rawData[rawData.length - 1]._id);
-        setMessages((prev) => [...prev, ...rawData]);
+
+        // GIẢI MÃ THÊM TẠI ĐÂY
+        const processedData = processEncryptedMessages(rawData, myPrivateKey, currentUserId);
+        setMessages((prev) => [...prev, ...processedData]);
       }
       if (rawData.length < 20) setHasMore(false);
     } catch (error: any) {
@@ -494,16 +566,78 @@ const MessageScreen = () => {
     }
     return undefined;
   };
+  useEffect(() => {
+    const loadKeys = async () => {
+      // 1. LẤY HOẶC TẠO KHÓA CỦA CHÍNH MÌNH
+      let privateK = await AsyncStorage.getItem("rsa_private_key");
+      let publicK = await AsyncStorage.getItem("rsa_public_key");
 
-  const fetchInitialMessages = async () => {
+      if (!privateK || !publicK) {
+        console.log("⚠️ Máy này chưa có khóa RSA, đang tạo mới...");
+        const keys = await E2E.generateRSAKeys(); // Sẽ không bị đơ nữa
+        privateK = keys.privateKey;
+        publicK = keys.publicKey;
+
+        await AsyncStorage.setItem("rsa_private_key", privateK);
+        await AsyncStorage.setItem("rsa_public_key", publicK);
+        console.log("✅ Đã tạo khóa thành công!");
+      }
+
+      setMyPrivateKey(privateK);
+      setMyPublicKey(publicK);
+
+      // 2. LẤY KHÓA CỦA ĐỐI PHƯƠNG
+      if (conversationId && targetUserId) {
+        try {
+          const res = await getConversationDetail(conversationId);
+          const members = res.data?.result?.members || [];
+
+          const targetUser = members.find((m: any) =>
+            m.userId?.toString() === targetUserId ||
+            m.user_id?.toString() === targetUserId ||
+            m._id?.toString() === targetUserId
+          );
+
+          if (targetUser && targetUser.publicKey) {
+            setTargetPublicKey(targetUser.publicKey);
+          } else {
+            // 🔴 DÙNG TẠM ĐỂ TEST: Nếu Database bạn chưa lưu publicKey của user kia, 
+            // thì hãy mượn tạm khóa public của chính bạn để mã hóa, như vậy app sẽ không bị lỗi
+            setTargetPublicKey(publicK);
+          }
+        } catch (e) {
+          console.log("Lỗi gọi API getConversationDetail:", e);
+        }
+      }
+    };
+
+    loadKeys();
+  }, [conversationId, targetUserId]);
+
+  // Truyền thẳng userId vào hàm thay vì đợi State cập nhật
+  const fetchInitialMessages = async (activeUserId?: string) => {
     if (!conversationId) return;
+
+    // Sử dụng ID được truyền vào, nếu không có mới dùng currentUserId
+    const uId = activeUserId || currentUserId;
+
     try {
       setLoading(true);
       const res = await getMessages(conversationId, null, 20);
       const rawData = res.data.result || res.data.data || [];
       if (rawData.length > 0) setCursor(rawData[rawData.length - 1]._id);
       if (rawData.length < 20) setHasMore(false);
-      setMessages(rawData);
+
+      // Đảm bảo PrivateKey không bị rỗng ngay lần đầu mở màn hình
+      let pkToDecrypt = myPrivateKey;
+      if (!pkToDecrypt) {
+        pkToDecrypt = await AsyncStorage.getItem("rsa_private_key") || "";
+        if (pkToDecrypt) setMyPrivateKey(pkToDecrypt);
+      }
+
+      // GIẢI MÃ VỚI ID CHUẨN
+      const processedData = processEncryptedMessages(rawData, pkToDecrypt, uId);
+      setMessages(processedData);
     } catch (error: any) {
       console.log("Lỗi tải tin nhắn:", error.message);
     } finally {
@@ -529,7 +663,8 @@ const MessageScreen = () => {
 
   useEffect(() => {
     fetchCurrentUserId().then((userId?: string) => {
-      fetchInitialMessages();
+      // ✅ TRUYỀN `userId` VÀO ĐÂY ĐỂ TRÁNH BẤT ĐỒNG BỘ
+      fetchInitialMessages(userId);
       if (userId) fetchMuteState(userId);
     });
   }, [conversationId]);
