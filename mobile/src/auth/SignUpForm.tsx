@@ -16,14 +16,13 @@ import { SocialButtons } from "../components/auth/SocialButtons";
 import {
   validateEmail,
   validatePassword,
-  validateFullName,
+  // validateFullName,
   validateUserName,
   validatePhone,
 } from "../utils/validations";
 import { registerApi } from "../apis/user.api";
 
 export function SignUpForm({ navigation }: any) {
-  const [fullName, setFullName] = useState("");
   const [userName, setUserName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -34,7 +33,6 @@ export function SignUpForm({ navigation }: any) {
   const [errors, setErrors] = useState<any>({});
 
   const handleSignUp = async () => {
-    const nameError = validateFullName(fullName);
     const userError = validateUserName(userName);
     const phoneError = validatePhone(phone);
     const emailError = validateEmail(email);
@@ -46,7 +44,7 @@ export function SignUpForm({ navigation }: any) {
     }
 
     if (
-      nameError ||
+      // nameError ||
       userError ||
       phoneError ||
       emailError ||
@@ -54,7 +52,7 @@ export function SignUpForm({ navigation }: any) {
       confirmError
     ) {
       setErrors({
-        fullName: nameError,
+        // fullName: nameError,
         userName: userError,
         phone: phoneError,
         email: emailError,
@@ -68,7 +66,6 @@ export function SignUpForm({ navigation }: any) {
     setLoading(true);
     try {
       const response = await registerApi({
-        fullName: fullName.trim(),
         userName: userName.trim(),
         phone: phone.trim(),
         email: email.trim().toLowerCase(),
@@ -115,16 +112,6 @@ export function SignUpForm({ navigation }: any) {
 
             {/* Các trường dữ liệu với Spacing hợp lý */}
             <View style={styles.formGroup}>
-              <Input
-                label="Full Name"
-                placeholder="John Doe"
-                value={fullName}
-                error={errors.fullName}
-                onChangeText={(text) => {
-                  setFullName(text);
-                  if (errors.fullName) setErrors({ ...errors, fullName: null });
-                }}
-              />
               <Input
                 label="User Name"
                 placeholder="johndoe123"
