@@ -3,7 +3,7 @@ import databaseService from './database.services'
 import { ChangePasswordReqBody, RegisterReqBody, UpdateMeReqBody } from '~/models/requests/users.requests'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
-import { TokenType } from '~/constants/enum'
+import { TokenType, UserVerifyStatus } from '~/constants/enum'
 import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import { ObjectId } from 'mongodb'
 import { ErrorWithStatus } from '~/models/errors'
@@ -115,6 +115,13 @@ class UserService {
         }
       }
     )
+
+    if(user?.verify == UserVerifyStatus.Unverified) {
+      throw new ErrorWithStatus({
+        message: "Người dùng chưa xác thực email",
+        status: httpStatus.UNAUTHORIZED
+      })
+    }
 
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
@@ -464,6 +471,7 @@ class UserService {
         {
           $set: {
             email_verify_token: '',
+            verify: UserVerifyStatus.Verified,
             updated_at: new Date()
           }
         }

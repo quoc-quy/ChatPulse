@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb'
+import { UserVerifyStatus } from '~/constants/enum'
 
 interface UserType {
   _id?: ObjectId
@@ -13,6 +14,7 @@ interface UserType {
   gender?: string
   forgot_password_token?: string
   email_verify_token?: string
+  verify?: UserVerifyStatus
   last_active_at?: Date
   fcm_token?: string
   created_at?: Date
@@ -33,6 +35,7 @@ export default class User {
   gender: string
   forgot_password_token: string
   email_verify_token: string
+  verify: UserVerifyStatus
   last_active_at: Date
   fcm_token: string
   created_at: Date
@@ -52,6 +55,7 @@ export default class User {
     gender,
     forgot_password_token,
     email_verify_token,
+    verify,
     last_active_at,
     fcm_token,
     created_at,
@@ -71,6 +75,7 @@ export default class User {
     this.gender = gender || ''
     this.forgot_password_token = forgot_password_token || ''
     this.email_verify_token = email_verify_token || ''
+    this.verify = verify || UserVerifyStatus.Unverified
     this.last_active_at = last_active_at || date
     this.fcm_token = fcm_token || ''
     this.created_at = created_at || date

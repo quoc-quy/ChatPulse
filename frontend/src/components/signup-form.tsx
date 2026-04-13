@@ -3,22 +3,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
 import { useMutation } from '@tanstack/react-query'
 import authApi, { type RegisterBody } from '@/apis/auth.api'
 import { toast } from 'react-toastify'
-import { useContext } from 'react'
-import { AppContext } from '@/context/app.context'
 import backgroundRegisterImage from '../../public/background-register.png'
 
 type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
-  const { setIsAuthenticated, setProfile } = useContext(AppContext)
-  const navigate = useNavigate()
-
   const {
     handleSubmit,
     register,
@@ -38,11 +33,8 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
       date_of_birth: new Date(data.date_of_birth as string).toISOString()
     }
     registrationMutation.mutate(body, {
-      onSuccess: (data) => {
-        navigate('/')
-        setIsAuthenticated(true)
-        setProfile(data.data.result.user)
-        toast.success('Đăng ký tài khoản thành công')
+      onSuccess: () => {
+        toast.success('Đăng ký tài khoản thành công, vui lòng kiểm tra email để xác thực tài khoản')
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
