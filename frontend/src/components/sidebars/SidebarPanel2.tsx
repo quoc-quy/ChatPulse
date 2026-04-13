@@ -16,6 +16,7 @@ import { AppContext } from '@/context/app.context'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { E2E } from '@/utils/e2e.utils'
 
+// Đã cập nhật Interface để nhận onSwitchToChat
 interface SidebarPanel2Props {
   activeItem: any
   isLoading: boolean
@@ -23,6 +24,7 @@ interface SidebarPanel2Props {
   setActiveChat: (chat: any) => void
   setChatList: React.Dispatch<React.SetStateAction<any[]>>
   profileId: string
+  onSwitchToChat: () => void
 }
 
 export function SidebarPanel2({
@@ -31,7 +33,8 @@ export function SidebarPanel2({
   chatList,
   setActiveChat,
   setChatList,
-  profileId
+  profileId,
+  onSwitchToChat
 }: SidebarPanel2Props) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -44,6 +47,26 @@ export function SidebarPanel2({
   const { setOpenMobile, isMobile } = useSidebar()
   const [keyword, setKeyword] = React.useState('')
   const [searchResults, setSearchResults] = React.useState<any[]>([])
+
+  // Sử dụng useRef để lưu trữ chatList mới nhất, tránh lỗi closure trong Event Listener
+  const chatListRef = React.useRef(chatList)
+  React.useEffect(() => {
+    chatListRef.current = chatList
+  }, [chatList])
+
+  // ================= TỰ ĐỘNG CUỘN (AUTO-SCROLL) =================
+  React.useEffect(() => {
+    if (activeChat?.id && !keyword && activeItem.title === 'Tin nhắn') {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`chat-item-${activeChat.id}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100) // Đợi 100ms để đảm bảo DOM đã render xong danh sách
+      return () => clearTimeout(timer)
+    }
+  }, [activeChat?.id, activeItem.title, keyword])
+  // ==============================================================
 
   const handleChatSelect = async (chatId: string) => {
     if (chatId === 'ai-chatbot') {
@@ -60,7 +83,8 @@ export function SidebarPanel2({
       return
     }
 
-    const targetChat = chatList.find((c) => String(c.id) === String(chatId))
+    // Dùng chatListRef.current để lấy dữ liệu chuẩn xác nhất
+    const targetChat = chatListRef.current.find((c) => String(c.id) === String(chatId))
     if (!targetChat) return
 
     let displayAvatar = targetChat.avatarUrl
@@ -86,7 +110,7 @@ export function SidebarPanel2({
       unreadCount: targetChat.unreadCount,
       participants: targetChat.participants,
       admin_id: targetChat.admin_id,
-      isFriend: targetChat.isFriend // Kế thừa cờ bạn bè
+      isFriend: targetChat.isFriend
     })
 
     setChatList((currentChatList) =>
@@ -102,6 +126,71 @@ export function SidebarPanel2({
       console.error('Lỗi khi đánh dấu xem:', error)
     }
   }
+
+  // ================= XỬ LÝ CLICK TỪ TÌM KIẾM =================
+  const handleSelectSearchResult = (searchedUser: any) => {
+    const existingChat = chatListRef.current.find(
+      (c) => c.type === 'direct' && c.participants?.some((p: any) => String(p._id) === String(searchedUser._id))
+    )
+
+    if (existingChat) {
+      handleChatSelect(existingChat.id)
+    } else {
+      setActiveChat({
+        id: `temp_${searchedUser._id}`,
+        name: searchedUser.userName,
+        avatar: searchedUser.avatar,
+        isOnline: searchedUser.isOnline === true,
+        type: 'direct',
+        unreadCount: 0,
+        participants: [searchedUser]
+      })
+
+      if (isMobile) setOpenMobile(false)
+      if (location.pathname !== '/') navigate('/')
+    }
+
+    setKeyword('')
+    setSearchResults([])
+  }
+  // =========================================================
+
+  // ================= LẮNG NGHE EVENT TỪ FRIEND PAGE =================
+  React.useEffect(() => {
+    const handleStartChatEvent = (e: Event) => {
+      const customEvent = e as CustomEvent
+      const friend = customEvent.detail
+
+      // Gọi prop để chuyển Navbar Panel 1 về tab "Tin nhắn"
+      if (onSwitchToChat) onSwitchToChat()
+
+      // Kiểm tra xem đã có cuộc trò chuyện chưa
+      const existingChat = chatListRef.current.find(
+        (c) => c.type === 'direct' && c.participants?.some((p: any) => String(p._id) === String(friend._id))
+      )
+
+      if (existingChat) {
+        handleChatSelect(existingChat.id)
+      } else {
+        // Nếu chưa có, tạo chat tạm thời
+        setActiveChat({
+          id: `temp_${friend._id}`,
+          name: friend.userName || friend.fullName || 'Người dùng',
+          avatar: friend.avatar,
+          isOnline: friend.isOnline === true,
+          type: 'direct',
+          unreadCount: 0,
+          participants: [friend]
+        })
+
+        if (isMobile) setOpenMobile(false)
+      }
+    }
+
+    window.addEventListener('start_chat_with_friend', handleStartChatEvent)
+    return () => window.removeEventListener('start_chat_with_friend', handleStartChatEvent)
+  }, [onSwitchToChat, isMobile])
+  // ====================================================================
 
   const searchUserMutation = useMutation({
     mutationFn: (userName: string) => searchApi.advancedSearch({ userName })
@@ -167,6 +256,7 @@ export function SidebarPanel2({
             searchResults.map((user: any) => (
               <div
                 key={user._id}
+                onClick={() => handleSelectSearchResult(user)}
                 className='flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-sidebar-accent cursor-pointer'
               >
                 <div className='h-10 w-10 rounded-full overflow-hidden'>
@@ -192,6 +282,7 @@ export function SidebarPanel2({
           {!keyword && activeItem.title === 'Tin nhắn' && (
             <>
               <div
+                id='chat-item-ai-chatbot'
                 onClick={() => handleChatSelect('ai-chatbot')}
                 className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
                   activeChat?.id === 'ai-chatbot' ? 'bg-muted/80' : 'hover:bg-muted/30'
@@ -227,8 +318,8 @@ export function SidebarPanel2({
                   return (
                     <div
                       key={chat.id}
+                      id={`chat-item-${chat.id}`}
                       onClick={() => handleChatSelect(chat.id)}
-                      // 1. SỬA Ở ĐÂY: Đổi 'group' thành 'group/chat'
                       className={`group/chat relative flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-all duration-200 w-full overflow-hidden ${
                         isActive ? 'bg-[#e5efff] dark:bg-muted' : 'hover:bg-muted/50'
                       } ${isUnfriended ? 'opacity-70 bg-muted/40 border border-border/50' : ''}`}
@@ -258,7 +349,6 @@ export function SidebarPanel2({
                         <div className='flex justify-between items-center gap-2'>
                           <p className='text-sm text-muted-foreground truncate'>
                             {(() => {
-                              // 1. Ưu tiên hiển thị bản nháp
                               if (chat.draftContent && String(chat.id) !== String(activeChat?.id)) {
                                 return (
                                   <>
@@ -266,8 +356,6 @@ export function SidebarPanel2({
                                   </>
                                 )
                               }
-
-                              // 2. Các loại tin nhắn hệ thống, thu hồi, hình ảnh (KHÔNG ĐƯA VÀO GIẢI MÃ)
                               const isSpecialMessage = [
                                 'Tin nhắn đã được thu hồi',
                                 '[Hình ảnh/Video]',
@@ -275,7 +363,6 @@ export function SidebarPanel2({
                               ].includes(chat.message)
                               if (isSpecialMessage) return `${chat.senderPrefix || ''}${chat.message}`
 
-                              // 3. Xử lý giải mã nếu là tin nhắn E2E văn bản bình thường
                               if (chat.isE2E) {
                                 if (chat.encryptedKeys && chat.encryptedKeys[profileId]) {
                                   const privateKey = localStorage.getItem(`rsa_private_key_${profileId}`)
@@ -295,7 +382,6 @@ export function SidebarPanel2({
                                 return `${chat.senderPrefix || ''}🔒 [Tin nhắn bảo mật]`
                               }
 
-                              // 4. Tin nhắn thường
                               return `${chat.senderPrefix || ''}${chat.message}`
                             })()}
                           </p>
@@ -307,9 +393,7 @@ export function SidebarPanel2({
                         </div>
                       </div>
 
-                      {/* NÚT 3 CHẤM - CHỈ HIỆN KHI ĐÃ HỦY KẾT BẠN */}
                       {isUnfriended && (
-                        // 2. SỬA Ở ĐÂY: Đổi 'group-hover:opacity-100' thành 'group-hover/chat:opacity-100'
                         <div className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/chat:opacity-100 transition-opacity z-50'>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

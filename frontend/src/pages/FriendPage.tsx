@@ -5,16 +5,24 @@ import { Input } from '@/components/ui/input'
 import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Users } from 'lucide-react'
+import { Users, MoreHorizontal } from 'lucide-react'
 import { toast } from 'react-toastify'
 import userApi from '@/apis/user.api'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import SearchModal from './SearchModal'
+import { LeaveGroupModal } from '@/components/chat/info-panel/LeaveGroupModal'
 
 export default function FriendPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [openInfo, setOpenInfo] = useState(false)
+
+  // State cho Modal Hủy kết bạn
+  const [unfriendModalOpen, setUnfriendModalOpen] = useState(false)
+  const [userToUnfriend, setUserToUnfriend] = useState<string | null>(null)
+
   const queryClient = useQueryClient()
   const { data } = useQuery({
     queryKey: ['friendList'],
@@ -27,17 +35,13 @@ export default function FriendPage() {
   })
 
   const blockedIds = blockedData?.data.result?.map((item: any) => item.blocked_user_id) || []
-
   const listFriends: User[] = data?.data.result || []
 
   const unFriendMutation = useMutation({
     mutationFn: (friend_id: string) => friendApi.unFriend({ friend_id }),
     onSuccess: () => {
       toast.success('Hủy kết bạn thành công')
-
-      queryClient.invalidateQueries({
-        queryKey: ['friendList']
-      })
+      queryClient.invalidateQueries({ queryKey: ['friendList'] })
     }
   })
 
@@ -45,7 +49,6 @@ export default function FriendPage() {
     mutationFn: (blocked_user_id: string) => userApi.blockUser({ blocked_user_id }),
     onSuccess: (data) => {
       toast.success(data.data.message)
-
       queryClient.invalidateQueries({ queryKey: ['blockedUsers'] })
       queryClient.invalidateQueries({ queryKey: ['friendList'] })
     }
@@ -55,27 +58,33 @@ export default function FriendPage() {
     mutationFn: (user_id: string) => userApi.unBlockUser(user_id),
     onSuccess: (data) => {
       toast.success(data.data.message)
-
       queryClient.invalidateQueries({ queryKey: ['blockedUsers'] })
       queryClient.invalidateQueries({ queryKey: ['friendList'] })
     }
   })
 
   const handleUnfriend = (user_id: string) => {
-    unFriendMutation.mutate(user_id)
+    // Thay vì gọi trực tiếp API, mở modal xác nhận
+    setUserToUnfriend(user_id)
+    setUnfriendModalOpen(true)
   }
 
-  const handleBlock = (friend_id: string) => {
-    blockUserMutation.mutate(friend_id)
+  const confirmUnfriend = () => {
+    if (userToUnfriend) {
+      unFriendMutation.mutate(userToUnfriend)
+      setUserToUnfriend(null)
+    }
   }
 
-  const handleUnBlock = (friend_id: string) => {
-    unBlockMutation.mutate(friend_id)
+  const handleBlock = (friend_id: string) => blockUserMutation.mutate(friend_id)
+  const handleUnBlock = (friend_id: string) => unBlockMutation.mutate(friend_id)
+
+  const handleStartChat = (friend: User) => {
+    navigate('/')
+    window.dispatchEvent(new CustomEvent('start_chat_with_friend', { detail: friend }))
   }
 
-  const filteredFriends = listFriends.filter((friend) =>
-  friend.userName.toLowerCase().includes(search.toLowerCase())
-)
+  const filteredFriends = listFriends.filter((friend) => friend.userName.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className='flex flex-1 bg-gray-200 dark:bg-gray-900 flex-col text-foreground'>
@@ -102,7 +111,6 @@ export default function FriendPage() {
               d='m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z'
             />
           </svg>
-
           <Input
             className='w-full pl-10'
             placeholder='Tìm bạn'
@@ -116,40 +124,31 @@ export default function FriendPage() {
             return (
               <div
                 key={friend.userName}
-                className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-sidebar-accent  hover:rounded-sm text-foreground cursor-pointer'
+                onClick={() => handleStartChat(friend)}
+                className='flex items-center mx-4 justify-between px-4 py-4 hover:bg-gray-900/10 dark:hover:bg-sidebar-accent hover:rounded-sm text-foreground cursor-pointer transition-colors'
               >
                 <div className='flex items-center'>
-                  {!friend.avatar && (
+                  {!friend.avatar ? (
                     <Avatar className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
                       <AvatarImage src={friend?.avatar} alt={friend?.userName} />
                       <AvatarFallback className='font-semibold bg-blue-100 text-blue-600'>
                         {getInitials(friend?.userName)}
                       </AvatarFallback>
                     </Avatar>
-                  )}
-                  {friend?.avatar && (
+                  ) : (
                     <div className='h-12 w-12 mr-5 overflow-hidden text-foreground rounded-full border-gray-500'>
                       <img src={friend.avatar} alt='avatar' className='h-full w-full object-cover' />
                     </div>
                   )}
-                  <p>{friend.userName}</p>
+                  <p className='font-medium'>{friend.userName}</p>
                 </div>
-                <div>
+
+                {/* NGĂN CHẶN SỰ KIỆN NỔI BỌT KHI CLICK VÀO DẤU 3 CHẤM */}
+                <div onClick={(e) => e.stopPropagation()}>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <button className='p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 cursor-pointer'>
-                        <svg
-                          xmlns='http://www.w3.org/2000/svg'
-                          viewBox='0 0 24 24'
-                          fill='currentColor'
-                          className='size-7'
-                        >
-                          <path
-                            fill-rule='evenodd'
-                            d='M4.5 12a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z'
-                            clip-rule='evenodd'
-                          />
-                        </svg>
+                      <button className='p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 cursor-pointer transition-colors'>
+                        <MoreHorizontal className='size-6' />
                       </button>
                     </PopoverTrigger>
 
@@ -157,38 +156,24 @@ export default function FriendPage() {
                       <div className='flex flex-col gap-1'>
                         <button
                           onClick={() => {
-                            setSelectedUser({
-                              ...friend,
-                              isBlocked: blockedIds.includes(friend._id),
-                              isFriend: true
-                            })
+                            setSelectedUser({ ...friend, isBlocked: blockedIds.includes(friend._id), isFriend: true })
                             setOpenInfo(true)
                           }}
                           className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'
                         >
                           Xem thông tin
                         </button>
-
                         <div className='border border-gray-200' />
-
                         <button
-                          onClick={() => {
-                            if (isBlocked) {
-                              handleUnBlock(friend._id)
-                            } else {
-                              handleBlock(friend._id)
-                            }
-                          }}
+                          onClick={() => (isBlocked ? handleUnBlock(friend._id) : handleBlock(friend._id))}
                           className='text-left px-3 py-2 hover:bg-gray-100 rounded cursor-pointer dark:hover:bg-sidebar-accent'
                           disabled={blockUserMutation.isPending || unBlockMutation.isPending}
                         >
                           {isBlocked ? 'Gỡ chặn người dùng' : 'Chặn người dùng'}
                         </button>
-
                         <div className='border border-gray-200' />
-
                         <button
-                          onClick={() => handleUnfriend(friend._id)}
+                          onClick={() => handleUnfriend(friend._id)} // Đã sửa lại để gọi modal
                           className='text-left px-3 py-2 hover:bg-gray-100 rounded text-red-500 cursor-pointer dark:hover:bg-sidebar-accent'
                         >
                           Hủy kết bạn
@@ -203,6 +188,17 @@ export default function FriendPage() {
           {selectedUser && <SearchModal open={openInfo} onOpenChange={setOpenInfo} user={selectedUser} />}
         </div>
       </div>
+
+      {/* TÍCH HỢP MODAL HỦY KẾT BẠN */}
+      <LeaveGroupModal
+        isOpen={unfriendModalOpen}
+        onClose={() => setUnfriendModalOpen(false)}
+        mode='unfriend' // Thiết lập mode là Hủy kết bạn
+        title='Xác nhận hủy kết bạn'
+        description='Sau khi hủy kết bạn, bạn sẽ không thể nhắn tin hay gọi điện cho người đó nữa. Bạn có chắc chắn muốn tiếp tục không?'
+        confirmText='Hủy kết bạn'
+        onConfirm={confirmUnfriend}
+      />
     </div>
   )
 }

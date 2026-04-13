@@ -53,6 +53,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           setActiveChat={setActiveChat}
           setChatList={setChatList}
           profileId={profile?._id || ''}
+          onSwitchToChat={() => setActiveItem(navMain[0])}
         />
       </div>
     </Sidebar>
