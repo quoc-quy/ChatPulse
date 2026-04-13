@@ -91,6 +91,26 @@ const REACTION_LIST = ["👍", "❤️", "🤣", "😮", "😭", "😡"];
 const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// ✅ HÀM TIỆN ÍCH DÙNG CHUNG ĐỂ BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
+const unarchiveChat = async (conversationId: string) => {
+  try {
+    const stored = await AsyncStorage.getItem("archived_chats");
+    if (stored) {
+      let archivedArray: string[] = JSON.parse(stored);
+      // Tìm xem có key nào bắt đầu bằng conversationId: (hoặc chỉ là conversationId nếu format cũ)
+      const index = archivedArray.findIndex((key: string) => key.startsWith(`${conversationId}:`) || key === conversationId);
+      
+      if (index !== -1) {
+        // Nếu tìm thấy, tức là chat đang bị lưu trữ -> XÓA NÓ ĐI
+        archivedArray.splice(index, 1);
+        await AsyncStorage.setItem("archived_chats", JSON.stringify(archivedArray));
+      }
+    }
+  } catch (error) {
+    console.log("Lỗi unarchive:", error);
+  }
+};
+
 const MessageScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -291,6 +311,9 @@ const MessageScreen = () => {
 
       if (realMessage) {
         setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
+        
+        // ✅ GỌI HÀM BỎ LƯU TRỮ CHAT KHI GỬI ẢNH/FILE THÀNH CÔNG
+        unarchiveChat(conversationId);
       }
     } catch (error: any) {
       console.log("Lỗi upload:", error);
@@ -337,7 +360,7 @@ const MessageScreen = () => {
     const mediaToSend = [...pendingMedia];
     if (textToSend.length === 0 && mediaToSend.length === 0) return;
 
-    // ✅ SAU KHI GỬI THÌ PHẢI XÓA NHÁP
+    // SAU KHI GỬI THÌ PHẢI XÓA NHÁP
     setInputText("");
     setPendingMedia([]);
     if (updateDraft && conversationId) updateDraft(conversationId, "");
@@ -361,6 +384,9 @@ const MessageScreen = () => {
         const realMessage = res.data.result || res.data;
         if (realMessage) {
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
+          
+          // ✅ GỌI HÀM BỎ LƯU TRỮ CHAT KHI GỬI TIN NHẮN THÀNH CÔNG
+          unarchiveChat(conversationId);
         }
       } catch (error: any) {
         console.log("Lỗi khi gửi text:", error);
@@ -904,11 +930,11 @@ const MessageScreen = () => {
       const showAvatar = !isMe;
       const orderedImages = item.images.slice().reverse();
       const count = orderedImages.length;
-      const displayImages = orderedImages.slice(0, 5);
+      const displayImages = orderedImages.slice(0, 5); 
       const hiddenCount = count - 5;
 
-      const W = 240;
-      const gap = 3;
+      const W = 240; 
+      const gap = 3; 
 
       const renderImg = (imgMsg: any, style: any, isLast: boolean = false) => (
         <TouchableOpacity
@@ -1011,7 +1037,7 @@ const MessageScreen = () => {
               </Text>
             </View>
           )}
-
+          
           <View style={[
             styles.systemMessageWrapper,
             item.type === "system_error" && {
@@ -1019,30 +1045,30 @@ const MessageScreen = () => {
               backgroundColor: isDarkMode ? "rgba(239, 68, 68, 0.15)" : "rgba(254, 226, 226, 0.8)",
               paddingHorizontal: 16,
               paddingVertical: 12,
-              borderRadius: 20,
+              borderRadius: 20, 
               borderWidth: 1,
               borderColor: isDarkMode ? "rgba(239, 68, 68, 0.4)" : "rgba(239, 68, 68, 0.2)",
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6
+              gap: 6 
             }
           ]}>
             {item.type === "system_error" && (
               <Ionicons name="warning-outline" size={18} color={COLORS.badge} />
             )}
-
+            
             <Text
               style={[
                 styles.systemMessageText,
-                item.type === "system_error"
-                  ? {
-                    color: COLORS.badge,
-                    fontWeight: "600",
-                    fontSize: 13,
-                    textAlign: "center",
-                    flexShrink: 1
-                  }
+                item.type === "system_error" 
+                  ? { 
+                      color: COLORS.badge, 
+                      fontWeight: "600", 
+                      fontSize: 13, 
+                      textAlign: "center",
+                      flexShrink: 1 
+                    } 
                   : { color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)" },
               ]}
             >
@@ -1478,10 +1504,25 @@ const MessageScreen = () => {
         )}
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachBtn} onPress={handleAttachPress} disabled={isUploading}>
-            <Feather name="plus" size={24} color={COLORS.textLight} />
+          {/* NÚT 1: GỬI ẢNH/VIDEO */}
+          <TouchableOpacity 
+            style={styles.attachBtn} 
+            onPress={handlePickMedia} // <-- Gọi trực tiếp hàm chọn media
+            disabled={isUploading}
+          >
+            <Ionicons name="image-outline" size={24} color={COLORS.textLight} />
           </TouchableOpacity>
 
+          {/* NÚT 2: GỬI FILE/TÀI LIỆU */}
+          <TouchableOpacity 
+            style={styles.attachBtn} 
+            onPress={handlePickDocument} // <-- Gọi trực tiếp hàm chọn file
+            disabled={isUploading}
+          >
+            <Ionicons name="attach" size={24} color={COLORS.textLight} />
+          </TouchableOpacity>
+
+          {/* NÚT 3: GỢI Ý CỦA AI */}
           <TouchableOpacity
             style={styles.attachBtn}
             onPress={handleSuggestReply}
@@ -1494,6 +1535,7 @@ const MessageScreen = () => {
             )}
           </TouchableOpacity>
 
+          {/* Ô NHẬP TEXT */}
           <View
             style={[
               styles.textInput,
@@ -1504,6 +1546,7 @@ const MessageScreen = () => {
               },
             ]}
           >
+           {/* ... (Phần hiển thị @PulseAI và TextInput giữ nguyên y hệt như cũ) ... */}
             {inputText.startsWith("@PulseAI ") && (
               <Text
                 style={{
@@ -1996,8 +2039,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderColor: COLORS.border,
     },
     attachBtn: {
-      padding: 8,
-      marginBottom: 2
+      padding: 6, // Giảm từ 8 xuống 6
+      marginBottom: 4, 
     },
     textInput: {
       flex: 1,

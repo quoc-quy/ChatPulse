@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { joinGroupByLink } from "../apis/chat.api";
 import {
   View,
@@ -26,6 +26,8 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useChatContext } from "../contexts/ChatContext";
 import { CameraView, useCameraPermissions } from "expo-camera";
+// Sửa dòng import cũ thành thế này:
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { getConversations, pinConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
@@ -45,6 +47,7 @@ const lightColors = {
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
+  mutedForeground: "#94A3B8",
 };
 
 const darkColors = {
@@ -59,19 +62,19 @@ const darkColors = {
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
+  mutedForeground: "#475569",
 };
 
 const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const { language, t } = useTranslation();
 
-  // ✅ Lấy thêm drafts từ Context
   const {
     setTotalUnreadCount,
     setLocalUnread,
     getLocalUnread,
     localUnreadMap,
-    drafts = {}, // Lấy object chứa các tin nhắn nháp
+    drafts = {},
   } = useChatContext() as any;
 
   const { isDarkMode } = useTheme();
@@ -91,6 +94,10 @@ const ChatScreen = ({ route }: any) => {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+
+  // ✅ STATE QUẢN LÝ LƯU TRỮ (ARCHIVE)
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [selectedConvForPin, setSelectedConvForPin] = useState<any>(null);
 
@@ -100,6 +107,65 @@ const ChatScreen = ({ route }: any) => {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const scannedRef = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
+
+  // Load danh sách đã lưu trữ từ AsyncStorage
+  useEffect(() => {
+    const loadArchived = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("archived_chats");
+        if (stored) {
+          setArchivedIds(new Set(JSON.parse(stored)));
+        }
+      } catch (error) {
+        console.log("Lỗi load archive:", error);
+      }
+    };
+    loadArchived();
+  }, []);
+
+  // Load danh sách đã lưu trữ từ AsyncStorage
+  useEffect(() => {
+    const loadArchived = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("archived_chats");
+        if (stored) {
+          setArchivedIds(new Set(JSON.parse(stored)));
+        }
+      } catch (error) {
+        console.log("Lỗi load archive:", error);
+      }
+    };
+    loadArchived();
+  }, []);
+
+  // ✅ LOGIC MỚI: TỰ ĐỘNG BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
+  useEffect(() => {
+    if (archivedIds.size === 0 || conversations.length === 0) return;
+
+    let hasChanges = false;
+    const newArchivedIds = new Set(archivedIds);
+
+    conversations.forEach((conv) => {
+      // Kiểm tra nếu chat này đang bị lưu trữ
+      if (newArchivedIds.has(conv._id)) {
+        // Kiểm tra xem chat có tin nhắn mới (chưa đọc) không
+        const unread = getLocalUnread(conv._id);
+
+        // HOẶC kiểm tra xem updated_at có mới hơn thời điểm bạn lưu trữ không
+        // Ở đây đơn giản nhất là: Cứ có unread > 0 thì tự động bung ra.
+        // Bạn cũng có thể bung ra ngay lập tức nếu thấy nó nhảy lên đầu danh sách (tức là có tin nhắn mới từ mình/người kia).
+        if (unread > 0 || conv.lastMessage?.senderId === currentUserId) {
+          newArchivedIds.delete(conv._id);
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
+      setArchivedIds(newArchivedIds);
+      AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(newArchivedIds)));
+    }
+  }, [conversations, localUnreadMap]); // Lắng nghe sự thay đổi của conversations và unread
 
   React.useEffect(() => {
     const totalUnread = Object.values(localUnreadMap).reduce(
@@ -151,48 +217,67 @@ const ChatScreen = ({ route }: any) => {
       const newConversations = response.data.result || [];
       setHasMore(newConversations.length >= 20);
 
-      if (isRefresh || pageNumber === 1) {
-        setConversations(newConversations);
+      // ✅ TÍCH HỢP KIỂM TRA LƯU TRỮ NGAY TẠI ĐÂY
+      let archivedHasChanged = false;
+      const currentArchived = new Set(archivedIds);
 
-        let resolvedUserId = currentUserId;
-        if (!resolvedUserId) {
-          try {
-            const token = await AsyncStorage.getItem("access_token");
-            if (token) {
-              const decoded: any = jwtDecode(token);
-              resolvedUserId = decoded.user_id || decoded._id || decoded.id;
-            }
-          } catch { }
+      // Lấy ID người dùng hiện tại
+      let resolvedUserId = currentUserId;
+      if (!resolvedUserId) {
+        try {
+          const token = await AsyncStorage.getItem("access_token");
+          if (token) {
+            const decoded: any = jwtDecode(token);
+            resolvedUserId = decoded.user_id || decoded._id || decoded.id;
+          }
+        } catch { }
+      }
+
+      const processConversation = (conv: any, pinned: Set<string>) => {
+        if (!conv._id) return;
+
+        if (!initializedConvsRef.current.has(conv._id)) {
+          initializedConvsRef.current.add(conv._id);
+          setLocalUnread(conv._id, conv.unread_count || 0);
         }
 
-        const pinned = new Set<string>();
-        newConversations.forEach((conv: any) => {
-          if (!conv._id) return;
-          if (!initializedConvsRef.current.has(conv._id)) {
-            initializedConvsRef.current.add(conv._id);
-            setLocalUnread(conv._id, conv.unread_count || 0);
+        // KHI CÓ TIN MỚI -> TỰ BUNG KHỎI LƯU TRỮ
+        // Điều kiện bung: (Đang nằm trong Archived) VÀ (Có tin nhắn chưa đọc HOẶC Tin mới nhất là do mình vừa nhắn)
+        if (currentArchived.has(conv._id)) {
+          const isUnread = conv.unread_count > 0;
+          const isMyLatestMessage = conv.lastMessage?.senderId === resolvedUserId;
+          
+          if (isUnread || isMyLatestMessage) {
+            currentArchived.delete(conv._id);
+            archivedHasChanged = true;
           }
-          if (resolvedUserId) {
-            const myMember = (conv.members || []).find(
-              (m: any) => m.userId?.toString() === resolvedUserId,
-            );
-            if (myMember?.isPinned) pinned.add(conv._id);
-          }
-        });
+        }
 
         if (resolvedUserId) {
-          setPinnedIds(pinned);
+          const myMember = (conv.members || []).find(
+            (m: any) => m.userId?.toString() === resolvedUserId,
+          );
+          if (myMember?.isPinned) pinned.add(conv._id);
         }
+      };
+
+      if (isRefresh || pageNumber === 1) {
+        const pinned = new Set<string>();
+        newConversations.forEach((c: any) => processConversation(c, pinned));
+        setConversations(newConversations);
+        if (resolvedUserId) setPinnedIds(pinned);
       } else {
+        const pinned = new Set<string>(pinnedIds);
+        newConversations.forEach((c: any) => processConversation(c, pinned));
         setConversations((prev) => [...prev, ...newConversations]);
-        newConversations.forEach((conv: any) => {
-          if (!conv._id) return;
-          if (!initializedConvsRef.current.has(conv._id)) {
-            initializedConvsRef.current.add(conv._id);
-            setLocalUnread(conv._id, conv.unread_count || 0);
-          }
-        });
       }
+
+      // Cập nhật lại AsyncStorage nếu có chat tự động bật ra
+      if (archivedHasChanged) {
+        setArchivedIds(new Set(currentArchived)); // Force trigger render
+        AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(currentArchived)));
+      }
+
       setPage(pageNumber);
     } catch (error: any) {
       console.log("Lỗi lấy danh sách:", error.message);
@@ -289,6 +374,39 @@ const ChatScreen = ({ route }: any) => {
   const handleLongPressConv = (item: any) => {
     setSelectedConvForPin(item);
     setShowPinMenu(true);
+  };
+
+  // ✅ HÀM XỬ LÝ LƯU TRỮ CHAT (Đã làm đơn giản hóa)
+  const handleToggleArchive = async (item: any) => {
+    const id = item._id;
+
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      
+      if (next.has(id)) {
+        next.delete(id); // Nếu đã lưu thì bỏ lưu
+      } else {
+        next.add(id); // Nếu chưa lưu thì lưu vào
+      }
+
+      AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
+  // ✅ HÀM XỬ LÝ XÓA CHAT
+  const handleDeleteConversation = (id: string) => {
+    Alert.alert("Xóa hội thoại", "Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: () => {
+          // Xóa khỏi UI (Cần gọi API deleteConversation thực tế tại đây)
+          setConversations((prev) => prev.filter(c => c._id !== id));
+        }
+      }
+    ]);
   };
 
   const handleTogglePin = async (item: any) => {
@@ -413,90 +531,99 @@ const ChatScreen = ({ route }: any) => {
 
     const unread = getLocalUnread(item._id);
     const isPinned = pinnedIds.has(item._id);
-
-    // Kiểm tra xem cuộc hội thoại này có tin nhắn nháp không
+    const isArchived = archivedIds.has(item._id);
     const draftText = drafts[item._id];
 
+    // ✅ HIỂN THỊ CÁC NÚT ACTION KHI VUỐT SANG TRÁI
+    // ✅ HIỂN THỊ CÁC NÚT ACTION KHI VUỐT SANG TRÁI
+    const renderRightActions = () => {
+      return (
+        <View style={styles.rightActionContainer}>
+          <TouchableOpacity
+            style={[styles.rightActionBtn, { backgroundColor: COLORS.mutedForeground }]}
+            onPress={() => handleToggleArchive(item)} // SỬA DÒNG NÀY (truyền item thay vì item._id)
+          >
+            {/* SỬA LỖI Ở ĐÂY: Thay "unarchive" thành "archive-outline" */}
+            <Ionicons name={isArchived ? "archive-outline" : "archive"} size={22} color="#FFF" />
+            <Text style={styles.rightActionText}>{isArchived ? "Bỏ lưu" : "Lưu trữ"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.rightActionBtn, { backgroundColor: COLORS.badge }]}
+            onPress={() => handleDeleteConversation(item._id)}
+          >
+            <Ionicons name="trash" size={22} color="#FFF" />
+            <Text style={styles.rightActionText}>Xóa</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    };
+
     return (
-      <TouchableOpacity
-        style={styles.chatCard}
-        onPress={() => navigateToChat(item)}
-        onLongPress={() => handleLongPressConv(item)}
-        delayLongPress={400}
-      >
-        <View style={styles.avatarWrapper}>
-          <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
-            {chatAvatarUrl ? (
-              <Image source={{ uri: chatAvatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
-                <Text style={styles.avatarText}>
-                  {chatName.charAt(0).toUpperCase()}
-                </Text>
+      <View style={styles.swipeableWrapper}>
+        <Swipeable renderRightActions={renderRightActions}>
+          <TouchableOpacity
+            style={[styles.chatCard, { marginBottom: 0 }]} // Bỏ margin bottom ở đây, chuyển sang thẻ bọc ngoài
+            onPress={() => navigateToChat(item)}
+            onLongPress={() => handleLongPressConv(item)}
+            delayLongPress={400}
+            activeOpacity={1}
+          >
+            <View style={styles.avatarWrapper}>
+              <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
+                {chatAvatarUrl ? (
+                  <Image source={{ uri: chatAvatarUrl }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
+                    <Text style={styles.avatarText}>
+                      {chatName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          {isOnline && !isPinned && <View style={styles.onlineDot} />}
-        </View>
-
-        <View style={styles.chatContent}>
-          <View style={styles.chatHeader}>
-            <Text style={styles.name} numberOfLines={1}>
-              {chatName}
-            </Text>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              {isMutedForItem(item) && (
-                <Ionicons
-                  name="notifications-off-outline"
-                  size={13}
-                  color={COLORS.textLight}
-                />
-              )}
-              <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
-                {formatTimeZalo(item.updated_at)}
-              </Text>
+              {isOnline && !isPinned && <View style={styles.onlineDot} />}
             </View>
-          </View>
 
-          <View style={styles.chatFooter}>
-
-            {/* 1. BÊN TRÁI: Luôn hiển thị nội dung tin nhắn gốc (lastMessage) */}
-            <Text
-              style={[styles.message, unread > 0 && styles.unreadMessage]}
-              numberOfLines={1}
-            >
-              {messageContent}
-            </Text>
-
-            {/* 2. BÊN PHẢI: Cụm chứa chữ [Chưa gửi] và Badge/Pin */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-
-              {/* Hiện chữ [Chưa gửi] màu đỏ nếu có nháp */}
-              {draftText && draftText.trim() !== "" && (
-                <Text style={{ color: COLORS.badge, fontSize: 12, fontWeight: "600", fontStyle: "italic" }}>
-                  Chưa gửi
+            <View style={styles.chatContent}>
+              <View style={styles.chatHeader}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {chatName}
                 </Text>
-              )}
-
-              {unread > 0 ? (
-                <LinearGradient
-                  colors={[COLORS.primary, COLORS.accent]}
-                  style={styles.badge}
-                >
-                  <Text style={styles.badgeText}>
-                    {unread > 9 ? "9+" : unread}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {isMutedForItem(item) && (
+                    <Ionicons name="notifications-off-outline" size={13} color={COLORS.textLight} />
+                  )}
+                  <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
+                    {formatTimeZalo(item.updated_at)}
                   </Text>
-                </LinearGradient>
-              ) : isPinned ? (
-                <Ionicons name="pin-outline" size={15} color={COLORS.textLight} />
-              ) : null}
-            </View>
+                </View>
+              </View>
 
-          </View>
-        </View>
-      </TouchableOpacity>
+              <View style={styles.chatFooter}>
+                <Text style={[styles.message, unread > 0 && styles.unreadMessage]} numberOfLines={1}>
+                  {messageContent}
+                </Text>
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {draftText && draftText.trim() !== "" && (
+                    <Text style={{ color: COLORS.badge, fontSize: 12, fontWeight: "600", fontStyle: "italic" }}>
+                      [Chưa gửi]
+                    </Text>
+                  )}
+
+                  {unread > 0 ? (
+                    <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.badge}>
+                      <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
+                    </LinearGradient>
+                  ) : isPinned ? (
+                    <Ionicons name="pin-outline" size={15} color={COLORS.textLight} />
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Swipeable>
+      </View>
     );
   };
 
@@ -512,33 +639,34 @@ const ChatScreen = ({ route }: any) => {
   }, [conversations, blockedUserIds, currentUserId]);
 
   const displayConversations = useMemo(() => {
-    let list = validConversations;
+    // Chỉ cần lọc những cuộc gọi KHÔNG NẰM trong danh sách archivedIds
+    let list = validConversations.filter(c => !archivedIds.has(c._id));
 
     if (activeTab === "unread") {
-      list = validConversations.filter((c) => getLocalUnread(c._id) > 0);
+      list = list.filter((c) => getLocalUnread(c._id) > 0);
     }
 
     if (activeTab === "groups") {
-      list = validConversations.filter((c) => c.type === "group");
+      list = list.filter((c) => c.type === "group");
     }
 
-    // ✅ SORTING LOGIC MỚI: 1. Pinned -> 2. Nháp -> 3. Thời gian mới nhất
     return [...list].sort((a, b) => {
       const aPinned = pinnedIds.has(a._id) ? 1 : 0;
       const bPinned = pinnedIds.has(b._id) ? 1 : 0;
-      if (aPinned !== bPinned) return bPinned - aPinned; // Pinned lên đầu
+      if (aPinned !== bPinned) return bPinned - aPinned;
 
       const aDraft = drafts[a._id] && drafts[a._id].trim() !== "" ? 1 : 0;
       const bDraft = drafts[b._id] && drafts[b._id].trim() !== "" ? 1 : 0;
-      if (aDraft !== bDraft) return bDraft - aDraft; // Nháp lên nhì
+      if (aDraft !== bDraft) return bDraft - aDraft;
 
       const dateA = new Date(a.updated_at || 0).getTime();
       const dateB = new Date(b.updated_at || 0).getTime();
-      return dateB - dateA; // Mới nhất lên ba
+      return dateB - dateA;
     });
-  }, [validConversations, activeTab, pinnedIds, drafts]); // <-- Nhớ add drafts vào dependency
+  }, [validConversations, activeTab, pinnedIds, drafts, archivedIds]);
 
   const searchResults = useMemo(() => {
+    // ✅ KHI TÌM KIẾM THÌ VẪN HIỆN CÁC CHAT ĐÃ LƯU TRỮ
     if (!searchQuery.trim()) return validConversations;
     return validConversations.filter((c) => {
       const { chatName } = getChatDetails(c);
@@ -547,7 +675,7 @@ const ChatScreen = ({ route }: any) => {
   }, [validConversations, searchQuery]);
 
   return (
-    <View style={styles.root}>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar
         barStyle={isDarkMode ? "light-content" : "dark-content"}
         backgroundColor={COLORS.primary}
@@ -564,7 +692,7 @@ const ChatScreen = ({ route }: any) => {
               <View>
                 <Text style={styles.title}>{t.chatTitle}</Text>
                 <Text style={styles.subtitle}>
-                  {conversations.length} {t.chatConversations}
+                  {displayConversations.length} {t.chatConversations}
                 </Text>
               </View>
               <View style={styles.headerIcons}>
@@ -837,7 +965,7 @@ const ChatScreen = ({ route }: any) => {
           </SafeAreaView>
         </View>
       </Modal>
-    </View>
+    </GestureHandlerRootView>
   );
 };
 
@@ -977,12 +1105,35 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
     emptyContainer: { alignItems: "center", marginTop: 40 },
     emptyText: { color: COLORS.textLight, fontSize: 15 },
+
+    // ✅ STYLE CHO SWIPEABLE VÀ CARD BÊN TRONG
+    swipeableWrapper: {
+      marginBottom: 12,
+      borderRadius: 24,
+      overflow: "hidden", // Quan trọng để giữ viền bo tròn cho card
+    },
+    rightActionContainer: {
+      flexDirection: "row",
+      width: 150,
+      height: "100%",
+    },
+    rightActionBtn: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    rightActionText: {
+      color: "#FFF",
+      fontSize: 12,
+      fontWeight: "600",
+      marginTop: 4,
+    },
+
     chatCard: {
       flexDirection: "row",
       backgroundColor: COLORS.surface,
       padding: 12,
-      borderRadius: 24,
-      marginBottom: 12,
+      borderRadius: 24, // Giữ nguyên để card vẫn bo tròn
       alignItems: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
