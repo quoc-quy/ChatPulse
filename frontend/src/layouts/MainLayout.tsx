@@ -20,26 +20,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       const syncKeys = async () => {
         isE2EInitialized.current = true
         try {
-          // Trường hợp 1: Thiết bị mới, chưa có khóa Private Key → Tạo mới cặp khóa
+          // Trường hợp 1: Thiết bị mới hoàn toàn chưa có khóa
           if (!localPrivateKey) {
             const { privateKey, publicKey } = E2E.generateRSAKeys()
             localStorage.setItem(storageKey, privateKey)
-            await userApi.updateMe({
-              public_key: publicKey
-            })
+            await userApi.updateMe({ public_key: publicKey })
             setProfile((prev: any) => (prev ? { ...prev, public_key: publicKey } : null))
             toast.info('Đã thiết lập mã hóa đầu cuối cho thiết bị này.')
           }
-          // Trường hợp 2: Có khóa máy nhưng server bị mất (do reset data...) → Phục hồi Public Key
-          else if (!profile.public_key) {
-            // thay vì dùng (window as any).JSEncrypt (không tồn tại, gây lỗi runtime)
-            const publicKey = E2E.extractPublicKeyFromPrivate(localPrivateKey)
-            if (publicKey) {
-              await userApi.updateMe({ public_key: publicKey })
-              setProfile((prev: any) => (prev ? { ...prev, public_key: publicKey } : null))
+          // Trường hợp 2: Đã có Local Key, cần kiểm tra đối chiếu với Server Key
+          else {
+            const extractedPublicKey = E2E.extractPublicKeyFromPrivate(localPrivateKey)
+
+            // ✅ FIX ĐỒNG BỘ: Nếu khóa máy tính khác với khóa server -> Ép server lấy khóa của máy tính hiện tại
+            if (extractedPublicKey && extractedPublicKey !== profile.public_key) {
+              await userApi.updateMe({ public_key: extractedPublicKey })
+              setProfile((prev: any) => (prev ? { ...prev, public_key: extractedPublicKey } : null))
+              console.log('[E2E Sync] Đã cập nhật lại Public Key lên Server cho khớp với thiết bị.')
             }
           }
-          // Trường hợp 3: Cả 2 đều có → không cần làm gì
         } catch (error) {
           console.error('[E2E Sync Error]', error)
           isE2EInitialized.current = false

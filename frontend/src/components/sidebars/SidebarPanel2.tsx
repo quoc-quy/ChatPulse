@@ -376,10 +376,14 @@ export function SidebarPanel2({
                                           {decrypted}
                                         </>
                                       )
+                                    } else {
+                                      return `${chat.senderPrefix || ''}🔒 [Lỗi giải mã khóa phiên]`
                                     }
+                                  } else {
+                                    return `${chat.senderPrefix || ''}🔒 [Thiếu Private Key]`
                                   }
                                 }
-                                return `${chat.senderPrefix || ''}🔒 [Tin nhắn bảo mật]`
+                                return `${chat.senderPrefix || ''}🔒 [Lỗi trao đổi khóa]`
                               }
 
                               return `${chat.senderPrefix || ''}${chat.message}`

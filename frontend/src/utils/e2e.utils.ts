@@ -30,10 +30,20 @@ export const E2E = {
   },
 
   // 3. Giải mã khóa AES bằng RSA Private Key của mình
-  decryptAESKeyWithRSA: (encryptedAesKey: string, privateKey: string) => {
-    const crypt = new JSEncrypt()
-    crypt.setPrivateKey(privateKey)
-    return crypt.decrypt(encryptedAesKey) as string
+  decryptAESKeyWithRSA: (encryptedAesKey: string, privateKey: string): string | null => {
+    try {
+      const crypt = new JSEncrypt()
+      crypt.setPrivateKey(privateKey)
+      const decrypted = crypt.decrypt(encryptedAesKey)
+      // JSEncrypt trả về false nếu giải mã thất bại
+      if (decrypted === false || decrypted === null) {
+        return null
+      }
+      return decrypted as string
+    } catch (error) {
+      console.error('Lỗi khi giải mã AES key bằng RSA:', error)
+      return null
+    }
   },
 
   // 4. Tạo một khóa AES ngẫu nhiên cho mỗi tin nhắn
@@ -48,14 +58,15 @@ export const E2E = {
 
   // 6. Giải mã nội dung tin nhắn bằng khóa AES
   decryptMessageAES: (ciphertext: string, aesKey: string) => {
+    if (!aesKey) return '🔒 Lỗi khóa giải mã (Key trống)'
     try {
       const bytes = CryptoJS.AES.decrypt(ciphertext, aesKey)
       const decoded = bytes.toString(CryptoJS.enc.Utf8)
       // ✅ Kiểm tra kết quả giải mã hợp lệ (tránh trả về chuỗi rỗng khi sai key)
-      if (!decoded) return '🔒 Không thể giải mã tin nhắn'
+      if (!decoded) return '🔒 Không thể giải mã tin nhắn (Sai key)'
       return decoded
     } catch (error) {
-      return '🔒 Lỗi giải mã tin nhắn'
+      return '🔒 Lỗi giải mã tin nhắn (Dữ liệu hỏng)'
     }
   }
 }

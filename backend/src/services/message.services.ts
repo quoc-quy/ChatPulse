@@ -32,11 +32,11 @@ const replyToMessageProjection = {
     if: { $gt: [{ $size: '$replyToMessageInfo' }, 0] },
     then: {
       _id: { $toString: { $arrayElemAt: ['$replyToMessageInfo._id', 0] } },
-      // ✅ FIX: Nếu là tin nhắn E2E, content trong reply sẽ là ciphertext,
-      // giữ nguyên để frontend tự giải mã hoặc hiển thị placeholder
       content: { $arrayElemAt: ['$replyToMessageInfo.content', 0] },
       type: { $arrayElemAt: ['$replyToMessageInfo.type', 0] },
       isE2E: { $arrayElemAt: ['$replyToMessageInfo.isE2E', 0] },
+      // ✅ FIX 1: Trả về encryptedKeys để frontend có thể giải mã nội dung tin nhắn được reply
+      encryptedKeys: { $arrayElemAt: ['$replyToMessageInfo.encryptedKeys', 0] },
       senderName: {
         $ifNull: [{ $arrayElemAt: ['$replyToSenderInfo.userName', 0] }, 'Người dùng']
       }
@@ -62,7 +62,13 @@ const messageProjection = {
   seenBy: 1,
   isE2E: 1,
   encryptedKeys: 1,
-  sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
+  // ✅ FIX 2: Bổ sung public_key để socket cập nhật Public Key mới nhất cho frontend
+  sender: {
+    _id: '$senderInfo._id',
+    userName: '$senderInfo.userName',
+    avatar: '$senderInfo.avatar',
+    public_key: '$senderInfo.public_key'
+  },
   replyToMessage: replyToMessageProjection
 }
 
@@ -100,7 +106,7 @@ class MessageService {
         { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
         ...replyToLookupStages,
-        { $project: messageProjection } // ✅ Dùng projection dùng chung có isE2E + encryptedKeys
+        { $project: messageProjection }
       ])
       .toArray()
     return messages
@@ -120,7 +126,6 @@ class MessageService {
 
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
-    console.log('user_blocks', databaseService.user_blocks)
 
     if (conversation.type === 'direct' && conversation.participants) {
       const otherUserId = conversation.participants.find((p: ObjectId) => p.toString() !== userId)
@@ -166,20 +171,21 @@ class MessageService {
       }
     }
 
-    // Frontend gửi: encryptedKeys = Object.values({ userId1: key1, userId2: key2 }) → ["key1","key2"]
-    // Backend cần: { userId1: key1, userId2: key2 }
-    // Nhưng để đơn giản và không mất thông tin userId, ta ưu tiên nhận object.
-    // Nếu là array → lưu dưới dạng object với index key (xem FIX ở ChatFooter để gửi object thay vì array)
     let normalizedEncryptedKeys: Record<string, string> = {}
-    if (isE2E && encryptedKeys) {
-      if (Array.isArray(encryptedKeys)) {
-        // Fallback: nếu frontend vẫn gửi array, tạm lưu với key là index — KHÔNG DÙNG ĐỂ GIẢI MÃ
-        // Đây chỉ là safety net, xem fix ở ChatFooter.tsx để gửi đúng format object
-        encryptedKeys.forEach((val, idx) => {
-          normalizedEncryptedKeys[`key_${idx}`] = val
-        })
-      } else {
-        normalizedEncryptedKeys = encryptedKeys as Record<string, string>
+    let safeContent = content
+
+    if (isE2E) {
+      safeContent = content ? content.replace(/ /g, '+') : content
+      if (encryptedKeys) {
+        if (Array.isArray(encryptedKeys)) {
+          encryptedKeys.forEach((val, idx) => {
+            normalizedEncryptedKeys[`key_${idx}`] = val ? val.replace(/ /g, '+') : val
+          })
+        } else {
+          for (const [key, val] of Object.entries(encryptedKeys)) {
+            normalizedEncryptedKeys[key] = val ? val.replace(/ /g, '+') : val
+          }
+        }
       }
     }
 
@@ -187,7 +193,7 @@ class MessageService {
       conversationId: convObjectId,
       senderId: userObjectId,
       type,
-      content,
+      content: safeContent,
       replyToId: replyToId ? new ObjectId(replyToId) : undefined,
       status: 'SENT',
       isE2E: isE2E || false,
@@ -235,17 +241,8 @@ class MessageService {
 
   async editMessage(messageId: string, userId: string, newContent: string) {
     const result = await databaseService.messages.findOneAndUpdate(
-      {
-        _id: new ObjectId(messageId),
-        senderId: new ObjectId(userId)
-      },
-      {
-        $set: {
-          content: newContent,
-          isEdited: true,
-          updatedAt: new Date()
-        }
-      },
+      { _id: new ObjectId(messageId), senderId: new ObjectId(userId) },
+      { $set: { content: newContent, isEdited: true, updatedAt: new Date() } },
       { returnDocument: 'after' }
     )
     return result
@@ -253,16 +250,8 @@ class MessageService {
 
   async recallMessage(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
-      {
-        _id: new ObjectId(messageId),
-        senderId: new ObjectId(userId)
-      },
-      {
-        $set: {
-          isDeleted: true,
-          updatedAt: new Date()
-        }
-      },
+      { _id: new ObjectId(messageId), senderId: new ObjectId(userId) },
+      { $set: { isDeleted: true, updatedAt: new Date() } },
       { returnDocument: 'after' }
     )
     return result
@@ -296,11 +285,7 @@ class MessageService {
           reactions: {
             user_id: userObjId,
             emoji: emoji,
-            user: {
-              _id: user._id,
-              userName: user.userName,
-              avatar: user.avatar
-            },
+            user: { _id: user._id, userName: user.userName, avatar: user.avatar },
             createdAt: new Date()
           }
         }
@@ -333,7 +318,6 @@ class MessageService {
         })
       })
     }
-
     return result
   }
 
@@ -341,24 +325,12 @@ class MessageService {
     const messageObjId = new ObjectId(messageId)
 
     const result = await databaseService.messages.findOneAndUpdate(
-      {
-        _id: messageObjId,
-        senderId: new ObjectId(userId)
-      },
-      {
-        $set: {
-          content: '',
-          type: 'revoked',
-          reactions: [],
-          updatedAt: new Date()
-        }
-      },
+      { _id: messageObjId, senderId: new ObjectId(userId) },
+      { $set: { content: '', type: 'revoked', reactions: [], updatedAt: new Date() } },
       { returnDocument: 'after' }
     )
 
-    if (!result) {
-      throw new ErrorWithStatus({ message: 'Không thể thu hồi tin nhắn này', status: 403 })
-    }
+    if (!result) throw new ErrorWithStatus({ message: 'Không thể thu hồi tin nhắn này', status: 403 })
 
     const updatedMessage = result.value || result
 
@@ -382,18 +354,13 @@ class MessageService {
         })
       })
     }
-
     return result
   }
 
   async deleteMessage(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId) },
-      {
-        $addToSet: {
-          deleted_by_users: new ObjectId(userId)
-        }
-      },
+      { $addToSet: { deleted_by_users: new ObjectId(userId) } },
       { returnDocument: 'after' }
     )
     if (!result) throw new Error('Không tìm thấy tin nhắn')
@@ -406,19 +373,11 @@ class MessageService {
 
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: messageObjId },
-      {
-        $addToSet: {
-          deletedByUsers: userObjId,
-          deleted_by_users: userObjId
-        }
-      },
+      { $addToSet: { deletedByUsers: userObjId, deleted_by_users: userObjId } },
       { returnDocument: 'after' }
     )
 
-    if (!result) {
-      throw new ErrorWithStatus({ message: 'Không tìm thấy tin nhắn', status: 404 })
-    }
-
+    if (!result) throw new ErrorWithStatus({ message: 'Không tìm thấy tin nhắn', status: 404 })
     return result
   }
 
@@ -437,14 +396,7 @@ class MessageService {
         { $match: matchCondition },
         { $sort: { createdAt: -1 } },
         { $limit: limit },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'senderId',
-            foreignField: '_id',
-            as: 'senderInfo'
-          }
-        },
+        { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' }
       ])
       .toArray()
@@ -452,12 +404,7 @@ class MessageService {
 
   async summarizeConversation(convId: string, userId: string, limit: number = 30, unreadCount: number = 0) {
     if (unreadCount === 0 || limit === 0) {
-      return {
-        topic: 'Không có tin nhắn mới nào cần tóm tắt',
-        decisions: [],
-        openQuestions: [],
-        actionItems: []
-      }
+      return { topic: 'Không có tin nhắn mới nào cần tóm tắt', decisions: [], openQuestions: [], actionItems: [] }
     }
 
     const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(convId) })
@@ -470,7 +417,6 @@ class MessageService {
     }
 
     const chatLog = ContextManager.formatChatLog(recentMessages)
-
     return await aiService.summarizeChat(chatLog)
   }
 
@@ -479,25 +425,20 @@ class MessageService {
     const userObjectId = new ObjectId(userId)
 
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
-    if (!conversation) {
-      throw new ErrorWithStatus({ message: 'Không tìm thấy hội thoại', status: httpStatus.NOT_FOUND })
-    }
+    if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy hội thoại', status: httpStatus.NOT_FOUND })
+
     const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
-    if (!isMember) {
-      throw new ErrorWithStatus({ message: 'Bạn không có quyền truy cập', status: httpStatus.FORBIDDEN })
-    }
+    if (!isMember) throw new ErrorWithStatus({ message: 'Bạn không có quyền truy cập', status: httpStatus.FORBIDDEN })
 
     const skip = (page - 1) * limit
 
-    // ✅ NOTE: Chỉ tìm kiếm trong tin nhắn KHÔNG mã hóa (isE2E != true)
-    // Tin nhắn E2E lưu ciphertext → không thể search full-text phía server
     const results = await databaseService.messages
       .aggregate([
         {
           $match: {
             conversationId: convObjectId,
             type: 'text',
-            isE2E: { $ne: true }, // ✅ Bỏ qua tin nhắn E2E
+            isE2E: { $ne: true },
             content: { $regex: keyword, $options: 'i' },
             deletedByUsers: { $ne: userObjectId },
             deleted_by_users: { $ne: userObjectId },
@@ -507,14 +448,7 @@ class MessageService {
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: limit },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'senderId',
-            foreignField: '_id',
-            as: 'senderInfo'
-          }
-        },
+        { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: { path: '$senderInfo', preserveNullAndEmptyArrays: true } },
         {
           $project: {
@@ -522,11 +456,7 @@ class MessageService {
             content: 1,
             createdAt: 1,
             type: 1,
-            sender: {
-              _id: '$senderInfo._id',
-              userName: '$senderInfo.userName',
-              avatar: '$senderInfo.avatar'
-            }
+            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' }
           }
         }
       ])
@@ -542,22 +472,13 @@ class MessageService {
       isDeleted: { $ne: true }
     })
 
-    return {
-      results,
-      total: totalCount,
-      page,
-      limit,
-      totalPages: Math.ceil(totalCount / limit)
-    }
+    return { results, total: totalCount, page, limit, totalPages: Math.ceil(totalCount / limit) }
   }
 
   async markMessageDelivered(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId) },
-      {
-        $addToSet: { deliveredTo: new ObjectId(userId) },
-        $set: { status: 'DELIVERED' }
-      },
+      { $addToSet: { deliveredTo: new ObjectId(userId) }, $set: { status: 'DELIVERED' } },
       { returnDocument: 'after' }
     )
     return result
@@ -566,10 +487,7 @@ class MessageService {
   async markMessageSeen(messageId: string, userId: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId) },
-      {
-        $addToSet: { seenBy: new ObjectId(userId) },
-        $set: { status: 'SEEN' }
-      },
+      { $addToSet: { seenBy: new ObjectId(userId) }, $set: { status: 'SEEN' } },
       { returnDocument: 'after' }
     )
     return result
@@ -579,9 +497,7 @@ class MessageService {
     const userObjId = new ObjectId(userId)
 
     const conversations = await databaseService.conversations
-      .find({
-        $or: [{ participants: userObjId }, { 'members.userId': userObjId }, { 'members.user_id': userObjId }]
-      })
+      .find({ $or: [{ participants: userObjId }, { 'members.userId': userObjId }, { 'members.user_id': userObjId }] })
       .toArray()
 
     if (!conversations.length) return []
