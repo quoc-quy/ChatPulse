@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/purity */
 import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { messagesApi } from '@/apis/messages.api'
@@ -10,9 +12,10 @@ interface MessageActionsProps {
   isMe: boolean
   currentUserId: string
   onDeleteForMe?: (messageId: string) => void
+  decryptedContent?: string // ✅ THÊM PROP NÀY ĐỂ NHẬN NỘI DUNG ĐÃ GIẢI MÃ
 }
 
-export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: MessageActionsProps) {
+export function MessageActions({ message, isMe, currentUserId, onDeleteForMe, decryptedContent }: MessageActionsProps) {
   const isCall = message.type === 'call'
   const isSystem = message.type === 'system'
   const isRevoked = message.type === 'revoked'
@@ -23,19 +26,25 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
   // Xử lý Cảm xúc (Reactions)
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
-  const myReactions = reactions.filter((r) => r.userId === currentUserId)
+
+  // ✅ FIX LỖI: Kiểm tra cả r.userId và r.user_id do khác biệt DB
+  const myReactions = reactions.filter((r: any) => String(r.userId || r.user_id) === String(currentUserId))
   const hasMyReaction = myReactions.length > 0
   const myRecentEmoji = hasMyReaction ? myReactions[myReactions.length - 1].emoji : null
 
   // KIỂM TRA QUY TẮC 24 GIỜ ĐỂ THU HỒI
-  // eslint-disable-next-line react-hooks/purity
   const is24hPassed = Date.now() - new Date(message.createdAt).getTime() > 24 * 60 * 60 * 1000
 
   // --- CÁC HÀM XỬ LÝ (HANDLERS) ---
 
   const handleReact = async (emoji: string) => {
     try {
-      await messagesApi.reactMessage(message._id, emoji)
+      // ✅ THÊM LOGIC: Nếu bấm lại đúng emoji mình đã thả -> Gỡ bỏ
+      if (myRecentEmoji === emoji) {
+        await messagesApi.reactMessage(message._id, 'REMOVE_ALL')
+      } else {
+        await messagesApi.reactMessage(message._id, emoji)
+      }
     } catch (error) {
       console.error('Lỗi khi thả cảm xúc:', error)
     }
@@ -72,14 +81,16 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
   }
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content)
+    // ✅ FIX LỖI: Ưu tiên copy nội dung đã giải mã, nếu không có mới dùng content gốc
+    const textToCopy = decryptedContent || message.content
+    navigator.clipboard.writeText(textToCopy)
   }
 
   return (
     <div
       className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-full mr-2 flex-row-reverse' : 'left-full ml-2 flex-row'} z-20 flex items-center gap-1`}
     >
-      {/* KHỐI THẢ CẢM XÚC (Chỉ hiện khi chưa thu hồi) */}
+      {/* KHỐI THẢ CẢM XÚC */}
       {!isRevoked && (
         <div
           className={`relative group/picker transition-opacity duration-200 ${hasReactions ? 'opacity-100' : 'opacity-0 group-hover/bubble:opacity-100'}`}
@@ -100,7 +111,7 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
                 <button
                   key={emoji}
                   onClick={() => handleReact(emoji)}
-                  className='text-xl hover:scale-125 hover:-translate-y-1 transition-all duration-200 px-1'
+                  className={`text-xl hover:scale-125 hover:-translate-y-1 transition-all duration-200 px-1 ${myRecentEmoji === emoji ? 'bg-muted rounded-full' : ''}`}
                 >
                   {emoji}
                 </button>
@@ -122,7 +133,7 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
         </div>
       )}
 
-      {/* KHỐI NÚT 3 CHẤM (MENU HÀNH ĐỘNG KHÁC) */}
+      {/* KHỐI NÚT 3 CHẤM */}
       <div className='opacity-0 group-hover/bubble:opacity-100 transition-opacity duration-200'>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -131,7 +142,6 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align={isMe ? 'end' : 'start'} sideOffset={6} className='min-w-[170px]'>
-            {/* Nếu tin nhắn CHƯA thu hồi, mới cho phép Trả lời và Sao chép */}
             {!isRevoked && (
               <>
                 <DropdownMenuItem onClick={handleReply} className='cursor-pointer font-medium py-2'>
@@ -146,7 +156,6 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
               </>
             )}
 
-            {/* Chỉ hiện Thu Hồi nếu là tin của mình + chưa thu hồi + CHƯA QUÁ 24H */}
             {isMe && !isRevoked && !is24hPassed && (
               <DropdownMenuItem
                 onClick={handleRevokeMessage}
@@ -157,7 +166,6 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe }: 
               </DropdownMenuItem>
             )}
 
-            {/* Xóa phía tôi (Luôn hiện kể cả tin nhắn đã thu hồi, để dọn dẹp UI) */}
             <DropdownMenuItem
               onClick={() => onDeleteForMe && onDeleteForMe(message._id)}
               className='cursor-pointer font-medium py-2 text-muted-foreground focus:bg-muted'
