@@ -14,6 +14,7 @@ import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
 import { AppContext } from '@/context/app.context'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { E2E } from '@/utils/e2e.utils'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -255,19 +256,49 @@ export function SidebarPanel2({
                           </div>
                         </div>
                         <div className='flex justify-between items-center gap-2'>
-                          <div
-                            className={`text-sm truncate flex-1 ${chat.unreadCount > 0 && !isActive ? 'text-foreground font-medium' : 'text-muted-foreground'} ${chat.message === 'Tin nhắn đã được thu hồi' ? 'italic opacity-80' : ''}`}
-                          >
-                            <p className='text-sm text-muted-foreground truncate'>
-                              {chat.draftContent && String(chat.id) !== String(activeChat?.id) ? (
-                                <>
-                                  <span className='text-red-500 font-medium'>[Bản nháp]</span> {chat.draftContent}
-                                </>
-                              ) : (
-                                chat.message
-                              )}
-                            </p>
-                          </div>
+                          <p className='text-sm text-muted-foreground truncate'>
+                            {(() => {
+                              // 1. Ưu tiên hiển thị bản nháp
+                              if (chat.draftContent && String(chat.id) !== String(activeChat?.id)) {
+                                return (
+                                  <>
+                                    <span className='text-red-500 font-medium'>[Bản nháp]</span> {chat.draftContent}
+                                  </>
+                                )
+                              }
+
+                              // 2. Các loại tin nhắn hệ thống, thu hồi, hình ảnh (KHÔNG ĐƯA VÀO GIẢI MÃ)
+                              const isSpecialMessage = [
+                                'Tin nhắn đã được thu hồi',
+                                '[Hình ảnh/Video]',
+                                '[Hình ảnh]'
+                              ].includes(chat.message)
+                              if (isSpecialMessage) return `${chat.senderPrefix || ''}${chat.message}`
+
+                              // 3. Xử lý giải mã nếu là tin nhắn E2E văn bản bình thường
+                              if (chat.isE2E) {
+                                if (chat.encryptedKeys && chat.encryptedKeys[profileId]) {
+                                  const privateKey = localStorage.getItem(`rsa_private_key_${profileId}`)
+                                  if (privateKey) {
+                                    const aesKey = E2E.decryptAESKeyWithRSA(chat.encryptedKeys[profileId], privateKey)
+                                    if (aesKey) {
+                                      const decrypted = E2E.decryptMessageAES(chat.message, aesKey)
+                                      return (
+                                        <>
+                                          {chat.senderPrefix}
+                                          {decrypted}
+                                        </>
+                                      )
+                                    }
+                                  }
+                                }
+                                return `${chat.senderPrefix || ''}🔒 [Tin nhắn bảo mật]`
+                              }
+
+                              // 4. Tin nhắn thường
+                              return `${chat.senderPrefix || ''}${chat.message}`
+                            })()}
+                          </p>
                           {chat.unreadCount > 0 && !isActive && (
                             <div className='flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-[#6b45e9] to-[#a139e4] px-1.5 text-[10px] font-bold text-white shrink-0'>
                               {displayUnread}

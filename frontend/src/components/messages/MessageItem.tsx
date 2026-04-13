@@ -9,6 +9,7 @@ import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
 import { Check, CheckCheck, Clock, File as FileIcon, Download, X, RefreshCcw } from 'lucide-react'
+import { E2E } from '@/utils/e2e.utils'
 
 interface MessageItemProps {
   message: Message
@@ -46,7 +47,6 @@ export function MessageItem({
 
   const isMedia = message.type === 'media' || message.type === 'image' || message.type === 'video'
 
-  // Parse nội dung tin nhắn để hỗ trợ mảng URL (cho layout Album ảnh/video)
   let mediaUrls: string[] = []
   if (isMedia) {
     try {
@@ -78,6 +78,46 @@ export function MessageItem({
   } else {
     rowMarginClass = hasReactions ? 'mb-5' : 'mb-[2px]'
   }
+
+  // ✅ Hàm helper giải mã nội dung bất kỳ (dùng cho cả body lẫn reply)
+  const decryptContent = (content: string, encryptedKeys?: Record<string, string>): string => {
+    if (!encryptedKeys || !currentUserId) return content
+
+    const privateKey = localStorage.getItem(`rsa_private_key_${currentUserId}`)
+    if (!privateKey) return '🔒 Tin nhắn đã mã hóa (Khóa không khả dụng trên thiết bị này)'
+
+    const encryptedAesKey = encryptedKeys[currentUserId]
+    if (!encryptedAesKey) return '🔒 Lỗi trao đổi khóa.'
+
+    const aesKey = E2E.decryptAESKeyWithRSA(encryptedAesKey, privateKey)
+    if (!aesKey) return '🔒 Không thể giải mã khóa phiên.'
+
+    return E2E.decryptMessageAES(content, aesKey)
+  }
+
+  const getDecryptedContent = () => {
+    if (!message.isE2E) return message.content
+    return decryptContent(message.content, message.encryptedKeys)
+  }
+
+  // ✅ FIX: Giải mã nội dung reply nếu reply đó cũng là tin nhắn E2E
+  // (Backend trả về isE2E của replyToMessage để biết có cần giải mã không)
+  const getDecryptedReplyContent = (): string => {
+    if (!message.replyToMessage) return ''
+    const reply = message.replyToMessage
+
+    if (reply.type !== 'text') return '[Đa phương tiện]'
+
+    // Nếu reply là E2E nhưng không có encryptedKeys của reply đó (backend chưa join),
+    // hiển thị placeholder thay vì ciphertext
+    if (reply.isE2E) {
+      return '🔒 [Tin nhắn đã mã hóa]'
+    }
+
+    return reply.content
+  }
+
+  const displayContent = getDecryptedContent()
 
   const getInitials = (name?: string) => {
     if (!name || name.trim() === '') return 'U'
@@ -235,16 +275,14 @@ export function MessageItem({
       }
     }
 
-    // return <p className='text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap'>{message.content}</p>
     return (
       <p className='text-[15px] leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere]'>
-        {message.content}
+        {displayContent}
       </p>
     )
   }
 
   if (message.type === 'system') {
-    // Ép kiểu để lấy cờ isWarning tự định nghĩa từ phía trên
     const isWarning = (message as any).isWarning
 
     return (
@@ -259,9 +297,7 @@ export function MessageItem({
         <div className='flex justify-center w-full animate-in fade-in zoom-in-95 duration-300'>
           <span
             className={`px-4 py-1.5 text-[12px] font-medium rounded-full shadow-sm text-center max-w-[85%] break-words ${
-              isWarning
-                ? 'bg-red-500/10 text-red-500 border border-red-500/20' // Màu đỏ nhạt cảnh báo
-                : 'bg-muted/60 text-muted-foreground' // Màu xám bình thường của hệ thống
+              isWarning ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-muted/60 text-muted-foreground'
             }`}
           >
             {message.content}
@@ -332,9 +368,8 @@ export function MessageItem({
                     }}
                   >
                     <span className='font-semibold text-xs'>{message.replyToMessage.senderName}</span>
-                    <span className='truncate text-xs opacity-90 max-w-[200px]'>
-                      {message.replyToMessage.type === 'text' ? message.replyToMessage.content : '[Đa phương tiện]'}
-                    </span>
+                    {/* ✅ FIX: Dùng getDecryptedReplyContent() thay vì render trực tiếp content */}
+                    <span className='truncate text-xs opacity-90 max-w-[200px]'>{getDecryptedReplyContent()}</span>
                   </div>
                 )}
 
@@ -354,6 +389,12 @@ export function MessageItem({
                     className={`flex items-center mt-1 ${isImage ? (isMe ? 'self-end mr-1' : 'self-start ml-1') : isMe ? 'self-end text-white/80' : 'self-start text-muted-foreground'}`}
                   >
                     <span className='text-[10px]'>{displayTime}</span>
+                    {/* ✅ Icon khóa cho tin nhắn E2E */}
+                    {message.isE2E && (
+                      <span className='ml-1 text-[9px] opacity-60' title='Tin nhắn đã mã hóa đầu cuối'>
+                        🔒
+                      </span>
+                    )}
                     {renderMessageStatus()}
                   </div>
                 )}
