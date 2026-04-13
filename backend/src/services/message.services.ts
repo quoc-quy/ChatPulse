@@ -29,22 +29,24 @@ const replyToLookupStages = [
 // Field replyToMessage trong $project
 const replyToMessageProjection = {
   $cond: {
-    if: { $gt: [{ $size: '$replyToMessageInfo' }, 0] },
+    // Sử dụng $ifNull để tránh lỗi BSON khi $replyToMessageInfo không tồn tại
+    if: { $gt: [{ $size: { $ifNull: ['$replyToMessageInfo', []] } }, 0] },
     then: {
       _id: { $toString: { $arrayElemAt: ['$replyToMessageInfo._id', 0] } },
       content: { $arrayElemAt: ['$replyToMessageInfo.content', 0] },
       type: { $arrayElemAt: ['$replyToMessageInfo.type', 0] },
       isE2E: { $arrayElemAt: ['$replyToMessageInfo.isE2E', 0] },
-      // ✅ FIX 1: Trả về encryptedKeys để frontend có thể giải mã nội dung tin nhắn được reply
+      // ✅ Trả về encryptedKeys để frontend có thể giải mã nội dung tin nhắn được reply
       encryptedKeys: { $arrayElemAt: ['$replyToMessageInfo.encryptedKeys', 0] },
       senderName: {
         $ifNull: [{ $arrayElemAt: ['$replyToSenderInfo.userName', 0] }, 'Người dùng']
       }
     },
-    else: '$$REMOVE'
+    else: '$$REMOVE' // Loại bỏ hoàn toàn field này khỏi kết quả nếu không phải tin nhắn reply
   }
 }
 
+// 2. PROJECT CHO TIN NHẮN GỐC
 const messageProjection = {
   _id: 1,
   conversationId: 1,
@@ -62,7 +64,7 @@ const messageProjection = {
   seenBy: 1,
   isE2E: 1,
   encryptedKeys: 1,
-  // ✅ FIX 2: Bổ sung public_key để socket cập nhật Public Key mới nhất cho frontend
+  // ✅ Bổ sung public_key của người gửi vào object sender để socket cập nhật cho frontend
   sender: {
     _id: '$senderInfo._id',
     userName: '$senderInfo.userName',
@@ -197,7 +199,7 @@ class MessageService {
       replyToId: replyToId ? new ObjectId(replyToId) : undefined,
       status: 'SENT',
       isE2E: isE2E || false,
-      encryptedKeys: normalizedEncryptedKeys
+      encryptedKeys: normalizedEncryptedKeys || {}
     })
 
     const insertResult = await databaseService.messages.insertOne(newMessage)

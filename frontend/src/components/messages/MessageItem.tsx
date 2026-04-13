@@ -83,7 +83,10 @@ export function MessageItem({
   const decryptContent = (content: string, encryptedKeys?: Record<string, string>): string => {
     if (!encryptedKeys || !currentUserId) return content
 
-    const privateKey = localStorage.getItem(`rsa_private_key_${currentUserId}`)
+    // ✅ FIX 1: Hỗ trợ tìm kiếm cả 2 định dạng tên Key (có ID và không có ID)
+    const privateKey =
+      localStorage.getItem(`rsa_private_key_${currentUserId}`) || localStorage.getItem('rsa_private_key')
+
     if (!privateKey) return '🔒 Tin nhắn đã mã hóa (Khóa không khả dụng trên thiết bị này)'
 
     const encryptedAesKey = encryptedKeys[currentUserId]

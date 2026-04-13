@@ -94,18 +94,23 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   }, [content])
 
   const handleEncryption = (text: string) => {
-    // 1. Kiểm tra khóa của bản thân (Người gửi)
-    if (!profile?.public_key) {
+    // ✅ FIX 2: Lấy khóa từ Context HOẶC LocalStorage để tránh bị Stale Data (Dữ liệu cũ chưa update kịp)
+    // ✅ FIX 3: Hỗ trợ cả 2 chuẩn naming (publicKey và public_key)
+    const myPublicKey =
+      profile?.public_key ||
+      (profile as any)?.publicKey ||
+      localStorage.getItem('rsa_public_key') ||
+      localStorage.getItem(`rsa_public_key_${profile?._id}`)
+
+    if (!myPublicKey) {
       toast.error('Lỗi mã hóa', { description: 'Thiết bị của bạn chưa thiết lập khóa bảo mật.' })
       return { finalContent: text, isE2E: false, encryptedKeys: {} as Record<string, string> }
     }
 
-    // 2. Lấy danh sách tất cả thành viên trong cuộc hội thoại (Bao gồm cả chat 1-1 và group)
-    // Lưu ý: activeChat.participants thường đã chứa cả bản thân bạn
     const participants = activeChat?.participants || []
 
-    // 3. Kiểm tra xem có thành viên nào thiếu Public Key không
-    const missingKeyUsers = participants.filter((p: any) => !p.public_key)
+    // ✅ FIX 3: Check cả public_key và publicKey cho chắc chắn
+    const missingKeyUsers = participants.filter((p: any) => !(p.public_key || p.publicKey))
 
     if (missingKeyUsers.length > 0) {
       const isGroup = activeChat?.type === 'group'
@@ -114,41 +119,30 @@ export function ChatFooter({ convId }: ChatFooterProps) {
         : `Không thể mã hóa E2E. Người dùng này chưa cập nhật khóa bảo mật.`
 
       toast.error('Cảnh báo bảo mật', { description: msg })
-
-      // Fallback: Nếu có người thiếu khóa, gửi tin nhắn dạng không mã hóa (bản rõ)
-      // (Nếu bạn muốn ép buộc bảo mật 100%, bạn có thể thay return bằng `throw new Error(...)` để chặn gửi)
       return { finalContent: text, isE2E: false, encryptedKeys: {} as Record<string, string> }
     }
 
-    // ==========================================
-    // TIẾN HÀNH MÃ HÓA CHO TẤT CẢ THÀNH VIÊN
-    // ==========================================
-
-    // Bước 1: Tạo 1 khóa AES ngẫu nhiên cho tin nhắn này
     const aesKey = E2E.generateRandomAESKey()
-
-    // Bước 2: Mã hóa nội dung tin nhắn bằng AES
     const encryptedContent = E2E.encryptMessageAES(text, aesKey)
-
-    // Bước 3: Mã hóa khóa AES bằng RSA Public Key của TỪNG thành viên
     const encryptedKeysObj: Record<string, string> = {}
 
+    // Tiến hành mã hóa cho tất cả thành viên
     participants.forEach((p: any) => {
-      if (p.public_key) {
-        encryptedKeysObj[String(p._id)] = E2E.encryptAESKeyWithRSA(aesKey, p.public_key)
+      const targetPubKey = p.public_key || p.publicKey
+      if (targetPubKey) {
+        encryptedKeysObj[String(p._id)] = E2E.encryptAESKeyWithRSA(aesKey, targetPubKey)
       }
     })
 
-    // Đảm bảo người gửi CHẮC CHẮN có khóa để tự giải mã tin nhắn của mình
-    // (Phòng trường hợp activeChat.participants từ API thiếu ID của người gửi)
-    if (!encryptedKeysObj[String(profile._id)]) {
-      encryptedKeysObj[String(profile._id)] = E2E.encryptAESKeyWithRSA(aesKey, profile.public_key)
+    // Đảm bảo mã hóa cho chính mình để tự đọc lại được
+    if (!encryptedKeysObj[String(profile?._id)]) {
+      encryptedKeysObj[String(profile?._id)] = E2E.encryptAESKeyWithRSA(aesKey, myPublicKey)
     }
 
     return {
       finalContent: encryptedContent,
       isE2E: true,
-      encryptedKeys: encryptedKeysObj // Chứa danh sách { userId1: key1, userId2: key2, ... }
+      encryptedKeys: encryptedKeysObj
     }
   }
 
