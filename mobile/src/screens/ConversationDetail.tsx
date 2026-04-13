@@ -268,7 +268,7 @@ export default function ConversationDetailScreen() {
           const decoded: any = jwtDecode(token);
           const uid = decoded.user_id || decoded._id || decoded.id || "";
           setCurrentUserId(uid);
-        } catch {}
+        } catch { }
       }
     });
   }, []);
@@ -917,12 +917,17 @@ export default function ConversationDetailScreen() {
 
         {/* ── Media & Files ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-          <MenuRow
-            iconName="qr-code-outline"
-            label="Mã QR nhóm"
-            COLORS={COLORS}
-            onPress={() => setShowGroupQRModal(true)}
-          />
+
+          {/* ✅ Thêm điều kiện isGroupChat ở đây */}
+          {isGroupChat && (
+            <MenuRow
+              iconName="qr-code-outline"
+              label="Mã QR nhóm"
+              COLORS={COLORS}
+              onPress={() => setShowGroupQRModal(true)}
+            />
+          )}
+
           <MenuRow
             iconName="image-outline"
             label="Ảnh, video, file đã gửi"
@@ -1188,8 +1193,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                                "vi-VN",
-                              )
+                              "vi-VN",
+                            )
                             : ""}
                         </Text>
                       </View>
@@ -1295,8 +1300,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                                "vi-VN",
-                              )
+                              "vi-VN",
+                            )
                             : ""}
                         </Text>
                       </View>
