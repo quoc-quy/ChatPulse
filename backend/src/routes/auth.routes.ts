@@ -7,10 +7,12 @@ import {
   registerController,
   resetPasswordController,
   resetPasswordMobileController,
-  verifyForgotPasswordController
+  verifyForgotPasswordController,
+  emailVerifyValidator
 } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
+  emailVerifyTokenValidator,
   forgotPasswordValidator,
   loginValidator,
   refreshTokenValidator,
@@ -63,23 +65,16 @@ authRoute.post(
  */
 authRoute.post('/reset-password', resetPasswordValidator, wrapRequestHandler(resetPasswordController))
 
-
 /**
  * Quên mật khẩu Mobile (Bước 1: Gửi OTP)
  * POST /auth/forgot-password-mobile
  */
-authRoute.post(
-  '/forgot-password-mobile', 
-  wrapRequestHandler(forgotPasswordMobileController)
-)
+authRoute.post('/forgot-password-mobile', wrapRequestHandler(forgotPasswordMobileController))
 
 /**
- * Đặt lại mật khẩu Mobile (Bước 2: Xác thực OTP và đổi pass)
- * POST /auth/reset-password-mobile
+ * Description: verify link in email to verify email
+ * body: {email-verify-token: string}
  */
-authRoute.post(
-  '/reset-password-mobile', 
-  wrapRequestHandler(resetPasswordMobileController)
-)
+authRoute.post('/verify-email', emailVerifyTokenValidator, wrapRequestHandler(emailVerifyValidator))
 
 export default authRoute

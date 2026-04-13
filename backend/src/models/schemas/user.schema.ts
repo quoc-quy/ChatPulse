@@ -12,6 +12,7 @@ interface UserType {
   show_date_of_birth?: boolean
   gender?: string
   forgot_password_token?: string
+  email_verify_token?: string
   last_active_at?: Date
   fcm_token?: string
   created_at?: Date
@@ -31,6 +32,7 @@ export default class User {
   phone: string
   gender: string
   forgot_password_token: string
+  email_verify_token: string
   last_active_at: Date
   fcm_token: string
   created_at: Date
@@ -49,6 +51,7 @@ export default class User {
     phone,
     gender,
     forgot_password_token,
+    email_verify_token,
     last_active_at,
     fcm_token,
     created_at,
@@ -67,6 +70,7 @@ export default class User {
     this.phone = phone || ''
     this.gender = gender || ''
     this.forgot_password_token = forgot_password_token || ''
+    this.email_verify_token = email_verify_token || ''
     this.last_active_at = last_active_at || date
     this.fcm_token = fcm_token || ''
     this.created_at = created_at || date
