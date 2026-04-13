@@ -223,16 +223,21 @@ export function ChatBody({ convId }: ChatBodyProps) {
     const handleOptSuccess = (e: any) => {
       const { tempId, realMessage } = e.detail
       setMessages((prev) => {
-        // GIỮ LẠI TRÍCH DẪN TỪ UI NẾU API THIẾU
         const tempMsg = prev.find((m) => m._id === tempId)
         if (tempMsg?.replyToMessage && !realMessage.replyToMessage) {
           realMessage.replyToMessage = tempMsg.replyToMessage
         }
 
-        const isRealExist = prev.some((msg) => msg._id === realMessage._id)
-        if (isRealExist) {
-          return prev.filter((msg) => msg._id !== tempId)
+        // ✅ FIX 3: BẢO TOÀN BẢN RÕ CHO BONG BÓNG CHAT OPTIMISTIC
+        if (realMessage.isE2E && tempMsg) {
+          realMessage.content = tempMsg.content
+          // TẮT cờ E2E để MessageItem không mang bản rõ đi giải mã gây lỗi
+          realMessage.isE2E = false
         }
+
+        const isRealExist = prev.some((msg) => msg._id === realMessage._id)
+        if (isRealExist) return prev.filter((msg) => msg._id !== tempId)
+
         return prev.map((msg) => (msg._id === tempId ? realMessage : msg))
       })
     }

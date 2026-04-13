@@ -17,22 +17,29 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       const storageKey = `rsa_private_key_${profile._id}`
       const localPrivateKey = localStorage.getItem(storageKey)
 
+      // ✅ FIX 1: Chặn đứng trường hợp Local Storage lưu chuỗi rác "undefined"
+      const isKeyMissingOrCorrupted = !localPrivateKey || localPrivateKey === 'undefined'
+
       const syncKeys = async () => {
         isE2EInitialized.current = true
         try {
-          // Trường hợp 1: Thiết bị mới hoàn toàn chưa có khóa
-          if (!localPrivateKey) {
-            const { privateKey, publicKey } = E2E.generateRSAKeys()
-            localStorage.setItem(storageKey, privateKey)
-            await userApi.updateMe({ public_key: publicKey })
-            setProfile((prev: any) => (prev ? { ...prev, public_key: publicKey } : null))
-            toast.info('Đã thiết lập mã hóa đầu cuối cho thiết bị này.')
-          }
-          // Trường hợp 2: Đã có Local Key, cần kiểm tra đối chiếu với Server Key
-          else {
+          if (isKeyMissingOrCorrupted) {
+            console.log('Đang tạo mới bộ khóa RSA 2048-bit...')
+
+            // ✅ FIX 2: BẮT BUỘC PHẢI CÓ AWAIT
+            const { privateKey, publicKey } = await E2E.generateRSAKeys()
+
+            if (privateKey && publicKey) {
+              localStorage.setItem(storageKey, privateKey)
+              localStorage.setItem(`rsa_public_key_${profile._id}`, publicKey) // Lưu dự phòng public key ở local
+
+              await userApi.updateMe({ public_key: publicKey })
+              setProfile((prev: any) => (prev ? { ...prev, public_key: publicKey } : null))
+              toast.info('Đã thiết lập mã hóa đầu cuối cho thiết bị này.')
+            }
+          } else {
             const extractedPublicKey = E2E.extractPublicKeyFromPrivate(localPrivateKey)
 
-            // ✅ FIX ĐỒNG BỘ: Nếu khóa máy tính khác với khóa server -> Ép server lấy khóa của máy tính hiện tại
             if (extractedPublicKey && extractedPublicKey !== profile.public_key) {
               await userApi.updateMe({ public_key: extractedPublicKey })
               setProfile((prev: any) => (prev ? { ...prev, public_key: extractedPublicKey } : null))

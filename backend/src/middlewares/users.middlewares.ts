@@ -263,103 +263,66 @@ export const refreshTokenValidator = validate(
 )
 
 export const updateMeValidator = validate(
-  checkSchema({
-    userName: {
-      optional: true,
-      isString: {
-        errorMessage: 'Username phải là chuỗi string'
-      },
-      custom: {
-        options: async (value, { req }) => {
-          const { user_id } = req.decoded_authorization as TokenPayload
-
-          const user = await databaseService.users.findOne({
-            userName: value,
-            _id: { $ne: new ObjectId(user_id) }
-          })
-
-          if (user) {
-            throw new Error('Username đã tồn tại trong hệ thống')
-          }
-
-          return true
+  checkSchema(
+    {
+      userName: {
+        optional: true,
+        isString: { errorMessage: 'Tên người dùng phải là chuỗi String' },
+        trim: true,
+        isLength: {
+          options: { min: 1, max: 100 },
+          errorMessage: 'Tên người dùng phải từ 1 đến 100 ký tự'
         }
-      }
-    },
-    avatar: {
-      optional: true,
-      isString: {
-        errorMessage: 'Avatar phải là chuỗi String'
       },
-      trim: true,
-      isLength: {
-        options: {
-          min: 1,
-          max: 500
-        },
-        errorMessage: 'Avatar phải từ 1 đến 500 kí tự'
-      }
-    },
-    bio: {
-      optional: true,
-      isString: {
-        errorMessage: 'Bio phải là chuỗi String'
-      },
-      isLength: {
-        options: {
-          min: 1,
-          max: 200
-        },
-        errorMessage: 'Bio phải từ 1 đến 200 kí tự'
-      }
-    },
-    phone: {
-      optional: true,
-      notEmpty: {
-        errorMessage: 'Số điện thoại không được để trống'
-      },
-      isString: true,
-      isLength: {
-        options: {
-          min: 10,
-          max: 10
-        },
-        errorMessage: 'Số điện thoại phải đủ 10 ký tự số'
-      },
-      custom: {
-        options: async (value, { req }) => {
-          const { user_id } = req.decoded_authorization as TokenPayload
-
-          const existedPhone = await databaseService.users.findOne({
-            phone: value,
-            _id: { $ne: new ObjectId(user_id) }
-          })
-
-          if (existedPhone) {
-            throw new Error('Số điện thoại đã tồn tại')
-          }
-
-          return true
+      date_of_birth: {
+        optional: true,
+        isISO8601: {
+          errorMessage: 'Ngày sinh phải định dạng ISO8601'
         }
-      }
-    },
-    date_of_birth: {
-      optional: true,
-      isISO8601: {
-        options: {
-          strict: true,
-          strictSeparator: true
+      },
+      bio: {
+        optional: true,
+        isString: { errorMessage: 'Tiểu sử phải là chuỗi String' },
+        trim: true,
+        isLength: {
+          options: { min: 0, max: 200 },
+          errorMessage: 'Tiểu sử tối đa 200 ký tự'
+        }
+      },
+      avatar: {
+        optional: true,
+        isString: { errorMessage: 'Avatar phải là chuỗi URL' },
+        trim: true,
+        isLength: {
+          options: { min: 1, max: 400 },
+          errorMessage: 'Độ dài URL không hợp lệ'
+        }
+      },
+      phone: {
+        optional: true,
+        isString: { errorMessage: 'Số điện thoại phải là chuỗi String' },
+        trim: true
+      },
+      show_date_of_birth: {
+        optional: true,
+        isBoolean: { errorMessage: 'show_date_of_birth phải là boolean' }
+      },
+      gender: {
+        optional: true,
+        isString: { errorMessage: 'Giới tính phải là chuỗi String' },
+        trim: true
+      },
+      // ✅ FIX 1: KHAI BÁO PUBLIC KEY ĐỂ DATABASE KHÔNG BỎ QUA KHI LƯU
+      public_key: {
+        optional: true,
+        isString: {
+          errorMessage: 'public_key phải là chuỗi String'
         },
-        errorMessage: 'Date_of_birth phải là ISO8601'
+        trim: true
       }
     },
-    show_date_of_birth: {
-      optional: true,
-      isBoolean: {
-        errorMessage: 'show_date_of_birth phải là boolean'
-      }
-    }
-  })
+    ['body']
+  )
 )
 
 export const changePasswordValidator = validate(
