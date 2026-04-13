@@ -104,10 +104,14 @@ const sendVerifyEmail = async (toAddress: string, subject: string, body: string)
   }
 }
 
-export const sendEmailNotification = (toAddress: string, template: string = templatesEmail) => {
+export const sendEmailNotification = (
+  toAddress: string,
+  email_verify_token: string,
+  template: string = templatesEmail
+) => {
   return sendVerifyEmail(
     toAddress,
-    'Đăng ký thành công – Chào mừng bạn đến với ChatPulse',
+    'ChatPulse – Xác thực tài khoản',
     template
       .replace('{{title}}', 'Chào mừng bạn đến với ChatPulse 🎉')
       .replace(
@@ -115,11 +119,12 @@ export const sendEmailNotification = (toAddress: string, template: string = temp
         `
         Tài khoản của bạn đã được tạo thành công<br/>
         email: <b>${toAddress}</b><br/><br/>
-        Bạn có thể đăng nhập và bắt đầu sử dụng hệ thống ngay.<br/><br/>
+        Bạn vui lòng xác thực email theo nút bên dưới để bắt đầu đăng nhập và sử dụng.<br/><br/>
         (Đây là email tự động, bạn không cần phản hồi email này)
         `
       )
-      .replace('{{titleLink}}', 'Đăng nhập ngay')
+      .replace('{{titleLink}}', 'Xác thực tài khoản')
+      .replace('{{link}}', `${process.env.CLIENT_URL}/verify-email?token=${email_verify_token}`)
   )
 }
 
@@ -162,6 +167,6 @@ export const sendOtpEmail = async (toEmail: string, otp: string): Promise<void> 
       </div>
     `
   }
- 
+
   await transporter.sendMail(mailOptions)
 }

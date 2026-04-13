@@ -96,7 +96,7 @@ class UserService {
       new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
     )
 
-    // await sendEmailNotification(payload.email)
+    await sendEmailNotification(payload.email, email_verify_token)
     console.log('email_verify_token:', email_verify_token)
     return { access_token, refresh_token, user }
   }
@@ -116,9 +116,9 @@ class UserService {
       }
     )
 
-    if(user?.verify == UserVerifyStatus.Unverified) {
+    if (user?.verify == UserVerifyStatus.Unverified) {
       throw new ErrorWithStatus({
-        message: "Người dùng chưa xác thực email",
+        message: 'Người dùng chưa xác thực email',
         status: httpStatus.UNAUTHORIZED
       })
     }
