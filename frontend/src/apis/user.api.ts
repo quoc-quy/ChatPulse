@@ -1,8 +1,9 @@
 import type { User } from '@/types/user.type'
 import http from '@/utils/http'
 
-export interface BodyUpdateProfile extends Omit<User, '_id' | 'created_at' | 'updated_at' | 'email'> {
+export interface BodyUpdateProfile extends Partial<Omit<User, '_id' | 'created_at' | 'updated_at' | 'email'>> {
   new_password?: string
+  public_key?: string
 }
 
 export interface ChangePasswordBody {

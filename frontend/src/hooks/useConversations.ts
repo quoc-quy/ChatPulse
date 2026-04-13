@@ -103,7 +103,7 @@ export function useConversations() {
               }
             }
           }
-          lastMessageContent = prefix ? `${prefix}${content}` : content
+          lastMessageContent = content
         }
 
         const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0
@@ -127,7 +127,10 @@ export function useConversations() {
           lastActiveAt,
           unreadCount,
           draftContent,
-          isFriend: isFriendStatus
+          isFriend: isFriendStatus,
+          senderPrefix: prefix,
+          isE2E: conv.lastMessage?.isE2E || false,
+          encryptedKeys: conv.lastMessage?.encryptedKeys || {}
         }
       })
 
@@ -194,16 +197,16 @@ export function useConversations() {
 
         let previewContent = newMessage.content
         if (newMessage.type === 'image' || newMessage.type === 'media') previewContent = '[Hình ảnh]'
-        const newPreview = `${prefix}${previewContent}`
+        // const newPreview = `${prefix}${previewContent}`
         const newTime = new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        const newTimestamp = new Date(newMessage.createdAt).getTime()
 
         if (existingChatIndex !== -1) {
           const chatToUpdate = { ...updatedChats[existingChatIndex] }
-          chatToUpdate.message = newPreview
+          chatToUpdate.message = previewContent // Chỉ lưu ciphertext
+          chatToUpdate.senderPrefix = prefix // Lưu prefix riêng
+          chatToUpdate.isE2E = newMessage.isE2E || false // Cập nhật E2E state
+          chatToUpdate.encryptedKeys = newMessage.encryptedKeys || {} // Cập nhật keys
           chatToUpdate.time = newTime
-          chatToUpdate.timestamp = newTimestamp
-          chatToUpdate.lastMessageId = newMessage._id
 
           const isCurrentlyViewing = String(activeChatRef.current?.id) === convIdStr
           if (!isMe) {
@@ -364,7 +367,10 @@ export function useConversations() {
 
             return {
               ...chat,
-              message: newLastMessage.type === 'revoked' ? previewContent : `${prefix}${previewContent}`,
+              message: previewContent,
+              senderPrefix: newLastMessage.type === 'revoked' ? '' : prefix,
+              isE2E: newLastMessage.isE2E || false,
+              encryptedKeys: newLastMessage.encryptedKeys || {},
               time: newTime,
               lastMessageId: newLastMessage._id
             }

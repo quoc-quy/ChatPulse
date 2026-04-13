@@ -15,12 +15,13 @@ interface GetMessagesParams {
   limit?: number
 }
 
-// Payload cho API gửi tin nhắn Text/Sticker
 interface SendMessagePayload {
   convId: string
   type: 'text' | 'sticker' | 'system'
   content: string
   replyToId?: string
+  isE2E?: boolean
+  encryptedKeys?: Record<string, string>
 }
 
 export const messagesApi = {
@@ -60,7 +61,6 @@ export const messagesApi = {
     const formData = new FormData()
     formData.append('convId', convId)
 
-    // Nối tất cả các file vào FormData (Backend cần sử dụng upload.array('files'))
     files.forEach((file) => {
       formData.append('files', file)
     })
