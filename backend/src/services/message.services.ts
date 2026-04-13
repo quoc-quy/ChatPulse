@@ -31,16 +31,39 @@ const replyToMessageProjection = {
   $cond: {
     if: { $gt: [{ $size: '$replyToMessageInfo' }, 0] },
     then: {
-      // Trả về string để khớp với kiểu _id string ở Frontend (tránh ObjectId vs string mismatch)
       _id: { $toString: { $arrayElemAt: ['$replyToMessageInfo._id', 0] } },
+      // ✅ FIX: Nếu là tin nhắn E2E, content trong reply sẽ là ciphertext,
+      // giữ nguyên để frontend tự giải mã hoặc hiển thị placeholder
       content: { $arrayElemAt: ['$replyToMessageInfo.content', 0] },
       type: { $arrayElemAt: ['$replyToMessageInfo.type', 0] },
+      isE2E: { $arrayElemAt: ['$replyToMessageInfo.isE2E', 0] },
       senderName: {
         $ifNull: [{ $arrayElemAt: ['$replyToSenderInfo.userName', 0] }, 'Người dùng']
       }
     },
     else: '$$REMOVE'
   }
+}
+
+const messageProjection = {
+  _id: 1,
+  conversationId: 1,
+  type: 1,
+  content: 1,
+  isEdited: 1,
+  isDeleted: 1,
+  replyToId: 1,
+  reactions: 1,
+  callInfo: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  status: 1,
+  deliveredTo: 1,
+  seenBy: 1,
+  isE2E: 1,
+  encryptedKeys: 1,
+  sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
+  replyToMessage: replyToMessageProjection
 }
 
 class MessageService {
@@ -76,28 +99,8 @@ class MessageService {
         { $limit: limit },
         { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
-        // BUG FIX 2: Populate replyToMessage để hiển thị đúng sau khi reload trang
         ...replyToLookupStages,
-        {
-          $project: {
-            _id: 1,
-            conversationId: 1,
-            type: 1,
-            content: 1,
-            isEdited: 1,
-            isDeleted: 1,
-            replyToId: 1,
-            reactions: 1,
-            callInfo: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            status: 1,
-            deliveredTo: 1,
-            seenBy: 1,
-            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
-            replyToMessage: replyToMessageProjection
-          }
-        }
+        { $project: messageProjection } // ✅ Dùng projection dùng chung có isE2E + encryptedKeys
       ])
       .toArray()
     return messages
@@ -108,7 +111,9 @@ class MessageService {
     convId: string,
     type: 'text' | 'sticker' | 'system' | 'media',
     content: string,
-    replyToId?: string
+    replyToId?: string,
+    isE2E?: boolean,
+    encryptedKeys?: Record<string, string> | string[]
   ) {
     const userObjectId = new ObjectId(userId)
     const convObjectId = new ObjectId(convId)
@@ -118,12 +123,9 @@ class MessageService {
     console.log('user_blocks', databaseService.user_blocks)
 
     if (conversation.type === 'direct' && conversation.participants) {
-      // Tìm ID của đối phương trong cuộc trò chuyện 1-1
       const otherUserId = conversation.participants.find((p: ObjectId) => p.toString() !== userId)
 
       if (otherUserId) {
-        // 1. Kiểm tra: Người nhận có đang chặn Người gửi không?
-        // SỬA: Dùng đúng field 'user_id' và 'blocked_user_id' theo schema
         const isBlockedByReceiver = await databaseService.user_blocks.findOne({
           user_id: new ObjectId(otherUserId),
           blocked_user_id: userObjectId
@@ -150,7 +152,6 @@ class MessageService {
           })
         }
 
-        // 2. Kiểm tra: Người gửi có đang chặn Người nhận không?
         const isBlockedBySender = await databaseService.user_blocks.findOne({
           user_id: userObjectId,
           blocked_user_id: new ObjectId(otherUserId)
@@ -165,13 +166,32 @@ class MessageService {
       }
     }
 
+    // Frontend gửi: encryptedKeys = Object.values({ userId1: key1, userId2: key2 }) → ["key1","key2"]
+    // Backend cần: { userId1: key1, userId2: key2 }
+    // Nhưng để đơn giản và không mất thông tin userId, ta ưu tiên nhận object.
+    // Nếu là array → lưu dưới dạng object với index key (xem FIX ở ChatFooter để gửi object thay vì array)
+    let normalizedEncryptedKeys: Record<string, string> = {}
+    if (isE2E && encryptedKeys) {
+      if (Array.isArray(encryptedKeys)) {
+        // Fallback: nếu frontend vẫn gửi array, tạm lưu với key là index — KHÔNG DÙNG ĐỂ GIẢI MÃ
+        // Đây chỉ là safety net, xem fix ở ChatFooter.tsx để gửi đúng format object
+        encryptedKeys.forEach((val, idx) => {
+          normalizedEncryptedKeys[`key_${idx}`] = val
+        })
+      } else {
+        normalizedEncryptedKeys = encryptedKeys as Record<string, string>
+      }
+    }
+
     const newMessage = new Message({
       conversationId: convObjectId,
       senderId: userObjectId,
       type,
       content,
       replyToId: replyToId ? new ObjectId(replyToId) : undefined,
-      status: 'SENT'
+      status: 'SENT',
+      isE2E: isE2E || false,
+      encryptedKeys: normalizedEncryptedKeys
     })
 
     const insertResult = await databaseService.messages.insertOne(newMessage)
@@ -191,25 +211,8 @@ class MessageService {
         { $match: { _id: messageId } },
         { $lookup: { from: 'users', localField: 'senderId', foreignField: '_id', as: 'senderInfo' } },
         { $unwind: '$senderInfo' },
-        // BUG FIX 2: Populate replyToMessage ngay khi gửi để socket payload cũng có đầy đủ data
         ...replyToLookupStages,
-        {
-          $project: {
-            _id: 1,
-            conversationId: 1,
-            type: 1,
-            content: 1,
-            replyToId: 1,
-            reactions: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            status: 1,
-            deliveredTo: 1,
-            seenBy: 1,
-            sender: { _id: '$senderInfo._id', userName: '$senderInfo.userName', avatar: '$senderInfo.avatar' },
-            replyToMessage: replyToMessageProjection
-          }
-        }
+        { $project: messageProjection }
       ])
       .toArray()
 
@@ -419,9 +422,6 @@ class MessageService {
     return result
   }
 
-  // ==========================================================
-  // HÀM HELPER: CHỈ TRUY VẤN DB (Decoupled Layer)
-  // ==========================================================
   async getRecentMessagesForContext(convId: string, userId: string, limit: number) {
     const convObjectId = new ObjectId(convId)
     const userObjectId = new ObjectId(userId)
@@ -429,7 +429,7 @@ class MessageService {
     const matchCondition: any = {
       conversationId: convObjectId,
       deletedByUsers: { $ne: userObjectId },
-      isDeleted: { $ne: true } // Không lấy tin nhắn đã thu hồi
+      isDeleted: { $ne: true }
     }
 
     return await databaseService.messages
@@ -450,11 +450,7 @@ class MessageService {
       .toArray()
   }
 
-  // ==========================================================
-  // HÀM SUMMARIZE ĐÃ ĐƯỢC REFACTOR
-  // ==========================================================
   async summarizeConversation(convId: string, userId: string, limit: number = 30, unreadCount: number = 0) {
-    // 1. Bảo vệ ở Backend: Nếu không có tin mới thì trả về rỗng ngay
     if (unreadCount === 0 || limit === 0) {
       return {
         topic: 'Không có tin nhắn mới nào cần tóm tắt',
@@ -467,21 +463,17 @@ class MessageService {
     const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(convId) })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: 404 })
 
-    // 2. Gọi hàm Helper để lấy data
     const recentMessages = await this.getRecentMessagesForContext(convId, userId, limit)
 
     if (recentMessages.length === 0) {
       return { topic: 'Không có tin nhắn mới nào cần tóm tắt', decisions: [], openQuestions: [], actionItems: [] }
     }
 
-    // 3. Biến đổi dữ liệu thông qua Context Manager (Không dính dáng DB logic)
     const chatLog = ContextManager.formatChatLog(recentMessages)
 
-    // 4. Gọi Service AI xử lý chuỗi cuối cùng
     return await aiService.summarizeChat(chatLog)
   }
 
-  // ── Tìm kiếm tin nhắn trong hội thoại ──────────────────────────────────────
   async searchMessages(conversationId: string, userId: string, keyword: string, page: number = 1, limit: number = 20) {
     const convObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
@@ -497,12 +489,15 @@ class MessageService {
 
     const skip = (page - 1) * limit
 
+    // ✅ NOTE: Chỉ tìm kiếm trong tin nhắn KHÔNG mã hóa (isE2E != true)
+    // Tin nhắn E2E lưu ciphertext → không thể search full-text phía server
     const results = await databaseService.messages
       .aggregate([
         {
           $match: {
             conversationId: convObjectId,
             type: 'text',
+            isE2E: { $ne: true }, // ✅ Bỏ qua tin nhắn E2E
             content: { $regex: keyword, $options: 'i' },
             deletedByUsers: { $ne: userObjectId },
             deleted_by_users: { $ne: userObjectId },
@@ -540,6 +535,7 @@ class MessageService {
     const totalCount = await databaseService.messages.countDocuments({
       conversationId: convObjectId,
       type: 'text',
+      isE2E: { $ne: true },
       content: { $regex: keyword, $options: 'i' },
       deletedByUsers: { $ne: userObjectId },
       deleted_by_users: { $ne: userObjectId },
@@ -579,13 +575,9 @@ class MessageService {
     return result
   }
 
-  // ==========================================================
-  // LẤY LỊCH SỬ CHAT TOÀN CỤC CỦA 1 USER (DÀNH CHO AI)
-  // ==========================================================
   async getGlobalRecentMessagesForUser(userId: string, limitPerConv: number = 10) {
     const userObjId = new ObjectId(userId)
 
-    // 1. Tìm tất cả các nhóm/chat 1-1 mà user này là thành viên
     const conversations = await databaseService.conversations
       .find({
         $or: [{ participants: userObjId }, { 'members.userId': userObjId }, { 'members.user_id': userObjId }]
@@ -594,7 +586,6 @@ class MessageService {
 
     if (!conversations.length) return []
 
-    // Lấy top 10 hội thoại có tương tác gần đây nhất để tối ưu RAM và Token của AI
     const recentConvs = conversations
       .sort((a, b) => {
         const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0
@@ -603,7 +594,6 @@ class MessageService {
       })
       .slice(0, 10)
 
-    // 2. Query lấy tin nhắn của từng hội thoại
     const globalContext = await Promise.all(
       recentConvs.map(async (conv) => {
         const msgs = await databaseService.messages
@@ -614,7 +604,8 @@ class MessageService {
                 deletedByUsers: { $ne: userObjId },
                 deleted_by_users: { $ne: userObjId },
                 isDeleted: { $ne: true },
-                type: 'text' // Chỉ lấy text cho AI đọc, bỏ qua sticker/image
+                isE2E: { $ne: true },
+                type: 'text'
               }
             },
             { $sort: { createdAt: -1 } },
@@ -627,7 +618,7 @@ class MessageService {
         return {
           conversationName: conv.name || (conv.type === 'group' ? 'Group Chat' : 'Chat 1-1'),
           conversationId: conv._id.toString(),
-          messages: msgs.reverse() // Sắp xếp cũ -> mới
+          messages: msgs.reverse()
         }
       })
     )

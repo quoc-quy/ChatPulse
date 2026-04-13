@@ -35,19 +35,17 @@ class ChatService {
               {
                 $match: {
                   $expr: { $eq: ['$conversationId', '$$convId'] },
-                  deletedByUsers: { $ne: userObjectId } // QUAN TRỌNG: Bỏ qua các tin nhắn user ĐÃ XÓA
+                  deletedByUsers: { $ne: userObjectId }
                 }
               },
-              { $sort: { createdAt: -1 } }, // Sắp xếp mới nhất lên đầu
-              { $limit: 1 } // Chỉ lấy 1 tin nhắn làm preview
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 }
             ],
             as: 'last_message_info'
           }
         },
         { $unwind: { path: '$last_message_info', preserveNullAndEmptyArrays: true } },
 
-        // --- FIX LỖI ĐẾM TIN NHẮN CHƯA ĐỌC ---
-        // Ép kiểu toString để đảm bảo match chính xác user hiện tại
         {
           $addFields: {
             currentUserMemberInfo: {
@@ -76,7 +74,6 @@ class ChatService {
                 $match: {
                   $expr: {
                     $and: [
-                      // Ép kiểu convId để tránh lỗi MongoDB không nhận diện
                       { $eq: [{ $toString: '$conversationId' }, { $toString: '$$convId' }] },
                       {
                         $gt: ['$_id', { $ifNull: ['$$lastViewedId', new ObjectId('000000000000000000000000')] }]
@@ -96,7 +93,6 @@ class ChatService {
             unread_count: { $ifNull: [{ $arrayElemAt: ['$unread_info.unread_count', 0] }, 0] }
           }
         },
-        // -------------------------------------
 
         {
           $project: {
@@ -112,6 +108,8 @@ class ChatService {
             lastMessage: {
               content: '$last_message_info.content',
               type: '$last_message_info.type',
+              isE2E: '$last_message_info.isE2E',
+              encryptedKeys: '$last_message_info.encryptedKeys',
               created_at: '$last_message_info.createdAt',
               sender_id: '$last_message_info.senderId'
             },
@@ -124,7 +122,8 @@ class ChatService {
                   userName: '$$participant.userName',
                   fullName: '$$participant.fullName',
                   avatar: '$$participant.avatar',
-                  email: '$$participant.email'
+                  email: '$$participant.email',
+                  public_key: '$$participant.public_key'
                 }
               }
             }
@@ -133,13 +132,8 @@ class ChatService {
       ])
       .toArray()
 
-    // Bắt trạng thái online từ Socket mới nhất VÀ kiểm tra trạng thái bạn bè
-    // ======================================================================
-    // MAP TRẠNG THÁI ONLINE VÀ KIỂM TRA BẠN BÈ TRƯỚC KHI TRẢ VỀ FRONTEND
-    // ======================================================================
     const finalConversations = await Promise.all(
       conversations.map(async (conv) => {
-        // 1. Map trạng thái online
         if (conv.participants && Array.isArray(conv.participants)) {
           conv.participants = conv.participants.map((p: any) => ({
             ...p,
@@ -147,7 +141,6 @@ class ChatService {
           }))
         }
 
-        // 2. Kiểm tra trạng thái bạn bè (Lọc chặt chẽ 2 chiều)
         if (conv.type === 'direct') {
           const otherUser = conv.participants.find((p: any) => p._id.toString() !== userObjectId.toString())
           if (otherUser) {
@@ -157,13 +150,11 @@ class ChatService {
                 { user_id: new ObjectId(otherUser._id), friend_id: userObjectId }
               ]
             })
-            // Ép kiểu boolean rõ ràng: có doc là true (bạn bè), null là false (đã hủy)
             conv.isFriend = isFriendDoc !== null
           } else {
             conv.isFriend = true
           }
         } else {
-          // Group chat không bị ảnh hưởng bởi hủy kết bạn
           conv.isFriend = true
         }
 
@@ -206,23 +197,18 @@ class ChatService {
       })
       const result = await databaseService.conversations.insertOne(newConversation)
 
-      // ==========================================================
-      // BẮT ĐẦU THÊM: Gửi tin nhắn hệ thống thông báo tạo nhóm
-      // ==========================================================
       await messageService.sendMessage(
         userId,
         result.insertedId.toString(),
         'system',
         `Nhóm "${name || 'Chưa đặt tên'}" đã được tạo. Chào mừng tất cả thành viên!`
       )
-      // ==========================================================
 
       return { ...newConversation, _id: result.insertedId }
     }
   }
 
   async getConversationById(conversationId: string, userId: string) {
-    // ... Giữ nguyên như cũ ...
     const convObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
     const conversations = await databaseService.conversations
@@ -248,18 +234,18 @@ class ChatService {
             last_message_id: 1,
             participants: 1,
             members: 1,
-            // ✅ FIX: map đúng field + thêm userName, phone
             participants_info: {
               $map: {
                 input: '$participants_info',
                 as: 'p',
                 in: {
                   _id: '$$p._id',
-                  userName: '$$p.userName', // ✅ chữ N hoa, đúng schema
-                  fullName: '$$p.fullName', // ✅ thêm fullName
-                  phone: '$$p.phone', // ✅ thêm phone để hiện sub text
+                  userName: '$$p.userName',
+                  fullName: '$$p.fullName',
+                  phone: '$$p.phone',
                   avatar: '$$p.avatar',
-                  email: '$$p.email'
+                  email: '$$p.email',
+                  public_key: '$$p.public_key'
                 }
               }
             }
@@ -277,7 +263,6 @@ class ChatService {
   }
 
   async updateGroup(conversationId: string, userId: string, payload: { name?: string; avatarUrl?: string }) {
-    // ... Giữ nguyên như cũ ...
     const convObjectId = new ObjectId(conversationId)
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
@@ -320,35 +305,27 @@ class ChatService {
       })
     }
 
-    // ✅ FIX: Lấy tin nhắn MỚI NHẤT thật sự từ messages collection
-    // Không dùng conversation.last_message_id vì field này thường không được
-    // update khi có tin nhắn mới → lastViewedMessageId bị set vào ID cũ
-    // → getConversations vẫn đếm được unread_count > 0 sau khi login lại
     const latestMessage = await databaseService.messages.findOne(
       { conversationId: convObjectId },
       { sort: { createdAt: -1 } }
     )
 
-    // Nếu không có tin nhắn nào thì không cần làm gì
     if (!latestMessage) {
       return { success: true }
     }
 
     const latestMessageId = latestMessage._id
 
-    // KIỂM TRA MẢNG MEMBERS ĐÃ CÓ USER NÀY CHƯA (Fix lỗi cho data cũ)
     const memberExists = conversation.members?.some(
       (m: any) => m.userId?.toString() === userId || m.user_id?.toString() === userId
     )
 
     if (memberExists) {
-      // Nếu đã có trong mảng members -> Cập nhật bình thường
       await databaseService.conversations.updateOne(
         { _id: convObjectId, 'members.userId': userObjectId },
-        { $set: { 'members.$.lastViewedMessageId': latestMessageId } } // ✅ dùng latestMessageId
+        { $set: { 'members.$.lastViewedMessageId': latestMessageId } }
       )
     } else {
-      // Nếu CHƯA CÓ (hội thoại được tạo từ code cũ) -> Push mới user này vào mảng members
       await databaseService.conversations.updateOne(
         { _id: convObjectId },
         {
@@ -356,7 +333,7 @@ class ChatService {
             members: {
               userId: userObjectId,
               role: conversation.admin_id && conversation.admin_id.toString() === userId ? 'admin' : 'member',
-              lastViewedMessageId: latestMessageId // ✅ dùng latestMessageId
+              lastViewedMessageId: latestMessageId
             } as any
           }
         }
@@ -373,29 +350,24 @@ class ChatService {
 
     const userObjId = new ObjectId(userId)
 
-    // 1. QUERIES SONG SONG ĐỂ LẤY TOÀN BỘ SIÊU DỮ LIỆU (Tối ưu tốc độ)
     const [globalRawData, profile, friends, receivedReqs, sentReqs, blocks] = await Promise.all([
-      messageService.getGlobalRecentMessagesForUser(userId, 10), // Lấy tin nhắn
-      databaseService.users.findOne({ _id: userObjId }), // Lấy Profile
-      // Tìm danh sách bạn bè (bao quát cả 2 trường hợp user_id hoặc friend_id)
+      messageService.getGlobalRecentMessagesForUser(userId, 10),
+      databaseService.users.findOne({ _id: userObjId }),
       databaseService.friends
         .find({
           $or: [{ user_id: userObjId }, { userId: userObjId }, { friend_id: userObjId }, { friendId: userObjId }]
         })
         .toArray(),
-      // Lời mời kết bạn được nhận
       databaseService.friendRequests
         .find({
           $or: [{ receiver_id: userObjId }, { receiverId: userObjId }]
         })
         .toArray(),
-      // Lời mời kết bạn đã gửi
       databaseService.friendRequests
         .find({
           $or: [{ sender_id: userObjId }, { senderId: userObjId }]
         })
         .toArray(),
-      // Danh sách chặn
       databaseService.user_blocks
         .find({
           $or: [{ blocker_id: userObjId }, { blockerId: userObjId }]
@@ -403,11 +375,9 @@ class ChatService {
         .toArray()
     ])
 
-    // 2. Định dạng dữ liệu thành chữ để nạp vào não AI
     const globalContextStr = ContextManager.formatGlobalChatLog(globalRawData)
     const userMetadataStr = ContextManager.formatUserMetadata(profile, friends, receivedReqs, sentReqs, blocks)
 
-    // 3. Gọi AI và truyền đầy đủ bộ não
     const answer = await aiService.answerQuestion(globalContextStr, userMetadataStr, chatContext, question)
 
     return answer
@@ -417,16 +387,12 @@ class ChatService {
     const userObjId = new ObjectId(userId)
     const convObjId = new ObjectId(conversationId)
 
-    // 1. Đánh dấu cuộc trò chuyện là đã bị ẩn bởi user này
-    // Sử dụng $addToSet để đảm bảo ID không bị trùng lặp
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: convObjId },
       { $addToSet: { deletedByUsers: userObjId } as any },
       { returnDocument: 'after' }
     )
 
-    // 2. Đánh dấu tất cả các tin nhắn TRONG QUÁ KHỨ của box chat này là đã bị xóa bởi user này
-    // (Để lỡ 2 người có nhắn lại, họ sẽ chỉ thấy các tin nhắn mới gửi từ thời điểm hiện tại trở đi)
     await databaseService.messages.updateMany(
       { conversationId: convObjId },
       { $addToSet: { deletedByUsers: userObjId } as any }

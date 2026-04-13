@@ -21,9 +21,9 @@ export const getMessagesController = async (req: Request, res: Response) => {
 
 export const sendMessageController = async (req: Request, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload
-  const { convId, type, content, replyToId } = req.body
+  const { convId, type, content, replyToId, isE2E, encryptedKeys } = req.body
 
-  const message = await messageService.sendMessage(user_id, convId, type, content, replyToId)
+  const message = await messageService.sendMessage(user_id, convId, type, content, replyToId, isE2E, encryptedKeys)
 
   return res.status(httpStatus.OK).json({
     message: 'Gửi tin nhắn thành công',
@@ -145,9 +145,8 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
 
   const messageType: 'text' | 'media' | 'sticker' | 'system' = 'media'
 
-  // SỬA Ở ĐÂY: Vì Mobile gửi từng file một, nên mảng fileUrls chỉ có 1 link.
-  // Ta bóc lấy link đầu tiên ra lưu luôn, KHÔNG dùng JSON.stringify để Mobile load được ảnh.
-  const content = fileUrls[0] 
+  // Media không dùng E2E (file/ảnh lưu trên S3, chỉ mã hóa text)
+  const content = fileUrls[0]
 
   const message = await messageService.sendMessage(user_id, convId, messageType, content, replyToId)
 

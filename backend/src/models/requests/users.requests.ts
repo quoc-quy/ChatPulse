@@ -25,6 +25,7 @@ export interface UpdateMeReqBody {
   avatar?: string
   bio?: string
   phone?: string
+  public_key?: string
 }
 
 export interface ChangePasswordReqBody {
