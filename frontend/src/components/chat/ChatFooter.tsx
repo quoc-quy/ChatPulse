@@ -19,6 +19,7 @@ const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1
 export function ChatFooter({ convId }: ChatFooterProps) {
   const { profile, activeChat } = useContext(AppContext)
   const [content, setContent] = useState('')
+  const [prevConvId, setPrevConvId] = useState(convId)
   const [showEmoji, setShowEmoji] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [emojiTheme, setEmojiTheme] = useState<Theme>(Theme.LIGHT)
@@ -31,13 +32,22 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
-  // 1. TỰ ĐỘNG LƯU NHÁP VÀ LẤY NHÁP TỪ LOCALSTORAGE
-  useEffect(() => {
+  // Ép đồng bộ state nháp ngay tức thì khi đổi tab chat
+  if (convId !== prevConvId) {
+    setPrevConvId(convId)
     const savedDraft = localStorage.getItem(`draft_${convId}`)
-    if (savedDraft) setContent(savedDraft)
-    else setContent('')
+    setContent(savedDraft || '')
     setReplyingTo(null)
-  }, [convId])
+  }
+
+  useEffect(() => {
+    if (content.trim()) {
+      localStorage.setItem(`draft_${convId}`, content)
+    } else {
+      localStorage.removeItem(`draft_${convId}`)
+    }
+    window.dispatchEvent(new CustomEvent('draft_updated', { detail: { convId, content: content.trim() } }))
+  }, [content, convId])
 
   useEffect(() => {
     if (content.trim()) {

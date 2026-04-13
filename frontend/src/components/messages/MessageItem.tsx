@@ -235,7 +235,12 @@ export function MessageItem({
       }
     }
 
-    return <p className='text-[15px] leading-relaxed break-words whitespace-pre-wrap'>{message.content}</p>
+    // return <p className='text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap'>{message.content}</p>
+    return (
+      <p className='text-[15px] leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere]'>
+        {message.content}
+      </p>
+    )
   }
 
   if (message.type === 'system') {
