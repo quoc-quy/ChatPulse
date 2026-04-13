@@ -87,10 +87,10 @@ export function MessageItem({
     if (!privateKey) return '🔒 Tin nhắn đã mã hóa (Khóa không khả dụng trên thiết bị này)'
 
     const encryptedAesKey = encryptedKeys[currentUserId]
-    if (!encryptedAesKey) return '🔒 Lỗi trao đổi khóa.'
+    if (!encryptedAesKey) return '🔒 Lỗi trao đổi khóa (Không tìm thấy khóa cho user này).'
 
     const aesKey = E2E.decryptAESKeyWithRSA(encryptedAesKey, privateKey)
-    if (!aesKey) return '🔒 Không thể giải mã khóa phiên.'
+    if (!aesKey) return '🔒 Không thể giải mã khóa phiên (Private Key không khớp).'
 
     return E2E.decryptMessageAES(content, aesKey)
   }
