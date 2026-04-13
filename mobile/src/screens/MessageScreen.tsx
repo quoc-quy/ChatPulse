@@ -106,7 +106,8 @@ const MessageScreen = () => {
     [isDarkMode, COLORS]
   );
 
-  const { clearLocalUnread } = useChatContext();
+  // ✅ LẤY THÊM drafts và updateDraft từ Context
+  const { clearLocalUnread, drafts, updateDraft } = useChatContext() as any;
 
   const {
     id: conversationId,
@@ -133,6 +134,14 @@ const MessageScreen = () => {
   const [pendingMedia, setPendingMedia] = useState<any[]>([]);
   const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // ✅ ĐỔ DỮ LIỆU NHÁP VÀO Ô INPUT KHI MỞ MÀN HÌNH
+  useEffect(() => {
+    if (conversationId && drafts && drafts[conversationId]) {
+      setInputText(drafts[conversationId]);
+    }
+  }, [conversationId]);
+
   const formatDuration = (seconds: number) => {
     if (!seconds) return t.messageDurationZero;
     const h = Math.floor(seconds / 3600);
@@ -150,7 +159,9 @@ const MessageScreen = () => {
       const recentMsgs = messages.slice(-5);
       const res = await suggestReplyApi(recentMsgs);
       if (res.data?.result) {
-        setInputText(`@PulseAI ${res.data.result.trim()}`);
+        const text = `@PulseAI ${res.data.result.trim()}`;
+        setInputText(text);
+        if (updateDraft && conversationId) updateDraft(conversationId, text); // Lưu nháp
       }
     } catch (error) {
       Alert.alert(t.error, t.messageAiSuggestFailed);
@@ -225,9 +236,7 @@ const MessageScreen = () => {
           continue;
         }
 
-        // SỬA Ở DÒNG NÀY: Xóa asset.fileName đi, chỉ giữ lại asset.name
         const fileName = asset.name || "";
-
         const extension = fileName.split('.').pop()?.toLowerCase() || "";
         if (BLOCKED_EXTENSIONS.includes(extension)) {
           Alert.alert("Lỗi bảo mật", `Không được phép gửi tệp tin định dạng .${extension}`);
@@ -244,7 +253,6 @@ const MessageScreen = () => {
   const uploadAttachment = async (fileData: any, type: "media" | "file") => {
     setIsUploading(true);
 
-    // Tách phần đuôi mở rộng bỏ đi tham số "?"
     const isVideoFile = fileData.type === "video" || fileData.uri.split('?')[0].match(/\.(mp4|mov)$/i);
     const mediaType = type === "media" ? (isVideoFile ? "video" : "image") : type;
 
@@ -262,7 +270,6 @@ const MessageScreen = () => {
 
     try {
       let mimeType = fileData.mimeType;
-      // Thêm fallback an toàn cho fileName để tránh lỗi undefined
       let fileName = fileData.name || fileData.fileName || fileData.uri.split('/').pop();
 
       if (type === "media") {
@@ -285,10 +292,23 @@ const MessageScreen = () => {
       if (realMessage) {
         setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log("Lỗi upload:", error);
-      setMessages((prev) => prev.filter((msg) => msg._id !== tempId));
-      Alert.alert(t.error, t.messageAttachmentFailed);
+      const errorMessage = error.response?.data?.message || t.messageAttachmentFailed || "Không thể gửi tệp đính kèm.";
+
+      setMessages((prev) => {
+        const filtered = prev.filter((msg) => msg._id !== tempId);
+        return [
+          {
+            _id: `error_${Date.now()}`,
+            conversationId,
+            type: "system_error",
+            content: errorMessage,
+            createdAt: new Date().toISOString(),
+          },
+          ...filtered,
+        ];
+      });
     } finally {
       setIsUploading(false);
     }
@@ -303,29 +323,26 @@ const MessageScreen = () => {
   };
 
   const handleSend = async () => {
-    // 1. Xử lý text (bỏ qua tag nếu trống)
     let textToSend = inputText.trim();
     if (textToSend === "@PulseAI ") textToSend = "";
 
-    // 2. CHẶN VÀ CẢNH BÁO NẾU VƯỢT QUÁ 2000 KÝ TỰ
     if (textToSend.length > 2000) {
       Alert.alert(
         t.error || "Cảnh báo",
         `Tin nhắn quá dài (${textToSend.length}/2000 ký tự). Vui lòng rút gọn nội dung trước khi gửi.`
       );
-      return; // Dừng lại, không cho gửi
+      return;
     }
 
-    const mediaToSend = [...pendingMedia]; // Lấy danh sách file chờ
-
-    // Nếu không có cả text và file thì không làm gì cả
+    const mediaToSend = [...pendingMedia];
     if (textToSend.length === 0 && mediaToSend.length === 0) return;
 
-    // Reset UI ngay lập tức để tạo cảm giác mượt mà
+    // ✅ SAU KHI GỬI THÌ PHẢI XÓA NHÁP
     setInputText("");
     setPendingMedia([]);
+    if (updateDraft && conversationId) updateDraft(conversationId, "");
 
-    // 3. Gửi Text (nếu có)
+    // Gửi Text 
     if (textToSend.length > 0) {
       const tempId = Date.now().toString();
       const tempMessage = {
@@ -335,6 +352,7 @@ const MessageScreen = () => {
         content: textToSend,
         createdAt: new Date().toISOString(),
         sender: { _id: currentUserId, userName: t.messageMe },
+        isSending: true,
       };
       setMessages((prev) => [tempMessage, ...prev]);
 
@@ -344,12 +362,27 @@ const MessageScreen = () => {
         if (realMessage) {
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
         }
-      } catch (error) {
-        console.log(error);
+      } catch (error: any) {
+        console.log("Lỗi khi gửi text:", error);
+        const errorMessage = error.response?.data?.message || "Không thể gửi tin nhắn. Vui lòng thử lại.";
+
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg._id !== tempId);
+          return [
+            {
+              _id: `error_${Date.now()}`,
+              conversationId,
+              type: "system_error",
+              content: errorMessage,
+              createdAt: new Date().toISOString(),
+            },
+            ...filtered,
+          ];
+        });
       }
     }
 
-    // 4. Gửi lần lượt tất cả ảnh/file trong mảng (nếu có)
+    // Gửi lần lượt tất cả ảnh/file
     for (const media of mediaToSend) {
       await uploadAttachment(media, media.attachmentType);
     }
@@ -867,18 +900,16 @@ const MessageScreen = () => {
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId;
 
-    // --- LOGIC MỚI: RENDER ALBUM GROUP IMAGE (ZALO STYLE) ---
     if (item.isGroup) {
       const showAvatar = !isMe;
       const orderedImages = item.images.slice().reverse();
       const count = orderedImages.length;
-      const displayImages = orderedImages.slice(0, 5); // Hiển thị tối đa 5 ảnh
+      const displayImages = orderedImages.slice(0, 5);
       const hiddenCount = count - 5;
 
-      const W = 240; // Chiều rộng tổng của khung chat ảnh
-      const gap = 3; // Khoảng cách giữa các ảnh
+      const W = 240;
+      const gap = 3;
 
-      // Hàm con: Render từng bức ảnh
       const renderImg = (imgMsg: any, style: any, isLast: boolean = false) => (
         <TouchableOpacity
           key={imgMsg._id}
@@ -888,7 +919,6 @@ const MessageScreen = () => {
           onLongPress={(e) => handleLongPress(e, imgMsg)}
         >
           <Image source={{ uri: imgMsg.content }} style={styles.fullImage} resizeMode="cover" />
-          {/* Hiển thị lớp mờ +số lượng ảnh bị ẩn (Nếu có > 5 ảnh) */}
           {isLast && hiddenCount > 0 && (
             <View style={styles.moreOverlay}>
               <Text style={styles.moreText}>+{hiddenCount}</Text>
@@ -909,22 +939,14 @@ const MessageScreen = () => {
             </View>
           )}
           <View style={[styles.messageContent, isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
-
-            {/* KHUNG GRID CHÍNH */}
             <View style={[styles.imageGridContainer, { borderRadius: 14, overflow: 'hidden' }]}>
-
-              {/* TRƯỜNG HỢP: 1 ẢNH */}
               {count === 1 && renderImg(displayImages[0], { width: W, height: 300 })}
-
-              {/* TRƯỜNG HỢP: 2 ẢNH (Chia đôi) */}
               {count === 2 && (
                 <View style={styles.gridRow}>
                   {renderImg(displayImages[0], { width: (W - gap) / 2, height: W * 0.8 })}
                   {renderImg(displayImages[1], { width: (W - gap) / 2, height: W * 0.8 })}
                 </View>
               )}
-
-              {/* TRƯỜNG HỢP: 3 ẢNH (1 trên to, 2 dưới nhỏ) */}
               {count === 3 && (
                 <View style={styles.gridCol}>
                   <View style={{ marginBottom: gap }}>
@@ -936,8 +958,6 @@ const MessageScreen = () => {
                   </View>
                 </View>
               )}
-
-              {/* TRƯỜNG HỢP: 4 ẢNH (2 trên, 2 dưới) */}
               {count === 4 && (
                 <View style={styles.gridCol}>
                   <View style={[styles.gridRow, { marginBottom: gap }]}>
@@ -950,8 +970,6 @@ const MessageScreen = () => {
                   </View>
                 </View>
               )}
-
-              {/* TRƯỜNG HỢP: >= 5 ẢNH (2 trên, 3 dưới) */}
               {count >= 5 && (
                 <View style={styles.gridCol}>
                   <View style={[styles.gridRow, { marginBottom: gap }]}>
@@ -961,13 +979,11 @@ const MessageScreen = () => {
                   <View style={styles.gridRow}>
                     {renderImg(displayImages[2], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
                     {renderImg(displayImages[3], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
-                    {/* Ảnh thứ 5 sẽ kèm theo thông báo số lượng ảnh ẩn */}
                     {renderImg(displayImages[4], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, true)}
                   </View>
                 </View>
               )}
             </View>
-
             <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight, marginTop: 4 }]}>
               {formatTime(item.createdAt)}
             </Text>
@@ -975,18 +991,16 @@ const MessageScreen = () => {
         </View>
       );
     }
-    // --- HẾT LOGIC MỚI ---
 
     const isRevoked = item.type === "revoked";
 
-    // Cần sửa messages thành groupedMessages ở 2 dòng này
     const olderItem = index < groupedMessages.length - 1 ? groupedMessages[index + 1] : null;
     const newerItem = index > 0 ? groupedMessages[index - 1] : null;
 
-    if (item.type === "system") {
+    if (item.type === "system" || item.type === "system_error") {
       const currentDate = new Date(item.createdAt).toDateString();
       const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null;
-      const showDateDivider = currentDate !== olderDate;
+      const showDateDivider = currentDate !== olderDate && item.type !== "system_error";
 
       return (
         <View>
@@ -997,11 +1011,39 @@ const MessageScreen = () => {
               </Text>
             </View>
           )}
-          <View style={styles.systemMessageWrapper}>
+
+          <View style={[
+            styles.systemMessageWrapper,
+            item.type === "system_error" && {
+              marginVertical: 16,
+              backgroundColor: isDarkMode ? "rgba(239, 68, 68, 0.15)" : "rgba(254, 226, 226, 0.8)",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: isDarkMode ? "rgba(239, 68, 68, 0.4)" : "rgba(239, 68, 68, 0.2)",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6
+            }
+          ]}>
+            {item.type === "system_error" && (
+              <Ionicons name="warning-outline" size={18} color={COLORS.badge} />
+            )}
+
             <Text
               style={[
                 styles.systemMessageText,
-                { color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)" },
+                item.type === "system_error"
+                  ? {
+                    color: COLORS.badge,
+                    fontWeight: "600",
+                    fontSize: 13,
+                    textAlign: "center",
+                    flexShrink: 1
+                  }
+                  : { color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)" },
               ]}
             >
               {item.content}
@@ -1069,10 +1111,8 @@ const MessageScreen = () => {
               onLongPress={(e) => handleLongPress(e, item)}
               activeOpacity={0.9}
             >
-              {/* TÁCH BIỆT KHUNG BONG BÓNG CHO TỪNG LOẠI TIN NHẮN */}
               <View
                 style={[
-                  // Nếu là Media thì bỏ khung bubble đi
                   !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && styles.bubble,
                   !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && (isMe ? styles.bubbleMe : styles.bubbleOther),
                   isRevoked && {
@@ -1080,7 +1120,6 @@ const MessageScreen = () => {
                     opacity: 0.6,
                   },
                   item.isSending && { opacity: 0.6 },
-                  // Ẩn background nếu là thẻ Call để dùng style riêng
                   item.type === "call" && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }
                 ]}
               >
@@ -1089,7 +1128,6 @@ const MessageScreen = () => {
                     {t.messageRevoked}
                   </Text>
                 ) : item.type === "call" ? (
-                  // GIAO DIỆN CUỘC GỌI CHUẨN ZALO (DÙNG MATERIAL ICONS)
                   (() => {
                     let callTitle = t.messageCall;
                     let callSub = formatDuration(item.callInfo?.duration || 0);
@@ -1108,14 +1146,12 @@ const MessageScreen = () => {
                     } else if (status === 'missed' || (!isMe && status === 'cancelled')) {
                       callTitle = t.messageMissedCall;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
-                      // CHÍNH LÀ ICON BẠN MUỐN TÌM: phone-missed
                       iconName = isVideo ? "video-off" : "phone-missed";
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
                       callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
                     } else if (status === 'rejected') {
                       callTitle = isMe ? t.messageRecipientRejected : t.messageYouRejected;
                       titleColor = isMe ? COLORS.headerText : COLORS.badge;
-                      // Dùng phone-cancel cho cuộc gọi bị từ chối
                       iconName = isVideo ? "video-off" : "phone-cancel";
                       iconColor = isMe ? COLORS.headerText : COLORS.badge;
                       callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
@@ -1130,7 +1166,6 @@ const MessageScreen = () => {
                       <View style={[styles.callCard, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? COLORS.primary : COLORS.surface, borderColor: COLORS.border, borderWidth: isMe ? 0 : (isDarkMode ? 1 : 1) }]}>
                         <View style={styles.callCardTop}>
                           <View style={[styles.callIconWrapper, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : (isDarkMode ? "#1E293B" : "#F3F4F6") }]}>
-                            {/* ĐỔI SANG DÙNG MaterialCommunityIcons ĐỂ CÓ ICON ĐÚNG */}
                             <MaterialCommunityIcons name={iconName as any} size={24} color={iconColor} />
                           </View>
                           <View style={styles.callInfo}>
@@ -1148,7 +1183,6 @@ const MessageScreen = () => {
                     );
                   })()
                 ) : (item.type === "media" || item.type === "image" || item.type === "video") ? (
-                  // GIAO DIỆN ẢNH / VIDEO (CÓ THỂ BẤM VÀO ĐỂ XEM)
                   <TouchableOpacity
                     style={{ position: "relative", marginBottom: 5 }}
                     activeOpacity={0.85}
@@ -1225,7 +1259,6 @@ const MessageScreen = () => {
                 )}
               </View>
 
-              {/* THỜI GIAN */}
               {showTime && !item.isSending && item.type !== "call" && (
                 <Text
                   style={[
@@ -1242,7 +1275,6 @@ const MessageScreen = () => {
                 </Text>
               )}
 
-              {/* Nếu là call, hiển thị giờ ngay sát dưới card cho đẹp */}
               {showTime && item.type === "call" && (
                 <Text
                   style={[
@@ -1254,14 +1286,12 @@ const MessageScreen = () => {
                 </Text>
               )}
 
-              {/* Đang gửi */}
               {item.isSending && (
                 <Text style={[styles.messageTime, { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight }]}>
                   {t.updating}
                 </Text>
               )}
 
-              {/* REACT CORNER */}
               {shouldShowReactionCorner && !item.isSending && (
                 <View style={styles.reactionContainer}>
                   {hasReactions ? (
@@ -1408,7 +1438,6 @@ const MessageScreen = () => {
           viewabilityConfig={viewabilityConfig.current}
         />
 
-        {/* UI HIỂN THỊ FILE/ẢNH ĐANG CHỜ GỬI (Nhiều file) */}
         {pendingMedia.length > 0 && (
           <View style={styles.pendingContainerWrap}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pendingContainer}>
@@ -1508,11 +1537,15 @@ const MessageScreen = () => {
                   ? inputText.substring(9)
                   : inputText
               }
+              // ✅ GỌI updateDraft KHI NHẬP VĂN BẢN
               onChangeText={(txt) => {
+                let newText = txt;
                 if (inputText.startsWith("@PulseAI ")) {
-                  setInputText("@PulseAI " + txt);
-                } else {
-                  setInputText(txt);
+                  newText = "@PulseAI " + txt;
+                }
+                setInputText(newText);
+                if (updateDraft && conversationId) {
+                  updateDraft(conversationId, newText);
                 }
               }}
               onKeyPress={({ nativeEvent }) => {

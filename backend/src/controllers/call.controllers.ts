@@ -1,6 +1,8 @@
 import { Request, Response } from 'express'
 import { liveKitService } from '~/services/livekit.services'
 
+
+
 export const getLiveKitTokenController = async (req: Request, res: Response) => {
   try {
     const { roomName, userName } = req.query as { roomName: string; userName: string }
@@ -9,6 +11,7 @@ export const getLiveKitTokenController = async (req: Request, res: Response) => 
     if (!roomName) {
       return res.status(400).json({ message: 'Thiếu tham số roomName' })
     }
+
 
     const token = await liveKitService.generateToken(roomName, userName || 'User', userId)
 
