@@ -28,6 +28,7 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import {
   useRoute,
@@ -70,6 +71,7 @@ const lightColors = {
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
+  fileBg: "#F0F4F8", // Màu nền card file
 };
 
 const darkColors = {
@@ -84,12 +86,33 @@ const darkColors = {
   success: "#10B981",
   badge: "#EF4444",
   headerText: "#FFFFFF",
+  fileBg: "#1E293B", // Màu nền card file dark
 };
 
 const REACTION_LIST = ["👍", "❤️", "🤣", "😮", "😭", "😡"];
 
 const BLOCKED_EXTENSIONS = ['exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // Tăng lên 50MB để cho phép gửi video
+
+// Hàm định dạng dung lượng file
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+};
+
+// Hàm lấy màu và chữ cho icon File
+const getFileIconInfo = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (ext === 'pdf') return { color: '#EF4444', label: 'PDF' };
+  if (['doc', 'docx'].includes(ext || '')) return { color: '#3B82F6', label: 'DOC' };
+  if (['xls', 'xlsx'].includes(ext || '')) return { color: '#10B981', label: 'XLS' };
+  if (['zip', 'rar'].includes(ext || '')) return { color: '#8B5CF6', label: 'ZIP' };
+  return { color: '#64748B', label: 'FILE' };
+};
 
 // ✅ HÀM TIỆN ÍCH DÙNG CHUNG ĐỂ BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
 const unarchiveChat = async (conversationId: string) => {
@@ -97,11 +120,8 @@ const unarchiveChat = async (conversationId: string) => {
     const stored = await AsyncStorage.getItem("archived_chats");
     if (stored) {
       let archivedArray: string[] = JSON.parse(stored);
-      // Tìm xem có key nào bắt đầu bằng conversationId: (hoặc chỉ là conversationId nếu format cũ)
       const index = archivedArray.findIndex((key: string) => key.startsWith(`${conversationId}:`) || key === conversationId);
-      
       if (index !== -1) {
-        // Nếu tìm thấy, tức là chat đang bị lưu trữ -> XÓA NÓ ĐI
         archivedArray.splice(index, 1);
         await AsyncStorage.setItem("archived_chats", JSON.stringify(archivedArray));
       }
@@ -126,7 +146,6 @@ const MessageScreen = () => {
     [isDarkMode, COLORS]
   );
 
-  // ✅ LẤY THÊM drafts và updateDraft từ Context
   const { clearLocalUnread, drafts, updateDraft } = useChatContext() as any;
 
   const {
@@ -149,13 +168,16 @@ const MessageScreen = () => {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-  // STATE MỚI: Quản lý file chờ gửi (để hiện preview lên trước)
   const [pendingMedia, setPendingMedia] = useState<any[]>([]);
-  const [previewMedia, setPreviewMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
+  // Thay thế dòng cũ bằng dòng này:
+  const [previewMedia, setPreviewMedia] = useState<{
+    items: { id: string; url: string; isVideo: boolean }[];
+    initialIndex: number;
+  } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // ✅ ĐỔ DỮ LIỆU NHÁP VÀO Ô INPUT KHI MỞ MÀN HÌNH
   useEffect(() => {
     if (conversationId && drafts && drafts[conversationId]) {
       setInputText(drafts[conversationId]);
@@ -181,7 +203,7 @@ const MessageScreen = () => {
       if (res.data?.result) {
         const text = `@PulseAI ${res.data.result.trim()}`;
         setInputText(text);
-        if (updateDraft && conversationId) updateDraft(conversationId, text); // Lưu nháp
+        if (updateDraft && conversationId) updateDraft(conversationId, text);
       }
     } catch (error) {
       Alert.alert(t.error, t.messageAiSuggestFailed);
@@ -190,7 +212,6 @@ const MessageScreen = () => {
     }
   };
 
-  // COMPONENT HIỂN THỊ THUMBNAIL VIDEO 
   const VideoThumbnail = ({ url }: { url: string }) => {
     const player = useVideoPlayer({ uri: url }, p => p.pause());
     return (
@@ -208,7 +229,6 @@ const MessageScreen = () => {
     );
   };
 
-  // COMPONENT HỖ TRỢ XEM VIDEO TOÀN MÀN HÌNH
   const VideoViewer = ({ url }: { url: string }) => {
     const player = useVideoPlayer({ uri: url }, player => {
       player.loop = true;
@@ -219,22 +239,31 @@ const MessageScreen = () => {
       <VideoView
         style={{ width: '100%', height: '100%' }}
         player={player}
+        nativeControls={true} // <-- Thêm dòng này để hiện nút Play/Pause
         allowsFullscreen
         allowsPictureInPicture
       />
     );
   };
 
+  // ✅ SỬA LỖI VIDEO: Thêm thông số videoQuality và kiểm tra đúng mimeType
   const handlePickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsMultipleSelection: true,
       quality: 0.8,
+      videoExportPreset: ImagePicker.VideoExportPreset.HighestQuality,
     });
+
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const validAssets: any[] = [];
       for (const asset of result.assets) {
-        validAssets.push({ ...asset, attachmentType: "media" });
+        const isVideo = asset.type === "video" || asset.uri.match(/\.(mp4|mov|avi|mkv)$/i);
+        validAssets.push({
+          ...asset,
+          attachmentType: "media",
+          detectedType: isVideo ? "video" : "image"
+        });
       }
       if (validAssets.length > 0) {
         setPendingMedia((prev) => [...prev, ...validAssets]);
@@ -252,7 +281,7 @@ const MessageScreen = () => {
       const validAssets: any[] = [];
       for (const asset of result.assets) {
         if (asset.size && asset.size > MAX_FILE_SIZE) {
-          Alert.alert(t.error || "Lỗi", "Không thể gửi file lớn hơn 10MB");
+          Alert.alert(t.error || "Lỗi", `Không thể gửi file lớn hơn ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
           continue;
         }
 
@@ -262,7 +291,8 @@ const MessageScreen = () => {
           Alert.alert("Lỗi bảo mật", `Không được phép gửi tệp tin định dạng .${extension}`);
           continue;
         }
-        validAssets.push({ ...asset, attachmentType: "file" });
+        // Lưu kèm fileSize để hiển thị trên UI
+        validAssets.push({ ...asset, attachmentType: "file", fileSize: asset.size });
       }
       if (validAssets.length > 0) {
         setPendingMedia((prev) => [...prev, ...validAssets]);
@@ -301,18 +331,26 @@ const MessageScreen = () => {
           fileName = fileName || `image_${Date.now()}.jpg`;
         }
       } else {
+        // Xử lý riêng cho DocumentPicker để giữ đúng định dạng file
         mimeType = mimeType || "application/octet-stream";
         fileName = fileName || `file_${Date.now()}`;
       }
 
-      const formattedFile = { uri: fileData.uri, name: fileName, type: mimeType };
+      // ✅ FIX Ở ĐÂY: Thêm trường `mimeType` để tương thích với cấu trúc của chat.api.ts
+      const formattedFile = {
+        uri: fileData.uri,
+        name: fileName,
+        type: mimeType,
+        mimeType: mimeType // Bắt buộc phải có để API lấy đúng đuôi file thay vì fallback
+      };
+
       const res = await sendMediaMessage(conversationId, formattedFile, type);
       const realMessage = res.data?.result || res.data;
 
       if (realMessage) {
         setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
-        
-        // ✅ GỌI HÀM BỎ LƯU TRỮ CHAT KHI GỬI ẢNH/FILE THÀNH CÔNG
+
+        // Gọi hàm bỏ lưu trữ chat khi gửi file thành công
         unarchiveChat(conversationId);
       }
     } catch (error: any) {
@@ -337,14 +375,6 @@ const MessageScreen = () => {
     }
   };
 
-  const handleAttachPress = () => {
-    Alert.alert(t.messageAttachTitle, t.messageAttachChooseType, [
-      { text: t.messageAttachMedia, onPress: handlePickMedia },
-      { text: t.messageAttachFile, onPress: handlePickDocument },
-      { text: t.cancel, style: "cancel" },
-    ]);
-  };
-
   const handleSend = async () => {
     let textToSend = inputText.trim();
     if (textToSend === "@PulseAI ") textToSend = "";
@@ -360,12 +390,10 @@ const MessageScreen = () => {
     const mediaToSend = [...pendingMedia];
     if (textToSend.length === 0 && mediaToSend.length === 0) return;
 
-    // SAU KHI GỬI THÌ PHẢI XÓA NHÁP
     setInputText("");
     setPendingMedia([]);
     if (updateDraft && conversationId) updateDraft(conversationId, "");
 
-    // Gửi Text 
     if (textToSend.length > 0) {
       const tempId = Date.now().toString();
       const tempMessage = {
@@ -384,8 +412,6 @@ const MessageScreen = () => {
         const realMessage = res.data.result || res.data;
         if (realMessage) {
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)));
-          
-          // ✅ GỌI HÀM BỎ LƯU TRỮ CHAT KHI GỬI TIN NHẮN THÀNH CÔNG
           unarchiveChat(conversationId);
         }
       } catch (error: any) {
@@ -408,7 +434,6 @@ const MessageScreen = () => {
       }
     }
 
-    // Gửi lần lượt tất cả ảnh/file
     for (const media of mediaToSend) {
       await uploadAttachment(media, media.attachmentType);
     }
@@ -509,21 +534,23 @@ const MessageScreen = () => {
     });
   }, [conversationId]);
 
-  // LOGIC NHÓM ẢNH ĐỂ TẠO GRID LAYOUT
   const groupedMessages = useMemo(() => {
     const result = [];
     let currentGroup: any = null;
 
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      const isMedia = (msg.type === "media" || msg.type === "image");
-      const isVideo = msg.content?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i) || msg.type === "video";
-      const isImage = isMedia && !isVideo;
+      const urlLower = msg.content?.split('?')[0].toLowerCase() || "";
+
+      // ✅ FIX: Phân loại rõ ràng từ đầu để Document không bị gom chung vào mảng Grid Ảnh
+      const isVideo = msg.type === "video" || urlLower.match(/\.(mp4|mov|avi|mkv)$/i);
+      const isDocument = msg.type === "file" || urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i);
+      const isImage = (msg.type === "media" || msg.type === "image" || urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) && !isVideo && !isDocument;
 
       if (isImage && !msg.isSending) {
         if (currentGroup && currentGroup.senderId === (msg.sender?._id || msg.senderId)) {
           const timeDiff = Math.abs(new Date(currentGroup.createdAt).getTime() - new Date(msg.createdAt).getTime());
-          if (timeDiff < 60000) { // Gộp ảnh gửi trong vòng 60 giây
+          if (timeDiff < 60000) {
             currentGroup.images.push(msg);
             continue;
           }
@@ -930,18 +957,28 @@ const MessageScreen = () => {
       const showAvatar = !isMe;
       const orderedImages = item.images.slice().reverse();
       const count = orderedImages.length;
-      const displayImages = orderedImages.slice(0, 5); 
+      const displayImages = orderedImages.slice(0, 5);
       const hiddenCount = count - 5;
 
-      const W = 240; 
-      const gap = 3; 
+      const W = 240;
+      const gap = 3;
 
-      const renderImg = (imgMsg: any, style: any, isLast: boolean = false) => (
+      // Thêm tham số `indexInGroup` ở cuối
+      const renderImg = (imgMsg: any, style: any, isLast: boolean = false, indexInGroup: number = 0) => (
         <TouchableOpacity
           key={imgMsg._id}
           style={[styles.gridImageWrapper, style]}
           activeOpacity={0.85}
-          onPress={() => setPreviewMedia({ url: imgMsg.content, isVideo: false })}
+          onPress={() => {
+            // Lấy toàn bộ ảnh trong nhóm chuyển thành mảng
+            const items = orderedImages.map((img: any) => ({
+              id: img._id,
+              url: img.content,
+              isVideo: false
+            }));
+            // Mở modal và cuộn đến đúng ảnh đang bấm
+            setPreviewMedia({ items, initialIndex: indexInGroup });
+          }}
           onLongPress={(e) => handleLongPress(e, imgMsg)}
         >
           <Image source={{ uri: imgMsg.content }} style={styles.fullImage} resizeMode="cover" />
@@ -966,46 +1003,46 @@ const MessageScreen = () => {
           )}
           <View style={[styles.messageContent, isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
             <View style={[styles.imageGridContainer, { borderRadius: 14, overflow: 'hidden' }]}>
-              {count === 1 && renderImg(displayImages[0], { width: W, height: 300 })}
+              {count === 1 && renderImg(displayImages[0], { width: W, height: 300 }, false, 0)}
               {count === 2 && (
                 <View style={styles.gridRow}>
-                  {renderImg(displayImages[0], { width: (W - gap) / 2, height: W * 0.8 })}
-                  {renderImg(displayImages[1], { width: (W - gap) / 2, height: W * 0.8 })}
+                  {renderImg(displayImages[0], { width: (W - gap) / 2, height: W * 0.8 }, false, 0)}
+                  {renderImg(displayImages[1], { width: (W - gap) / 2, height: W * 0.8 }, false, 1)}
                 </View>
               )}
               {count === 3 && (
                 <View style={styles.gridCol}>
                   <View style={{ marginBottom: gap }}>
-                    {renderImg(displayImages[0], { width: W, height: W * 0.65 })}
+                    {renderImg(displayImages[0], { width: W, height: W * 0.65 }, false, 0)}
                   </View>
                   <View style={styles.gridRow}>
-                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
-                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 1)}
+                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 2)}
                   </View>
                 </View>
               )}
               {count === 4 && (
                 <View style={styles.gridCol}>
                   <View style={[styles.gridRow, { marginBottom: gap }]}>
-                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 })}
-                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 0)}
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 1)}
                   </View>
                   <View style={styles.gridRow}>
-                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 })}
-                    {renderImg(displayImages[3], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[2], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 2)}
+                    {renderImg(displayImages[3], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 3)}
                   </View>
                 </View>
               )}
               {count >= 5 && (
                 <View style={styles.gridCol}>
                   <View style={[styles.gridRow, { marginBottom: gap }]}>
-                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 })}
-                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 })}
+                    {renderImg(displayImages[0], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 0)}
+                    {renderImg(displayImages[1], { width: (W - gap) / 2, height: (W - gap) / 2 }, false, 1)}
                   </View>
                   <View style={styles.gridRow}>
-                    {renderImg(displayImages[2], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
-                    {renderImg(displayImages[3], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 })}
-                    {renderImg(displayImages[4], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, true)}
+                    {renderImg(displayImages[2], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, false, 2)}
+                    {renderImg(displayImages[3], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, false, 3)}
+                    {renderImg(displayImages[4], { width: (W - gap * 2) / 3, height: (W - gap * 2) / 3 }, true, 4)}
                   </View>
                 </View>
               )}
@@ -1037,7 +1074,7 @@ const MessageScreen = () => {
               </Text>
             </View>
           )}
-          
+
           <View style={[
             styles.systemMessageWrapper,
             item.type === "system_error" && {
@@ -1045,30 +1082,30 @@ const MessageScreen = () => {
               backgroundColor: isDarkMode ? "rgba(239, 68, 68, 0.15)" : "rgba(254, 226, 226, 0.8)",
               paddingHorizontal: 16,
               paddingVertical: 12,
-              borderRadius: 20, 
+              borderRadius: 20,
               borderWidth: 1,
               borderColor: isDarkMode ? "rgba(239, 68, 68, 0.4)" : "rgba(239, 68, 68, 0.2)",
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6 
+              gap: 6
             }
           ]}>
             {item.type === "system_error" && (
               <Ionicons name="warning-outline" size={18} color={COLORS.badge} />
             )}
-            
+
             <Text
               style={[
                 styles.systemMessageText,
-                item.type === "system_error" 
-                  ? { 
-                      color: COLORS.badge, 
-                      fontWeight: "600", 
-                      fontSize: 13, 
-                      textAlign: "center",
-                      flexShrink: 1 
-                    } 
+                item.type === "system_error"
+                  ? {
+                    color: COLORS.badge,
+                    fontWeight: "600",
+                    fontSize: 13,
+                    textAlign: "center",
+                    flexShrink: 1
+                  }
                   : { color: isDarkMode ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)" },
               ]}
             >
@@ -1133,159 +1170,136 @@ const MessageScreen = () => {
             ]}
           >
             <TouchableOpacity
-              onPress={() => handleDoubleTap(item)}
+              onPress={() => {
+                const urlLower = displayContent?.split('?')[0].toLowerCase() || "";
+                const isVideoClick = item.type === "video" || urlLower.match(/\.(mp4|mov|avi|mkv)$/i);
+                const isDocumentClick = item.type === "file" || urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i);
+                const isImageClick = (item.type === "image" || item.type === "media" || urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) && !isVideoClick && !isDocumentClick;
+
+                if (isDocumentClick) {
+                  Linking.openURL(displayContent);
+                } else if (isImageClick || isVideoClick) {
+                  // Gọi dạng mảng 1 phần tử cho tin nhắn lẻ
+                  setPreviewMedia({
+                    items: [{ id: item._id, url: displayContent, isVideo: !!isVideoClick }],
+                    initialIndex: 0
+                  });
+                } else {
+                  handleDoubleTap(item);
+                }
+              }}
               onLongPress={(e) => handleLongPress(e, item)}
               activeOpacity={0.9}
             >
               <View
                 style={[
-                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && styles.bubble,
-                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call") && (isMe ? styles.bubbleMe : styles.bubbleOther),
+                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call" || item.type === "file" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov|avi|mkv|jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i)) && styles.bubble,
+                  !(item.type === "media" || item.type === "image" || item.type === "video" || item.type === "call" || item.type === "file") && (isMe ? styles.bubbleMe : styles.bubbleOther),
                   isRevoked && {
                     backgroundColor: isDarkMode ? "#1E2946" : "#E2E8F0",
                     opacity: 0.6,
                   },
                   item.isSending && { opacity: 0.6 },
-                  item.type === "call" && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }
+                  (item.type === "call" || item.type === "file") && { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }
                 ]}
               >
                 {isRevoked ? (
                   <Text style={[styles.messageText, { fontStyle: "italic", color: COLORS.textLight, paddingRight: 5 }]}>
                     {t.messageRevoked}
                   </Text>
-                ) : item.type === "call" ? (
-                  (() => {
-                    let callTitle = t.messageCall;
-                    let callSub = formatDuration(item.callInfo?.duration || 0);
-                    let iconName = "phone";
-                    let iconColor = isMe ? COLORS.headerText : COLORS.text;
-                    let titleColor = isMe ? COLORS.headerText : COLORS.text;
+                ) : (() => {
+                  // ✅ LOGIC XÁC ĐỊNH CHÍNH XÁC LOẠI FILE ĐỂ RENDER
+                  const urlLower = displayContent?.split('?')[0].toLowerCase() || "";
 
-                    const callInfo = item.callInfo || {};
-                    const isVideo = callInfo.type === 'video' || displayContent.includes("Video");
-                    const status = callInfo.status || (displayContent.toLowerCase().includes("nhỡ") ? "missed" : "completed");
+                  // Xác định Video
+                  const isVideo = item.type === "video" || urlLower.match(/\.(mp4|mov|avi|mkv)$/i);
 
-                    if (status === 'completed') {
-                      callTitle = isMe ? t.messageOutgoingCall : t.messageIncomingCall;
-                      iconName = isVideo ? "video" : (isMe ? "phone-outgoing" : "phone-incoming");
-                      iconColor = isMe ? COLORS.headerText : COLORS.success;
-                    } else if (status === 'missed' || (!isMe && status === 'cancelled')) {
-                      callTitle = t.messageMissedCall;
-                      titleColor = isMe ? COLORS.headerText : COLORS.badge;
-                      iconName = isVideo ? "video-off" : "phone-missed";
-                      iconColor = isMe ? COLORS.headerText : COLORS.badge;
-                      callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
-                    } else if (status === 'rejected') {
-                      callTitle = isMe ? t.messageRecipientRejected : t.messageYouRejected;
-                      titleColor = isMe ? COLORS.headerText : COLORS.badge;
-                      iconName = isVideo ? "video-off" : "phone-cancel";
-                      iconColor = isMe ? COLORS.headerText : COLORS.badge;
-                      callSub = isVideo ? t.messageVideoCall : t.messageVoiceCall;
-                    } else if (isMe && status === 'cancelled') {
-                      callTitle = t.messageOutgoingCall;
-                      iconName = isVideo ? "video" : "phone-outgoing";
-                      iconColor = COLORS.headerText;
-                      callSub = t.messageNotConnected;
-                    }
+                  // Xác định File Tài liệu (PDF, Word, Excel, Text, Zip...)
+                  // Nếu type backend trả về 'file', hoặc URL có đuôi tài liệu -> Ép thành File Card
+                  const isDocument = item.type === "file" || urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i);
 
+                  // Xác định Ảnh (không phải video, không phải document)
+                  const isImage = (item.type === "image" || item.type === "media" || urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) && !isVideo && !isDocument;
+
+                  if (isVideo || isImage) {
                     return (
-                      <View style={[styles.callCard, isMe ? styles.bubbleMe : styles.bubbleOther, { backgroundColor: isMe ? COLORS.primary : COLORS.surface, borderColor: COLORS.border, borderWidth: isMe ? 0 : (isDarkMode ? 1 : 1) }]}>
-                        <View style={styles.callCardTop}>
-                          <View style={[styles.callIconWrapper, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : (isDarkMode ? "#1E293B" : "#F3F4F6") }]}>
-                            <MaterialCommunityIcons name={iconName as any} size={24} color={iconColor} />
-                          </View>
-                          <View style={styles.callInfo}>
-                            <Text style={[styles.callTitle, { color: titleColor }]}>
-                              {callTitle}
-                            </Text>
-                            <Text style={[styles.callSubtitle, { color: isMe ? "rgba(255,255,255,0.75)" : COLORS.textLight }]}>
-                              {callSub}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View style={[styles.callDivider, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : COLORS.border }]} />
+                      <View style={{ position: "relative", marginBottom: 5 }}>
+                        {isVideo ? (
+                          <VideoThumbnail url={displayContent} />
+                        ) : (
+                          <Image source={{ uri: displayContent }} style={styles.mediaImage} resizeMode="cover" />
+                        )}
                       </View>
                     );
-                  })()
-                ) : (item.type === "media" || item.type === "image" || item.type === "video") ? (
-                  <TouchableOpacity
-                    style={{ position: "relative", marginBottom: 5 }}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      const isVideo = item.type === "video" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i);
-                      setPreviewMedia({ url: displayContent, isVideo: !!isVideo });
-                    }}
-                  >
-                    {(item.type === "video" || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov)$/i)) ? (
-                      <VideoThumbnail url={displayContent} />
-                    ) : (
-                      <Image source={{ uri: displayContent }} style={styles.mediaImage} resizeMode="cover" />
-                    )}
-                  </TouchableOpacity>
-                ) : item.type === "file" ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.fileAttachmentContainer,
-                      {
-                        backgroundColor: "transparent",
-                        borderWidth: 0,
-                      },
-                    ]}
-                    activeOpacity={0.8}
-                    onPress={() => Linking.openURL(displayContent)}
-                  >
-                    <View style={[styles.fileIconWrapper, { backgroundColor: isMe ? "rgba(255,255,255,0.2)" : (isDarkMode ? "#1E293B" : "#F3F4F6") }]}>
-                      <Ionicons
-                        name="document-text"
-                        size={26}
-                        color={isMe ? "#ffffff" : COLORS.primary}
-                      />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text
-                        style={[
-                          styles.fileNameText,
-                          { color: isMe ? "#ffffff" : COLORS.text },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {displayContent.split("/").pop()?.split("?")[0] || t.messageAttachmentDocument}
-                      </Text>
-                      <Text
-                        style={{
-                          color: isMe ? "rgba(255,255,255,0.75)" : COLORS.textLight,
-                          fontSize: 12,
-                          marginTop: 4,
-                        }}
-                      >
-                        {t.messageAttachmentFile}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : (
-                  <Text
-                    style={[
-                      styles.messageText,
-                      { color: isMe ? COLORS.headerText : COLORS.text, paddingRight: 5 },
-                    ]}
-                  >
-                    {isAiGenerated && (
-                      <Text
-                        style={{
-                          color: isMe ? "#E9D5FF" : "#C084FC",
-                          fontWeight: "900",
-                        }}
-                      >
-                        @PulseAI{" "}
-                      </Text>
-                    )}
-                    {displayContent}
-                  </Text>
-                )}
+                  }
+
+                  if (isDocument) {
+                    // GIAO DIỆN CARD FILE MỚI CHUẨN ZALO
+                    const fileName = displayContent.split("/").pop()?.split("?")[0] || t.messageAttachmentDocument;
+                    const { color: fileColor, label: fileLabel } = getFileIconInfo(fileName);
+
+                    return (
+                      <View style={[styles.fileCard, { backgroundColor: COLORS.fileBg, borderColor: COLORS.border }]}>
+                        {/* Ảnh nền nhạt mô phỏng file */}
+                        <View style={styles.fileCardPreview}>
+                          <Ionicons name="document-text" size={60} color={COLORS.border} style={{ opacity: 0.5 }} />
+                        </View>
+
+                        <View style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}>
+                          <View style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}>
+                            <Text style={styles.fileTypeBadgeText}>{fileLabel}</Text>
+                          </View>
+
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={[styles.fileNameCardText, { color: COLORS.text }]} numberOfLines={1}>
+                              {fileName}
+                            </Text>
+                            <View style={styles.fileMetaRow}>
+                              <Text style={[styles.fileMetaText, { color: COLORS.textLight }]}>
+                                {item.fileSize ? formatBytes(item.fileSize) : "Tệp tin"}
+                              </Text>
+                              <Text style={[styles.fileMetaText, { color: COLORS.textLight, marginHorizontal: 4 }]}>•</Text>
+                              <Ionicons name="cloud-done-outline" size={12} color={COLORS.textLight} />
+                              <Text style={[styles.fileMetaText, { color: COLORS.textLight, marginLeft: 2 }]}>Đã có trên Cloud</Text>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.downloadIconBtn}
+                            onPress={() => Linking.openURL(displayContent)}
+                          >
+                            <Ionicons name="download-outline" size={20} color={COLORS.text} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  // Fallback: Text thông thường
+                  return (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        { color: isMe ? COLORS.headerText : COLORS.text, paddingRight: 5 },
+                      ]}
+                    >
+                      {isAiGenerated && (
+                        <Text
+                          style={{
+                            color: isMe ? "#E9D5FF" : "#C084FC",
+                            fontWeight: "900",
+                          }}
+                        >
+                          @PulseAI{" "}
+                        </Text>
+                      )}
+                      {displayContent}
+                    </Text>
+                  );
+                })()}
               </View>
 
-              {showTime && !item.isSending && item.type !== "call" && (
+              {showTime && !item.isSending && item.type !== "call" && item.type !== "file" && (
                 <Text
                   style={[
                     styles.messageTime,
@@ -1301,11 +1315,12 @@ const MessageScreen = () => {
                 </Text>
               )}
 
-              {showTime && item.type === "call" && (
+              {/* Time riêng cho call hoặc file card */}
+              {showTime && (item.type === "call" || item.type === "file") && (
                 <Text
                   style={[
                     styles.messageTime,
-                    { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight, marginTop: 2 }
+                    { alignSelf: isMe ? "flex-end" : "flex-start", color: COLORS.textLight, marginTop: 4 }
                   ]}
                 >
                   {formatTime(item.createdAt)}
@@ -1505,18 +1520,18 @@ const MessageScreen = () => {
 
         <View style={styles.inputContainer}>
           {/* NÚT 1: GỬI ẢNH/VIDEO */}
-          <TouchableOpacity 
-            style={styles.attachBtn} 
-            onPress={handlePickMedia} // <-- Gọi trực tiếp hàm chọn media
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={handlePickMedia}
             disabled={isUploading}
           >
             <Ionicons name="image-outline" size={24} color={COLORS.textLight} />
           </TouchableOpacity>
 
           {/* NÚT 2: GỬI FILE/TÀI LIỆU */}
-          <TouchableOpacity 
-            style={styles.attachBtn} 
-            onPress={handlePickDocument} // <-- Gọi trực tiếp hàm chọn file
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={handlePickDocument}
             disabled={isUploading}
           >
             <Ionicons name="attach" size={24} color={COLORS.textLight} />
@@ -1546,7 +1561,6 @@ const MessageScreen = () => {
               },
             ]}
           >
-           {/* ... (Phần hiển thị @PulseAI và TextInput giữ nguyên y hệt như cũ) ... */}
             {inputText.startsWith("@PulseAI ") && (
               <Text
                 style={{
@@ -1580,7 +1594,6 @@ const MessageScreen = () => {
                   ? inputText.substring(9)
                   : inputText
               }
-              // ✅ GỌI updateDraft KHI NHẬP VĂN BẢN
               onChangeText={(txt) => {
                 let newText = txt;
                 if (inputText.startsWith("@PulseAI ")) {
@@ -1871,15 +1884,32 @@ const MessageScreen = () => {
           </TouchableOpacity>
 
           {previewMedia && (
-            previewMedia.isVideo ? (
-              <VideoViewer url={previewMedia.url} />
-            ) : (
-              <Image
-                source={{ uri: previewMedia.url }}
-                style={styles.fullScreenImage}
-                resizeMode="contain"
-              />
-            )
+            <FlatList
+              data={previewMedia.items}
+              keyExtractor={(item, index) => item.id + "_" + index}
+              horizontal
+              pagingEnabled // <-- Tạo hiệu ứng lướt từng trang
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={previewMedia.initialIndex} // Cuộn tới đúng ảnh đang chọn
+              getItemLayout={(_, index) => ({
+                length: SCREEN_WIDTH,
+                offset: SCREEN_WIDTH * index,
+                index,
+              })}
+              renderItem={({ item }) => (
+                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center" }}>
+                  {item.isVideo ? (
+                    <VideoViewer url={item.url} />
+                  ) : (
+                    <Image
+                      source={{ uri: item.url }}
+                      style={styles.fullScreenImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              )}
+            />
           )}
         </View>
       </Modal>
@@ -2040,7 +2070,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     attachBtn: {
       padding: 6, // Giảm từ 8 xuống 6
-      marginBottom: 4, 
+      marginBottom: 4,
     },
     textInput: {
       flex: 1,
@@ -2284,26 +2314,59 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       backgroundColor: "rgba(0,0,0,0.15)",
       borderRadius: 16,
     },
-    fileAttachmentContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 0,
-      paddingVertical: 4,
-      marginBottom: 0,
+
+    // ✅ STYLE CHO CARD HIỂN THỊ FILE CHUẨN ZALO
+    fileCard: {
       width: 240,
-      borderRadius: 18,
+      borderRadius: 16,
+      borderWidth: 1,
+      overflow: 'hidden',
+      marginBottom: 5,
     },
-    fileIconWrapper: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
+    fileCardPreview: {
+      height: 120,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'transparent',
     },
-    fileNameText: {
-      fontSize: 15,
-      fontWeight: "600",
-      lineHeight: 20,
+    fileCardInfo: {
+      flexDirection: 'row',
+      padding: 12,
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: COLORS.border,
+    },
+    fileTypeBadge: {
+      width: 40,
+      height: 40,
+      borderRadius: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    fileTypeBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: 'bold',
+    },
+    fileNameCardText: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    fileMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    fileMetaText: {
+      fontSize: 11,
+    },
+    downloadIconBtn: {
+      padding: 6,
+      backgroundColor: COLORS.background,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: COLORS.border,
     },
 
     imagePreviewContainer: {
