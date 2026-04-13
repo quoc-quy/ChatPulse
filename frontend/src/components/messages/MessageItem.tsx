@@ -341,7 +341,13 @@ export function MessageItem({
 
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
           <div className='flex items-center gap-2 group/bubble relative'>
-            <MessageActions message={message} isMe={isMe} currentUserId={currentUserId} onDeleteForMe={onDeleteForMe} />
+            <MessageActions
+              message={message}
+              isMe={isMe}
+              currentUserId={currentUserId}
+              onDeleteForMe={onDeleteForMe}
+              decryptedContent={displayContent}
+            />
 
             {isRevoked ? (
               <div
