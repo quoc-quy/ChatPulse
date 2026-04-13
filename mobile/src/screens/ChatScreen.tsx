@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { joinGroupByLink } from "../apis/chat.api";
+import { E2E } from "../utils/e2e.utils";
 import {
   View,
   Text,
@@ -92,6 +93,7 @@ const ChatScreen = ({ route }: any) => {
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "groups">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+  const [myPrivateKey, setMyPrivateKey] = useState<string>("");
 
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
 
@@ -121,6 +123,18 @@ const ChatScreen = ({ route }: any) => {
       }
     };
     loadArchived();
+  }, []);
+
+  useEffect(() => {
+    const loadPrivateKey = async () => {
+      try {
+        const privateK = await AsyncStorage.getItem("rsa_private_key");
+        if (privateK) setMyPrivateKey(privateK);
+      } catch (error) {
+        console.log("Lỗi load private key ở ChatScreen:", error);
+      }
+    };
+    loadPrivateKey();
   }, []);
 
   // Load danh sách đã lưu trữ từ AsyncStorage
@@ -246,7 +260,7 @@ const ChatScreen = ({ route }: any) => {
         if (currentArchived.has(conv._id)) {
           const isUnread = conv.unread_count > 0;
           const isMyLatestMessage = conv.lastMessage?.senderId === resolvedUserId;
-          
+
           if (isUnread || isMyLatestMessage) {
             currentArchived.delete(conv._id);
             archivedHasChanged = true;
@@ -382,7 +396,7 @@ const ChatScreen = ({ route }: any) => {
 
     setArchivedIds((prev) => {
       const next = new Set(prev);
-      
+
       if (next.has(id)) {
         next.delete(id); // Nếu đã lưu thì bỏ lưu
       } else {
@@ -511,6 +525,7 @@ const ChatScreen = ({ route }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
 
     // --- LOGIC XỬ LÝ NỘI DUNG TIN NHẮN CUỐI CÙNG ---
+    // --- LOGIC XỬ LÝ NỘI DUNG TIN NHẮN CUỐI CÙNG ---
     let messageContent = t.chatNoMessagesYet;
     if (item.lastMessage) {
       if (item.lastMessage.type === "image" || item.lastMessage.type === "media" || item.lastMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
@@ -523,10 +538,32 @@ const ChatScreen = ({ route }: any) => {
         messageContent = "[Cuộc gọi]";
       } else if (item.lastMessage.type === "revoked") {
         messageContent = t.messageRevoked || "Tin nhắn đã thu hồi";
+      } else if (item.lastMessage.isE2E && item.lastMessage.type === "text") {
+        // ✅ LOGIC GIẢI MÃ E2E CHO PREVIEW TIN NHẮN
+        try {
+          if (myPrivateKey && currentUserId && item.lastMessage.encryptedKeys) {
+            const myEncryptedAesKey = item.lastMessage.encryptedKeys[currentUserId];
+            if (myEncryptedAesKey) {
+              const aesKey = E2E.decryptAESKeyWithRSA(myEncryptedAesKey, myPrivateKey);
+              if (aesKey) {
+                messageContent = E2E.decryptMessageAES(item.lastMessage.content, aesKey);
+              } else {
+                messageContent = "🔒 Lỗi giải mã khóa";
+              }
+            } else {
+              messageContent = "🔒 Tin nhắn bảo mật";
+            }
+          } else {
+            messageContent = "🔒 Tin nhắn bảo mật"; // Đang load khóa hoặc không có quyền
+          }
+        } catch (e) {
+          messageContent = "🔒 Lỗi giải mã";
+        }
       } else {
         messageContent = item.lastMessage.content || t.chatNoMessagesYet;
       }
     }
+    // --- KẾT THÚC LOGIC ---
     // --- KẾT THÚC LOGIC ---
 
     const unread = getLocalUnread(item._id);

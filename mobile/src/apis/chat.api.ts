@@ -21,16 +21,20 @@ export const getMessages = (
   return api.get(`/messages/${conversationId}`, { params });
 };
 
-// ĐÃ SỬA LẠI HÀM NÀY: Gửi đúng trường "convId" mà Backend yêu cầu
+// Cập nhật hàm sendMessage để hỗ trợ E2E
 export const sendMessage = (
   conversationId: string,
   content: string,
   type = "text",
+  isE2E?: boolean,
+  encryptedKeys?: Record<string, string>
 ) => {
   return api.post(`/messages`, {
-    convId: conversationId, // <-- Đổi tên key chỗ này thành convId
+    convId: conversationId,
     content: content,
     type: type,
+    isE2E: isE2E, // Báo cho server đây là tin nhắn mã hóa
+    encryptedKeys: encryptedKeys, // Gửi bộ khóa AES đã mã hóa bằng RSA
   });
 };
 
