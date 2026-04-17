@@ -180,3 +180,27 @@ export const uploadGroupAvatarController = async (req: Request, res: Response) =
     result: updatedGroup
   })
 }
+
+export const createGroupController = async (req: Request, res: Response) => {
+  const userId = req.decoded_authorization?.user_id as string
+  const { name, member_ids, avatarUrl } = req.body as {
+    name: string
+    member_ids: string[]
+    avatarUrl?: string
+  }
+
+  if (!name || name.trim() === '') {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Tên nhóm không được để trống' })
+  }
+
+  if (!member_ids || member_ids.length === 0) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Nhóm phải có ít nhất 1 thành viên khác' })
+  }
+
+  const newGroup = await groupService.createGroup(userId, member_ids, name, avatarUrl)
+
+  return res.status(httpStatus.CREATED).json({
+    message: 'Tạo nhóm thành công',
+    result: newGroup
+  })
+}

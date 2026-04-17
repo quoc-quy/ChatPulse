@@ -505,6 +505,87 @@ class GroupService {
  
     return updatedConversation
   }
+  async createGroup(creatorId: string, memberIds: string[], groupName: string, avatarUrl?: string) {
+  const creatorObjectId = new ObjectId(creatorId)
+  
+  // Lọc trùng và loại bỏ chính creator nếu có trong list
+  const uniqueMemberIds = [...new Set(memberIds.filter(id => id !== creatorId))]
+  const memberObjectIds = uniqueMemberIds.map(id => new ObjectId(id))
+
+  // Tất cả participants = creator + members
+  const allParticipants = [creatorObjectId, ...memberObjectIds]
+
+  const members = [
+    { userId: creatorObjectId, role: 'admin' as const, joinedAt: new Date() },
+    ...memberObjectIds.map(id => ({
+      userId: id,
+      role: 'member' as const,
+      joinedAt: new Date()
+    }))
+  ]
+
+  const newConversation = {
+    _id: new ObjectId(),
+    name: groupName.trim(),
+    type: 'group' as const,
+    admin_id: creatorObjectId,
+    participants: allParticipants,
+    members,
+    avatarUrl: avatarUrl || null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    last_message_id: null
+  }
+
+  await databaseService.conversations.insertOne(newConversation as any)
+
+  // Gửi system message chào mừng
+  const creator = await databaseService.users.findOne({ _id: creatorObjectId })
+  const creatorName = creator?.userName || 'Admin'
+
+  const systemMessageId = new ObjectId()
+  const systemMessage = {
+    _id: systemMessageId,
+    conversationId: newConversation._id,
+    senderId: creatorObjectId,
+    type: 'system',
+    content: `${creatorName} đã tạo nhóm "${groupName.trim()}"`,
+    reactions: [],
+    deletedByUsers: [],
+    status: 'SENT',
+    deliveredTo: [],
+    seenBy: [],
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+
+  await databaseService.messages.insertOne(systemMessage as any)
+
+  await databaseService.conversations.updateOne(
+    { _id: newConversation._id },
+    { $set: { last_message_id: systemMessageId } }
+  )
+
+  // Emit socket cho tất cả thành viên
+  const populatedMessage = {
+    ...systemMessage,
+    sender: {
+      _id: creator?._id?.toString(),
+      userName: creatorName,
+      avatar: creator?.avatar
+    }
+  }
+
+  allParticipants.forEach(p => {
+    socketService.emitToUser(p.toString(), 'new_conversation', {
+      ...newConversation,
+      _id: newConversation._id.toString()
+    })
+    socketService.emitToUser(p.toString(), 'receive_message', populatedMessage)
+  })
+
+  return newConversation
+}
 }
 
 
