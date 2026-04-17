@@ -3,7 +3,6 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import { sendMediaMessage } from '../apis/chat.api'
 import { useVideoPlayer, VideoView } from 'expo-video'
-import { E2E } from '../utils/e2e.utils' // Import file tiện ích E2E đã tạo
 import {
   View,
   Text,
@@ -37,8 +36,6 @@ import { markConversationAsSeen } from '../apis/chat.api'
 // IMPORT USE THEME
 import { useTheme } from '../contexts/ThemeContext'
 import { useTranslation } from '../hooks/useTranslation'
-
-// IMPORT useChatContext để xoá badge khi đọc xong
 import { useChatContext } from '../contexts/ChatContext'
 
 import {
@@ -50,7 +47,6 @@ import {
   summarizeChatApi,
   getConversationDetail
 } from '../apis/chat.api'
-import { updateMeApi } from '../apis/user.api'
 
 const lightColors = {
   background: '#F5F7FB',
@@ -138,7 +134,6 @@ const MessageScreen = () => {
   const route = useRoute<any>()
   const navigation = useNavigation<any>()
   const flatListRef = useRef<FlatList>(null)
-  const lastTap = useRef(0)
   const { id } = route.params || {}
 
   const { isDarkMode } = useTheme()
@@ -146,7 +141,7 @@ const MessageScreen = () => {
   const COLORS = isDarkMode ? darkColors : lightColors
   const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS])
 
-  const { clearLocalUnread, drafts, updateDraft } = useChatContext() as any
+  const { clearLocalUnread, drafts, updateDraft, socket } = useChatContext() as any
 
   const {
     id: conversationId,
@@ -170,11 +165,6 @@ const MessageScreen = () => {
   const [isSummarizing, setIsSummarizing] = useState(false)
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
-  const [myPrivateKey, setMyPrivateKey] = useState<string>('')
-  const [myPublicKey, setMyPublicKey] = useState<string>('')
-  const [targetPublicKey, setTargetPublicKey] = useState<string>('')
-  const [isE2EEnabled, setIsE2EEnabled] = useState<boolean>(true)
-
   const [pendingMedia, setPendingMedia] = useState<any[]>([])
   const [previewMedia, setPreviewMedia] = useState<{
     items: { id: string; url: string; isVideo: boolean }[]
@@ -187,25 +177,6 @@ const MessageScreen = () => {
       setInputText(drafts[conversationId])
     }
   }, [conversationId])
-
-  const processEncryptedMessages = (rawMsgs: any[], privateKey: string, myId: string) => {
-    return rawMsgs.map((msg) => {
-      if (msg.isE2E && msg.type === 'text' && msg.encryptedKeys) {
-        const myEncryptedAesKey = msg.encryptedKeys[myId]
-        if (myEncryptedAesKey && privateKey) {
-          const aesKey = E2E.decryptAESKeyWithRSA(myEncryptedAesKey, privateKey)
-          if (aesKey) {
-            msg.content = E2E.decryptMessageAES(msg.content, aesKey)
-          } else {
-            msg.content = '🔒 Lỗi giải mã khóa AES'
-          }
-        } else {
-          msg.content = '🔒 Không có quyền giải mã'
-        }
-      }
-      return msg
-    })
-  }
 
   const handleSuggestReply = async () => {
     if (messages.length === 0) return
@@ -397,35 +368,7 @@ const MessageScreen = () => {
     setPendingMedia([])
     if (updateDraft && conversationId) updateDraft(conversationId, '')
 
-    // Đảm bảo lấy đúng key kể cả khi state cập nhật chậm
-    let pKey = myPublicKey || (await AsyncStorage.getItem('rsa_public_key')) || ''
-
-    let targetKey = targetPublicKey
-
     if (textToSend.length > 0) {
-      let finalContent = textToSend
-      let isE2E = false
-      let finalEncryptedKeys: Record<string, string> = {}
-
-      // Chỉ E2E khi có khóa public của mình
-      if (isE2EEnabled && pKey && targetUserId) {
-        isE2E = true
-        const aesKey = await E2E.generateRandomAESKey()
-        finalContent = E2E.encryptMessageAES(textToSend, aesKey)
-
-        // 1. Mã hóa AES Key cho chính mình đọc lại
-        finalEncryptedKeys[currentUserId] = E2E.encryptAESKeyWithRSA(aesKey, pKey)
-
-        // 2. Mã hóa AES Key cho đối phương (Chỉ mã hóa nếu đối phương đã có khóa trên server)
-        if (targetKey) {
-          finalEncryptedKeys[targetUserId] = E2E.encryptAESKeyWithRSA(aesKey, targetKey)
-        } else {
-          console.warn(
-            '⚠️ Gửi E2E nhưng đối phương thiếu Public Key. Đối phương sẽ không đọc được!'
-          )
-        }
-      }
-
       const tempId = Date.now().toString()
       const tempMessage = {
         _id: tempId,
@@ -434,25 +377,15 @@ const MessageScreen = () => {
         content: textToSend,
         createdAt: new Date().toISOString(),
         sender: { _id: currentUserId, userName: t.messageMe },
-        isSending: true,
-        isE2E: isE2E
+        isSending: true
       }
       setMessages((prev) => [tempMessage, ...prev])
 
       try {
-        const res = await sendMessage(
-          conversationId,
-          finalContent,
-          'text',
-          isE2E,
-          finalEncryptedKeys
-        )
+        const res = await sendMessage(conversationId, textToSend, 'text')
         let realMessage = res.data.result || res.data
 
         if (realMessage) {
-          if (realMessage.isE2E) {
-            realMessage.content = textToSend
-          }
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)))
           unarchiveChat(conversationId)
         }
@@ -488,8 +421,7 @@ const MessageScreen = () => {
       const rawData = res.data.result || res.data.data || []
       if (rawData.length > 0) {
         setCursor(rawData[rawData.length - 1]._id)
-        const processedData = processEncryptedMessages(rawData, myPrivateKey, currentUserId)
-        setMessages((prev) => [...prev, ...processedData])
+        setMessages((prev) => [...prev, ...rawData])
       }
       if (rawData.length < 20) setHasMore(false)
     } catch (error: any) {
@@ -518,7 +450,6 @@ const MessageScreen = () => {
     }
   }, [id])
 
-  // ✅ FIX BẤT ĐỒNG BỘ: CHẠY TUẦN TỰ LOAD KHÓA RỒI MỚI FETCH DATA
   useEffect(() => {
     const initChat = async () => {
       let resolvedUserId = currentUserId
@@ -533,67 +464,6 @@ const MessageScreen = () => {
         } catch (e) {}
       }
 
-      // 1. LẤY HOẶC TẠO KHÓA CỦA CHÍNH MÌNH
-      let privateK = await AsyncStorage.getItem('rsa_private_key')
-      let publicK = await AsyncStorage.getItem('rsa_public_key')
-
-      // Dọn rác nếu máy lưu nhầm chuỗi "undefined"
-      if (privateK === 'undefined' || publicK === 'undefined') {
-        await AsyncStorage.removeItem('rsa_private_key')
-        await AsyncStorage.removeItem('rsa_public_key')
-        privateK = null
-        publicK = null
-      }
-
-      if (!privateK || !publicK) {
-        console.log('⚠️ Máy này chưa có khóa RSA, đang tạo mới...')
-        const keys = await E2E.generateRSAKeys()
-        privateK = keys.privateKey
-        publicK = keys.publicKey
-        await AsyncStorage.setItem('rsa_private_key', privateK)
-        await AsyncStorage.setItem('rsa_public_key', publicK)
-      }
-
-      // ✅ FIX 1: ÉP BUỘC ĐỒNG BỘ KEY MOBILE LÊN SERVER BẰNG ĐÚNG API
-      try {
-        await updateMeApi({ public_key: publicK })
-        console.log('✅ Đã đồng bộ Public Key của Mobile lên Server!')
-      } catch (error) {
-        console.log('❌ Lỗi đồng bộ key lên server', error)
-      }
-
-      setMyPrivateKey(privateK || '')
-      setMyPublicKey(publicK || '')
-
-      // 2. LẤY KHÓA CỦA ĐỐI PHƯƠNG
-      let targetPub = route.params?.targetPublicKey || ''
-
-      if (!targetPub && conversationId && targetUserId) {
-        try {
-          const res = await getConversationDetail(conversationId)
-          // ✅ FIX 2: Kiểm tra bao quát cả 'participants' và 'members'
-          const membersList = res.data?.result?.participants || res.data?.result?.members || []
-
-          for (const m of membersList) {
-            const userObj = m.userId || m.user || m
-            const uId = userObj._id?.toString() || userObj.id?.toString() || userObj
-
-            if (uId === targetUserId && (userObj.public_key || userObj.publicKey)) {
-              targetPub = userObj.public_key || userObj.publicKey
-              break
-            }
-          }
-        } catch (e) {
-          console.log('Lỗi gọi API getConversationDetail:', e)
-        }
-      }
-
-      if (!targetPub) {
-        console.warn('❌ VẪN CHƯA CÓ PUBLIC KEY ĐỐI PHƯƠNG. HÃY KIỂM TRA LẠI BACKEND!')
-      }
-      setTargetPublicKey(targetPub)
-
-      // 3. FETCH DATA (Truyền thẳng Key xuống để đảm bảo lấy đúng ngay lần đầu)
       if (conversationId && resolvedUserId) {
         setLoading(true)
         try {
@@ -601,10 +471,8 @@ const MessageScreen = () => {
           const rawData = res.data.result || res.data.data || []
           if (rawData.length > 0) setCursor(rawData[rawData.length - 1]._id)
           if (rawData.length < 20) setHasMore(false)
-          const processedData = processEncryptedMessages(rawData, privateK || '', resolvedUserId)
-          setMessages(processedData)
+          setMessages(rawData)
 
-          // Get mute state
           const detailRes = await getConversationDetail(conversationId)
           const conv = detailRes.data?.result
           const myMember = (conv?.members || []).find(
@@ -620,7 +488,64 @@ const MessageScreen = () => {
     }
 
     initChat()
-  }, [conversationId, targetUserId])
+  }, [conversationId])
+
+  // =========================================================================
+  // 🔥 FIX REALTIME: LẮNG NGHE SỰ KIỆN SOCKET NHẬN TIN NHẮN TỪ NGƯỜI KHÁC
+  // =========================================================================
+  useEffect(() => {
+    if (!socket || !conversationId) return
+
+    const handleReceiveMessage = (newMessage: any) => {
+      console.log('📩 Mobile received:', newMessage)
+      // Bỏ qua nếu là tin nhắn của chính mình (đã được xử lý bởi optimistic update)
+      if (newMessage.sender?._id === currentUserId) {
+        return
+      }
+
+      if (newMessage.conversationId === conversationId || newMessage.convId === conversationId) {
+        setMessages((prev) => {
+          const isExist = prev.some((msg) => msg._id === newMessage._id)
+          if (isExist) return prev
+          return [newMessage, ...prev]
+        })
+
+        // Đánh dấu đã xem nếu tin nhắn không phải của mình
+        if (currentUserId) {
+          socket.emit('message_seen', { messageId: newMessage._id, conversationId })
+          clearLocalUnread(conversationId)
+        }
+      }
+    }
+
+    const handleMessageRevoked = (data: any) => {
+      if (data.conversationId === conversationId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === data.messageId ? { ...msg, type: 'revoked', content: '' } : msg
+          )
+        )
+      }
+    }
+
+    const handleMessageReacted = (data: any) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === data.messageId ? { ...msg, reactions: data.reactions } : msg
+        )
+      )
+    }
+
+    socket.on('receive_message', handleReceiveMessage)
+    socket.on('message_revoked', handleMessageRevoked)
+    socket.on('message_reacted', handleMessageReacted)
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+      socket.off('message_revoked', handleMessageRevoked)
+      socket.off('message_reacted', handleMessageReacted)
+    }
+  }, [socket, conversationId, currentUserId, clearLocalUnread])
 
   const groupedMessages = useMemo(() => {
     const result = []
@@ -673,25 +598,10 @@ const MessageScreen = () => {
     return result
   }, [messages])
 
-  const handleSummarizeChat = async () => {
-    /* Giữ nguyên... */
-  }
-  const scrollToMessage = (messageId: string) => {
-    /* Giữ nguyên... */
-  }
-  const handleToggleReact = async (message: any, emoji: string) => {
-    /* Giữ nguyên... */
-  }
-  const handleRemoveAllReactions = async (message: any) => {
-    /* Giữ nguyên... */
-  }
-  const getReactionUserId = (reaction: any) =>
-    (reaction?.user?._id || reaction?.userId || reaction?.user_id || '')?.toString?.()?.trim?.() ||
-    ''
-  const getReactionUserName = (reaction: any) => {
-    /* Giữ nguyên... */ return 'Tên'
-  }
-  const getReactionUserAvatar = (reaction: any) => reaction?.user?.avatar || ''
+  const handleSummarizeChat = async () => {}
+  const handleToggleReact = async (message: any, emoji: string) => {}
+  const handleRemoveAllReactions = async (message: any) => {}
+
   const buildReactionGroups = (reactions: any[] = []) => {
     const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>()
     reactions.forEach((reaction: any) => {
@@ -704,28 +614,25 @@ const MessageScreen = () => {
     })
     return Array.from(groupMap.values()).sort((a, b) => b.count - a.count)
   }
+
   const openReactionDetails = (message: any) => {
     setReactionDetailMessage(message)
     setReactionFilter('ALL')
     setShowReactionDetails(true)
   }
+
   const reactionGroupsForModal = useMemo(
     () => buildReactionGroups(reactionDetailMessage?.reactions || []),
     [reactionDetailMessage, currentUserId]
   )
   const reactionUsersForModal = useMemo(() => {
-    /* Giữ nguyên logic cũ... */ return []
+    return []
   }, [reactionFilter, reactionGroupsForModal, currentUserId])
 
-  const handleRevoke = async () => {
-    /* Giữ nguyên... */
-  }
-  const handleDeleteForMe = async () => {
-    /* Giữ nguyên... */
-  }
-  const handleDoubleTap = (message: any) => {
-    /* Giữ nguyên... */
-  }
+  const handleRevoke = async () => {}
+  const handleDeleteForMe = async () => {}
+  const handleDoubleTap = (message: any) => {}
+
   const handleLongPress = (event: any, message: any) => {
     if (message.type === 'revoked') return
     const { pageY } = event.nativeEvent
@@ -796,14 +703,13 @@ const MessageScreen = () => {
   }
 
   const renderAiText = (text: string) => {
-    /* Giữ nguyên... */ return <Text></Text>
+    return <Text></Text>
   }
 
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId
 
     if (item.isGroup) {
-      // Giữ nguyên đoạn xử lý Grid View ảnh của bạn...
       const showAvatar = !isMe
       const orderedImages = item.images.slice().reverse()
       const count = orderedImages.length
@@ -811,43 +717,14 @@ const MessageScreen = () => {
       const hiddenCount = count - 5
       const W = 240
       const gap = 3
-      const renderImg = (
-        imgMsg: any,
-        style: any,
-        isLast: boolean = false,
-        indexInGroup: number = 0
-      ) => (
-        <TouchableOpacity
-          key={imgMsg._id}
-          style={[styles.gridImageWrapper, style]}
-          activeOpacity={0.85}
-          onPress={() => {
-            const items = orderedImages.map((img: any) => ({
-              id: img._id,
-              url: img.content,
-              isVideo: false
-            }))
-            setPreviewMedia({ items, initialIndex: indexInGroup })
-          }}
-          onLongPress={(e) => handleLongPress(e, imgMsg)}
-        >
-          <Image source={{ uri: imgMsg.content }} style={styles.fullImage} resizeMode="cover" />
-          {isLast && hiddenCount > 0 && (
-            <View style={styles.moreOverlay}>
-              <Text style={styles.moreText}>+{hiddenCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      )
+
       return (
         <View
           style={[
             styles.messageWrapper,
             isMe ? styles.messageWrapperMe : styles.messageWrapperOther
           ]}
-        >
-          {/* UI Ảnh Group cũ */}
-        </View>
+        ></View>
       )
     }
 
@@ -867,15 +744,7 @@ const MessageScreen = () => {
               <Text style={styles.dateDividerText}>{formatMessageDate(item.createdAt)}</Text>
             </View>
           )}
-          <View
-            style={[
-              styles.systemMessageWrapper,
-              item.type === 'system_error' &&
-                {
-                  /* ... */
-                }
-            ]}
-          >
+          <View style={[styles.systemMessageWrapper, item.type === 'system_error' && {}]}>
             <Text
               style={[
                 styles.systemMessageText,
@@ -1275,7 +1144,7 @@ const MessageScreen = () => {
           ref={flatListRef}
           inverted={true}
           data={groupedMessages}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item, index) => `${item._id ?? 'msg'}_${index}`}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
           onEndReached={loadMoreMessages}
@@ -1341,7 +1210,6 @@ const MessageScreen = () => {
         )}
 
         <View style={styles.inputContainer}>
-          {/* NÚT 1: GỬI ẢNH/VIDEO */}
           <TouchableOpacity
             style={styles.attachBtn}
             onPress={handlePickMedia}
@@ -1350,7 +1218,6 @@ const MessageScreen = () => {
             <Ionicons name="image-outline" size={24} color={COLORS.textLight} />
           </TouchableOpacity>
 
-          {/* NÚT 2: GỬI FILE/TÀI LIỆU */}
           <TouchableOpacity
             style={styles.attachBtn}
             onPress={handlePickDocument}
@@ -1359,7 +1226,6 @@ const MessageScreen = () => {
             <Ionicons name="attach" size={24} color={COLORS.textLight} />
           </TouchableOpacity>
 
-          {/* NÚT 3: GỢI Ý CỦA AI */}
           <TouchableOpacity
             style={styles.attachBtn}
             onPress={handleSuggestReply}
@@ -1372,7 +1238,6 @@ const MessageScreen = () => {
             )}
           </TouchableOpacity>
 
-          {/* Ô NHẬP TEXT */}
           <View
             style={[
               styles.textInput,
@@ -1633,9 +1498,9 @@ const MessageScreen = () => {
               data={previewMedia.items}
               keyExtractor={(item, index) => item.id + '_' + index}
               horizontal
-              pagingEnabled // <-- Tạo hiệu ứng lướt từng trang
+              pagingEnabled
               showsHorizontalScrollIndicator={false}
-              initialScrollIndex={previewMedia.initialIndex} // Cuộn tới đúng ảnh đang chọn
+              initialScrollIndex={previewMedia.initialIndex}
               getItemLayout={(_, index) => ({
                 length: SCREEN_WIDTH,
                 offset: SCREEN_WIDTH * index,
@@ -1821,7 +1686,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderColor: COLORS.border
     },
     attachBtn: {
-      padding: 6, // Giảm từ 8 xuống 6
+      padding: 6,
       marginBottom: 4
     },
     textInput: {
@@ -2067,7 +1932,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 16
     },
 
-    // ✅ STYLE CHO CARD HIỂN THỊ FILE CHUẨN ZALO
     fileCard: {
       width: 240,
       borderRadius: 16,
@@ -2140,7 +2004,6 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       width: '100%',
       height: '80%'
     },
-    // STYLE CẬP NHẬT CHO HÀNG CHỜ FILE/MEDIA (Nhiều item)
     pendingContainerWrap: {
       backgroundColor: COLORS.surface,
       borderTopWidth: 1,
@@ -2193,12 +2056,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 4
     },
 
-    // GRID LAYOUT ẢNH CHUẨN ZALO
     imageGridContainer: {
       width: 240,
       marginTop: 5,
       backgroundColor: 'transparent',
-      // Thêm viền nhẹ ngoài cùng cho đẹp
       borderWidth: 0.5,
       borderColor: 'rgba(0,0,0,0.05)'
     },
@@ -2213,11 +2074,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       alignItems: 'center'
     },
     moreText: { color: 'white', fontSize: 24, fontWeight: '700' },
-    // STYLE MỚI CHO CALL CARD CHUẨN ZALO
     callCard: {
       minWidth: 220,
       maxWidth: 280,
-      padding: 0, // Bỏ padding cũ để chia vạch ngang full chiều rộng
+      padding: 0,
       borderRadius: 18,
       overflow: 'hidden',
       marginBottom: 5

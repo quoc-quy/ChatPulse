@@ -74,7 +74,8 @@ const ChatScreen = ({ route }: any) => {
     setLocalUnread,
     getLocalUnread,
     localUnreadMap,
-    drafts = {}
+    drafts = {},
+    socket
   } = useChatContext() as any
 
   const { isDarkMode } = useTheme()
@@ -283,6 +284,55 @@ const ChatScreen = ({ route }: any) => {
       setRefreshing(false)
     }
   }
+
+  // =========================================================================
+  // 🔥 FIX REALTIME: CẬP NHẬT DANH SÁCH CHAT KHI CÓ TIN NHẮN TỚI
+  // =========================================================================
+  useEffect(() => {
+    if (!socket) return
+
+    const handleReceiveMessage = (newMessage: any) => {
+      const convId = newMessage.conversationId || newMessage.convId
+
+      setConversations((prev) => {
+        const convIndex = prev.findIndex((c) => c._id === convId)
+
+        if (convIndex > -1) {
+          const newConversations = [...prev]
+
+          // Cập nhật tin nhắn mới nhất và thời gian
+          const updatedConv = {
+            ...newConversations[convIndex],
+            lastMessage: newMessage,
+            updated_at: newMessage.createdAt || new Date().toISOString()
+          }
+
+          // Đẩy hội thoại có tin nhắn mới lên đầu danh sách
+          newConversations.splice(convIndex, 1)
+          newConversations.unshift(updatedConv)
+
+          // Tăng số lượng báo đỏ (chưa đọc) nếu tin nhắn đó không phải của mình gửi
+          if (newMessage.sender?._id !== currentUserId && currentUserId) {
+            const currentUnread = getLocalUnread(convId) || 0
+            setLocalUnread(convId, currentUnread + 1)
+          }
+
+          return newConversations
+        } else {
+          // Nếu đây là tin nhắn từ một người hoàn toàn mới chưa có mặt trong danh sách,
+          // gọi API load lại danh sách 1 lần
+          fetchConversations(1, true)
+          return prev
+        }
+      })
+    }
+
+    socket.on('receive_message', handleReceiveMessage)
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+    }
+  }, [socket, currentUserId, getLocalUnread, setLocalUnread])
 
   const fetchBlockedUsers = async () => {
     try {

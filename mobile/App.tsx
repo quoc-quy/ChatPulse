@@ -1,70 +1,70 @@
 // App.tsx
-import React, { useState, useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { StyleSheet, ActivityIndicator, View } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useState, useEffect } from 'react'
+import { NavigationContainer } from '@react-navigation/native'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
+import { StyleSheet, ActivityIndicator, View } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 // Import ThemeProvider từ thư mục contexts
-import { ThemeProvider } from "./src/contexts/ThemeContext";
+import { ThemeProvider } from './src/contexts/ThemeContext'
 
-import MainTabs from "./src/navigation/MainTabs";
-import { LoginForm } from "./src/auth/LoginForm";
-import { SignUpForm } from "./src/auth/SignUpForm";
-import FriendRequestsScreen from "./src/screens/FriendRequestsScreen";
-import MessageScreen from "./src/screens/MessageScreen";
-import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
-import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
-import SentRequestsScreen from "./src/screens/SentRequestsScreen";
-import ConversationDetailScreen from "./src/screens/ConversationDetail";
-import MembersScreen from "./src/screens/MembersScreen";
-import AddMemberScreen from "./src/screens/AddMembersScreen";
-import UserProfileScreen from "./src/screens/UserProfileScreen";
-import BlockedUsersScreen from "./src/screens/BlockUserScreen";
-import { ChatProvider } from "./src/contexts/ChatContext";
-import MessageSearchScreen from "./src/screens/MessageSearchScreen";
+import MainTabs from './src/navigation/MainTabs'
+import { LoginForm } from './src/auth/LoginForm'
+import { SignUpForm } from './src/auth/SignUpForm'
+import FriendRequestsScreen from './src/screens/FriendRequestsScreen'
+import MessageScreen from './src/screens/MessageScreen'
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen'
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen'
+import SentRequestsScreen from './src/screens/SentRequestsScreen'
+import ConversationDetailScreen from './src/screens/ConversationDetail'
+import MembersScreen from './src/screens/MembersScreen'
+import AddMemberScreen from './src/screens/AddMembersScreen'
+import UserProfileScreen from './src/screens/UserProfileScreen'
+import BlockedUsersScreen from './src/screens/BlockUserScreen'
+import { ChatProvider } from './src/contexts/ChatContext'
+import MessageSearchScreen from './src/screens/MessageSearchScreen'
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator()
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [navKey, setNavKey] = useState("logged-in");
-  const [isCheckingUser, setIsCheckingUser] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [navKey, setNavKey] = useState('logged-in')
+  const [isCheckingUser, setIsCheckingUser] = useState(true)
 
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem("access_token");
+        const token = await AsyncStorage.getItem('access_token')
         if (token) {
-          setIsLoggedIn(true);
+          setIsLoggedIn(true)
         } else {
-          setIsLoggedIn(false);
+          setIsLoggedIn(false)
         }
       } catch (error) {
-        console.log("Lỗi kiểm tra token:", error);
+        console.log('Lỗi kiểm tra token:', error)
       } finally {
-        setIsCheckingUser(false);
+        setIsCheckingUser(false)
       }
-    };
+    }
 
-    checkLoginStatus();
-  }, []);
+    checkLoginStatus()
+  }, [])
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setNavKey("logged-out");
-  };
+    setIsLoggedIn(false)
+    setNavKey('logged-out')
+  }
 
   const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    setNavKey("logged-in");
-  };
+    setIsLoggedIn(true)
+    setNavKey('logged-in')
+  }
 
   if (isCheckingUser) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
-    );
+    )
   }
 
   return (
@@ -84,7 +84,7 @@ export default function App() {
                   component={FriendRequestsScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -92,7 +92,7 @@ export default function App() {
                   component={SentRequestsScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -100,7 +100,7 @@ export default function App() {
                   component={ConversationDetailScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -108,7 +108,7 @@ export default function App() {
                   component={UserProfileScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -116,7 +116,7 @@ export default function App() {
                   component={MembersScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -124,7 +124,7 @@ export default function App() {
                   component={AddMemberScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
 
@@ -133,7 +133,7 @@ export default function App() {
                   component={MessageScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -141,7 +141,7 @@ export default function App() {
                   component={MessageSearchScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
                 <Stack.Screen
@@ -149,16 +149,14 @@ export default function App() {
                   component={BlockedUsersScreen}
                   options={{
                     headerShown: false,
-                    animation: "slide_from_right",
+                    animation: 'slide_from_right'
                   }}
                 />
               </>
             ) : (
               <>
                 <Stack.Screen name="Login">
-                  {(props) => (
-                    <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />
-                  )}
+                  {(props) => <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />}
                 </Stack.Screen>
                 <Stack.Screen name="SignUp" component={SignUpForm} />
                 <Stack.Screen
@@ -166,24 +164,21 @@ export default function App() {
                   component={ForgotPasswordScreen}
                   options={{ headerShown: false }}
                 />
-                <Stack.Screen
-                  name="ResetPassword"
-                  component={ResetPasswordScreen}
-                />
+                <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
               </>
             )}
           </Stack.Navigator>
         </NavigationContainer>
       </ChatProvider>
     </ThemeProvider>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-  },
-});
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC'
+  }
+})
