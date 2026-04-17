@@ -129,7 +129,7 @@ class FriendService {
             bio: '$friend_info.bio',
             phone: '$friend_info.phone',
             gender: '$friend_info.gender',
-            public_key: '$$friend_info.public_key'
+            public_key: '$friend_info.public_key'
           }
         }
       ])
