@@ -9,16 +9,20 @@ import aiService from './ai/ai.service'
 import messageService from './message.services'
 
 class ChatService {
-  async getConversations(userId: string, limit: number = 20, page: number = 1) {
+  async getConversations(userId: string, limit: number | string = 20, page: number | string = 1) {
     const userObjectId = new ObjectId(userId)
-    const skip = (page - 1) * limit
+
+    // ✅ FIX 1: Ép kiểu an toàn tránh lỗi string truyền vào $limit
+    const numLimit = Number(limit) || 20
+    const numPage = Number(page) || 1
+    const skip = (numPage - 1) * numLimit
 
     const conversations = await databaseService.conversations
       .aggregate([
         { $match: { participants: userObjectId } },
         { $sort: { updated_at: -1 } },
         { $skip: skip },
-        { $limit: limit },
+        { $limit: numLimit }, // Sử dụng biến đã ép kiểu
         {
           $lookup: {
             from: 'users',
@@ -45,7 +49,6 @@ class ChatService {
           }
         },
         { $unwind: { path: '$last_message_info', preserveNullAndEmptyArrays: true } },
-
         {
           $addFields: {
             currentUserMemberInfo: {
@@ -75,8 +78,12 @@ class ChatService {
                   $expr: {
                     $and: [
                       { $eq: [{ $toString: '$conversationId' }, { $toString: '$$convId' }] },
+                      // ✅ FIX 2: Ép về chuỗi để so sánh thời gian của ObjectId một cách tuyệt đối an toàn
                       {
-                        $gt: ['$_id', { $ifNull: ['$$lastViewedId', new ObjectId('000000000000000000000000')] }]
+                        $gt: [
+                          { $toString: '$_id' },
+                          { $toString: { $ifNull: ['$$lastViewedId', new ObjectId('000000000000000000000000')] } }
+                        ]
                       },
                       { $ne: [{ $toString: '$senderId' }, { $toString: userObjectId }] }
                     ]
@@ -93,7 +100,6 @@ class ChatService {
             unread_count: { $ifNull: [{ $arrayElemAt: ['$unread_info.unread_count', 0] }, 0] }
           }
         },
-
         {
           $project: {
             _id: 1,
@@ -140,7 +146,9 @@ class ChatService {
 
         if (conv.type === 'direct') {
           const otherUser = conv.participants.find((p: any) => p._id.toString() !== userObjectId.toString())
-          if (otherUser) {
+
+          // ✅ FIX 3: Kiểm tra chắc chắn otherUser._id hợp lệ trước khi bọc vào ObjectId
+          if (otherUser && otherUser._id && ObjectId.isValid(otherUser._id)) {
             const isFriendDoc = await databaseService.friends.findOne({
               $or: [
                 { user_id: userObjectId, friend_id: new ObjectId(otherUser._id) },
@@ -149,10 +157,10 @@ class ChatService {
             })
             conv.isFriend = isFriendDoc !== null
           } else {
-            conv.isFriend = true
+            conv.isFriend = false // Nếu không có user hợp lệ thì không phải bạn bè
           }
         } else {
-          conv.isFriend = true
+          conv.isFriend = true // Mặc định group chat là true để không bị chặn
         }
 
         return conv

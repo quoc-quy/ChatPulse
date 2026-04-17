@@ -37,10 +37,11 @@ const replyToMessageProjection = {
         $ifNull: [{ $arrayElemAt: ['$replyToSenderInfo.userName', 0] }, 'Người dùng']
       }
     },
-    else: '$$REMOVE'
+    else: '$$REMOVE' // Loại bỏ hoàn toàn field này khỏi kết quả nếu không phải tin nhắn reply
   }
 }
 
+// 2. PROJECT CHO TIN NHẮN GỐC
 const messageProjection = {
   _id: 1,
   conversationId: 1,

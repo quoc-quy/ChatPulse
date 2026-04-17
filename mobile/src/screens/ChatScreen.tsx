@@ -524,6 +524,7 @@ const ChatScreen = ({ route }: any) => {
       }
     }
     // --- KẾT THÚC LOGIC ---
+    // --- KẾT THÚC LOGIC ---
 
     const unread = getLocalUnread(item._id)
     const isPinned = pinnedIds.has(item._id)
@@ -556,8 +557,25 @@ const ChatScreen = ({ route }: any) => {
       <View style={styles.swipeableWrapper}>
         <Swipeable renderRightActions={renderRightActions}>
           <TouchableOpacity
-            style={[styles.chatCard, { marginBottom: 0 }]} // Bỏ margin bottom ở đây, chuyển sang thẻ bọc ngoài
-            onPress={() => navigateToChat(item)}
+            onPress={() => {
+              // Tìm object otherUser trong mảng participants/members
+              const otherUser =
+                item.participants?.find((p: any) => p._id !== currentUserId) ||
+                item.members?.find((m: any) => m.userId?._id !== currentUserId)?.userId
+
+              navigation.navigate('MessageScreen', {
+                id: item._id,
+                name: item.name || otherUser?.userName,
+                isGroup: item.type === 'group',
+                targetUserId: otherUser?._id,
+
+                // ✅ FIX 1: TRUYỀN THẲNG PUBLIC KEY TỪ CHAT SCREEN VÀO MESSAGE SCREEN
+                targetPublicKey: otherUser?.public_key || otherUser?.publicKey,
+
+                unreadCount: item.unread_count
+              })
+            }}
+            style={[styles.chatCard, { marginBottom: 0 }]}
             onLongPress={() => handleLongPressConv(item)}
             delayLongPress={400}
             activeOpacity={1}
