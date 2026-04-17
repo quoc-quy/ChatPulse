@@ -128,8 +128,7 @@ class FriendService {
             date_of_birth: '$friend_info.date_of_birth',
             bio: '$friend_info.bio',
             phone: '$friend_info.phone',
-            gender: '$friend_info.gender',
-            public_key: '$$friend_info.public_key'
+            gender: '$friend_info.gender'
           }
         }
       ])
