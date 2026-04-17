@@ -1,5 +1,11 @@
 import { api } from './api'
 
+export interface CreateGroupParams {
+  name: string;
+  member_ids: string[]; // Khớp với req.body.member_ids ở Backend
+  avatarUrl?: string;
+}
+
 export const getConversations = (page: number | string = 1, limit: number | string = 20) => {
   return api.get(`/conversations`, {
     params: { page, limit }
@@ -192,3 +198,7 @@ export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
+export const createGroup = (data: CreateGroupParams) => {
+  return api.post('/groups', data)
+}
+
