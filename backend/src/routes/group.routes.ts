@@ -54,4 +54,6 @@ groupRouter.post('/join', accessTokenValidator, wrapRequestHandler(joinGroupCont
 
 groupRouter.post('/:id/avatar/upload', upload.single('file'), groupController.uploadGroupAvatarController)
 
+groupRouter.post('/', wrapRequestHandler(groupController.createGroupController))
+
 export default groupRouter
