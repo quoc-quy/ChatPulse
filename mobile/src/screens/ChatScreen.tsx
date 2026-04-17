@@ -106,6 +106,8 @@ const ChatScreen = ({ route }: any) => {
   const scannedRef = useRef(false)
   const [permission, requestPermission] = useCameraPermissions()
 
+  const [showPlusMenu, setShowPlusMenu] = useState(false)
+
   // Load danh sách đã lưu trữ từ AsyncStorage
   useEffect(() => {
     const loadArchived = async () => {
@@ -763,7 +765,7 @@ const ChatScreen = ({ route }: any) => {
                 <TouchableOpacity style={styles.iconBtn} onPress={handleOpenQRScanner}>
                   <Ionicons name="qr-code-outline" size={22} color="white" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconBtn}>
+                <TouchableOpacity style={styles.iconBtn} onPress={() => setShowPlusMenu(true)}>
                   <Feather name="plus" size={24} color="white" />
                 </TouchableOpacity>
               </View>
@@ -986,6 +988,35 @@ const ChatScreen = ({ route }: any) => {
           </SafeAreaView>
         </View>
       </Modal>
+      {/* ── PLUS MENU (Zalo-style dropdown) ── */}
+<Modal
+  visible={showPlusMenu}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setShowPlusMenu(false)}
+>
+  <TouchableOpacity
+    style={{ flex: 1 }}
+    activeOpacity={1}
+    onPress={() => setShowPlusMenu(false)}
+  >
+    {/* Dropdown box căn góc phải phía dưới nút + */}
+    <View style={styles.plusMenuContainer}>
+      <TouchableOpacity
+        style={styles.plusMenuItem}
+        onPress={() => {
+          setShowPlusMenu(false)
+          navigation.navigate('CreateGroupScreen')
+        }}
+      >
+        <View style={styles.plusMenuIcon}>
+          <Ionicons name="people-outline" size={22} color={COLORS.primary} />
+        </View>
+        <Text style={[styles.plusMenuText, { color: COLORS.text }]}>Tạo nhóm</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+</Modal>
     </GestureHandlerRootView>
   )
 }
@@ -1249,7 +1280,42 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       alignItems: 'center',
       paddingHorizontal: 6
     },
-    badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' }
+    badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+    plusMenuContainer: {
+  position: 'absolute',
+  top: Platform.OS === 'ios' ? 100 : 70,
+  right: 16,
+  backgroundColor: COLORS.surface,
+  borderRadius: 16,
+  paddingVertical: 8,
+  minWidth: 200,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.15,
+  shadowRadius: 12,
+  elevation: 8,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+},
+plusMenuItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 16,
+  paddingVertical: 14,
+  gap: 12,
+},
+plusMenuIcon: {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  backgroundColor: COLORS.surfaceSoft,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+plusMenuText: {
+  fontSize: 16,
+  fontWeight: '500',
+},
   })
 
 export default ChatScreen

@@ -22,6 +22,7 @@ import UserProfileScreen from './src/screens/UserProfileScreen'
 import BlockedUsersScreen from './src/screens/BlockUserScreen'
 import { ChatProvider } from './src/contexts/ChatContext'
 import MessageSearchScreen from './src/screens/MessageSearchScreen'
+import CreateGroupScreen from './src/screens/CreateGroupScreen'
 
 const Stack = createNativeStackNavigator()
 
@@ -152,6 +153,7 @@ export default function App() {
                     animation: 'slide_from_right'
                   }}
                 />
+                <Stack.Screen name="CreateGroupScreen" component={CreateGroupScreen} options={{ headerShown: false }} />
               </>
             ) : (
               <>
