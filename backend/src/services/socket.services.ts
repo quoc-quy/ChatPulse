@@ -70,7 +70,7 @@ class SocketService {
           // ---------------------------------
 
           const caller = await databaseService.users.findOne({ _id: new ObjectId(userId) })
-          const callerName = caller?.userName || caller?.fullName || 'Người dùng'
+          const callerName = caller?.userName || 'Người dùng'
           const callerAvatar = caller?.avatar || ''
 
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })

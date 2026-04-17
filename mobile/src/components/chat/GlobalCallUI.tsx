@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useSocket } from '../contexts/SocketContext' // Import Socket Context của bạn
+import { useChatContext } from '../../contexts/ChatContext'
 import { useNavigation } from '@react-navigation/native'
 
 export function GlobalCallUI() {
-  const { socket } = useSocket()
+  const { socket } = useChatContext() as any
   const navigation = useNavigation<any>()
   const [activeCall, setActiveCall] = useState<any>(null)
 
@@ -41,11 +41,10 @@ export function GlobalCallUI() {
   if (!activeCall) return null
 
   const acceptCall = () => {
-    setActiveCall(null) // Đóng modal
-    // Chuyển hướng sang màn hình Call
+    setActiveCall(null)
     navigation.navigate('Call', {
       roomName: activeCall.conversationId,
-      userName: 'Mobile User', // Có thể lấy từ Context Auth
+      userName: 'Mobile User',
       isVideoCall: activeCall.type === 'video',
       callId: activeCall.callId
     })
