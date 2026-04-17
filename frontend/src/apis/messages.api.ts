@@ -20,8 +20,6 @@ interface SendMessagePayload {
   type: 'text' | 'sticker' | 'system'
   content: string
   replyToId?: string
-  isE2E?: boolean
-  encryptedKeys?: Record<string, string>
 }
 
 export const messagesApi = {

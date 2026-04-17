@@ -18,9 +18,6 @@ interface MessageType {
   seenBy?: ObjectId[]
   createdAt?: Date
   updatedAt?: Date
-
-  isE2E?: boolean
-  encryptedKeys?: Record<string, string> // Lưu format: { "userId": "AES_Key_đã_mã_hóa_bằng_RSA_Public_Key" }
 }
 
 export default class Message {
@@ -39,9 +36,6 @@ export default class Message {
   status: string
   deliveredTo: ObjectId[]
   seenBy: ObjectId[]
-
-  isE2E: boolean
-  encryptedKeys: Record<string, string>
 
   createdAt: Date
   updatedAt: Date
@@ -63,9 +57,6 @@ export default class Message {
     this.status = message.status || 'SENT'
     this.deliveredTo = message.deliveredTo || []
     this.seenBy = message.seenBy || []
-
-    this.isE2E = message.isE2E || false
-    this.encryptedKeys = message.encryptedKeys || {}
 
     this.createdAt = message.createdAt || new Date()
     this.updatedAt = message.updatedAt || new Date()

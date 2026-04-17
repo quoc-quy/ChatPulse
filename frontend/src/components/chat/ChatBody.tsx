@@ -51,7 +51,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
           setNextCursor(oldestMessageInBatch._id)
         }
 
-        // AUTO BÁO ĐÃ XEM KHI LOAD TIN NHẮN
         if (socket) {
           newMessages.forEach((msg) => {
             if (msg.sender._id !== currentUserId && (!msg.seenBy || !msg.seenBy.includes(currentUserId))) {
@@ -107,11 +106,9 @@ export function ChatBody({ convId }: ChatBodyProps) {
   useEffect(() => {
     if (!currentUserId || !convId || !socket) return
 
-    // 1. NHẬN TIN NHẮN TỪ SOCKET
     const handleReceiveMessage = (newMessage: Message) => {
       if (newMessage.conversationId === convId) {
         setMessages((prev) => {
-          // Bỏ qua nếu tin nhắn thực sự đã tồn tại
           if (prev.some((msg) => msg._id === newMessage._id)) return prev
 
           if (newMessage.replyToId && !newMessage.replyToMessage) {
@@ -126,23 +123,20 @@ export function ChatBody({ convId }: ChatBodyProps) {
             }
           }
 
-          // FIX 2: Xử lý nhân đôi tin nhắn cho Media (vì lúc tạm content là blob:..., lúc thật là http...)
           const isMe = newMessage.sender._id === currentUserId
           if (isMe) {
             const tempIndex = prev.findIndex(
               (msg) =>
                 msg.status === 'SENDING' &&
-                // Kiểm tra text trùng nhau, HOẶC cả 2 đều là media
                 (msg.content === newMessage.content || (msg.type === 'media' && newMessage.type === 'media'))
             )
 
             if (tempIndex !== -1) {
               const newArr = [...prev]
-              // Giữ lại Reply UI nếu socket chưa gắn kèm
               if (!newMessage.replyToMessage && newArr[tempIndex].replyToMessage) {
                 newMessage.replyToMessage = newArr[tempIndex].replyToMessage
               }
-              newArr[tempIndex] = newMessage // Chuyển từ ảo thành thật
+              newArr[tempIndex] = newMessage
               return newArr
             }
           }
@@ -198,9 +192,7 @@ export function ChatBody({ convId }: ChatBodyProps) {
       const { tempId, errorMessage } = e.detail
       setMessages((prev: any[]) =>
         prev.map((msg) =>
-          msg._id === tempId
-            ? { ...msg, type: 'system', content: errorMessage, isWarning: true } // Đổi type thành system, gắn cờ isWarning
-            : msg
+          msg._id === tempId ? { ...msg, type: 'system', content: errorMessage, isWarning: true } : msg
         )
       )
     }
@@ -210,9 +202,6 @@ export function ChatBody({ convId }: ChatBodyProps) {
     socket.on('message_reacted', handleMessageReacted)
     socket.on('message_revoked', handleMessageRevoked)
 
-    // ===============================================
-    // LẮNG NGHE OPTIMISTIC UI TỪ CHATFOOTER
-    // ===============================================
     const handleOptSend = (e: any) => {
       setMessages((prev) => [...prev, e.detail])
       setTimeout(() => {
@@ -223,27 +212,22 @@ export function ChatBody({ convId }: ChatBodyProps) {
     const handleOptSuccess = (e: any) => {
       const { tempId, realMessage } = e.detail
       setMessages((prev) => {
-        // GIỮ LẠI TRÍCH DẪN TỪ UI NẾU API THIẾU
         const tempMsg = prev.find((m) => m._id === tempId)
         if (tempMsg?.replyToMessage && !realMessage.replyToMessage) {
           realMessage.replyToMessage = tempMsg.replyToMessage
         }
 
         const isRealExist = prev.some((msg) => msg._id === realMessage._id)
-        if (isRealExist) {
-          return prev.filter((msg) => msg._id !== tempId)
-        }
+        if (isRealExist) return prev.filter((msg) => msg._id !== tempId)
+
         return prev.map((msg) => (msg._id === tempId ? realMessage : msg))
       })
     }
 
-    // 3. XỬ LÝ LỖI (OFFLINE QUEUE HIỂN THỊ)
     const handleOptFail = (e: any) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg._id === e.detail.tempId
-            ? { ...msg, status: 'FAILED', _apiCall: e.detail.apiCall } // Lưu lại apiCall để Retry
-            : msg
+          msg._id === e.detail.tempId ? { ...msg, status: 'FAILED', _apiCall: e.detail.apiCall } : msg
         )
       )
     }

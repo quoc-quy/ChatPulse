@@ -21,7 +21,6 @@ export interface ReplyInfo {
   content: string
   type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
   senderName: string
-  isE2E?: boolean
 }
 
 export interface Message {
@@ -37,9 +36,6 @@ export interface Message {
     duration?: number
     type: 'video' | 'audio'
   }
-
-  isE2E?: boolean
-  encryptedKeys?: Record<string, string> // { userId: encryptedAesKey }
 
   status?: 'SENDING' | 'SENT' | 'DELIVERED' | 'SEEN' | 'FAILED'
   deliveredTo?: string[]

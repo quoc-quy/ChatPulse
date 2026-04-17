@@ -19,7 +19,6 @@ interface UserType {
   fcm_token?: string
   created_at?: Date
   updated_at?: Date
-  public_key?: string // PUBLIC KEY CHO E2E
 }
 
 export default class User {
@@ -40,7 +39,6 @@ export default class User {
   fcm_token: string
   created_at: Date
   updated_at: Date
-  public_key: string
 
   constructor({
     _id,
@@ -59,8 +57,7 @@ export default class User {
     last_active_at,
     fcm_token,
     created_at,
-    updated_at,
-    public_key
+    updated_at
   }: UserType) {
     const date = new Date()
     this._id = _id
@@ -80,6 +77,5 @@ export default class User {
     this.fcm_token = fcm_token || ''
     this.created_at = created_at || date
     this.updated_at = updated_at || date
-    this.public_key = public_key || ''
   }
 }

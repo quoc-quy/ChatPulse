@@ -8,7 +8,6 @@ import { messagesApi } from '@/apis/messages.api'
 import { AppContext } from '@/context/app.context'
 import type { Message, ReplyInfo } from '@/types/message.type'
 import { toast } from 'sonner'
-import { E2E } from '@/utils/e2e.utils'
 
 interface ChatFooterProps {
   convId: string
@@ -33,7 +32,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
-  // Ép đồng bộ state nháp ngay tức thì khi đổi tab chat
   if (convId !== prevConvId) {
     setPrevConvId(convId)
     const savedDraft = localStorage.getItem(`draft_${convId}`)
@@ -41,7 +39,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     setReplyingTo(null)
   }
 
-  // ✅ FIX: Chỉ khai báo 1 lần (bản gốc bị duplicate 2 lần giống hệt nhau)
   useEffect(() => {
     if (content.trim()) {
       localStorage.setItem(`draft_${convId}`, content)
@@ -93,65 +90,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }
   }, [content])
 
-  const handleEncryption = (text: string) => {
-    // 1. Kiểm tra khóa của bản thân (Người gửi)
-    if (!profile?.public_key) {
-      toast.error('Lỗi mã hóa', { description: 'Thiết bị của bạn chưa thiết lập khóa bảo mật.' })
-      return { finalContent: text, isE2E: false, encryptedKeys: {} as Record<string, string> }
-    }
-
-    // 2. Lấy danh sách tất cả thành viên trong cuộc hội thoại (Bao gồm cả chat 1-1 và group)
-    // Lưu ý: activeChat.participants thường đã chứa cả bản thân bạn
-    const participants = activeChat?.participants || []
-
-    // 3. Kiểm tra xem có thành viên nào thiếu Public Key không
-    const missingKeyUsers = participants.filter((p: any) => !p.public_key)
-
-    if (missingKeyUsers.length > 0) {
-      const isGroup = activeChat?.type === 'group'
-      const msg = isGroup
-        ? `Không thể mã hóa E2E. ${missingKeyUsers.length} thành viên chưa cập nhật khóa bảo mật.`
-        : `Không thể mã hóa E2E. Người dùng này chưa cập nhật khóa bảo mật.`
-
-      toast.error('Cảnh báo bảo mật', { description: msg })
-
-      // Fallback: Nếu có người thiếu khóa, gửi tin nhắn dạng không mã hóa (bản rõ)
-      // (Nếu bạn muốn ép buộc bảo mật 100%, bạn có thể thay return bằng `throw new Error(...)` để chặn gửi)
-      return { finalContent: text, isE2E: false, encryptedKeys: {} as Record<string, string> }
-    }
-
-    // ==========================================
-    // TIẾN HÀNH MÃ HÓA CHO TẤT CẢ THÀNH VIÊN
-    // ==========================================
-
-    // Bước 1: Tạo 1 khóa AES ngẫu nhiên cho tin nhắn này
-    const aesKey = E2E.generateRandomAESKey()
-
-    // Bước 2: Mã hóa nội dung tin nhắn bằng AES
-    const encryptedContent = E2E.encryptMessageAES(text, aesKey)
-
-    // Bước 3: Mã hóa khóa AES bằng RSA Public Key của TỪNG thành viên
-    const encryptedKeysObj: Record<string, string> = {}
-
-    participants.forEach((p: any) => {
-      if (p.public_key) {
-        encryptedKeysObj[String(p._id)] = E2E.encryptAESKeyWithRSA(aesKey, p.public_key)
-      }
-    })
-
-    // Đảm bảo người gửi CHẮC CHẮN có khóa để tự giải mã tin nhắn của mình
-    // (Phòng trường hợp activeChat.participants từ API thiếu ID của người gửi)
-    if (!encryptedKeysObj[String(profile._id)]) {
-      encryptedKeysObj[String(profile._id)] = E2E.encryptAESKeyWithRSA(aesKey, profile.public_key)
-    }
-
-    return {
-      finalContent: encryptedContent,
-      isE2E: true,
-      encryptedKeys: encryptedKeysObj // Chứa danh sách { userId1: key1, userId2: key2, ... }
-    }
-  }
-
   const handleSendText = async () => {
     if (!content.trim() || !convId || isSending) return
 
@@ -199,22 +137,15 @@ export function ChatFooter({ convId }: ChatFooterProps) {
       const targetReplyId = i === 0 ? replyId : undefined
       const targetReplyInfo = i === 0 ? currentReplyInfo : null
 
-      // THỰC HIỆN MÃ HÓA TRƯỚC KHI GỬI
-      const { finalContent, isE2E, encryptedKeys } = handleEncryption(chunkContent)
-
       triggerOptimisticAndSend(
         'text',
-        chunkContent, // TRUYỀN BẢN RÕ (Plaintext) cho UI vẽ bong bóng chat đọc được ngay
+        chunkContent,
         targetReplyId,
         async () => {
-          // ✅ FIX: Truyền encryptedKeys dưới dạng object thay vì Object.values() (array)
-          // để backend map được đúng userId → encryptedAesKey
           return await messagesApi.sendMessage({
             convId,
             type: 'text',
-            content: finalContent, // Bản mã (ciphertext) gửi lên server
-            isE2E: isE2E,
-            encryptedKeys: encryptedKeys // Object { userId: key } — KHÔNG dùng Object.values()
+            content: chunkContent // Gửi plain text lên server
           })
         },
         targetReplyInfo
@@ -280,12 +211,11 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    // 1. TẠO MESSAGE ẢO (Hiển thị ngay cho người dùng)
     const tempMessage: Message = {
       _id: tempId,
       conversationId: convId,
       type: type as any,
-      content: msgContent, // Hiển thị chữ thật, không hiển thị chuỗi mã hóa
+      content: msgContent,
       status: 'SENDING',
       replyToId: replyToId,
       replyToMessage: replyToMessage || undefined,
@@ -303,7 +233,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     setIsSending(true)
     setTimeout(() => setIsSending(false), 300)
 
-    // GỌI API VỚI CƠ CHẾ AUTO-RETRY & BẮT BLOCK
     const MAX_RETRIES = 3
     const BASE_DELAY = 1000
     let attempt = 0
@@ -378,7 +307,6 @@ export function ChatFooter({ convId }: ChatFooterProps) {
     }, 10)
   }
 
-  // KIỂM TRA TRẠNG THÁI BẠN BÈ
   const isUnfriended = activeChat && activeChat.isFriend === false
 
   if (isUnfriended) {

@@ -14,9 +14,7 @@ import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
 import { AppContext } from '@/context/app.context'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { E2E } from '@/utils/e2e.utils'
 
-// Đã cập nhật Interface để nhận onSwitchToChat
 interface SidebarPanel2Props {
   activeItem: any
   isLoading: boolean
@@ -48,13 +46,11 @@ export function SidebarPanel2({
   const [keyword, setKeyword] = React.useState('')
   const [searchResults, setSearchResults] = React.useState<any[]>([])
 
-  // Sử dụng useRef để lưu trữ chatList mới nhất, tránh lỗi closure trong Event Listener
   const chatListRef = React.useRef(chatList)
   React.useEffect(() => {
     chatListRef.current = chatList
   }, [chatList])
 
-  // ================= TỰ ĐỘNG CUỘN (AUTO-SCROLL) =================
   React.useEffect(() => {
     if (activeChat?.id && !keyword && activeItem.title === 'Tin nhắn') {
       const timer = setTimeout(() => {
@@ -62,11 +58,10 @@ export function SidebarPanel2({
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
-      }, 100) // Đợi 100ms để đảm bảo DOM đã render xong danh sách
+      }, 100)
       return () => clearTimeout(timer)
     }
   }, [activeChat?.id, activeItem.title, keyword])
-  // ==============================================================
 
   const handleChatSelect = async (chatId: string) => {
     if (chatId === 'ai-chatbot') {
@@ -83,7 +78,6 @@ export function SidebarPanel2({
       return
     }
 
-    // Dùng chatListRef.current để lấy dữ liệu chuẩn xác nhất
     const targetChat = chatListRef.current.find((c) => String(c.id) === String(chatId))
     if (!targetChat) return
 
@@ -127,7 +121,6 @@ export function SidebarPanel2({
     }
   }
 
-  // ================= XỬ LÝ CLICK TỪ TÌM KIẾM =================
   const handleSelectSearchResult = (searchedUser: any) => {
     const existingChat = chatListRef.current.find(
       (c) => c.type === 'direct' && c.participants?.some((p: any) => String(p._id) === String(searchedUser._id))
@@ -153,18 +146,14 @@ export function SidebarPanel2({
     setKeyword('')
     setSearchResults([])
   }
-  // =========================================================
 
-  // ================= LẮNG NGHE EVENT TỪ FRIEND PAGE =================
   React.useEffect(() => {
     const handleStartChatEvent = (e: Event) => {
       const customEvent = e as CustomEvent
       const friend = customEvent.detail
 
-      // Gọi prop để chuyển Navbar Panel 1 về tab "Tin nhắn"
       if (onSwitchToChat) onSwitchToChat()
 
-      // Kiểm tra xem đã có cuộc trò chuyện chưa
       const existingChat = chatListRef.current.find(
         (c) => c.type === 'direct' && c.participants?.some((p: any) => String(p._id) === String(friend._id))
       )
@@ -172,7 +161,6 @@ export function SidebarPanel2({
       if (existingChat) {
         handleChatSelect(existingChat.id)
       } else {
-        // Nếu chưa có, tạo chat tạm thời
         setActiveChat({
           id: `temp_${friend._id}`,
           name: friend.userName || friend.fullName || 'Người dùng',
@@ -190,7 +178,6 @@ export function SidebarPanel2({
     window.addEventListener('start_chat_with_friend', handleStartChatEvent)
     return () => window.removeEventListener('start_chat_with_friend', handleStartChatEvent)
   }, [onSwitchToChat, isMobile])
-  // ====================================================================
 
   const searchUserMutation = useMutation({
     mutationFn: (userName: string) => searchApi.advancedSearch({ userName })
@@ -356,32 +343,6 @@ export function SidebarPanel2({
                                   </>
                                 )
                               }
-                              const isSpecialMessage = [
-                                'Tin nhắn đã được thu hồi',
-                                '[Hình ảnh/Video]',
-                                '[Hình ảnh]'
-                              ].includes(chat.message)
-                              if (isSpecialMessage) return `${chat.senderPrefix || ''}${chat.message}`
-
-                              if (chat.isE2E) {
-                                if (chat.encryptedKeys && chat.encryptedKeys[profileId]) {
-                                  const privateKey = localStorage.getItem(`rsa_private_key_${profileId}`)
-                                  if (privateKey) {
-                                    const aesKey = E2E.decryptAESKeyWithRSA(chat.encryptedKeys[profileId], privateKey)
-                                    if (aesKey) {
-                                      const decrypted = E2E.decryptMessageAES(chat.message, aesKey)
-                                      return (
-                                        <>
-                                          {chat.senderPrefix}
-                                          {decrypted}
-                                        </>
-                                      )
-                                    }
-                                  }
-                                }
-                                return `${chat.senderPrefix || ''}🔒 [Tin nhắn bảo mật]`
-                              }
-
                               return `${chat.senderPrefix || ''}${chat.message}`
                             })()}
                           </p>

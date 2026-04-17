@@ -108,8 +108,6 @@ class ChatService {
             lastMessage: {
               content: '$last_message_info.content',
               type: '$last_message_info.type',
-              isE2E: '$last_message_info.isE2E',
-              encryptedKeys: '$last_message_info.encryptedKeys',
               created_at: '$last_message_info.createdAt',
               sender_id: '$last_message_info.senderId'
             },
@@ -122,8 +120,7 @@ class ChatService {
                   userName: '$$participant.userName',
                   fullName: '$$participant.fullName',
                   avatar: '$$participant.avatar',
-                  email: '$$participant.email',
-                  public_key: '$$participant.public_key'
+                  email: '$$participant.email'
                 }
               }
             }
@@ -244,8 +241,7 @@ class ChatService {
                   fullName: '$$p.fullName',
                   phone: '$$p.phone',
                   avatar: '$$p.avatar',
-                  email: '$$p.email',
-                  public_key: '$$p.public_key'
+                  email: '$$p.email'
                 }
               }
             }
