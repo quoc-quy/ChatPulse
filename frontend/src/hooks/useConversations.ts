@@ -130,7 +130,10 @@ export function useConversations() {
           isFriend: isFriendStatus,
           senderPrefix: prefix,
           isE2E: conv.lastMessage?.isE2E || false,
-          encryptedKeys: conv.lastMessage?.encryptedKeys || {}
+          encryptedKeys: conv.lastMessage?.encryptedKeys || {},
+          // [FIX] Map trạng thái giải tán từ server
+          is_disbanded: conv.is_disbanded === true,
+          isDisbanded: conv.is_disbanded === true
         }
       })
 
@@ -297,11 +300,31 @@ export function useConversations() {
       )
     }
 
+    // [FIX] Lắng nghe sự kiện giải tán nhóm từ server socket
+    const handleGroupDisbanded = (data: { conversationId: string; message: string }) => {
+      toast.warning('Nhóm đã bị giải tán', {
+        description: data.message || 'Nhóm trưởng đã giải tán nhóm này.'
+      })
+
+      // Đánh dấu nhóm là đã giải tán trong danh sách chat
+      setChatList((prev) =>
+        prev.map((chat) =>
+          String(chat.id) === String(data.conversationId) ? { ...chat, is_disbanded: true, isDisbanded: true } : chat
+        )
+      )
+
+      // Nếu đang mở đúng box chat đó, cập nhật luôn để UI disable ngay lập tức
+      setActiveChat((prev: any) =>
+        prev && String(prev.id) === String(data.conversationId) ? { ...prev, isDisbanded: true } : prev
+      )
+    }
+
     socket.on('conversation_updated', handleConvUpdated)
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('user_status_change', handleUserStatusChange)
     socket.on('unfriended', handleUnfriended)
+    socket.on('group_disbanded', handleGroupDisbanded)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
@@ -309,6 +332,7 @@ export function useConversations() {
       socket.off('user_status_change', handleUserStatusChange)
       socket.off('conversation_updated', handleConvUpdated)
       socket.off('unfriended', handleUnfriended)
+      socket.off('group_disbanded', handleGroupDisbanded)
     }
   }, [profile, socket, sortChats])
 

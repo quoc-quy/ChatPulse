@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Loader2,
   Check,
-  Pencil
+  Pencil,
+  Ban
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { AppContext, type ChatItem } from '@/context/app.context'
@@ -31,15 +32,24 @@ interface InfoPanelMainProps {
   onViewMembers: () => void
   onOpenAddMember: () => void
   onLeaveGroup: () => void
+  onDisbandGroup?: () => void
 }
 
-export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, onLeaveGroup }: InfoPanelMainProps) {
+export function InfoPanelMain({
+  chat,
+  onClose,
+  onViewMembers,
+  onOpenAddMember,
+  onLeaveGroup,
+  onDisbandGroup
+}: InfoPanelMainProps) {
   const isGroup = chat.type === 'group'
   const [isEditingName, setIsEditingName] = useState(false)
   const [tempName, setTempName] = useState(chat.name || '')
   const [isSavingName, setIsSavingName] = useState(false)
   const { profile } = useContext(AppContext)
   const { socket } = useSocket()
+  const isAdmin = profile?._id === chat.admin_id
 
   // State duy nhất lưu toàn bộ messages cho Panel (Phục vụ Media/File/Link)
   const [panelMessages, setPanelMessages] = useState<any[]>([])
@@ -114,6 +124,22 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
       toast.error('Lỗi khi đổi tên nhóm')
     } finally {
       setIsSavingName(false)
+    }
+  }
+
+  const handleDisbandGroup = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn giải tán nhóm này? Toàn bộ tin nhắn sẽ bị xóa đối với mọi người.'))
+      return
+
+    try {
+      await groupApi.disbandGroup(chat.id)
+      toast.success('Giải tán nhóm thành công')
+      onClose()
+      // Có thể dispatch một event để refresh Sidebar
+      window.dispatchEvent(new Event('refresh_chat_list'))
+    } catch (error) {
+      console.error(error)
+      toast.error('Lỗi khi giải tán nhóm')
     }
   }
 
@@ -259,13 +285,25 @@ export function InfoPanelMain({ chat, onClose, onViewMembers, onOpenAddMember, o
 
         <div className='flex flex-col py-2 mt-1'>
           {isGroup ? (
-            <button
-              onClick={onLeaveGroup}
-              className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'
-            >
-              <LogOut className='w-5 h-5' />
-              <span className='text-[15px] font-medium'>Rời nhóm</span>
-            </button>
+            <>
+              <button
+                onClick={onLeaveGroup}
+                className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'
+              >
+                <LogOut className='w-5 h-5' />
+                <span className='text-[15px] font-medium'>Rời nhóm</span>
+              </button>
+
+              {isAdmin && (
+                <button
+                  onClick={handleDisbandGroup}
+                  className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 font-bold transition-colors text-left w-full border-t border-border/40'
+                >
+                  <Ban className='w-5 h-5' />
+                  <span className='text-[15px] font-medium'>Giải tán nhóm</span>
+                </button>
+              )}
+            </>
           ) : (
             <button className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'>
               <Trash2 className='w-5 h-5' />

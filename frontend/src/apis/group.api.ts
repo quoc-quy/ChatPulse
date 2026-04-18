@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import http from '@/utils/http'
 
 export const groupApi = {
@@ -18,5 +19,9 @@ export const groupApi = {
   // Đổi tên nhóm
   renameGroup: (groupId: string, name: string) => {
     return http.patch<{ message: string; result: any }>(`/groups/${groupId}/name`, { name })
+  },
+  // Giải tán nhóm (Chỉ Admin)
+  disbandGroup: (groupId: string) => {
+    return http.delete<{ message: string; result: any }>(`/groups/${groupId}/disband`)
   }
 }

@@ -22,6 +22,7 @@ export interface ChatItem {
   unreadCount?: number
   participants?: any[]
   admin_id?: string
+  isDisbanded?: boolean
 }
 
 interface AppContextInterface {

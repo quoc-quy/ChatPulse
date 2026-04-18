@@ -51,6 +51,12 @@ export const requireGroupMember = async (req: Request, res: Response, next: Next
       return res.status(httpStatus.NOT_FOUND).json({ message: 'Nhóm không tồn tại' })
     }
 
+    if (conversation.is_disbanded) {
+      return res.status(httpStatus.FORBIDDEN).json({
+        message: 'Nhóm này đã bị giải tán. Không thể thực hiện hành động.'
+      })
+    }
+
     const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
 
     if (!isMember) {

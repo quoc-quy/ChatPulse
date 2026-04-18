@@ -308,6 +308,17 @@ export function ChatFooter({ convId }: ChatFooterProps) {
   }
 
   const isUnfriended = activeChat && activeChat.isFriend === false
+  const isDisbanded = activeChat && activeChat.isDisbanded === true
+
+  if (isDisbanded) {
+    return (
+      <div className='p-4 bg-muted/40 border-t border-border flex items-center justify-center min-h-[72px]'>
+        <p className='text-[13px] text-red-500 font-medium text-center'>
+          Nhóm này đã bị giải tán. Bạn không thể tiếp tục trò chuyện.
+        </p>
+      </div>
+    )
+  }
 
   if (isUnfriended) {
     return (

@@ -104,7 +104,8 @@ export function SidebarPanel2({
       unreadCount: targetChat.unreadCount,
       participants: targetChat.participants,
       admin_id: targetChat.admin_id,
-      isFriend: targetChat.isFriend
+      isFriend: targetChat.isFriend,
+      isDisbanded: targetChat.is_disbanded
     })
 
     setChatList((currentChatList) =>
@@ -301,6 +302,8 @@ export function SidebarPanel2({
                   const displayUnread = chat.unreadCount > 99 ? '99+' : chat.unreadCount
                   const isActive = String(activeChat?.id) === String(chat.id)
                   const isUnfriended = chat.isFriend === false
+                  const isDisbanded = chat.is_disbanded === true || chat.isDisbanded === true // Lấy từ API
+                  const isInactiveState = isUnfriended || isDisbanded // Gộp chung trạng thái
 
                   return (
                     <div
@@ -309,7 +312,7 @@ export function SidebarPanel2({
                       onClick={() => handleChatSelect(chat.id)}
                       className={`group/chat relative flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-all duration-200 w-full overflow-hidden ${
                         isActive ? 'bg-[#e5efff] dark:bg-muted' : 'hover:bg-muted/50'
-                      } ${isUnfriended ? 'opacity-70 bg-muted/40 border border-border/50' : ''}`}
+                      } ${isInactiveState ? 'opacity-70 bg-muted/40 border border-border/50' : ''}`} // Áp dụng style làm mờ
                     >
                       <div className='shrink-0'>
                         <ChatAvatar chat={chat} currentUserId={profileId} />
@@ -354,7 +357,7 @@ export function SidebarPanel2({
                         </div>
                       </div>
 
-                      {isUnfriended && (
+                      {isInactiveState && (
                         <div className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/chat:opacity-100 transition-opacity z-50'>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
