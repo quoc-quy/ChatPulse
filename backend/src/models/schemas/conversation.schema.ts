@@ -7,7 +7,6 @@ interface MemberType {
   lastViewedMessageId?: ObjectId // High Water Mark dùng để tính unread_count
   clearedHistoryAt?: Date
   hasMuted?: boolean
-  isPinned?: boolean // ✅ Ghim hội thoại lên đầu (per-user)
 }
 
 interface ConversationType {
@@ -21,6 +20,9 @@ interface ConversationType {
   admin_id?: ObjectId
   updated_at?: Date
   created_at?: Date
+  is_disbanded?: boolean
+  disbanded_at?: Date
+  disbanded_by?: ObjectId
 }
 
 export default class Conversation {
@@ -34,6 +36,9 @@ export default class Conversation {
   admin_id?: ObjectId
   updated_at: Date
   created_at: Date
+  is_disbanded?: boolean
+  disbanded_at?: Date
+  disbanded_by?: ObjectId
 
   constructor(conversation: ConversationType) {
     this._id = conversation._id || new ObjectId()
@@ -54,5 +59,8 @@ export default class Conversation {
     this.admin_id = conversation.admin_id
     this.updated_at = conversation.updated_at || new Date()
     this.created_at = conversation.created_at || new Date()
+    this.is_disbanded = conversation.is_disbanded || false
+    this.disbanded_at = conversation.disbanded_at
+    this.disbanded_by = conversation.disbanded_by
   }
 }
