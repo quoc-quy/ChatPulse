@@ -1358,11 +1358,15 @@ const MessageScreen = () => {
                 />
               )}
             </View>
-            <Text style={styles.headerStatus}>Trực tuyến</Text>
+            {/* Ẩn chữ Trực tuyến nếu nhóm đã bị giải tán */}
+            {!isGroupDisbanded && (
+              <Text style={styles.headerStatus}>Trực tuyến</Text>
+            )}
           </View>
         </View>
+
         <View style={styles.headerRight}>
-          {/* Ẩn các nút chức năng này nếu nhóm đã bị giải tán */}
+          {/* Gom toàn bộ các nút chức năng (bao gồm cả nút Menu 3 gạch) vào điều kiện !isGroupDisbanded */}
           {!isGroupDisbanded && (
             <>
               <TouchableOpacity
@@ -1382,22 +1386,20 @@ const MessageScreen = () => {
               <TouchableOpacity style={styles.iconBtn}>
                 <Ionicons name="videocam-outline" size={26} color="white" />
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() =>
+                  navigation.navigate("ConversationDetail", {
+                    id: conversationId,
+                    name: chatName,
+                    isGroup: isGroup,
+                  })
+                }
+              >
+                <Ionicons name="menu" size={28} color="white" />
+              </TouchableOpacity>
             </>
           )}
-
-          {/* Vẫn giữ lại nút Menu để user có thể vào xem chi tiết/xóa nhóm */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() =>
-              navigation.navigate("ConversationDetail", {
-                id: conversationId,
-                name: chatName,
-                isGroup: isGroup,
-              })
-            }
-          >
-            <Ionicons name="menu" size={28} color="white" />
-          </TouchableOpacity>
         </View>
       </LinearGradient>
 
