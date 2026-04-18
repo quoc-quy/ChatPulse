@@ -201,4 +201,9 @@ export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
 export const createGroup = (data: CreateGroupParams) => {
   return api.post('/groups', data)
 }
+export const disbandGroup = (conversationId: string) =>{
+  return api.delete(`/groups/${conversationId}/disband`);
+}
+export const deleteConversationForMe = (conversationId: string) =>
+  api.delete(`/conversations/${conversationId}`);
 
