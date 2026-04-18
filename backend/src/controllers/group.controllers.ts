@@ -33,12 +33,19 @@ export const leaveGroupController = async (req: Request, res: Response) => {
   const id = req.params.id as string
   const userId = req.decoded_authorization?.user_id as string
 
-  // Hứng data trả về
-  const updatedGroup = await groupService.leaveGroup(id, userId)
+  const result = await groupService.leaveGroup(id, userId)
+
+  // Nếu người này là thành viên cuối cùng -> nhóm đã bị xóa hoàn toàn
+  if (result && (result as any).deleted === true) {
+    return res.status(httpStatus.OK).json({
+      message: 'Rời nhóm thành công. Nhóm đã được xóa vì không còn thành viên nào.',
+      result: { deleted: true, conversationId: id }
+    })
+  }
 
   return res.status(httpStatus.OK).json({
     message: 'Rời nhóm thành công',
-    result: updatedGroup // Trả data ra Postman
+    result
   })
 }
 
@@ -59,7 +66,13 @@ export const kickMemberController = async (req: Request, res: Response) => {
 // Thăng cấp Admin
 export const promoteAdminController = async (req: Request, res: Response) => {
   const id = req.params.id as string
-  const memberId = (req.body.memberId as string) || ''
+  // Ưu tiên lấy từ URL param (khi gọi qua PATCH /:id/members/:memberId/admin)
+  // Fallback về req.body.memberId để tương thích nếu có nơi nào gọi qua body
+  const memberId = (req.params.memberId as string) || (req.body.memberId as string) || ''
+
+  if (!memberId) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Thiếu memberId' })
+  }
 
   const updatedGroup = await groupService.promoteToAdmin(id, memberId)
   return res.status(httpStatus.OK).json({ message: 'Chuyển giao quyền Admin thành công', result: updatedGroup })

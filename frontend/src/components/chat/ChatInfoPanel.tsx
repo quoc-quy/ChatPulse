@@ -12,7 +12,7 @@ interface ChatInfoPanelProps {
   chat: ChatItem
   onClose: () => void
   onMemberUpdate?: () => void
-  onLeaveSuccess?: () => void // NHẬN THÊM PROP NÀY TỪ ChatArea
+  onLeaveSuccess?: () => void
 }
 
 export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }: ChatInfoPanelProps) {
@@ -25,6 +25,7 @@ export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }:
   // STATES Điều khiển Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
+  const [isDisbandModalOpen, setIsDisbandModalOpen] = useState(false)
 
   return (
     <>
@@ -43,6 +44,7 @@ export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }:
           onViewMembers={() => setCurrentView('members')}
           onOpenAddMember={() => setIsAddModalOpen(true)}
           onLeaveGroup={() => setIsLeaveModalOpen(true)}
+          onDisbandGroup={() => setIsDisbandModalOpen(true)}
         />
       )}
 
@@ -53,13 +55,27 @@ export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }:
         onMemberUpdate={onMemberUpdate}
       />
 
-      {/* RENDER LEAVE MODAL */}
+      {/* Modal Rời nhóm */}
       <LeaveGroupModal
         isOpen={isLeaveModalOpen}
         onClose={() => setIsLeaveModalOpen(false)}
         chat={chat}
         currentUserId={currentUserId!}
         onLeaveSuccess={onLeaveSuccess!}
+        mode='leave_group'
+      />
+
+      {/* Modal Giải tán nhóm - tái sử dụng LeaveGroupModal với mode='disband' */}
+      <LeaveGroupModal
+        isOpen={isDisbandModalOpen}
+        onClose={() => setIsDisbandModalOpen(false)}
+        chat={chat}
+        currentUserId={currentUserId!}
+        onLeaveSuccess={() => {
+          onClose()
+          window.dispatchEvent(new Event('refresh_chat_list'))
+        }}
+        mode='disband'
       />
     </>
   )

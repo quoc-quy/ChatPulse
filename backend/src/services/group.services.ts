@@ -194,6 +194,17 @@ class GroupService {
     const user = await databaseService.users.findOne({ _id: userObjectId })
     const userName = user?.userName || 'Một thành viên'
 
+    // Tính số thành viên còn lại TRƯỚC khi pull (không tính chính người rời)
+    const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
+
+    // Nếu không còn ai -> xóa hẳn nhóm + toàn bộ tin nhắn
+    if (remainingParticipants.length === 0) {
+      await databaseService.messages.deleteMany({ conversationId: conversationObjectId })
+      await databaseService.conversations.deleteOne({ _id: conversationObjectId })
+      return { deleted: true, conversationId }
+    }
+
+    // Còn ít nhất 1 người -> pull người rời ra
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       {
@@ -204,16 +215,15 @@ class GroupService {
       }
     )
 
+    // Nếu người rời là admin -> tự động chuyển quyền cho người đầu tiên còn lại
     const isAdmin = conversation.admin_id && conversation.admin_id.toString() === userId
     if (isAdmin) {
-      const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
-      if (remainingParticipants.length > 0) {
-        await databaseService.conversations.updateOne(
-          { _id: conversationObjectId },
-          { $set: { admin_id: remainingParticipants[0] } }
-        )
-      }
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId },
+        { $set: { admin_id: remainingParticipants[0] } }
+      )
     }
+
     // ✅ Gửi system message "X đã rời khỏi nhóm"
     const systemMessageId = new ObjectId()
     const systemMessage = {
@@ -235,10 +245,9 @@ class GroupService {
       { _id: conversationObjectId },
       { $set: { last_message_id: systemMessageId, updated_at: new Date() } }
     )
+
     // Emit socket cho các thành viên còn lại
-    const updatedConversation = await databaseService.conversations.findOne({
-      _id: conversationObjectId
-    })
+    const updatedConversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
 
     const populatedMessage = {
       ...systemMessage,
