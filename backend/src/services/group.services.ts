@@ -30,38 +30,33 @@ class GroupService {
     const addedNames = addedUsers.map((u) => u.userName || 'Thành viên mới').join(', ')
 
     if (addedNames) {
-      await messageService.sendMessage(
-        inviterId, 
-        conversationId,
-        'system',
-        `${addedNames} đã được thêm vào nhóm.`
-      )
+      await messageService.sendMessage(inviterId, conversationId, 'system', `${addedNames} đã được thêm vào nhóm.`)
     }
 
     return result
   }
 
   async joinGroupViaLink(conversationId: string, userId: string) {
-    const conversationObjectId = new ObjectId(conversationId);
-    const userObjectId = new ObjectId(userId);
+    const conversationObjectId = new ObjectId(conversationId)
+    const userObjectId = new ObjectId(userId)
 
-    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId });
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
 
     if (!conversation || conversation.type !== 'group') {
-      return null; // Không tìm thấy nhóm
+      return null // Không tìm thấy nhóm
     }
 
     // Kiểm tra xem đã là thành viên chưa
-    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId);
+    const isMember = (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
     if (isMember) {
-      return conversation; // Đã là thành viên, trả về luôn nhóm
+      return conversation // Đã là thành viên, trả về luôn nhóm
     }
 
     const newMember = {
       userId: userObjectId,
       role: 'member' as const,
       joinedAt: new Date()
-    };
+    }
 
     const result = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
@@ -70,20 +65,20 @@ class GroupService {
         $push: { members: newMember }
       },
       { returnDocument: 'after' }
-    );
+    )
 
     // Lấy thông tin user để gửi thông báo hệ thống
-    const user = await databaseService.users.findOne({ _id: userObjectId });
+    const user = await databaseService.users.findOne({ _id: userObjectId })
     if (user) {
       await messageService.sendMessage(
         userId,
         conversationId,
         'system',
         `${user.userName || 'Một người dùng'} đã tham gia nhóm qua liên kết.`
-      );
+      )
     }
 
-    return result;
+    return result
   }
 
   async markAsRead(conversationId: string, userId: string, lastMessageId: string) {
@@ -196,6 +191,9 @@ class GroupService {
 
     if (!conversation) return null
 
+    const user = await databaseService.users.findOne({ _id: userObjectId })
+    const userName = user?.userName || 'Một thành viên'
+
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       {
@@ -207,24 +205,47 @@ class GroupService {
     )
 
     const isAdmin = conversation.admin_id && conversation.admin_id.toString() === userId
-
     if (isAdmin) {
       const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
-
       if (remainingParticipants.length > 0) {
-        const nextAdminId = remainingParticipants[0]
-
         await databaseService.conversations.updateOne(
           { _id: conversationObjectId },
-          {
-            $set: { admin_id: nextAdminId }
-          }
+          { $set: { admin_id: remainingParticipants[0] } }
         )
       }
     }
-
+    // ✅ Gửi system message "X đã rời khỏi nhóm"
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: userObjectId,
+      type: 'system',
+      content: `${userName} đã rời khỏi nhóm`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    await databaseService.messages.insertOne(systemMessage as any)
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      { $set: { last_message_id: systemMessageId, updated_at: new Date() } }
+    )
+    // Emit socket cho các thành viên còn lại
     const updatedConversation = await databaseService.conversations.findOne({
       _id: conversationObjectId
+    })
+
+    const populatedMessage = {
+      ...systemMessage,
+      sender: { _id: user?._id?.toString(), userName, avatar: user?.avatar }
+    }
+    ;(updatedConversation?.participants || []).forEach((p: ObjectId) => {
+      socketService.emitToUser(p.toString(), 'receive_message', populatedMessage)
     })
 
     return updatedConversation
@@ -440,27 +461,25 @@ class GroupService {
       _id: new ObjectId(conversationId)
     })
     if (!conversation) return false
-    return (conversation.participants || []).some(
-      (p: ObjectId) => p.toString() === userId
-    )
+    return (conversation.participants || []).some((p: ObjectId) => p.toString() === userId)
   }
- 
+
   // ── Cập nhật avatar nhóm (tất cả thành viên đều được phép) ──────────────────
   async updateGroupAvatar(conversationId: string, userId: string, avatarUrl: string) {
     const conversationObjectId = new ObjectId(conversationId)
     const userObjectId = new ObjectId(userId)
- 
+
     const updatedConversation = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       { $set: { avatarUrl, updated_at: new Date() } },
       { returnDocument: 'after' }
     )
- 
+
     if (!updatedConversation) throw new Error('Không tìm thấy cuộc hội thoại')
- 
+
     const user = await databaseService.users.findOne({ _id: userObjectId })
     const userName = user?.userName || 'Một thành viên'
- 
+
     const systemMessageId = new ObjectId()
     const systemMessage = {
       _id: systemMessageId,
@@ -476,19 +495,19 @@ class GroupService {
       createdAt: new Date(),
       updatedAt: new Date()
     }
- 
+
     await databaseService.messages.insertOne(systemMessage as any)
- 
+
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       { $set: { last_message_id: systemMessageId } }
     )
- 
+
     const targetUserIds = new Set<string>()
     if (updatedConversation.participants) {
       updatedConversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
     }
- 
+
     const populatedMessage = {
       ...systemMessage,
       sender: {
@@ -497,96 +516,160 @@ class GroupService {
         avatar: user?.avatar
       }
     }
- 
+
     targetUserIds.forEach((id) => {
       socketService.emitToUser(id, 'receive_message', populatedMessage)
       socketService.emitToUser(id, 'conversation_updated', { conversationId, avatarUrl })
     })
- 
+
     return updatedConversation
   }
   async createGroup(creatorId: string, memberIds: string[], groupName: string, avatarUrl?: string) {
-  const creatorObjectId = new ObjectId(creatorId)
-  
-  // Lọc trùng và loại bỏ chính creator nếu có trong list
-  const uniqueMemberIds = [...new Set(memberIds.filter(id => id !== creatorId))]
-  const memberObjectIds = uniqueMemberIds.map(id => new ObjectId(id))
+    const creatorObjectId = new ObjectId(creatorId)
 
-  // Tất cả participants = creator + members
-  const allParticipants = [creatorObjectId, ...memberObjectIds]
+    // Lọc trùng và loại bỏ chính creator nếu có trong list
+    const uniqueMemberIds = [...new Set(memberIds.filter((id) => id !== creatorId))]
+    const memberObjectIds = uniqueMemberIds.map((id) => new ObjectId(id))
 
-  const members = [
-    { userId: creatorObjectId, role: 'admin' as const, joinedAt: new Date() },
-    ...memberObjectIds.map(id => ({
-      userId: id,
-      role: 'member' as const,
-      joinedAt: new Date()
-    }))
-  ]
+    // Tất cả participants = creator + members
+    const allParticipants = [creatorObjectId, ...memberObjectIds]
 
-  const newConversation = {
-    _id: new ObjectId(),
-    name: groupName.trim(),
-    type: 'group' as const,
-    admin_id: creatorObjectId,
-    participants: allParticipants,
-    members,
-    avatarUrl: avatarUrl || null,
-    created_at: new Date(),
-    updated_at: new Date(),
-    last_message_id: null
-  }
+    const members = [
+      { userId: creatorObjectId, role: 'admin' as const, joinedAt: new Date() },
+      ...memberObjectIds.map((id) => ({
+        userId: id,
+        role: 'member' as const,
+        joinedAt: new Date()
+      }))
+    ]
 
-  await databaseService.conversations.insertOne(newConversation as any)
-
-  // Gửi system message chào mừng
-  const creator = await databaseService.users.findOne({ _id: creatorObjectId })
-  const creatorName = creator?.userName || 'Admin'
-
-  const systemMessageId = new ObjectId()
-  const systemMessage = {
-    _id: systemMessageId,
-    conversationId: newConversation._id,
-    senderId: creatorObjectId,
-    type: 'system',
-    content: `${creatorName} đã tạo nhóm "${groupName.trim()}"`,
-    reactions: [],
-    deletedByUsers: [],
-    status: 'SENT',
-    deliveredTo: [],
-    seenBy: [],
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-
-  await databaseService.messages.insertOne(systemMessage as any)
-
-  await databaseService.conversations.updateOne(
-    { _id: newConversation._id },
-    { $set: { last_message_id: systemMessageId } }
-  )
-
-  // Emit socket cho tất cả thành viên
-  const populatedMessage = {
-    ...systemMessage,
-    sender: {
-      _id: creator?._id?.toString(),
-      userName: creatorName,
-      avatar: creator?.avatar
+    const newConversation = {
+      _id: new ObjectId(),
+      name: groupName.trim(),
+      type: 'group' as const,
+      admin_id: creatorObjectId,
+      participants: allParticipants,
+      members,
+      avatarUrl: avatarUrl || null,
+      created_at: new Date(),
+      updated_at: new Date(),
+      last_message_id: null
     }
-  }
 
-  allParticipants.forEach(p => {
-    socketService.emitToUser(p.toString(), 'new_conversation', {
-      ...newConversation,
-      _id: newConversation._id.toString()
+    await databaseService.conversations.insertOne(newConversation as any)
+
+    // Gửi system message chào mừng
+    const creator = await databaseService.users.findOne({ _id: creatorObjectId })
+    const creatorName = creator?.userName || 'Admin'
+
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: newConversation._id,
+      senderId: creatorObjectId,
+      type: 'system',
+      content: `${creatorName} đã tạo nhóm "${groupName.trim()}"`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await databaseService.messages.insertOne(systemMessage as any)
+
+    await databaseService.conversations.updateOne(
+      { _id: newConversation._id },
+      { $set: { last_message_id: systemMessageId } }
+    )
+
+    // Emit socket cho tất cả thành viên
+    const populatedMessage = {
+      ...systemMessage,
+      sender: {
+        _id: creator?._id?.toString(),
+        userName: creatorName,
+        avatar: creator?.avatar
+      }
+    }
+
+    allParticipants.forEach((p) => {
+      socketService.emitToUser(p.toString(), 'new_conversation', {
+        ...newConversation,
+        _id: newConversation._id.toString()
+      })
+      socketService.emitToUser(p.toString(), 'receive_message', populatedMessage)
     })
-    socketService.emitToUser(p.toString(), 'receive_message', populatedMessage)
-  })
 
-  return newConversation
-}
-}
+    return newConversation
+  }
+  async disbandGroup(conversationId: string, userId: string) {
+    const conversationObjectId = new ObjectId(conversationId)
 
+    const conversation = await databaseService.conversations.findOne({
+      _id: conversationObjectId
+    })
+    if (!conversation) return null
+    if (!conversation.admin_id || conversation.admin_id.toString() !== userId) {
+      throw new Error('FORBIDDEN')
+    }
+
+    const user = await databaseService.users.findOne({ _id: new ObjectId(userId) })
+    const userName = user?.userName || 'Nhóm trưởng'
+    const disbandContent = `${userName} đã giải tán nhóm`
+
+    // ✅ Chỉ đánh dấu is_disbanded, KHÔNG xóa conversation hay messages
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: new ObjectId(userId),
+      type: 'system',
+      content: disbandContent,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await databaseService.messages.insertOne(systemMessage as any)
+
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      {
+        $set: {
+          is_disbanded: true,
+          disbanded_at: new Date(),
+          disbanded_by: new ObjectId(userId),
+          last_message_id: systemMessageId,
+          updated_at: new Date()
+        }
+      }
+    )
+
+    const participantIds = (conversation.participants || []).map((p: ObjectId) => p.toString())
+
+    const populatedMessage = {
+      ...systemMessage,
+      sender: { _id: user?._id?.toString(), userName, avatar: user?.avatar }
+    }
+
+    // Emit socket cho tất cả thành viên
+    participantIds.forEach((id: string) => {
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+      socketService.emitToUser(id, 'group_disbanded', {
+        conversationId,
+        message: disbandContent
+      })
+    })
+
+    return { conversationId, disbandedBy: userId, message: disbandContent }
+  }
+}
 
 export const groupService = new GroupService()
