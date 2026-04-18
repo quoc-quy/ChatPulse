@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ChatHeader } from './ChatHeader'
 import { ChatBody } from './ChatBody'
 import { ChatFooter } from './ChatFooter'
@@ -21,6 +22,7 @@ export function ChatArea({ chat }: ChatAreaProps) {
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [summaryData, setSummaryData] = useState<ConversationSummary | null>(null)
   const [initialUnread, setInitialUnread] = useState(0)
+  const isDisbanded = chat.isDisbanded === true
 
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(true)
 
@@ -53,7 +55,8 @@ export function ChatArea({ chat }: ChatAreaProps) {
             return {
               ...prev,
               participants: updatedConversation.participants,
-              name: updatedConversation.name // Update lại tên nếu cần
+              name: updatedConversation.name,
+              isDisbanded: updatedConversation.is_disbanded
             }
           })
         }
@@ -172,12 +175,35 @@ export function ChatArea({ chat }: ChatAreaProps) {
         )}
 
         <div className='relative z-0 flex-1 flex flex-col overflow-hidden'>
-          <ChatBody convId={chat.id} />
-          <ChatFooter convId={chat.id} />
+          {isDisbanded ? (
+            // Giao diện khi nhóm bị giải tán
+            <div className='flex-1 flex items-center justify-center bg-muted/20 p-4'>
+              <div className='bg-background border border-border p-6 rounded-lg text-center shadow-sm max-w-md'>
+                <div className='text-red-500 font-semibold mb-2'>⚠️ Nhóm đã bị giải tán</div>
+                <p className='text-sm text-muted-foreground'>
+                  Nhóm trưởng đã giải tán nhóm này. Bạn không thể xem lịch sử trò chuyện hay gửi tin nhắn mới.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <ChatBody convId={chat.id} />
+              {/* Nếu giải tán thì chỉ ẩn/thay thế phần Footer nhập tin nhắn */}
+              {isDisbanded ? (
+                <div className='p-4 bg-muted/20 border-t border-border flex items-center justify-center min-h-[72px]'>
+                  <p className='text-sm text-red-500 font-medium text-center'>
+                    ⚠️ Nhóm trưởng đã giải tán nhóm này. Bạn không thể gửi tin nhắn mới.
+                  </p>
+                </div>
+              ) : (
+                <ChatFooter convId={chat.id} />
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {isInfoPanelOpen && (
+      {isInfoPanelOpen && !isDisbanded && (
         <ChatInfoPanel
           chat={chat}
           onClose={() => setIsInfoPanelOpen(false)}

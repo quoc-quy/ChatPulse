@@ -118,6 +118,14 @@ class MessageService {
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
 
+    // CHẶN HOÀN TOÀN VIỆC GỬI TIN NHẮN (TRỪ TIN NHẮN HỆ THỐNG)
+    if (conversation.is_disbanded && type !== 'system') {
+      throw new ErrorWithStatus({
+        message: 'Không thể gửi tin nhắn. Nhóm này đã bị giải tán.',
+        status: httpStatus.FORBIDDEN
+      })
+    }
+
     if (conversation.type === 'direct' && conversation.participants) {
       const otherUserId = conversation.participants.find((p: ObjectId) => p.toString() !== userId)
 

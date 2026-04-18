@@ -24,6 +24,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
 
   const isAI = chat.type === 'ai'
   const isUnfriended = chat.isFriend === false // Kiểm tra trạng thái bạn bè
+  const isDisbanded = chat.isDisbanded === true // Kiểm tra giải tán
 
   const formatLastActive = (dateString?: string) => {
     if (!dateString) return 'Truy cập gần đây'
@@ -93,7 +94,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
         </div>
       </div>
 
-      {!isAI && (
+      {!isAI && !isDisbanded && (
         <div className='flex items-center gap-2 text-muted-foreground'>
           {chat.type === 'group' && (
             <button

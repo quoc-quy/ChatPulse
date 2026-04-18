@@ -110,6 +110,8 @@ class ChatService {
             members: 1,
             admin_id: 1,
             unread_count: 1,
+            is_disbanded: 1,
+            disbanded_at: 1,
             avatarUrl: { $ifNull: ['$avatarUrl', ''] },
             lastMessage: {
               content: '$last_message_info.content',
