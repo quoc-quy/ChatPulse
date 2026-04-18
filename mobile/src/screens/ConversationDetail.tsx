@@ -372,43 +372,36 @@ export default function ConversationDetailScreen() {
     [conversationId, doLeaveGroup],
   );
 
-  const handleLeaveGroup = () => {
-    if (currentUserIsAdmin) {
-      const otherMembers = members.filter(
-        (m: any) => (m._id || m.userId || "").toString() !== currentUserId,
-      );
-      if (otherMembers.length === 0) {
-        Alert.alert(
-          "Rời nhóm",
-          "Bạn là thành viên duy nhất. Rời nhóm sẽ xóa nhóm này.",
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Rời & Xóa nhóm",
-              style: "destructive",
-              onPress: doLeaveGroup,
-            },
-          ],
-        );
-      } else {
-        Alert.alert(
-          "Chuyển quyền nhóm trưởng",
-          "Bạn là nhóm trưởng. Vui lòng chọn 1 thành viên để chuyển quyền trước khi rời nhóm.",
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Chọn thành viên",
-              onPress: () => setShowTransferModal(true),
-            },
-          ],
-        );
-      }
-    } else {
-      Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này không?", [
-        { text: "Hủy", style: "cancel" },
-        { text: "Rời nhóm", style: "destructive", onPress: doLeaveGroup },
-      ]);
-    }
+  const handleLeaveGroup = async () => {
+    Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Rời nhóm",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const res = await leaveGroup(conversationId);
+
+            // KIỂM TRA PHẢN HỒI TỪ BACKEND
+            if (res.data?.result?.isDisbanded) {
+              // Nếu là người cuối cùng và nhóm giải tán -> Quay về MessageScreen để xem lịch sử
+              // MessageScreen sẽ nhận được socket 'group_disbanded' và tự đổi UI
+              navigation.navigate("MessageScreen", {
+                id: conversationId,
+                name: chatName,
+                isGroup: true,
+                isGroupDisbanded: true, // Truyền param để UI cập nhật ngay
+              });
+            } else {
+              // Nếu nhóm vẫn còn người -> Quay về danh sách chat chính
+              navigation.popToTop();
+            }
+          } catch (error) {
+            Alert.alert("Lỗi", "Không thể rời nhóm.");
+          }
+        },
+      },
+    ]);
   };
   const handleDisbandGroup = () => {
     Alert.alert(
