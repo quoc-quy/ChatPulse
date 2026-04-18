@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
-  useColorScheme,
   TextInput,
   ActivityIndicator,
 } from "react-native";
@@ -15,36 +14,41 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { api } from "../apis/api";
 import { addMembers } from "../apis/chat.api";
+import { useTheme } from "../contexts/ThemeContext"; // Import ThemeContext để đồng bộ app
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  border: "hsl(240, 15%, 85%)",
+  primary: "#4F46E5",
+  secondary: "#A855F7",
+  background: "#F8FAFC",
+  foreground: "#1E293B",
+  muted: "#94A3B8",
+  mutedDark: "#64748B",
   white: "#FFFFFF",
-  searchBg: "hsl(240, 15%, 94%)",
-  selectedBg: "#EEF2FF",
-  checkColor: "hsl(230, 85%, 60%)",
+  border: "#E2E8F0",
+  success: "#22C55E",
+  danger: "#EF4444",
+  card: "#FFFFFF",
+  searchBg: "#F1F5F9",
+  searchFocusedBg: "#EEF2FF",
+  sectionHeaderBg: "#F8FAFC",
 };
 
 const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  border: "hsl(240, 20%, 18%)",
-  white: "#FFFFFF",
-  searchBg: "hsl(240, 20%, 15%)",
-  selectedBg: "hsl(230, 40%, 18%)",
-  checkColor: "hsl(230, 85%, 65%)",
+  primary: "#818CF8",
+  secondary: "#C084FC",
+  background: "#070B1A",
+  foreground: "#F8FAFC",
+  muted: "#64748B",
+  mutedDark: "#94A3B8",
+  white: "#11182D", // Màu tối dùng để làm nổi bật text/icon trên nền màu sáng (primary) ở dark mode
+  border: "#1E2946",
+  success: "#4ADE80",
+  danger: "#F87171",
+  card: "#11182D",
+  searchBg: "#1E2946",
+  searchFocusedBg: "#1E2040",
+  sectionHeaderBg: "#0D1428",
 };
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -79,7 +83,8 @@ export default function AddMemberScreen() {
   const route = useRoute<any>();
   const { conversationId, existingMemberIds = [] } = route.params || {};
 
-  const isDarkMode = useColorScheme() === "dark";
+  // Sử dụng useTheme thay vì useColorScheme để đồng bộ với setting của App
+  const { isDarkMode } = useTheme();
   const COLORS = useMemo(
     () => (isDarkMode ? darkColors : lightColors),
     [isDarkMode],
@@ -95,21 +100,15 @@ export default function AddMemberScreen() {
   useEffect(() => {
     const fetchFriends = async () => {
       try {
-        // Fetch song song: friends list + conversation detail
         const [friendsRes, convRes] = await Promise.all([
           api.get("/friends/list"),
           api.get(`/conversations/${conversationId}`),
         ]);
 
         const allFriends: any[] = friendsRes.data.result || [];
-
-        // Lấy participants từ API — đây là source of truth chính xác nhất
-        // participants là array ObjectId string
         const participants: any[] = convRes.data.result?.participants || [];
         const existingSet = new Set(participants.map((p: any) => p.toString()));
 
-        // friends/list trả về flat object: { _id, userName, ... }
-        // _id ở root, không nested
         setFriends(
           allFriends.filter((f) => !existingSet.has((f._id || "").toString())),
         );
@@ -162,7 +161,6 @@ export default function AddMemberScreen() {
 
   // ── Render Item ───────────────────────────────────────────────────────────
   const renderItem = ({ item }: any) => {
-    // friends/list trả về flat: { _id, userName, avatar, email }
     const id = (item._id || "").toString();
     const isSelected = selectedIds.has(id);
     const name = item.fullName || item.userName || "Người dùng";
@@ -174,7 +172,7 @@ export default function AddMemberScreen() {
           styles.item,
           {
             borderBottomColor: COLORS.border,
-            backgroundColor: isSelected ? COLORS.selectedBg : COLORS.card,
+            backgroundColor: isSelected ? COLORS.searchFocusedBg : COLORS.card,
           },
         ]}
         onPress={() => toggleSelect(id)}
@@ -195,7 +193,7 @@ export default function AddMemberScreen() {
           </Text>
           {sub ? (
             <Text
-              style={[styles.sub, { color: COLORS.mutedForeground }]}
+              style={[styles.sub, { color: COLORS.mutedDark }]}
               numberOfLines={1}
             >
               {sub}
@@ -208,8 +206,8 @@ export default function AddMemberScreen() {
           style={[
             styles.checkbox,
             {
-              borderColor: isSelected ? COLORS.checkColor : COLORS.border,
-              backgroundColor: isSelected ? COLORS.checkColor : "transparent",
+              borderColor: isSelected ? COLORS.primary : COLORS.border,
+              backgroundColor: isSelected ? COLORS.primary : "transparent",
             },
           ]}
         >
@@ -245,7 +243,7 @@ export default function AddMemberScreen() {
             Thêm thành viên
           </Text>
           {selectedIds.size > 0 && (
-            <Text style={[styles.headerSub, { color: COLORS.mutedForeground }]}>
+            <Text style={[styles.headerSub, { color: COLORS.mutedDark }]}>
               Đã chọn {selectedIds.size}
             </Text>
           )}
@@ -270,10 +268,7 @@ export default function AddMemberScreen() {
               style={[
                 styles.confirmText,
                 {
-                  color:
-                    selectedIds.size > 0
-                      ? COLORS.white
-                      : COLORS.mutedForeground,
+                  color: selectedIds.size > 0 ? COLORS.white : COLORS.mutedDark,
                 },
               ]}
             >
@@ -291,14 +286,10 @@ export default function AddMemberScreen() {
         ]}
       >
         <View style={[styles.searchBar, { backgroundColor: COLORS.searchBg }]}>
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color={COLORS.mutedForeground}
-          />
+          <Ionicons name="search-outline" size={16} color={COLORS.mutedDark} />
           <TextInput
             placeholder="Tìm bạn bè..."
-            placeholderTextColor={COLORS.mutedForeground}
+            placeholderTextColor={COLORS.mutedDark}
             style={[styles.searchInput, { color: COLORS.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
@@ -308,7 +299,7 @@ export default function AddMemberScreen() {
               <Ionicons
                 name="close-circle"
                 size={16}
-                color={COLORS.mutedForeground}
+                color={COLORS.mutedDark}
               />
             </TouchableOpacity>
           )}
@@ -339,9 +330,7 @@ export default function AddMemberScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={COLORS.border} />
-              <Text
-                style={[styles.emptyText, { color: COLORS.mutedForeground }]}
-              >
+              <Text style={[styles.emptyText, { color: COLORS.mutedDark }]}>
                 {searchText ? "Không tìm thấy" : "Tất cả bạn bè đã trong nhóm"}
               </Text>
             </View>
