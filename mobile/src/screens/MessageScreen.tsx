@@ -52,6 +52,7 @@ import {
   deleteMessageForMe as deleteMessageForMeApi,
   summarizeChatApi,
   getConversationDetail,
+  deleteConversationForMe,
 } from "../apis/chat.api";
 
 const lightColors = {
@@ -464,6 +465,44 @@ const MessageScreen = () => {
     }
   };
 
+  const handleDeleteDisbandedChat = () => {
+    Alert.alert(
+      "Xóa trò chuyện",
+      "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Gọi API xóa phía người dùng hiện tại
+              await deleteConversationForMe(conversationId);
+
+              // Cập nhật lại AsyncStorage để gỡ nhóm này khỏi danh sách lưu trữ (nếu đang lưu)
+              const stored = await AsyncStorage.getItem("archived_chats");
+              if (stored) {
+                let archivedArray: string[] = JSON.parse(stored);
+                const nextArray = archivedArray.filter(
+                  (key: string) => key !== conversationId,
+                );
+                await AsyncStorage.setItem(
+                  "archived_chats",
+                  JSON.stringify(nextArray),
+                );
+              }
+
+              // Quay về màn hình ChatScreen (ChatScreen sẽ tự động reload lại danh sách nhờ useFocusEffect)
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert("Lỗi", "Không thể xóa trò chuyện. Vui lòng thử lại!");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const loadMoreMessages = async () => {
     if (!hasMore || isFetchingMore || !cursor) return;
     try {
@@ -526,7 +565,7 @@ const MessageScreen = () => {
 
           const detailRes = await getConversationDetail(conversationId);
           const conv = detailRes.data?.result;
-     
+
           if (conv?.is_disbanded || conv?.isDisbanded) {
             setIsGroupDisbanded(true);
             setDisbandMessage(
@@ -1323,23 +1362,30 @@ const MessageScreen = () => {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={handleSummarizeChat}
-            disabled={isSummarizing}
-          >
-            {isSummarizing ? (
-              <ActivityIndicator size="small" color="#FFD700" />
-            ) : (
-              <Ionicons name="sparkles" size={24} color="#FFD700" />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Ionicons name="call-outline" size={24} color="white" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Ionicons name="videocam-outline" size={26} color="white" />
-          </TouchableOpacity>
+          {/* Ẩn các nút chức năng này nếu nhóm đã bị giải tán */}
+          {!isGroupDisbanded && (
+            <>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={handleSummarizeChat}
+                disabled={isSummarizing}
+              >
+                {isSummarizing ? (
+                  <ActivityIndicator size="small" color="#FFD700" />
+                ) : (
+                  <Ionicons name="sparkles" size={24} color="#FFD700" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Ionicons name="call-outline" size={24} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Ionicons name="videocam-outline" size={26} color="white" />
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Vẫn giữ lại nút Menu để user có thể vào xem chi tiết/xóa nhóm */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() =>
@@ -1359,201 +1405,136 @@ const MessageScreen = () => {
         style={styles.chatArea}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <FlatList
-          ref={flatListRef}
-          inverted={true}
-          data={groupedMessages}
-          keyExtractor={(item, index) => `${item._id ?? "msg"}_${index}`}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.listContent}
-          onEndReached={loadMoreMessages}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            !hasMore && messages.length > 0 ? (
-              <Text
-                style={{
-                  textAlign: "center",
-                  color: COLORS.textLight,
-                  paddingVertical: 10,
-                }}
-              >
-                Đã tải hết lịch sử trò chuyện
+        {isGroupDisbanded ? (
+          // ── GIAO DIỆN KHI NHÓM ĐÃ GIẢI TÁN (GIỐNG ZALO ẢNH 2) ──
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+              paddingBottom: 24,
+            }}
+          >
+            <View style={styles.dateDivider}>
+              <Text style={styles.dateDividerText}>
+                {formatMessageDate(new Date().toISOString())}
               </Text>
-            ) : isFetchingMore ? (
-              <ActivityIndicator
-                size="small"
-                color={COLORS.primary}
-                style={{ marginVertical: 10 }}
-              />
-            ) : null
-          }
-          onViewableItemsChanged={(info) =>
-            onViewableItemsChangedRef.current(info)
-          }
-          viewabilityConfig={viewabilityConfig.current}
-        />
+            </View>
 
-        {pendingMedia.length > 0 && (
-          <View style={styles.pendingContainerWrap}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pendingContainer}
+            <View
+              style={{
+                backgroundColor: isDarkMode ? "#1E293B" : "#E2E8F0",
+                paddingVertical: 12,
+                paddingHorizontal: 18,
+                borderRadius: 20,
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 8,
+              }}
             >
-              {pendingMedia.map((media, index) => (
-                <View key={index} style={styles.pendingMediaWrap}>
-                  <TouchableOpacity
-                    style={styles.removePendingBtn}
-                    onPress={() => {
-                      const newPending = [...pendingMedia];
-                      newPending.splice(index, 1);
-                      setPendingMedia(newPending);
+              <Text style={{ color: COLORS.text, fontSize: 14 }}>
+                {disbandMessage || "Trưởng nhóm đã giải tán nhóm."}
+              </Text>
+              <TouchableOpacity onPress={handleDeleteDisbandedChat}>
+                <Text style={{ color: "#3B82F6", fontSize: 14, marginLeft: 6 }}>
+                  Xoá trò chuyện
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          // ── GIAO DIỆN HIỂN THỊ TIN NHẮN BÌNH THƯỜNG ──
+          <>
+            <FlatList
+              ref={flatListRef}
+              inverted={true}
+              data={groupedMessages}
+              keyExtractor={(item, index) => `${item._id ?? "msg"}_${index}`}
+              renderItem={renderMessage}
+              contentContainerStyle={styles.listContent}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                !hasMore && messages.length > 0 ? (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: COLORS.textLight,
+                      paddingVertical: 10,
                     }}
                   >
-                    <Ionicons name="close" size={14} color="#FFF" />
-                  </TouchableOpacity>
+                    Đã tải hết lịch sử trò chuyện
+                  </Text>
+                ) : isFetchingMore ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={COLORS.primary}
+                    style={{ marginVertical: 10 }}
+                  />
+                ) : null
+              }
+              onViewableItemsChanged={(info) =>
+                onViewableItemsChangedRef.current(info)
+              }
+              viewabilityConfig={viewabilityConfig.current}
+            />
 
-                  {media.attachmentType === "media" ? (
-                    <Image
-                      source={{ uri: media.uri }}
-                      style={styles.pendingImage}
-                    />
-                  ) : (
-                    <View style={styles.pendingFile}>
-                      <Ionicons
-                        name="document-text"
-                        size={30}
-                        color={COLORS.primary}
-                      />
+            {pendingMedia.length > 0 && (
+              <View style={styles.pendingContainerWrap}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pendingContainer}
+                >
+                  {pendingMedia.map((media, index) => (
+                    <View key={index} style={styles.pendingMediaWrap}>
+                      <TouchableOpacity
+                        style={styles.removePendingBtn}
+                        onPress={() => {
+                          const newPending = [...pendingMedia];
+                          newPending.splice(index, 1);
+                          setPendingMedia(newPending);
+                        }}
+                      >
+                        <Ionicons name="close" size={14} color="#FFF" />
+                      </TouchableOpacity>
+
+                      {media.attachmentType === "media" ? (
+                        <Image
+                          source={{ uri: media.uri }}
+                          style={styles.pendingImage}
+                        />
+                      ) : (
+                        <View style={styles.pendingFile}>
+                          <Ionicons
+                            name="document-text"
+                            size={30}
+                            color={COLORS.primary}
+                          />
+                        </View>
+                      )}
+                      {(media.type === "video" ||
+                        media.mimeType?.startsWith("video/")) && (
+                        <View style={styles.pendingVideoIcon}>
+                          <Ionicons name="videocam" size={14} color="#FFF" />
+                        </View>
+                      )}
+                      {media.attachmentType === "file" && (
+                        <Text
+                          style={styles.pendingFileNameOverlay}
+                          numberOfLines={1}
+                        >
+                          {media.name || t.messageAttachmentDocument}
+                        </Text>
+                      )}
                     </View>
-                  )}
-                  {(media.type === "video" ||
-                    media.mimeType?.startsWith("video/")) && (
-                    <View style={styles.pendingVideoIcon}>
-                      <Ionicons name="videocam" size={14} color="#FFF" />
-                    </View>
-                  )}
-                  {media.attachmentType === "file" && (
-                    <Text
-                      style={styles.pendingFileNameOverlay}
-                      numberOfLines={1}
-                    >
-                      {media.name || t.messageAttachmentDocument}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
         )}
 
-        {/* <View style={styles.inputContainer}>
-          <TouchableOpacity
-            style={styles.attachBtn}
-            onPress={handlePickMedia}
-            disabled={isUploading}
-          >
-            <Ionicons name="image-outline" size={24} color={COLORS.textLight} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.attachBtn}
-            onPress={handlePickDocument}
-            disabled={isUploading}
-          >
-            <Ionicons name="attach" size={24} color={COLORS.textLight} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.attachBtn}
-            onPress={handleSuggestReply}
-            disabled={isSuggesting}
-          >
-            {isSuggesting ? (
-              <ActivityIndicator size="small" color="#A855F7" />
-            ) : (
-              <Ionicons name="sparkles" size={22} color="#A855F7" />
-            )}
-          </TouchableOpacity>
-
-          <View
-            style={[
-              styles.textInput,
-              {
-                flexDirection: "row",
-                alignItems: "flex-end",
-                paddingHorizontal: 0,
-              },
-            ]}
-          >
-            {inputText.startsWith("@PulseAI ") && (
-              <Text
-                style={{
-                  color: "#C084FC",
-                  fontWeight: "900",
-                  paddingLeft: 16,
-                  paddingBottom: Platform.OS === "ios" ? 10 : 12,
-                }}
-              >
-                @PulseAI
-              </Text>
-            )}
-            <TextInput
-              multiline={true}
-              maxLength={2000}
-              style={{
-                flex: 1,
-                color: COLORS.text,
-                paddingHorizontal: inputText.startsWith("@PulseAI ") ? 6 : 16,
-                minHeight: 40,
-                lineHeight: 20,
-                maxHeight: 70,
-                paddingTop: 10,
-                paddingBottom: 10,
-                textAlignVertical: "center",
-              }}
-              placeholder={t.messageInputPlaceholder}
-              placeholderTextColor={COLORS.textLight}
-              value={
-                inputText.startsWith("@PulseAI ")
-                  ? inputText.substring(9)
-                  : inputText
-              }
-              onChangeText={(txt) => {
-                let newText = txt;
-                if (inputText.startsWith("@PulseAI ")) {
-                  newText = "@PulseAI " + txt;
-                }
-                setInputText(newText);
-                if (updateDraft && conversationId) {
-                  updateDraft(conversationId, newText);
-                }
-              }}
-              onKeyPress={({ nativeEvent }) => {
-                if (
-                  nativeEvent.key === "Backspace" &&
-                  inputText === "@PulseAI "
-                ) {
-                  setInputText("");
-                }
-              }}
-            />
-          </View>
-
-          <TouchableOpacity onPress={handleSend} style={{ marginBottom: 2 }}>
-            <LinearGradient
-              colors={[COLORS.primary, COLORS.accent]}
-              style={styles.sendBtn}
-            >
-              <Ionicons
-                name="send"
-                size={18}
-                color="white"
-                style={{ marginLeft: 3 }}
-              />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View> */}
         {isGroupDisbanded ? (
           // ── Input disabled khi nhóm đã bị giải tán ──────────────────────────
           <View
