@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
-  useColorScheme,
   TextInput,
   ActivityIndicator,
   RefreshControl,
@@ -20,40 +19,41 @@ import {
   getConversationDetail,
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
+import { useTheme } from "../contexts/ThemeContext"; // Import ThemeContext
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  destructive: "hsl(0, 84%, 60%)",
-  border: "hsl(240, 15%, 85%)",
-  success: "#34C759",
-  adminBg: "#EEF2FF",
-  adminText: "hsl(230, 85%, 60%)",
+  primary: "#4F46E5",
+  secondary: "#A855F7",
+  background: "#F8FAFC",
+  foreground: "#1E293B",
+  muted: "#94A3B8",
+  mutedDark: "#64748B",
   white: "#FFFFFF",
-  searchBg: "hsl(240, 15%, 94%)",
+  border: "#E2E8F0",
+  success: "#22C55E",
+  danger: "#EF4444",
+  card: "#FFFFFF",
+  searchBg: "#F1F5F9",
+  searchFocusedBg: "#EEF2FF",
+  sectionHeaderBg: "#F8FAFC",
 };
 
 const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  destructive: "hsl(0, 62%, 55%)",
-  border: "hsl(240, 20%, 18%)",
-  success: "#34C759",
-  adminBg: "hsl(230, 40%, 20%)",
-  adminText: "hsl(230, 85%, 65%)",
-  white: "#FFFFFF",
-  searchBg: "hsl(240, 20%, 15%)",
+  primary: "#818CF8",
+  secondary: "#C084FC",
+  background: "#070B1A",
+  foreground: "#F8FAFC",
+  muted: "#64748B",
+  mutedDark: "#94A3B8",
+  white: "#11182D",
+  border: "#1E2946",
+  success: "#4ADE80",
+  danger: "#F87171",
+  card: "#11182D",
+  searchBg: "#1E2946",
+  searchFocusedBg: "#1E2040",
+  sectionHeaderBg: "#0D1428",
 };
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -101,7 +101,8 @@ export default function MembersScreen() {
     currentUserId,
   } = route.params || {};
 
-  const isDarkMode = useColorScheme() === "dark";
+  // Sử dụng useTheme thay cho useColorScheme
+  const { isDarkMode } = useTheme();
   const COLORS = useMemo(
     () => (isDarkMode ? darkColors : lightColors),
     [isDarkMode],
@@ -436,14 +437,17 @@ export default function MembersScreen() {
             </Text>
             {isAdmin && (
               <View
-                style={[styles.adminBadge, { backgroundColor: COLORS.adminBg }]}
+                style={[
+                  styles.adminBadge,
+                  { backgroundColor: COLORS.searchFocusedBg },
+                ]}
               >
                 <Ionicons
                   name="shield-checkmark"
                   size={10}
-                  color={COLORS.adminText}
+                  color={COLORS.primary}
                 />
-                <Text style={[styles.adminText, { color: COLORS.adminText }]}>
+                <Text style={[styles.adminText, { color: COLORS.primary }]}>
                   Admin
                 </Text>
               </View>
@@ -451,7 +455,7 @@ export default function MembersScreen() {
           </View>
           {roleText ? (
             <Text
-              style={[styles.sub, { color: COLORS.mutedForeground }]}
+              style={[styles.sub, { color: COLORS.mutedDark }]}
               numberOfLines={1}
             >
               {roleText}
@@ -479,7 +483,7 @@ export default function MembersScreen() {
               <Ionicons
                 name={isPending ? "time-outline" : "person-add-outline"}
                 size={20}
-                color={isPending ? COLORS.primary : COLORS.mutedForeground}
+                color={isPending ? COLORS.primary : COLORS.mutedDark}
               />
             )}
           </TouchableOpacity>
@@ -531,14 +535,10 @@ export default function MembersScreen() {
         ]}
       >
         <View style={[styles.searchBar, { backgroundColor: COLORS.searchBg }]}>
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color={COLORS.mutedForeground}
-          />
+          <Ionicons name="search-outline" size={16} color={COLORS.mutedDark} />
           <TextInput
             placeholder="Tìm thành viên..."
-            placeholderTextColor={COLORS.mutedForeground}
+            placeholderTextColor={COLORS.mutedDark}
             style={[styles.searchInput, { color: COLORS.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
@@ -548,7 +548,7 @@ export default function MembersScreen() {
               <Ionicons
                 name="close-circle"
                 size={16}
-                color={COLORS.mutedForeground}
+                color={COLORS.mutedDark}
               />
             </TouchableOpacity>
           )}
@@ -561,7 +561,7 @@ export default function MembersScreen() {
           Thành viên ({filtered.length})
         </Text>
         {currentUserIsAdmin && (
-          <Text style={[styles.hintText, { color: COLORS.mutedForeground }]}>
+          <Text style={[styles.hintText, { color: COLORS.mutedDark }]}>
             Giữ để quản lý
           </Text>
         )}
@@ -594,9 +594,7 @@ export default function MembersScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={COLORS.border} />
-              <Text
-                style={[styles.emptyText, { color: COLORS.mutedForeground }]}
-              >
+              <Text style={[styles.emptyText, { color: COLORS.mutedDark }]}>
                 Không tìm thấy thành viên
               </Text>
             </View>
