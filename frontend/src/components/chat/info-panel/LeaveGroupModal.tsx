@@ -10,16 +10,14 @@ import { toast } from 'sonner'
 interface LeaveGroupModalProps {
   isOpen: boolean
   onClose: () => void
-  chat?: ChatItem // Optional vì khi dùng cho Hủy kết bạn có thể không cần truyền chat
-  currentUserId?: string // Optional
-  onLeaveSuccess?: () => void // Optional
-
-  // Props mới thêm vào để dùng chung cho Hủy kết bạn
+  chat?: ChatItem
+  currentUserId?: string
+  onLeaveSuccess?: () => void
   title?: string
   description?: string
   confirmText?: string
   onConfirm?: () => void
-  mode?: 'leave_group' | 'unfriend' // Giúp xác định luồng logic
+  mode?: 'leave_group' | 'unfriend' | 'disband'
 }
 
 export function LeaveGroupModal({
@@ -28,9 +26,9 @@ export function LeaveGroupModal({
   chat,
   currentUserId,
   onLeaveSuccess,
-  title = 'Rời khỏi nhóm',
-  description = '',
-  confirmText = 'Rời nhóm',
+  title,
+  description,
+  confirmText,
   onConfirm,
   mode = 'leave_group'
 }: LeaveGroupModalProps) {
@@ -38,7 +36,9 @@ export function LeaveGroupModal({
   const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Chỉ tính toán logic admin nếu đang ở chế độ 'leave_group'
+  const resolvedTitle = title ?? (mode === 'disband' ? 'Giải tán nhóm' : 'Rời khỏi nhóm')
+  const resolvedConfirmText = confirmText ?? (mode === 'disband' ? 'Giải tán nhóm' : 'Rời nhóm')
+
   const isAdmin = mode === 'leave_group' && chat ? String(chat.admin_id) === String(currentUserId) : false
 
   const otherMembers = useMemo(() => {
@@ -60,11 +60,11 @@ export function LeaveGroupModal({
   }
 
   const handleNextOrSubmit = async () => {
-    // 1. Nếu là luồng Hủy kết bạn (truyền onConfirm từ ngoài vào)
+    // 1. Luồng Hủy kết bạn
     if (mode === 'unfriend' && onConfirm) {
       setIsSubmitting(true)
       try {
-        await onConfirm() // Thực thi hàm hủy kết bạn
+        await onConfirm()
         onClose()
       } catch (error) {
         console.error(error)
@@ -74,9 +74,25 @@ export function LeaveGroupModal({
       return
     }
 
-    // 2. Luồng Rời nhóm mặc định
+    // 2. Luồng Giải tán nhóm
+    if (mode === 'disband' && chat) {
+      setIsSubmitting(true)
+      try {
+        await groupApi.disbandGroup(chat.id)
+        toast.success('Giải tán nhóm thành công')
+        onLeaveSuccess?.()
+        onClose()
+      } catch (error) {
+        console.error(error)
+        toast.error('Lỗi khi giải tán nhóm')
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
+    // 3. Luồng Rời nhóm
     if (mode === 'leave_group' && chat && onLeaveSuccess) {
-      // Nếu là Admin và còn thành viên khác -> Ép phải chọn Admin mới
       if (isAdmin && otherMembers.length > 0 && step === 'confirm') {
         setStep('choose_admin')
         return
@@ -84,14 +100,17 @@ export function LeaveGroupModal({
 
       setIsSubmitting(true)
       try {
-        // Bắn API chuyển quyền nếu ở bước 2
         if (isAdmin && otherMembers.length > 0 && selectedAdminId) {
           await groupApi.promoteAdmin(chat.id, selectedAdminId)
         }
-        // Sau đó bắn API Rời nhóm
-        await groupApi.leaveGroup(chat.id)
+        const res = await groupApi.leaveGroup(chat.id)
 
-        toast.success('Đã rời khỏi nhóm thành công')
+        if (res?.data?.result?.deleted === true) {
+          toast.success('Đã rời nhóm. Nhóm đã được xóa vì bạn là thành viên cuối cùng.')
+        } else {
+          toast.success('Đã rời khỏi nhóm thành công')
+        }
+
         onLeaveSuccess()
         onClose()
       } catch (error) {
@@ -102,9 +121,6 @@ export function LeaveGroupModal({
       }
     }
   }
-
-  // Tự động tạo câu mô tả nếu không được truyền vào
-  const displayDescription = description || (chat ? `Bạn có chắc chắn muốn rời khỏi nhóm ${chat.name} không?` : '')
 
   if (!isOpen) return null
 
@@ -117,30 +133,37 @@ export function LeaveGroupModal({
         className='bg-background w-full max-w-[400px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200'
         onClick={(e) => e.stopPropagation()}
       >
-        {/* VIEW 1: XÁC NHẬN */}
         {step === 'confirm' ? (
           <div className='p-6'>
-            <div className='flex items-center gap-3 mb-4 text-destructive'>
+            <div className={`flex items-center gap-3 mb-4 ${mode === 'disband' ? 'text-red-600' : 'text-destructive'}`}>
               <AlertTriangle className='w-6 h-6' />
-              <h3 className='text-lg font-bold'>{title}</h3>
+              <h3 className='text-lg font-bold'>{resolvedTitle}</h3>
             </div>
+
             <p className='text-[15px] text-muted-foreground mb-6 leading-relaxed'>
-              {/* Tách phần hiển thị tên in đậm ra nếu là default description */}
               {description ? (
                 description
+              ) : mode === 'disband' ? (
+                <>
+                  Bạn có chắc chắn muốn giải tán nhóm{' '}
+                  <span className='font-semibold text-foreground'>{chat?.name}</span> không?
+                  <span className='block mt-3 text-[14px] text-red-500 font-medium p-3 bg-red-50 dark:bg-red-950/30 rounded-md border border-red-200/50'>
+                    Hành động này không thể hoàn tác. Tất cả thành viên sẽ bị xóa khỏi nhóm.
+                  </span>
+                </>
               ) : (
                 <>
                   Bạn có chắc chắn muốn rời khỏi nhóm{' '}
                   <span className='font-semibold text-foreground'>{chat?.name}</span> không?
+                  {isAdmin && otherMembers.length > 0 && (
+                    <span className='block mt-3 text-[14px] text-blue-500 font-medium p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200/50'>
+                      Vì bạn là Trưởng nhóm, bạn cần chọn một Trưởng nhóm mới trước khi rời đi.
+                    </span>
+                  )}
                 </>
               )}
-
-              {mode === 'leave_group' && isAdmin && otherMembers.length > 0 && (
-                <span className='block mt-3 text-[14px] text-blue-500 font-medium p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200/50'>
-                  Vì bạn là Trưởng nhóm, bạn cần chọn một Trưởng nhóm mới trước khi rời đi.
-                </span>
-              )}
             </p>
+
             <div className='flex items-center justify-end gap-3'>
               <button
                 onClick={onClose}
@@ -157,12 +180,11 @@ export function LeaveGroupModal({
                 {isSubmitting && <Loader2 className='w-4 h-4 animate-spin' />}
                 {mode === 'leave_group' && isAdmin && otherMembers.length > 0 && step === 'confirm'
                   ? 'Tiếp tục'
-                  : confirmText}
+                  : resolvedConfirmText}
               </button>
             </div>
           </div>
         ) : (
-          /* VIEW 2: CHỌN ADMIN MỚI (Chỉ áp dụng cho chế độ leave_group) */
           mode === 'leave_group' && (
             <div className='flex flex-col max-h-[80vh]'>
               <div className='flex h-14 items-center px-4 border-b border-border/40 relative shrink-0'>

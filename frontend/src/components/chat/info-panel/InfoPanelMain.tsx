@@ -127,20 +127,8 @@ export function InfoPanelMain({
     }
   }
 
-  const handleDisbandGroup = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn giải tán nhóm này? Toàn bộ tin nhắn sẽ bị xóa đối với mọi người.'))
-      return
-
-    try {
-      await groupApi.disbandGroup(chat.id)
-      toast.success('Giải tán nhóm thành công')
-      onClose()
-      // Có thể dispatch một event để refresh Sidebar
-      window.dispatchEvent(new Event('refresh_chat_list'))
-    } catch (error) {
-      console.error(error)
-      toast.error('Lỗi khi giải tán nhóm')
-    }
+  const handleDisbandGroup = () => {
+    onDisbandGroup?.()
   }
 
   return (

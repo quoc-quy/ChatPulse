@@ -266,13 +266,13 @@ export function SidebarPanel2({
       )}
 
       <SidebarContent className='overflow-hidden relative'>
-        <div className='flex flex-col gap-0 p-2 w-full overflow-hidden'>
+        <div className='flex flex-col gap-1 w-full overflow-auto'>
           {!keyword && activeItem.title === 'Tin nhắn' && (
             <>
               <div
                 id='chat-item-ai-chatbot'
                 onClick={() => handleChatSelect('ai-chatbot')}
-                className={`flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
+                className={`flex items-center gap-3 min-h-16 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
                   activeChat?.id === 'ai-chatbot' ? 'bg-muted/80' : 'hover:bg-muted/30'
                 }`}
               >
@@ -310,7 +310,7 @@ export function SidebarPanel2({
                       key={chat.id}
                       id={`chat-item-${chat.id}`}
                       onClick={() => handleChatSelect(chat.id)}
-                      className={`group/chat relative flex items-center gap-3 rounded-lg p-2 cursor-pointer transition-all duration-200 w-full overflow-hidden ${
+                      className={`group/chat relative flex items-center gap-3 rounded-lg min-h-16 p-2 cursor-pointer transition-all duration-200 w-full overflow-hidden ${
                         isActive ? 'bg-[#e5efff] dark:bg-muted' : 'hover:bg-muted/50'
                       } ${isInactiveState ? 'opacity-70 bg-muted/40 border border-border/50' : ''}`} // Áp dụng style làm mờ
                     >
