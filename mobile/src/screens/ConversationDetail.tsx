@@ -25,6 +25,7 @@ import { jwtDecode } from "jwt-decode";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../contexts/ThemeContext";
 import { profileStatsEvents } from "../utils/profileStats.events";
+
 import {
   getConversationDetail,
   leaveGroup,
@@ -36,6 +37,7 @@ import {
   renameGroup,
   updateGroupAvatar,
   uploadGroupAvatarApi,
+  disbandGroup,
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
@@ -268,7 +270,7 @@ export default function ConversationDetailScreen() {
           const decoded: any = jwtDecode(token);
           const uid = decoded.user_id || decoded._id || decoded.id || "";
           setCurrentUserId(uid);
-        } catch { }
+        } catch {}
       }
     });
   }, []);
@@ -407,6 +409,28 @@ export default function ConversationDetailScreen() {
         { text: "Rời nhóm", style: "destructive", onPress: doLeaveGroup },
       ]);
     }
+  };
+  const handleDisbandGroup = () => {
+    Alert.alert(
+      "Giải tán nhóm",
+      "Toàn bộ tin nhắn và dữ liệu nhóm sẽ bị xóa vĩnh viễn. Bạn có chắc chắn?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Giải tán",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await disbandGroup(conversationId);
+              profileStatsEvents.emit({ type: "groups_delta", delta: -1 });
+              navigation.popToTop();
+            } catch {
+              Alert.alert("Lỗi", "Không thể giải tán nhóm lúc này.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleKickMember = (memberId: string, memberName: string) => {
@@ -870,16 +894,7 @@ export default function ConversationDetailScreen() {
                       currentUserId,
                     })
                   }
-                >
-                  <Text style={[styles.viewAllText, { color: COLORS.primary }]}>
-                    Xem tất cả {members.length} thành viên
-                  </Text>
-                  <Feather
-                    name="chevron-right"
-                    size={14}
-                    color={COLORS.primary}
-                  />
-                </TouchableOpacity>
+                ></TouchableOpacity>
               )}
             </View>
 
@@ -888,7 +903,7 @@ export default function ConversationDetailScreen() {
             />
 
             <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-              <MenuRow
+              {/* <MenuRow
                 iconName="person-add-outline"
                 label="Thêm thành viên"
                 COLORS={COLORS}
@@ -900,7 +915,7 @@ export default function ConversationDetailScreen() {
                     ),
                   })
                 }
-              />
+              /> */}
               <MenuRow
                 iconName="pencil-outline"
                 label="Đổi tên nhóm"
@@ -917,7 +932,6 @@ export default function ConversationDetailScreen() {
 
         {/* ── Media & Files ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-
           {/* ✅ Thêm điều kiện isGroupChat ở đây */}
           {isGroupChat && (
             <MenuRow
@@ -967,14 +981,26 @@ export default function ConversationDetailScreen() {
         {/* ── Nguy hiểm ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
           {isGroupChat ? (
-            <MenuRow
-              iconName="log-out-outline"
-              label="Rời nhóm"
-              danger
-              COLORS={COLORS}
-              onPress={handleLeaveGroup}
-              rightElement={null}
-            />
+            <>
+              <MenuRow
+                iconName="log-out-outline"
+                label="Rời nhóm"
+                danger
+                COLORS={COLORS}
+                onPress={handleLeaveGroup}
+                rightElement={null}
+              />
+              {currentUserIsAdmin && (
+                <MenuRow
+                  iconName="trash-outline"
+                  label="Giải tán nhóm"
+                  danger
+                  COLORS={COLORS}
+                  onPress={handleDisbandGroup}
+                  rightElement={null}
+                />
+              )}
+            </>
           ) : (
             <MenuRow
               iconName="ban-outline"
@@ -1193,8 +1219,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                              "vi-VN",
-                            )
+                                "vi-VN",
+                              )
                             : ""}
                         </Text>
                       </View>
@@ -1300,8 +1326,8 @@ export default function ConversationDetailScreen() {
                           {item.sender?.userName || "Thành viên"} ·{" "}
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleDateString(
-                              "vi-VN",
-                            )
+                                "vi-VN",
+                              )
                             : ""}
                         </Text>
                       </View>
