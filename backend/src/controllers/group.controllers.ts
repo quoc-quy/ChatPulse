@@ -193,8 +193,8 @@ export const createGroupController = async (req: Request, res: Response) => {
     return res.status(httpStatus.BAD_REQUEST).json({ message: 'Tên nhóm không được để trống' })
   }
 
-  if (!member_ids || member_ids.length === 0) {
-    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Nhóm phải có ít nhất 1 thành viên khác' })
+  if (!member_ids || member_ids.length < 2) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Nhóm phải có ít nhất 3 thành viên' })
   }
 
   const newGroup = await groupService.createGroup(userId, member_ids, name, avatarUrl)
@@ -203,4 +203,26 @@ export const createGroupController = async (req: Request, res: Response) => {
     message: 'Tạo nhóm thành công',
     result: newGroup
   })
+}
+export const disbandGroupController = async (req: Request, res: Response) => {
+  const id = req.params.id as string
+  const userId = req.decoded_authorization?.user_id as string
+
+  try {
+    const result = await groupService.disbandGroup(id, userId)
+
+    if (!result) {
+      return res.status(httpStatus.NOT_FOUND).json({ message: 'Nhóm không tồn tại' })
+    }
+
+    return res.status(httpStatus.OK).json({
+      message: 'Giải tán nhóm thành công',
+      result
+    })
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') {
+      return res.status(httpStatus.FORBIDDEN).json({ message: 'Chỉ nhóm trưởng mới có thể giải tán nhóm' })
+    }
+    throw err
+  }
 }
