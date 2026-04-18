@@ -557,28 +557,38 @@ const MessageScreen = () => {
       if (conversationId && resolvedUserId) {
         setLoading(true);
         try {
+          // 1. Tải danh sách tin nhắn
           const res = await getMessages(conversationId, null, 20);
           const rawData = res.data.result || res.data.data || [];
           if (rawData.length > 0) setCursor(rawData[rawData.length - 1]._id);
           if (rawData.length < 20) setHasMore(false);
           setMessages(rawData);
 
-          const detailRes = await getConversationDetail(conversationId);
-          const conv = detailRes.data?.result;
+          // 2. Chỉ gọi API lấy chi tiết nếu đây là Chat Nhóm
+          if (isGroup) {
+            const detailRes = await getConversationDetail(conversationId);
+            const conv = detailRes.data?.result;
 
-          if (conv?.is_disbanded || conv?.isDisbanded) {
-            setIsGroupDisbanded(true);
-            setDisbandMessage(
-              conv.disbanded_message || "Nhóm trưởng đã giải tán nhóm",
+            // BƯỚC 3: Cập nhật state giải tán từ database
+            if (conv?.is_disbanded || conv?.isDisbanded) {
+              setIsGroupDisbanded(true);
+              setDisbandMessage(
+                conv?.disbanded_message || "Nhóm đã bị giải tán.",
+              );
+            } else {
+              setIsGroupDisbanded(false);
+            }
+
+            // Cập nhật trạng thái thông báo (Mute)
+            const myMember = (conv?.members || []).find(
+              (m: any) => m.userId?.toString() === resolvedUserId,
             );
+            if (myMember?.hasMuted !== undefined) {
+              setIsMutedState(myMember.hasMuted);
+            }
           }
-          const myMember = (conv?.members || []).find(
-            (m: any) => m.userId?.toString() === resolvedUserId,
-          );
-          if (myMember?.hasMuted !== undefined)
-            setIsMutedState(myMember.hasMuted);
         } catch (error: any) {
-          console.log("Lỗi tải tin nhắn:", error.message);
+          console.log("Lỗi tải tin nhắn hoặc chi tiết nhóm:", error.message);
         } finally {
           setLoading(false);
         }
@@ -586,7 +596,7 @@ const MessageScreen = () => {
     };
 
     initChat();
-  }, [conversationId]);
+  }, [conversationId, isGroup, currentUserId]); // Thêm isGroup vào dependency array
 
   // =========================================================================
   // 🔥 FIX REALTIME: LẮNG NGHE SỰ KIỆN SOCKET NHẬN TIN NHẮN TỪ NGƯỜI KHÁC
