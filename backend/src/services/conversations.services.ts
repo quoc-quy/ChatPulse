@@ -19,7 +19,7 @@ class ChatService {
 
     const conversations = await databaseService.conversations
       .aggregate([
-        { $match: { participants: userObjectId } },
+        { $match: { participants: userObjectId, deletedByUsers: { $ne: userObjectId } } },
         { $sort: { updated_at: -1 } },
         { $skip: skip },
         { $limit: numLimit }, // Sử dụng biến đã ép kiểu
@@ -239,6 +239,9 @@ class ChatService {
             last_message_id: 1,
             participants: 1,
             members: 1,
+            is_disbanded: 1, // ✅ thêm dòng này
+            disbanded_at: 1, // ✅ thêm dòng này
+            disbanded_by: 1,
             participants_info: {
               $map: {
                 input: '$participants_info',
