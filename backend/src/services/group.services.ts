@@ -194,17 +194,37 @@ class GroupService {
     const user = await databaseService.users.findOne({ _id: userObjectId })
     const userName = user?.userName || 'Một thành viên'
 
-    // Tính số thành viên còn lại TRƯỚC khi pull (không tính chính người rời)
+    // Lọc ra danh sách những người còn lại TRƯỚC KHI xóa
     const remainingParticipants = (conversation.participants || []).filter((p: ObjectId) => p.toString() !== userId)
 
-    // Nếu không còn ai -> xóa hẳn nhóm + toàn bộ tin nhắn
+    // ─── LOGIC CHO NGƯỜI CUỐI CÙNG (NHÓM VỀ 0 NGƯỜI) ─────────────────────────
     if (remainingParticipants.length === 0) {
-      await databaseService.messages.deleteMany({ conversationId: conversationObjectId })
-      await databaseService.conversations.deleteOne({ _id: conversationObjectId })
-      return { deleted: true, conversationId }
+      // KHÔNG xóa user khỏi participants/members để họ vẫn thấy nhóm trong danh sách chat
+      // Chỉ cập nhật trạng thái nhóm thành giải tán
+      await databaseService.conversations.updateOne(
+        { _id: conversationObjectId },
+        {
+          $set: {
+            is_disbanded: true,
+            disbanded_at: new Date(),
+            disbanded_by: userObjectId, // Người cuối cùng rời đi là người kích hoạt giải tán
+            updated_at: new Date()
+          }
+        }
+      )
+
+      // Emit socket báo giải tán cho chính người đó (để UI cập nhật tức thì nếu đang mở)
+      socketService.emitToUser(userId, 'group_disbanded', {
+        conversationId: conversationId,
+        message: 'Bạn đã rời đi và nhóm đã tự động giải tán vì không còn ai.'
+      })
+
+      // Trả về object có cờ isDisbanded để Frontend điều hướng
+      return { isDisbanded: true, _id: conversationObjectId }
     }
 
-    // Còn ít nhất 1 người -> pull người rời ra
+    // ─── LOGIC BÌNH THƯỜNG (NHÓM CÒN NGƯỜI) ──────────────────────────────────
+    // 1. Xóa user khỏi participants và members
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       {
@@ -215,16 +235,21 @@ class GroupService {
       }
     )
 
-    // Nếu người rời là admin -> tự động chuyển quyền cho người đầu tiên còn lại
+    // 2. Chuyển quyền Trưởng nhóm nếu người rời đi là Admin
     const isAdmin = conversation.admin_id && conversation.admin_id.toString() === userId
-    if (isAdmin) {
+    if (isAdmin && remainingParticipants.length > 0) {
+      // Chọn người đầu tiên trong danh sách còn lại làm Trưởng nhóm mới
+      const newAdminId = remainingParticipants[0]
+
+      await databaseService.conversations.updateOne({ _id: conversationObjectId }, { $set: { admin_id: newAdminId } })
+      // Cập nhật role thành 'admin' trong mảng members để UI nhận diện được chức danh
       await databaseService.conversations.updateOne(
-        { _id: conversationObjectId },
-        { $set: { admin_id: remainingParticipants[0] } }
+        { _id: conversationObjectId, 'members.userId': newAdminId },
+        { $set: { 'members.$.role': 'admin' } }
       )
     }
 
-    // ✅ Gửi system message "X đã rời khỏi nhóm"
+    // 3. Tạo tin nhắn hệ thống thông báo "X đã rời khỏi nhóm"
     const systemMessageId = new ObjectId()
     const systemMessage = {
       _id: systemMessageId,
@@ -241,19 +266,23 @@ class GroupService {
       updatedAt: new Date()
     }
     await databaseService.messages.insertOne(systemMessage as any)
+
     await databaseService.conversations.updateOne(
       { _id: conversationObjectId },
       { $set: { last_message_id: systemMessageId, updated_at: new Date() } }
     )
 
-    // Emit socket cho các thành viên còn lại
-    const updatedConversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    // 4. Phát socket tin nhắn hệ thống cho các thành viên còn lại
+    const updatedConversation = await databaseService.conversations.findOne({
+      _id: conversationObjectId
+    })
 
     const populatedMessage = {
       ...systemMessage,
       sender: { _id: user?._id?.toString(), userName, avatar: user?.avatar }
     }
-    ;(updatedConversation?.participants || []).forEach((p: ObjectId) => {
+
+    remainingParticipants.forEach((p: ObjectId) => {
       socketService.emitToUser(p.toString(), 'receive_message', populatedMessage)
     })
 
