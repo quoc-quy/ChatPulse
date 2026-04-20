@@ -23,6 +23,11 @@ interface ConversationType {
   is_disbanded?: boolean
   disbanded_at?: Date
   disbanded_by?: ObjectId
+  pinnedMessages?: {
+    messageId: ObjectId
+    pinnedBy: ObjectId
+    pinnedAt: Date
+  }[]
 }
 
 export default class Conversation {
@@ -39,6 +44,7 @@ export default class Conversation {
   is_disbanded?: boolean
   disbanded_at?: Date
   disbanded_by?: ObjectId
+  pinnedMessages: { messageId: ObjectId; pinnedBy: ObjectId; pinnedAt: Date }[]
 
   constructor(conversation: ConversationType) {
     this._id = conversation._id || new ObjectId()
@@ -62,5 +68,6 @@ export default class Conversation {
     this.is_disbanded = conversation.is_disbanded || false
     this.disbanded_at = conversation.disbanded_at
     this.disbanded_by = conversation.disbanded_by
+    this.pinnedMessages = conversation.pinnedMessages || []
   }
 }

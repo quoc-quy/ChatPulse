@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/purity */
-import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy, Forward } from 'lucide-react'
+import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy, Forward, PinOff, Pin } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
@@ -12,10 +12,20 @@ interface MessageActionsProps {
   isMe: boolean
   currentUserId: string
   onDeleteForMe?: (messageId: string) => void
-  decryptedContent?: string // ✅ THÊM PROP NÀY ĐỂ NHẬN NỘI DUNG ĐÃ GIẢI MÃ
+  decryptedContent?: string
+  isPinned?: boolean
+  onPinMessage?: (messageId: string, action: 'pin' | 'unpin') => void
 }
 
-export function MessageActions({ message, isMe, currentUserId, onDeleteForMe, decryptedContent }: MessageActionsProps) {
+export function MessageActions({
+  message,
+  isMe,
+  currentUserId,
+  onDeleteForMe,
+  decryptedContent,
+  isPinned,
+  onPinMessage
+}: MessageActionsProps) {
   const isCall = message.type === 'call'
   const isSystem = message.type === 'system'
   const isRevoked = message.type === 'revoked'
@@ -167,6 +177,21 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe, de
                 )}
               </>
             )}
+
+            <DropdownMenuItem
+              onClick={() => onPinMessage && onPinMessage(message._id, isPinned ? 'unpin' : 'pin')}
+              className='cursor-pointer font-medium py-2'
+            >
+              {isPinned ? (
+                <>
+                  <PinOff className='w-4 h-4 mr-2 text-orange-500' /> Bỏ ghim
+                </>
+              ) : (
+                <>
+                  <Pin className='w-4 h-4 mr-2' /> Ghim tin nhắn
+                </>
+              )}
+            </DropdownMenuItem>
 
             {isMe && !isRevoked && !is24hPassed && (
               <DropdownMenuItem

@@ -10,9 +10,11 @@ import { ChevronDown } from 'lucide-react'
 
 interface ChatBodyProps {
   convId: string
+  pinnedMessages?: any[]
+  onPinMessage?: (messageId: string, action: 'pin' | 'unpin') => void
 }
 
-export function ChatBody({ convId }: ChatBodyProps) {
+export function ChatBody({ convId, pinnedMessages, onPinMessage }: ChatBodyProps) {
   const { profile } = useContext(AppContext)
   const currentUserId = profile?._id || ''
   const [messages, setMessages] = useState<Message[]>([])
@@ -354,6 +356,8 @@ export function ChatBody({ convId }: ChatBodyProps) {
                 isFirstInGroup={isFirstInGroup}
                 isLastInGroup={isLastInGroup}
                 onDeleteForMe={handleDeleteForMe}
+                isPinned={pinnedMessages?.some((p) => p.messageId === msg._id)}
+                onPinMessage={onPinMessage}
               />
             )
           })}

@@ -8,9 +8,11 @@ import { useContext, useEffect, useState } from 'react'
 import { AppContext } from '@/context/app.context'
 import { useSocket } from '@/context/socket.context'
 import { messagesApi, type ConversationSummary } from '@/apis/messages.api'
-import { conversationsApi } from '@/apis/conversations.api' // Nhớ import API này
+import { conversationsApi } from '@/apis/conversations.api'
 import { AIChatArea } from './AIChatArea'
 import { AddMemberModal } from './info-panel/AddMemberModal'
+import { toast } from 'sonner'
+import PinnedBanner from './PinnedBanner'
 
 interface ChatAreaProps {
   chat: ChatItem
@@ -19,6 +21,7 @@ interface ChatAreaProps {
 export function ChatArea({ chat }: ChatAreaProps) {
   const { socket } = useSocket()
   const { setActiveCall, setActiveChat } = useContext(AppContext)
+  const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
 
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [summaryData, setSummaryData] = useState<ConversationSummary | null>(null)
@@ -51,6 +54,26 @@ export function ChatArea({ chat }: ChatAreaProps) {
     window.addEventListener('open_forward_modal', handleOpenForward)
     return () => window.removeEventListener('open_forward_modal', handleOpenForward)
   }, [])
+
+  useEffect(() => {
+    const handlePinnedUpdate = (data: any) => {
+      if (data.conversationId === chat?.id) {
+        setPinnedMessages(data.pinnedMessages)
+      }
+    }
+    socket?.on('pinned_messages_updated', handlePinnedUpdate)
+    return () => {
+      socket?.off('pinned_messages_updated', handlePinnedUpdate)
+    }
+  }, [socket, chat])
+
+  const handlePinMessage = async (messageId: string, action: 'pin' | 'unpin') => {
+    try {
+      await messagesApi.pinMessage(messageId, action)
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra')
+    }
+  }
 
   // HÀM MỚI: Tự động fetch lại thông tin chi tiết của đoạn chat hiện tại để cập nhật Participants
   const handleMemberUpdate = async () => {
@@ -149,6 +172,12 @@ export function ChatArea({ chat }: ChatAreaProps) {
           isInfoPanelOpen={isInfoPanelOpen}
         />
 
+        <PinnedBanner
+          pinnedMessages={pinnedMessages}
+          onUnpin={(id) => handlePinMessage(id, 'unpin')}
+          onJumpToMessage={jumpToMessage}
+        />
+
         {isSummarizing && (
           <div className='absolute top-20 right-4 z-50 bg-white p-4 shadow-lg rounded animate-pulse'>
             Đang phân tích bằng AI...
@@ -198,7 +227,7 @@ export function ChatArea({ chat }: ChatAreaProps) {
             </div>
           ) : (
             <>
-              <ChatBody convId={chat.id} />
+              <ChatBody convId={chat.id} pinnedMessages={pinnedMessages} onPinMessage={handlePinMessage} />
               {/* Nếu giải tán thì chỉ ẩn/thay thế phần Footer nhập tin nhắn */}
               {isDisbanded ? (
                 <div className='p-4 bg-muted/20 border-t border-border flex items-center justify-center min-h-[72px]'>

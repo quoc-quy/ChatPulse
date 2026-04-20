@@ -77,5 +77,9 @@ export const messagesApi = {
       targetUserIds,
       targetGroupIds
     })
+  },
+
+  pinMessage: (messageId: string, action: 'pin' | 'unpin') => {
+    return http.post<{ message: string; result: any }>(`/messages/${messageId}/pin`, { action })
   }
 }

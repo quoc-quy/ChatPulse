@@ -563,6 +563,105 @@ class MessageService {
 
     return forwardedMessages
   }
+
+  // Thêm hàm này vào class MessageService
+  async pinMessage(messageId: string, userId: string, action: 'pin' | 'unpin') {
+    const messageObjId = new ObjectId(messageId)
+    const userObjId = new ObjectId(userId)
+
+    const message = await databaseService.messages.findOne({ _id: messageObjId })
+    if (!message) throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: 404 })
+
+    const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
+    if (!conversation) throw new ErrorWithStatus({ message: 'Cuộc hội thoại không tồn tại', status: 404 })
+
+    // 1. Phân quyền (Roles)
+    const isGroup = conversation.type === 'group'
+    let userRole = 'member'
+
+    if (isGroup) {
+      const member = conversation.members?.find(
+        (m: any) => m.userId?.toString() === userId || m.user_id?.toString() === userId
+      )
+      if (!member) throw new ErrorWithStatus({ message: 'Bạn không thuộc nhóm này', status: 403 })
+      userRole = member.role || 'member'
+
+      // Chỉ quản trị viên mới được ghim trong group
+      if (action === 'pin' && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
+        throw new ErrorWithStatus({ message: 'Chỉ Trưởng/Phó nhóm mới có quyền ghim tin nhắn', status: 403 })
+      }
+    }
+
+    let updatedPinnedMessages = conversation.pinnedMessages || []
+
+    // 2. Logic Ghim / Bỏ Ghim
+    if (action === 'pin') {
+      if (updatedPinnedMessages.length >= 3) {
+        throw new ErrorWithStatus({ message: 'Chỉ được ghim tối đa 3 tin nhắn', status: 400 })
+      }
+      if (updatedPinnedMessages.some((p) => p.messageId.toString() === messageId)) {
+        throw new ErrorWithStatus({ message: 'Tin nhắn này đã được ghim', status: 400 })
+      }
+      updatedPinnedMessages.push({
+        messageId: messageObjId,
+        pinnedBy: userObjId,
+        pinnedAt: new Date()
+      })
+    } else {
+      const pinnedMsg = updatedPinnedMessages.find((p) => p.messageId.toString() === messageId)
+      if (!pinnedMsg) throw new ErrorWithStatus({ message: 'Tin nhắn chưa được ghim', status: 400 })
+
+      // Quyền bỏ ghim: Admin hoặc Chính người đã ghim
+      if (isGroup && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
+        if (pinnedMsg.pinnedBy.toString() !== userId) {
+          throw new ErrorWithStatus({ message: 'Chỉ người ghim hoặc Quản trị viên mới được bỏ ghim', status: 403 })
+        }
+      }
+      updatedPinnedMessages = updatedPinnedMessages.filter((p) => p.messageId.toString() !== messageId)
+    }
+
+    // 3. Cập nhật DB
+    await databaseService.conversations.updateOne(
+      { _id: conversation._id },
+      { $set: { pinnedMessages: updatedPinnedMessages } }
+    )
+
+    // 4. Lấy dữ liệu chi tiết của tin nhắn ghim để Frontend render Preview
+    const populatedPinnedMessages = await Promise.all(
+      updatedPinnedMessages.map(async (p) => {
+        const msg = await databaseService.messages.findOne({ _id: p.messageId })
+        const sender = await databaseService.users.findOne({ _id: msg?.senderId })
+        return {
+          ...p,
+          message: {
+            _id: msg?._id,
+            type: msg?.type,
+            content: msg?.content,
+            senderName: sender?.userName || 'Người dùng'
+          }
+        }
+      })
+    )
+
+    // 5. Bắn Socket đồng bộ
+    const targetUserIds = new Set<string>()
+    if (conversation.participants) conversation.participants.forEach((p: ObjectId) => targetUserIds.add(p.toString()))
+    if (conversation.members) {
+      conversation.members.forEach((m: any) => {
+        const mId = m.userId?.toString() || m.user_id?.toString()
+        if (mId) targetUserIds.add(mId)
+      })
+    }
+
+    targetUserIds.forEach((id) => {
+      socketService.emitToUser(id, 'pinned_messages_updated', {
+        conversationId: conversation._id.toString(),
+        pinnedMessages: populatedPinnedMessages
+      })
+    })
+
+    return populatedPinnedMessages
+  }
 }
 
 const messageService = new MessageService()
