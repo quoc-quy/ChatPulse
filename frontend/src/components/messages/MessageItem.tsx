@@ -142,30 +142,31 @@ export function MessageItem({
               )
             ) : (
               <div
-                className={`grid gap-1 max-w-[280px] rounded-xl overflow-hidden shadow-sm border border-border/20 ${mediaUrls.length >= 2 ? 'grid-cols-2' : ''}`}
+                className={`grid gap-1.5 max-w-[340px] rounded-xl overflow-hidden shadow-sm border border-border/20 ${
+                  mediaUrls.length === 1
+                    ? 'grid-cols-1'
+                    : mediaUrls.length === 2
+                      ? 'grid-cols-2'
+                      : mediaUrls.length === 3
+                        ? 'grid-cols-3'
+                        : 'grid-cols-4'
+                }`}
               >
-                {mediaUrls.slice(0, 4).map((url, index) => {
-                  const isLastItem = index === 3 && mediaUrls.length > 4
+                {mediaUrls.map((url, index) => {
                   const isItemVideo = ['mp4', 'webm', 'ogg'].includes(
                     url.split('?')[0].split('.').pop()?.toLowerCase() || ''
                   )
-                  const itemClass = mediaUrls.length === 3 && index === 0 ? 'col-span-2 aspect-video' : 'aspect-square'
 
                   return (
                     <div
                       key={index}
-                      className={`relative w-full bg-muted cursor-pointer hover:opacity-90 transition ${itemClass}`}
+                      className={`relative w-full bg-muted cursor-pointer hover:opacity-90 transition aspect-square`}
                       onClick={() => setSelectedMediaUrl(url)}
                     >
                       {isItemVideo ? (
                         <video src={url} className='w-full h-full object-cover' />
                       ) : (
                         <img src={url} alt='media' className='w-full h-full object-cover' />
-                      )}
-                      {isLastItem && (
-                        <div className='absolute inset-0 bg-black/60 flex items-center justify-center text-white font-medium text-xl backdrop-blur-[2px]'>
-                          +{mediaUrls.length - 4}
-                        </div>
                       )}
                     </div>
                   )
