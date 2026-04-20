@@ -10,6 +10,7 @@ import { useSocket } from '@/context/socket.context'
 import { messagesApi, type ConversationSummary } from '@/apis/messages.api'
 import { conversationsApi } from '@/apis/conversations.api' // Nhớ import API này
 import { AIChatArea } from './AIChatArea'
+import { AddMemberModal } from './info-panel/AddMemberModal'
 
 interface ChatAreaProps {
   chat: ChatItem
@@ -23,7 +24,8 @@ export function ChatArea({ chat }: ChatAreaProps) {
   const [summaryData, setSummaryData] = useState<ConversationSummary | null>(null)
   const [initialUnread, setInitialUnread] = useState(0)
   const isDisbanded = chat.isDisbanded === true
-
+  const [forwardModalOpen, setForwardModalOpen] = useState(false)
+  const [forwardMsgId, setForwardMsgId] = useState<string>('')
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(true)
 
   const handleLeaveSuccess = () => {
@@ -40,6 +42,15 @@ export function ChatArea({ chat }: ChatAreaProps) {
     setIsSummarizing(false)
     setIsInfoPanelOpen(true)
   }, [chat.id])
+
+  useEffect(() => {
+    const handleOpenForward = (e: any) => {
+      setForwardMsgId(e.detail.messageId)
+      setForwardModalOpen(true)
+    }
+    window.addEventListener('open_forward_modal', handleOpenForward)
+    return () => window.removeEventListener('open_forward_modal', handleOpenForward)
+  }, [])
 
   // HÀM MỚI: Tự động fetch lại thông tin chi tiết của đoạn chat hiện tại để cập nhật Participants
   const handleMemberUpdate = async () => {
@@ -211,6 +222,13 @@ export function ChatArea({ chat }: ChatAreaProps) {
           onLeaveSuccess={handleLeaveSuccess}
         />
       )}
+
+      <AddMemberModal
+        isOpen={forwardModalOpen}
+        onClose={() => setForwardModalOpen(false)}
+        mode='forward'
+        messageIdToForward={forwardMsgId}
+      />
     </div>
   )
 }

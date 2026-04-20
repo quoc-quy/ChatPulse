@@ -517,6 +517,52 @@ class MessageService {
 
     return globalContext.filter((c) => c.messages.length > 0)
   }
+
+  async forwardMessage(originalMessageId: string, userId: string, targetUserIds: string[], targetGroupIds: string[]) {
+    const originalMsg = await databaseService.messages.findOne({ _id: new ObjectId(originalMessageId) })
+    if (!originalMsg) throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: httpStatus.NOT_FOUND })
+
+    const userObjId = new ObjectId(userId)
+    const forwardedMessages = []
+
+    // 1. Chuyển tiếp vào các Group
+    if (targetGroupIds && targetGroupIds.length > 0) {
+      for (const groupId of targetGroupIds) {
+        // Gọi lại hàm sendMessage để tận dụng logic kiểm tra và bắn Socket
+        const msg = await this.sendMessage(userId, groupId, originalMsg.type as any, originalMsg.content)
+        forwardedMessages.push(msg)
+      }
+    }
+
+    // 2. Chuyển tiếp cho Bạn bè (Chat 1-1)
+    if (targetUserIds && targetUserIds.length > 0) {
+      for (const friendId of targetUserIds) {
+        const friendObjId = new ObjectId(friendId)
+
+        // Tìm cuộc hội thoại 1-1 giữa 2 người
+        let conv = await databaseService.conversations.findOne({
+          type: 'direct',
+          participants: { $all: [userObjId, friendObjId] }
+        })
+
+        // Nếu chưa từng chat, tạo cuộc hội thoại mới
+        if (!conv) {
+          const insertConv = await databaseService.conversations.insertOne({
+            type: 'direct',
+            participants: [userObjId, friendObjId],
+            created_at: new Date(),
+            updated_at: new Date()
+          } as any)
+          conv = { _id: insertConv.insertedId } as any
+        }
+
+        const msg = await this.sendMessage(userId, conv!._id.toString(), originalMsg.type as any, originalMsg.content)
+        forwardedMessages.push(msg)
+      }
+    }
+
+    return forwardedMessages
+  }
 }
 
 const messageService = new MessageService()

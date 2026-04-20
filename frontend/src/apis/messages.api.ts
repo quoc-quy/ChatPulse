@@ -70,5 +70,12 @@ export const messagesApi = {
         'Content-Type': 'multipart/form-data'
       }
     })
+  },
+
+  forwardMessage: (messageId: string, targetUserIds: string[], targetGroupIds: string[]) => {
+    return http.post<{ message: string; result: any }>(`/messages/${messageId}/forward`, {
+      targetUserIds,
+      targetGroupIds
+    })
   }
 }

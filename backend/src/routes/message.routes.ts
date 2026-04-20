@@ -10,7 +10,8 @@ import {
   summarizeConversationController,
   deleteMessageForMeController,
   searchMessagesController,
-  uploadMediaMessageController
+  uploadMediaMessageController,
+  forwardMessageController
 } from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -119,4 +120,10 @@ messageRouter.delete(
   wrapRequestHandler(deleteMessageForMeController)
 )
 
+/**
+ * Description: Chuyển tiếp tin nhắn
+ * Path: /messages/:id/forward
+ * Body: { targetUserIds: string[], targetGroupIds: string[] }
+ */
+messageRouter.post('/:id/forward', accessTokenValidator, wrapRequestHandler(forwardMessageController))
 export default messageRouter
