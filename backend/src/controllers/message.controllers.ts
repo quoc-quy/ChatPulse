@@ -157,3 +157,20 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
 
   return res.status(httpStatus.OK).json({ message: 'Gửi đa phương tiện thành công', result: message })
 }
+
+export const forwardMessageController = async (req: Request, res: Response) => {
+  const { id } = req.params as any // ID của tin nhắn gốc
+  const { targetUserIds = [], targetGroupIds = [] } = req.body
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  if (targetUserIds.length === 0 && targetGroupIds.length === 0) {
+    return res.status(httpStatus.BAD_REQUEST).json({ message: 'Vui lòng chọn ít nhất 1 người nhận' })
+  }
+
+  const result = await messageService.forwardMessage(id, user_id, targetUserIds, targetGroupIds)
+
+  return res.status(httpStatus.OK).json({
+    message: 'Chuyển tiếp tin nhắn thành công',
+    result
+  })
+}

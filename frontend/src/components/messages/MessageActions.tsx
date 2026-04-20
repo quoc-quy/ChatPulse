@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/purity */
-import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy } from 'lucide-react'
+import { ThumbsUp, X, MoreHorizontal, RotateCcw, Trash2, Reply, Copy, Forward } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { messagesApi } from '@/apis/messages.api'
 import type { Message } from '@/types/message.type'
@@ -48,6 +48,14 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe, de
     } catch (error) {
       console.error('Lỗi khi thả cảm xúc:', error)
     }
+  }
+
+  const handleForward = () => {
+    window.dispatchEvent(
+      new CustomEvent('open_forward_modal', {
+        detail: { messageId: message._id }
+      })
+    )
   }
 
   const handleRevokeAll = async (e: React.MouseEvent) => {
@@ -146,6 +154,10 @@ export function MessageActions({ message, isMe, currentUserId, onDeleteForMe, de
               <>
                 <DropdownMenuItem onClick={handleReply} className='cursor-pointer font-medium py-2'>
                   <Reply className='w-4 h-4 mr-2' /> Trả lời
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={handleForward} className='cursor-pointer font-medium py-2'>
+                  <Forward className='w-4 h-4 mr-2' /> Chuyển tiếp
                 </DropdownMenuItem>
 
                 {message.type === 'text' && (
