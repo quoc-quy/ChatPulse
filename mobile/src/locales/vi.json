@@ -157,5 +157,6 @@
   "messageAttachmentFile": "Tệp đính kèm",
   "messageRecall": "Thu hồi",
   "messageDeleteForMe": "Xóa phía tôi",
-  "messageReactions": "Biểu cảm"
+  "messageReactions": "Biểu cảm",
+  "messageForward": "Chuyển tiếp"
 }

@@ -157,5 +157,6 @@
   "messageAttachmentFile": "Attachment",
   "messageRecall": "Recall",
   "messageDeleteForMe": "Delete for me",
+  "messageForward": "Forward",
   "messageReactions": "Reactions"
 }

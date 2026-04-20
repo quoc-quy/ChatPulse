@@ -207,3 +207,14 @@ export const disbandGroup = (conversationId: string) => {
 }
 export const deleteConversationForMe = (conversationId: string) =>
   api.delete(`/conversations/${conversationId}`)
+
+export const forwardMessage = async (
+  messageId: string,
+  targetUserIds: string[],
+  targetGroupIds: string[]
+) => {
+  return await api.post(`/messages/${messageId}/forward`, {
+    targetUserIds,
+    targetGroupIds
+  })
+}
