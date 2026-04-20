@@ -229,6 +229,15 @@ class ChatService {
             as: 'participants_info'
           }
         },
+        // ✅ BƯỚC 1: Thêm lookup để nối sang bảng messages, lấy nội dung tin nhắn ghim
+        {
+          $lookup: {
+            from: 'messages',
+            localField: 'pinnedMessages.messageId',
+            foreignField: '_id',
+            as: 'pinned_messages_data'
+          }
+        },
         {
           $project: {
             _id: 1,
@@ -241,9 +250,35 @@ class ChatService {
             last_message_id: 1,
             participants: 1,
             members: 1,
-            is_disbanded: 1, // ✅ thêm dòng này
-            disbanded_at: 1, // ✅ thêm dòng này
+            is_disbanded: 1,
+            disbanded_at: 1,
             disbanded_by: 1,
+
+            // ✅ BƯỚC 2: Thêm pinnedMessages vào dữ liệu trả về, kèm theo nội dung (content) của tin nhắn
+            pinnedMessages: {
+              $map: {
+                input: { $ifNull: ['$pinnedMessages', []] },
+                as: 'pin',
+                in: {
+                  messageId: '$$pin.messageId',
+                  pinnedBy: '$$pin.pinnedBy',
+                  createdAt: '$$pin.createdAt',
+                  message: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$pinned_messages_data',
+                          as: 'msg',
+                          cond: { $eq: ['$$msg._id', '$$pin.messageId'] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                }
+              }
+            },
+
             participants_info: {
               $map: {
                 input: '$participants_info',
