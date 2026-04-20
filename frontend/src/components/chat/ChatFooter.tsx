@@ -186,8 +186,14 @@ export function ChatFooter({ convId }: ChatFooterProps) {
 
     if (validFiles.length === 0) return
 
-    const localUrls = validFiles.map((file) => URL.createObjectURL(file))
-    const tempContent = JSON.stringify(localUrls)
+    // Tạo optimistic content với đầy đủ metadata để render ngay, không chờ upload xong
+    const filePayloads = validFiles.map((file) => ({
+      url: URL.createObjectURL(file),
+      originalName: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream'
+    }))
+    const tempContent = filePayloads.length === 1 ? JSON.stringify(filePayloads[0]) : JSON.stringify(filePayloads)
 
     await triggerOptimisticAndSend(
       'media',

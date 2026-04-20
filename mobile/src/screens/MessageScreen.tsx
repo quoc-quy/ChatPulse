@@ -112,17 +112,58 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 };
 
-const getFileIconInfo = (filename: string) => {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  if (ext === "pdf") return { color: "#EF4444", label: "PDF" };
-  if (["doc", "docx"].includes(ext || ""))
-    return { color: "#3B82F6", label: "DOC" };
-  if (["xls", "xlsx"].includes(ext || ""))
-    return { color: "#10B981", label: "XLS" };
-  if (["zip", "rar"].includes(ext || ""))
-    return { color: "#8B5CF6", label: "ZIP" };
-  return { color: "#64748B", label: "FILE" };
-};
+// ── Helpers parse file metadata từ content JSON ──────────────────────────
+interface FilePayload {
+  url: string
+  originalName: string
+  size: number
+  mimeType: string
+}
+
+function parseMediaContent(content: string): FilePayload[] {
+  try {
+    const parsed = JSON.parse(content)
+    if (Array.isArray(parsed)) {
+      if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].url) {
+        return parsed as FilePayload[]
+      }
+      // Legacy: array of URL strings
+      return (parsed as string[]).map(legacyUrlToPayload)
+    }
+    if (typeof parsed === 'object' && parsed !== null && parsed.url) {
+      return [parsed as FilePayload]
+    }
+    return [legacyUrlToPayload(content)]
+  } catch {
+    return [legacyUrlToPayload(content)]
+  }
+}
+
+function legacyUrlToPayload(url: string): FilePayload {
+  const cleanUrl = url.split('?')[0].split('#')[0]
+  const name = cleanUrl.split('/').pop() || 'file'
+  return { url, originalName: name, size: 0, mimeType: '' }
+}
+
+const getFileIconInfo = (payload: FilePayload) => {
+  const ext = payload.originalName.split('.').pop()?.toLowerCase() || ''
+  const mime = payload.mimeType || ''
+  if (ext === 'pdf' || mime === 'application/pdf') return { color: '#EF4444', label: 'PDF' }
+  if (['doc', 'docx'].includes(ext) || mime.includes('word'))
+    return { color: '#3B82F6', label: 'DOC' }
+  if (['xls', 'xlsx', 'csv'].includes(ext) || mime.includes('spreadsheet'))
+    return { color: '#10B981', label: 'XLS' }
+  if (['ppt', 'pptx'].includes(ext) || mime.includes('presentation'))
+    return { color: '#F97316', label: 'PPT' }
+  if (['zip', 'rar', '7z'].includes(ext)) return { color: '#8B5CF6', label: 'ZIP' }
+  if (['mp4', 'mov', 'avi', 'mkv'].includes(ext) || mime.startsWith('video/'))
+    return { color: '#EC4899', label: 'VID' }
+  if (['mp3', 'wav', 'm4a'].includes(ext) || mime.startsWith('audio/'))
+    return { color: '#EAB308', label: 'AUD' }
+  if (['js', 'ts', 'py', 'java', 'cpp', 'html', 'css', 'json'].includes(ext))
+    return { color: '#06B6D4', label: 'CODE' }
+  return { color: '#64748B', label: ext.toUpperCase() || 'FILE' }
+}
 
 const unarchiveChat = async (conversationId: string) => {
   try {
@@ -331,9 +372,15 @@ const MessageScreen = () => {
     setIsUploading(true);
     const tempId = Date.now().toString();
 
-    const localUrls = files.map((f) => f.uri);
+    // Tạo payload với đầy đủ metadata để hiển thị ngay (tên, size, mimeType)
+    const filePayloads: FilePayload[] = files.map((f) => ({
+      url: f.uri,
+      originalName: f.name || f.fileName || `file_${Date.now()}`,
+      size: f.size || f.fileSize || 0,
+      mimeType: f.mimeType || f.type || 'application/octet-stream'
+    }))
     const content =
-      localUrls.length === 1 ? localUrls[0] : JSON.stringify(localUrls);
+      filePayloads.length === 1 ? JSON.stringify(filePayloads[0]) : JSON.stringify(filePayloads)
 
     const tempMessage = {
       _id: tempId,
@@ -994,40 +1041,60 @@ const MessageScreen = () => {
           >
             <TouchableOpacity
               onPress={() => {
-                // SỬA FIX: Parse JSON ở sự kiện onPress để tránh lỗi url không hợp lệ
-                let parsedUrls: string[] = [];
-                try {
-                  const parsed = JSON.parse(displayContent);
-                  parsedUrls = Array.isArray(parsed)
-                    ? parsed
-                    : [displayContent];
-                } catch {
-                  parsedUrls = [displayContent];
+                // Parse content dùng helper thống nhất
+                const clickPayloads = parseMediaContent(displayContent)
+                const clickUrls: string[] = clickPayloads.map((p) => p.url)
+                const firstClickPayload = clickPayloads[0] || {
+                  url: '',
+                  originalName: '',
+                  size: 0,
+                  mimeType: ''
                 }
-
-                const firstUrl = parsedUrls[0] || "";
-                const urlLower = firstUrl.split("?")[0].toLowerCase();
+                const firstUrl = firstClickPayload.url
+                const firstClickExt =
+                  firstClickPayload.originalName.split('.').pop()?.toLowerCase() || ''
+                const firstClickMime = firstClickPayload.mimeType || ''
+                const urlLower = firstUrl.split('?')[0].toLowerCase()
 
                 const isVideoClick =
-                  item.type === "video" ||
-                  urlLower.match(/\.(mp4|mov|avi|mkv)$/i);
+                  item.type === 'video' ||
+                  ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstClickExt) ||
+                  firstClickMime.startsWith('video/')
+                // Kiểm tra document trước để không nhầm file .docx là ảnh khi type='media'
                 const isDocumentClick =
-                  item.type === "file" ||
-                  urlLower.match(
-                    /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i,
-                  );
+                  item.type === 'file' ||
+                  firstClickMime.startsWith('application/') ||
+                  firstClickMime.startsWith('text/') ||
+                  [
+                    'pdf',
+                    'doc',
+                    'docx',
+                    'xls',
+                    'xlsx',
+                    'ppt',
+                    'pptx',
+                    'txt',
+                    'zip',
+                    'rar',
+                    'csv',
+                    '7z'
+                  ].includes(firstClickExt) ||
+                  !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
                 const isImageClick =
-                  (item.type === "image" ||
-                    item.type === "media" ||
-                    urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
                   !isVideoClick &&
-                  !isDocumentClick;
+                  !isDocumentClick &&
+                  (item.type === 'image' ||
+                    item.type === 'media' ||
+                    firstClickMime.startsWith('image/') ||
+                    ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(firstClickExt) ||
+                    !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
 
                 if (isDocumentClick) {
                   Linking.openURL(firstUrl);
                 } else if (isImageClick || isVideoClick) {
+                  const parsedUrls = clickUrls
                   setPreviewMedia({
-                    items: parsedUrls.map((u) => ({
+                    items: parsedUrls.map((u: string) => ({
                       id: item._id,
                       url: u,
                       isVideo: !!isVideoClick,
@@ -1091,34 +1158,52 @@ const MessageScreen = () => {
                   </Text>
                 ) : (
                   (() => {
-                    // SỬA FIX: Parse JSON để lấy danh sách ảnh/file
-                    let parsedUrls: string[] = [];
-                    try {
-                      const parsed = JSON.parse(displayContent);
-                      parsedUrls = Array.isArray(parsed)
-                        ? parsed
-                        : [displayContent];
-                    } catch {
-                      parsedUrls = [displayContent];
+                    // Parse JSON metadata (new format) hoặc URL array (legacy)
+                    const mediaPayloads = parseMediaContent(displayContent)
+                    const parsedUrls: string[] = mediaPayloads.map((p) => p.url)
+                    const firstPayload = mediaPayloads[0] || {
+                      url: '',
+                      originalName: '',
+                      size: 0,
+                      mimeType: ''
                     }
-
-                    const firstUrl = parsedUrls[0] || "";
-                    const urlLower = firstUrl.split("?")[0].toLowerCase();
+                    const firstUrl = firstPayload.url
+                    const firstExt = firstPayload.originalName.split('.').pop()?.toLowerCase() || ''
+                    const firstMime = firstPayload.mimeType || ''
+                    const urlLower = firstUrl.split('?')[0].toLowerCase()
 
                     const isVideo =
-                      item.type === "video" ||
-                      urlLower.match(/\.(mp4|mov|avi|mkv)$/i);
+                      item.type === 'video' ||
+                      ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstExt) ||
+                      firstMime.startsWith('video/')
+                    // isDocument phải check TRƯỚC isImage vì type 'media' bao gồm cả file document
                     const isDocument =
-                      item.type === "file" ||
-                      urlLower.match(
-                        /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i,
-                      );
+                      item.type === 'file' ||
+                      firstMime.startsWith('application/') ||
+                      firstMime.startsWith('text/') ||
+                      [
+                        'pdf',
+                        'doc',
+                        'docx',
+                        'xls',
+                        'xlsx',
+                        'ppt',
+                        'pptx',
+                        'txt',
+                        'zip',
+                        'rar',
+                        'csv',
+                        '7z'
+                      ].includes(firstExt) ||
+                      !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
                     const isImage =
-                      (item.type === "image" ||
-                        item.type === "media" ||
-                        urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
                       !isVideo &&
-                      !isDocument;
+                      !isDocument &&
+                      (item.type === 'image' ||
+                        item.type === 'media' ||
+                        firstMime.startsWith('image/') ||
+                        ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(firstExt) ||
+                        !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
 
                     // XỬ LÝ RENDER MULTI-IMAGE & VIDEO
                     if (isVideo || isImage) {
@@ -1197,103 +1282,126 @@ const MessageScreen = () => {
                     }
 
                     if (isDocument) {
-                      const fileName =
-                        firstUrl.split("/").pop()?.split("?")[0] ||
-                        t.messageAttachmentDocument;
-                      const { color: fileColor, label: fileLabel } =
-                        getFileIconInfo(fileName);
+                      // Parse lại toàn bộ payloads để lấy metadata đúng
+                      const docPayloads = parseMediaContent(displayContent)
                       return (
-                        <View
-                          style={[
-                            styles.fileCard,
-                            {
-                              backgroundColor: COLORS.fileBg,
-                              borderColor: COLORS.border,
-                            },
-                          ]}
-                        >
-                          <View style={styles.fileCardPreview}>
-                            <Ionicons
-                              name="document-text"
-                              size={60}
-                              color={COLORS.border}
-                              style={{ opacity: 0.5 }}
-                            />
-                          </View>
-                          <View
-                            style={[
-                              styles.fileCardInfo,
-                              { backgroundColor: COLORS.surface },
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.fileTypeBadge,
-                                { backgroundColor: fileColor },
-                              ]}
-                            >
-                              <Text style={styles.fileTypeBadgeText}>
-                                {fileLabel}
-                              </Text>
-                            </View>
-                            <View style={{ flex: 1, paddingRight: 8 }}>
-                              <Text
+                        <View style={{ gap: 8 }}>
+                          {docPayloads.map((payload, pidx) => {
+                            const { color: fileColor, label: fileLabel } = getFileIconInfo(payload)
+                            const sizeLabel = payload.size ? formatBytes(payload.size) : ''
+                            const ext = payload.originalName.split('.').pop()?.toLowerCase() || ''
+
+                            // Gradient nền theo loại file
+                            const previewBgColors: [string, string] = (() => {
+                              if (ext === 'pdf' || payload.mimeType === 'application/pdf')
+                                return ['#dc2626', '#7f1d1d']
+                              if (
+                                ['doc', 'docx'].includes(ext) ||
+                                payload.mimeType.includes('word')
+                              )
+                                return ['#2563eb', '#1e3a8a']
+                              if (
+                                ['xls', 'xlsx', 'csv'].includes(ext) ||
+                                payload.mimeType.includes('spreadsheet')
+                              )
+                                return ['#16a34a', '#14532d']
+                              if (
+                                ['ppt', 'pptx'].includes(ext) ||
+                                payload.mimeType.includes('presentation')
+                              )
+                                return ['#ea580c', '#7c2d12']
+                              if (['zip', 'rar', '7z'].includes(ext)) return ['#7c3aed', '#3b0764']
+                              if (
+                                ['mp4', 'mov', 'avi'].includes(ext) ||
+                                payload.mimeType.startsWith('video/')
+                              )
+                                return ['#db2777', '#831843']
+                              if (
+                                ['mp3', 'wav', 'm4a'].includes(ext) ||
+                                payload.mimeType.startsWith('audio/')
+                              )
+                                return ['#ca8a04', '#713f12']
+                              return ['#475569', '#1e293b']
+                            })()
+
+                            return (
+                              <View
+                                key={pidx}
                                 style={[
-                                  styles.fileNameCardText,
-                                  { color: COLORS.text },
+                                  styles.fileCard,
+                                  {
+                                    backgroundColor: COLORS.fileBg,
+                                    borderColor: COLORS.border
+                                  }
                                 ]}
-                                numberOfLines={1}
                               >
-                                {fileName}
-                              </Text>
-                              <View style={styles.fileMetaRow}>
-                                <Text
-                                  style={[
-                                    styles.fileMetaText,
-                                    { color: COLORS.textLight },
-                                  ]}
+                                {/* ── Info row ── */}
+                                <View
+                                  style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}
                                 >
-                                  {item.fileSize
-                                    ? formatBytes(item.fileSize)
-                                    : "Tệp tin"}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.fileMetaText,
-                                    {
-                                      color: COLORS.textLight,
-                                      marginHorizontal: 4,
-                                    },
-                                  ]}
-                                >
-                                  •
-                                </Text>
-                                <Ionicons
-                                  name="cloud-done-outline"
-                                  size={12}
-                                  color={COLORS.textLight}
-                                />
-                                <Text
-                                  style={[
-                                    styles.fileMetaText,
-                                    { color: COLORS.textLight, marginLeft: 2 },
-                                  ]}
-                                >
-                                  Đã có trên Cloud
-                                </Text>
+                                  {/* Badge loại file */}
+                                  <View
+                                    style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}
+                                  >
+                                    <Text style={styles.fileTypeBadgeText}>{fileLabel}</Text>
+                                  </View>
+                                  <View style={{ flex: 1, paddingRight: 8 }}>
+                                    {/* Tên file gốc */}
+                                    <Text
+                                      style={[styles.fileNameCardText, { color: COLORS.text }]}
+                                      numberOfLines={1}
+                                    >
+                                      {payload.originalName}
+                                    </Text>
+                                    <View style={styles.fileMetaRow}>
+                                      {/* Dung lượng file */}
+                                      {sizeLabel ? (
+                                        <Text
+                                          style={[styles.fileMetaText, { color: COLORS.textLight }]}
+                                        >
+                                          {sizeLabel}
+                                        </Text>
+                                      ) : null}
+                                      {sizeLabel ? (
+                                        <Text
+                                          style={[
+                                            styles.fileMetaText,
+                                            { color: COLORS.textLight, marginHorizontal: 4 }
+                                          ]}
+                                        >
+                                          •
+                                        </Text>
+                                      ) : null}
+                                      <Ionicons
+                                        name="cloud-done-outline"
+                                        size={12}
+                                        color={COLORS.textLight}
+                                      />
+                                      <Text
+                                        style={[
+                                          styles.fileMetaText,
+                                          { color: COLORS.textLight, marginLeft: 2 }
+                                        ]}
+                                      >
+                                        Đã có trên Cloud
+                                      </Text>
+                                    </View>
+                                  </View>
+                                  {/* Nút tải xuống */}
+                                  <TouchableOpacity
+                                    style={styles.downloadIconBtn}
+                                    onPress={() => Linking.openURL(payload.url)}
+                                  >
+                                    <Ionicons
+                                      name="download-outline"
+                                      size={20}
+                                      color={COLORS.text}
+                                    />
+                                  </TouchableOpacity>
+                                </View>
                               </View>
-                            </View>
-                            <TouchableOpacity
-                              style={styles.downloadIconBtn}
-                              onPress={() => Linking.openURL(firstUrl)}
-                            >
-                              <Ionicons
-                                name="download-outline"
-                                size={20}
-                                color={COLORS.text}
-                              />
-                            </TouchableOpacity>
-                          </View>
+                            )
+                          })}
                         </View>
                       );
                     }
