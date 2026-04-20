@@ -174,3 +174,15 @@ export const forwardMessageController = async (req: Request, res: Response) => {
     result
   })
 }
+
+export const pinMessageController = async (req: Request, res: Response) => {
+  const { id } = req.params as any
+  const { action } = req.body
+  const { user_id } = req.decoded_authorization as TokenPayload
+
+  const result = await messageService.pinMessage(id, user_id, action)
+  return res.status(200).json({
+    message: action === 'pin' ? 'Ghim tin nhắn thành công' : 'Bỏ ghim thành công',
+    result
+  })
+}

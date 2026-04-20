@@ -11,7 +11,8 @@ import {
   deleteMessageForMeController,
   searchMessagesController,
   uploadMediaMessageController,
-  forwardMessageController
+  forwardMessageController,
+  pinMessageController
 } from '~/controllers/message.controllers'
 import { accessTokenValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -126,4 +127,6 @@ messageRouter.delete(
  * Body: { targetUserIds: string[], targetGroupIds: string[] }
  */
 messageRouter.post('/:id/forward', accessTokenValidator, wrapRequestHandler(forwardMessageController))
+
+messageRouter.post('/:id/pin', accessTokenValidator, wrapRequestHandler(pinMessageController))
 export default messageRouter

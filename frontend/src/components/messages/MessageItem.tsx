@@ -38,6 +38,8 @@ interface MessageItemProps {
   isFirstInGroup?: boolean
   isLastInGroup?: boolean
   onDeleteForMe?: (messageId: string) => void
+  isPinned?: boolean
+  onPinMessage?: (messageId: string, action: 'pin' | 'unpin') => void
 }
 
 export interface FilePayload {
@@ -330,7 +332,9 @@ export function MessageItem({
   dividerTimeStr,
   isFirstInGroup = true,
   isLastInGroup = true,
-  onDeleteForMe
+  onDeleteForMe,
+  isPinned,
+  onPinMessage
 }: MessageItemProps) {
   const { profile } = useContext(AppContext)
   const currentUserId = profile?._id || ''
@@ -589,6 +593,8 @@ export function MessageItem({
               currentUserId={currentUserId}
               onDeleteForMe={onDeleteForMe}
               decryptedContent={message.content}
+              isPinned={isPinned}
+              onPinMessage={onPinMessage}
             />
 
             {isRevoked ? (
