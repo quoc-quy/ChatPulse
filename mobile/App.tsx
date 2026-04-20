@@ -23,6 +23,7 @@ import BlockedUsersScreen from './src/screens/BlockUserScreen'
 import { ChatProvider } from './src/contexts/ChatContext'
 import MessageSearchScreen from './src/screens/MessageSearchScreen'
 import CreateGroupScreen from './src/screens/CreateGroupScreen'
+import ForwardMessageScreen from './src/screens/ForwardMessageScreen'
 
 const Stack = createNativeStackNavigator()
 
@@ -158,6 +159,12 @@ export default function App() {
                     name="CreateGroupScreen"
                     component={CreateGroupScreen}
                     options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="ForwardMessageScreen"
+                    component={ForwardMessageScreen}
+                    // options={{ headerShown: false }}
+                    options={{ title: 'Chuyển tiếp tin nhắn' }}
                   />
                 </>
               ) : (
