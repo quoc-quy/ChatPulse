@@ -145,8 +145,7 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
 
   const messageType: 'text' | 'media' | 'sticker' | 'system' = 'media'
 
-  // Media không dùng E2E (file/ảnh lưu trên S3, chỉ mã hóa text)
-  const content = fileUrls[0]
+  const content = fileUrls.length === 1 ? fileUrls[0] : JSON.stringify(fileUrls)
 
   const message = await messageService.sendMessage(user_id, convId, messageType, content, replyToId)
 

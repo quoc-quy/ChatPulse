@@ -295,18 +295,18 @@ const MessageScreen = () => {
     }
   }
 
-  const uploadAttachment = async (fileData: any, type: 'media' | 'file') => {
+  const uploadMultipleAttachments = async (files: any[], type: 'media' | 'file') => {
     setIsUploading(true)
-    const isVideoFile =
-      fileData.type === 'video' || fileData.uri.split('?')[0].match(/\.(mp4|mov)$/i)
-    const mediaType = type === 'media' ? (isVideoFile ? 'video' : 'image') : type
-
     const tempId = Date.now().toString()
+
+    const localUrls = files.map((f) => f.uri)
+    const content = localUrls.length === 1 ? localUrls[0] : JSON.stringify(localUrls)
+
     const tempMessage = {
       _id: tempId,
       conversationId,
-      type: mediaType,
-      content: fileData.uri,
+      type: type,
+      content: content,
       createdAt: new Date().toISOString(),
       sender: { _id: currentUserId, userName: t.messageYou },
       isSending: true
@@ -314,32 +314,8 @@ const MessageScreen = () => {
     setMessages((prev) => [tempMessage, ...prev])
 
     try {
-      let mimeType = fileData.mimeType
-      let fileName = fileData.name || fileData.fileName || fileData.uri.split('/').pop()
-
-      if (type === 'media') {
-        if (isVideoFile) {
-          mimeType = mimeType || 'video/mp4'
-          fileName = fileName || `video_${Date.now()}.mp4`
-        } else {
-          mimeType = mimeType || 'image/jpeg'
-          fileName = fileName || `image_${Date.now()}.jpg`
-        }
-      } else {
-        mimeType = mimeType || 'application/octet-stream'
-        fileName = fileName || `file_${Date.now()}`
-      }
-
-      const formattedFile = {
-        uri: fileData.uri,
-        name: fileName,
-        type: mimeType,
-        mimeType: mimeType
-      }
-
-      const res = await sendMediaMessage(conversationId, formattedFile, type)
+      const res = await sendMediaMessage(conversationId, files, type)
       const realMessage = res.data?.result || res.data
-
       if (realMessage) {
         setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)))
         unarchiveChat(conversationId)
@@ -424,8 +400,18 @@ const MessageScreen = () => {
       }
     }
 
-    for (const media of mediaToSend) {
-      await uploadAttachment(media, media.attachmentType)
+    // for (const media of mediaToSend) {
+    //   await uploadAttachment(media, media.attachmentType)
+    // }
+
+    const mediaFiles = mediaToSend.filter((m) => m.attachmentType === 'media')
+    const docFiles = mediaToSend.filter((m) => m.attachmentType === 'file')
+
+    if (mediaFiles.length > 0) {
+      await uploadMultipleAttachments(mediaFiles, 'media')
+    }
+    if (docFiles.length > 0) {
+      await uploadMultipleAttachments(docFiles, 'file')
     }
   }
 
@@ -633,56 +619,58 @@ const MessageScreen = () => {
     }
   }, [socket, conversationId, currentUserId, clearLocalUnread])
 
-  const groupedMessages = useMemo(() => {
-    const result = []
-    let currentGroup: any = null
+  // const groupedMessages = useMemo(() => {
+  //   const result = []
+  //   let currentGroup: any = null
 
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i]
-      const urlLower = msg.content?.split('?')[0].toLowerCase() || ''
-      const isVideo = msg.type === 'video' || urlLower.match(/\.(mp4|mov|avi|mkv)$/i)
-      const isDocument =
-        msg.type === 'file' ||
-        urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i)
-      const isImage =
-        (msg.type === 'media' ||
-          msg.type === 'image' ||
-          urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
-        !isVideo &&
-        !isDocument
+  //   for (let i = 0; i < messages.length; i++) {
+  //     const msg = messages[i]
+  //     const urlLower = msg.content?.split('?')[0].toLowerCase() || ''
+  //     const isVideo = msg.type === 'video' || urlLower.match(/\.(mp4|mov|avi|mkv)$/i)
+  //     const isDocument =
+  //       msg.type === 'file' ||
+  //       urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i)
+  //     const isImage =
+  //       (msg.type === 'media' ||
+  //         msg.type === 'image' ||
+  //         urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
+  //       !isVideo &&
+  //       !isDocument
 
-      if (isImage && !msg.isSending) {
-        if (currentGroup && currentGroup.senderId === (msg.sender?._id || msg.senderId)) {
-          const timeDiff = Math.abs(
-            new Date(currentGroup.createdAt).getTime() - new Date(msg.createdAt).getTime()
-          )
-          if (timeDiff < 60000) {
-            currentGroup.images.push(msg)
-            continue
-          }
-        }
-        if (currentGroup) {
-          result.push(currentGroup)
-        }
-        currentGroup = {
-          isGroup: true,
-          _id: `group_${msg._id}`,
-          senderId: msg.sender?._id || msg.senderId,
-          sender: msg.sender,
-          createdAt: msg.createdAt,
-          images: [msg]
-        }
-      } else {
-        if (currentGroup) {
-          result.push(currentGroup)
-          currentGroup = null
-        }
-        result.push(msg)
-      }
-    }
-    if (currentGroup) result.push(currentGroup)
-    return result
-  }, [messages])
+  //     if (isImage && !msg.isSending) {
+  //       if (currentGroup && currentGroup.senderId === (msg.sender?._id || msg.senderId)) {
+  //         const timeDiff = Math.abs(
+  //           new Date(currentGroup.createdAt).getTime() - new Date(msg.createdAt).getTime()
+  //         )
+  //         if (timeDiff < 60000) {
+  //           currentGroup.images.push(msg)
+  //           continue
+  //         }
+  //       }
+  //       if (currentGroup) {
+  //         result.push(currentGroup)
+  //       }
+  //       currentGroup = {
+  //         isGroup: true,
+  //         _id: `group_${msg._id}`,
+  //         senderId: msg.sender?._id || msg.senderId,
+  //         sender: msg.sender,
+  //         createdAt: msg.createdAt,
+  //         images: [msg]
+  //       }
+  //     } else {
+  //       if (currentGroup) {
+  //         result.push(currentGroup)
+  //         currentGroup = null
+  //       }
+  //       result.push(msg)
+  //     }
+  //   }
+  //   if (currentGroup) result.push(currentGroup)
+  //   return result
+  // }, [messages])
+
+  const groupedMessages = messages
 
   const handleSummarizeChat = async () => {}
   const handleToggleReact = async (message: any, emoji: string) => {}
@@ -902,7 +890,18 @@ const MessageScreen = () => {
           >
             <TouchableOpacity
               onPress={() => {
-                const urlLower = displayContent?.split('?')[0].toLowerCase() || ''
+                // SỬA FIX: Parse JSON ở sự kiện onPress để tránh lỗi url không hợp lệ
+                let parsedUrls: string[] = []
+                try {
+                  const parsed = JSON.parse(displayContent)
+                  parsedUrls = Array.isArray(parsed) ? parsed : [displayContent]
+                } catch {
+                  parsedUrls = [displayContent]
+                }
+
+                const firstUrl = parsedUrls[0] || ''
+                const urlLower = firstUrl.split('?')[0].toLowerCase()
+
                 const isVideoClick =
                   item.type === 'video' || urlLower.match(/\.(mp4|mov|avi|mkv)$/i)
                 const isDocumentClick =
@@ -915,19 +914,20 @@ const MessageScreen = () => {
                   !isVideoClick &&
                   !isDocumentClick
 
-                if (isDocumentClick) Linking.openURL(displayContent)
-                else if (isImageClick || isVideoClick) {
+                if (isDocumentClick) {
+                  Linking.openURL(firstUrl)
+                } else if (isImageClick || isVideoClick) {
                   setPreviewMedia({
-                    items: [
-                      {
-                        id: item._id,
-                        url: displayContent,
-                        isVideo: !!isVideoClick
-                      }
-                    ],
+                    items: parsedUrls.map((u) => ({
+                      id: item._id,
+                      url: u,
+                      isVideo: !!isVideoClick
+                    })),
                     initialIndex: 0
                   })
-                } else handleDoubleTap(item)
+                } else {
+                  handleDoubleTap(item)
+                }
               }}
               onLongPress={(e) => handleLongPress(e, item)}
               activeOpacity={0.9}
@@ -982,7 +982,18 @@ const MessageScreen = () => {
                   </Text>
                 ) : (
                   (() => {
-                    const urlLower = displayContent?.split('?')[0].toLowerCase() || ''
+                    // SỬA FIX: Parse JSON để lấy danh sách ảnh/file
+                    let parsedUrls: string[] = []
+                    try {
+                      const parsed = JSON.parse(displayContent)
+                      parsedUrls = Array.isArray(parsed) ? parsed : [displayContent]
+                    } catch {
+                      parsedUrls = [displayContent]
+                    }
+
+                    const firstUrl = parsedUrls[0] || ''
+                    const urlLower = firstUrl.split('?')[0].toLowerCase()
+
                     const isVideo = item.type === 'video' || urlLower.match(/\.(mp4|mov|avi|mkv)$/i)
                     const isDocument =
                       item.type === 'file' ||
@@ -994,17 +1005,64 @@ const MessageScreen = () => {
                       !isVideo &&
                       !isDocument
 
+                    // XỬ LÝ RENDER MULTI-IMAGE & VIDEO
                     if (isVideo || isImage) {
                       return (
                         <View style={{ position: 'relative', marginBottom: 5 }}>
-                          {isVideo ? (
-                            <VideoThumbnail url={displayContent} />
+                          {parsedUrls.length === 1 ? (
+                            isVideo ? (
+                              <VideoThumbnail url={parsedUrls[0]} />
+                            ) : (
+                              <Image
+                                source={{ uri: parsedUrls[0] }}
+                                style={styles.mediaImage}
+                                resizeMode="cover"
+                              />
+                            )
                           ) : (
-                            <Image
-                              source={{ uri: displayContent }}
-                              style={styles.mediaImage}
-                              resizeMode="cover"
-                            />
+                            // RENDER GRID NHIỀU ẢNH
+                            <View
+                              style={{ flexDirection: 'row', flexWrap: 'wrap', width: 250, gap: 4 }}
+                            >
+                              {parsedUrls.slice(0, 9).map((url, idx) => (
+                                <TouchableOpacity
+                                  key={idx}
+                                  onPress={() =>
+                                    setPreviewMedia({
+                                      items: parsedUrls.map((u) => ({
+                                        id: item._id,
+                                        url: u,
+                                        isVideo: false
+                                      })),
+                                      initialIndex: idx
+                                    })
+                                  }
+                                >
+                                  <Image
+                                    source={{ uri: url }}
+                                    style={{ width: 78, height: 78, borderRadius: 8 }}
+                                  />
+                                  {/* Hiển thị số ảnh còn lại nếu số lượng > 9 */}
+                                  {idx === 8 && parsedUrls.length > 9 && (
+                                    <View
+                                      style={{
+                                        ...StyleSheet.absoluteFillObject,
+                                        backgroundColor: 'rgba(0,0,0,0.5)',
+                                        borderRadius: 8,
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
+                                      }}
+                                    >
+                                      <Text
+                                        style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}
+                                      >
+                                        +{parsedUrls.length - 9}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
+                              ))}
+                            </View>
                           )}
                         </View>
                       )
@@ -1012,8 +1070,7 @@ const MessageScreen = () => {
 
                     if (isDocument) {
                       const fileName =
-                        displayContent.split('/').pop()?.split('?')[0] ||
-                        t.messageAttachmentDocument
+                        firstUrl.split('/').pop()?.split('?')[0] || t.messageAttachmentDocument
                       const { color: fileColor, label: fileLabel } = getFileIconInfo(fileName)
                       return (
                         <View
@@ -1076,7 +1133,7 @@ const MessageScreen = () => {
                             </View>
                             <TouchableOpacity
                               style={styles.downloadIconBtn}
-                              onPress={() => Linking.openURL(displayContent)}
+                              onPress={() => Linking.openURL(firstUrl)}
                             >
                               <Ionicons name="download-outline" size={20} color={COLORS.text} />
                             </TouchableOpacity>

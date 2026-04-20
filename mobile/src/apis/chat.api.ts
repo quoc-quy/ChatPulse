@@ -1,9 +1,9 @@
 import { api } from './api'
 
 export interface CreateGroupParams {
-  name: string;
-  member_ids: string[]; // Khớp với req.body.member_ids ở Backend
-  avatarUrl?: string;
+  name: string
+  member_ids: string[] // Khớp với req.body.member_ids ở Backend
+  avatarUrl?: string
 }
 
 export const getConversations = (page: number | string = 1, limit: number | string = 20) => {
@@ -32,19 +32,20 @@ export const sendMessage = (conversationId: string, content: string, type = 'tex
 // Thêm hàm này ngay dưới sendMessage
 export const sendMediaMessage = (
   conversationId: string,
-  fileAsset: any,
+  files: any[],
   type: 'media' | 'file' = 'media'
 ) => {
   const formData = new FormData()
   formData.append('convId', conversationId)
   formData.append('type', type)
 
-  formData.append('files', {
-    uri: fileAsset.uri,
-    name: fileAsset.name || fileAsset.fileName || `file_${Date.now()}`,
-    // CHỈNH SỬA Ở DÂY: Ưu tiên lấy fileAsset.mimeType, nếu không có mới lấy fileAsset.type
-    type: fileAsset.mimeType || fileAsset.type || 'application/octet-stream'
-  } as any)
+  files.forEach((fileAsset) => {
+    formData.append('files', {
+      uri: fileAsset.uri,
+      name: fileAsset.name || fileAsset.fileName || `file_${Date.now()}`,
+      type: fileAsset.mimeType || fileAsset.type || 'application/octet-stream'
+    } as any)
+  })
 
   return api.post(`/messages/media`, formData, {
     headers: {
@@ -201,9 +202,8 @@ export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
 export const createGroup = (data: CreateGroupParams) => {
   return api.post('/groups', data)
 }
-export const disbandGroup = (conversationId: string) =>{
-  return api.delete(`/groups/${conversationId}/disband`);
+export const disbandGroup = (conversationId: string) => {
+  return api.delete(`/groups/${conversationId}/disband`)
 }
 export const deleteConversationForMe = (conversationId: string) =>
-  api.delete(`/conversations/${conversationId}`);
-
+  api.delete(`/conversations/${conversationId}`)
