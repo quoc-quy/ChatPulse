@@ -373,6 +373,15 @@ export default function ConversationDetailScreen() {
   );
 
   const handleLeaveGroup = async () => {
+    // 1. KIỂM TRA: Nếu là Admin và nhóm vẫn còn thành viên khác
+    // Yêu cầu chọn trưởng nhóm mới thông qua Modal
+    if (currentUserIsAdmin && members.length > 1) {
+      setShowTransferModal(true);
+      return;
+    }
+
+    // 2. LOGIC BÌNH THƯỜNG: Dành cho thành viên thường,
+    // hoặc Admin khi nhóm chỉ còn đúng 1 mình (nhóm 1 người)
     Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này?", [
       { text: "Hủy", style: "cancel" },
       {
@@ -385,12 +394,11 @@ export default function ConversationDetailScreen() {
             // KIỂM TRA PHẢN HỒI TỪ BACKEND
             if (res.data?.result?.isDisbanded) {
               // Nếu là người cuối cùng và nhóm giải tán -> Quay về MessageScreen để xem lịch sử
-              // MessageScreen sẽ nhận được socket 'group_disbanded' và tự đổi UI
               navigation.navigate("MessageScreen", {
                 id: conversationId,
                 name: chatName,
                 isGroup: true,
-                isGroupDisbanded: true, // Truyền param để UI cập nhật ngay
+                isGroupDisbanded: true,
               });
             } else {
               // Nếu nhóm vẫn còn người -> Quay về danh sách chat chính
