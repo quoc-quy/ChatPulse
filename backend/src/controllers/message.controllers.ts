@@ -135,22 +135,25 @@ export const uploadMediaMessageController = async (req: Request, res: Response) 
   const { convId, replyToId } = req.body
 
   const files = req.files as Express.Multer.File[]
-
   if (!files || files.length === 0) {
     return res.status(httpStatus.BAD_REQUEST).json({ message: 'Không tìm thấy file tải lên' })
   }
 
-  const uploadPromises = files.map((file) => uploadFileToS3(file))
-  const fileUrls = await Promise.all(uploadPromises)
+  // Upload song song lên S3 (multipart tự động nếu file > 5MB)
+  const uploadResults = await Promise.all(files.map((f) => uploadFileToS3(f)))
 
-  const messageType: 'text' | 'media' | 'sticker' | 'system' = 'media'
+  // Tạo payload chứa đầy đủ metadata
+  const filePayloads = uploadResults.map((r) => ({
+    url: r.url,
+    originalName: r.originalName,
+    size: r.size,
+    mimeType: r.mimeType
+  }))
 
-  const content = fileUrls.length === 1 ? fileUrls[0] : JSON.stringify(fileUrls)
+  // Lưu dạng JSON để client dễ parse
+  const content = filePayloads.length === 1 ? JSON.stringify(filePayloads[0]) : JSON.stringify(filePayloads)
 
-  const message = await messageService.sendMessage(user_id, convId, messageType, content, replyToId)
+  const message = await messageService.sendMessage(user_id, convId, 'media', content, replyToId)
 
-  return res.status(httpStatus.OK).json({
-    message: 'Gửi đa phương tiện thành công',
-    result: message
-  })
+  return res.status(httpStatus.OK).json({ message: 'Gửi đa phương tiện thành công', result: message })
 }
