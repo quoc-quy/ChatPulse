@@ -172,7 +172,7 @@ const MessageScreen = () => {
     unreadCount = 0,
     isMuted = false,
   } = route.params || {};
-
+  const [currentChatName, setCurrentChatName] = useState(chatName || "Chat");
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -558,6 +558,10 @@ const MessageScreen = () => {
           if (isGroup) {
             const detailRes = await getConversationDetail(conversationId);
             const conv = detailRes.data?.result;
+            // Cập nhật tên nhóm mới nhất từ API
+            if (conv?.name) {
+              setCurrentChatName(conv.name);
+            }
 
             // BƯỚC 3: Cập nhật state giải tán từ database
             if (conv?.is_disbanded || conv?.isDisbanded) {
@@ -665,17 +669,25 @@ const MessageScreen = () => {
         ),
       );
     };
+    const handleConversationUpdated = (data: any) => {
+      // Kiểm tra nếu đúng là ID của cuộc hội thoại hiện tại và có tên mới
+      if (data.conversationId === conversationId && data.name) {
+        setCurrentChatName(data.name);
+      }
+    };
 
     socket.on("receive_message", handleReceiveMessage);
     socket.on("message_revoked", handleMessageRevoked);
     socket.on("message_reacted", handleMessageReacted);
     socket.on("group_disbanded", handleGroupDisbanded);
+    socket.on("conversation_updated", handleConversationUpdated);
 
     return () => {
       socket.off("receive_message", handleReceiveMessage);
       socket.off("message_revoked", handleMessageRevoked);
       socket.off("message_reacted", handleMessageReacted);
       socket.off("group_disbanded", handleGroupDisbanded);
+      socket.off("conversation_updated", handleConversationUpdated);
     };
   }, [socket, conversationId, currentUserId, clearLocalUnread]);
 
@@ -1434,7 +1446,7 @@ const MessageScreen = () => {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Text style={styles.headerName}>{chatName || "Chat"}</Text>
+              <Text style={styles.headerName}>{currentChatName}</Text>
               {isMutedState && (
                 <Ionicons
                   name="notifications-off"
