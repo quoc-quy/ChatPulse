@@ -4,8 +4,8 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { StyleSheet, ActivityIndicator, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-// Import ThemeProvider từ thư mục contexts
 import { ThemeProvider } from './src/contexts/ThemeContext'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import MainTabs from './src/navigation/MainTabs'
 import { LoginForm } from './src/auth/LoginForm'
@@ -72,105 +72,111 @@ export default function App() {
     // Bọc ThemeProvider ra ngoài cùng để mọi màn hình đều có thể gọi useTheme()
     <ThemeProvider>
       <ChatProvider>
-        <NavigationContainer key={navKey}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {isLoggedIn ? (
-              <>
-                <Stack.Screen name="Main">
-                  {(props) => <MainTabs {...props} onLogout={handleLogout} />}
-                </Stack.Screen>
+        <SafeAreaProvider>
+          <NavigationContainer key={navKey}>
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              {isLoggedIn ? (
+                <>
+                  <Stack.Screen name="Main">
+                    {(props) => <MainTabs {...props} onLogout={handleLogout} />}
+                  </Stack.Screen>
 
-                <Stack.Screen
-                  name="FriendRequests"
-                  component={FriendRequestsScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="SentRequest"
-                  component={SentRequestsScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="ConversationDetail"
-                  component={ConversationDetailScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="UserProfile"
-                  component={UserProfileScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="MembersScreen"
-                  component={MembersScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="AddMemberScreen"
-                  component={AddMemberScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
+                  <Stack.Screen
+                    name="FriendRequests"
+                    component={FriendRequestsScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="SentRequest"
+                    component={SentRequestsScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="ConversationDetail"
+                    component={ConversationDetailScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="UserProfile"
+                    component={UserProfileScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="MembersScreen"
+                    component={MembersScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="AddMemberScreen"
+                    component={AddMemberScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
 
-                <Stack.Screen
-                  name="MessageScreen"
-                  component={MessageScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="MessageSearchScreen"
-                  component={MessageSearchScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen
-                  name="BlockedUsers"
-                  component={BlockedUsersScreen}
-                  options={{
-                    headerShown: false,
-                    animation: 'slide_from_right'
-                  }}
-                />
-                <Stack.Screen name="CreateGroupScreen" component={CreateGroupScreen} options={{ headerShown: false }} />
-              </>
-            ) : (
-              <>
-                <Stack.Screen name="Login">
-                  {(props) => <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />}
-                </Stack.Screen>
-                <Stack.Screen name="SignUp" component={SignUpForm} />
-                <Stack.Screen
-                  name="ForgotPassword"
-                  component={ForgotPasswordScreen}
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-              </>
-            )}
-          </Stack.Navigator>
-        </NavigationContainer>
+                  <Stack.Screen
+                    name="MessageScreen"
+                    component={MessageScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="MessageSearchScreen"
+                    component={MessageSearchScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="BlockedUsers"
+                    component={BlockedUsersScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="CreateGroupScreen"
+                    component={CreateGroupScreen}
+                    options={{ headerShown: false }}
+                  />
+                </>
+              ) : (
+                <>
+                  <Stack.Screen name="Login">
+                    {(props) => <LoginForm {...props} onLoginSuccess={handleLoginSuccess} />}
+                  </Stack.Screen>
+                  <Stack.Screen name="SignUp" component={SignUpForm} />
+                  <Stack.Screen
+                    name="ForgotPassword"
+                    component={ForgotPasswordScreen}
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+                </>
+              )}
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaProvider>
       </ChatProvider>
     </ThemeProvider>
   )
