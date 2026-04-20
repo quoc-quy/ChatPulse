@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import { sendMediaMessage } from '../apis/chat.api'
 import { useVideoPlayer, VideoView } from 'expo-video'
+import { pinMessageApi } from '../apis/chat.api';
 import {
   View,
   Text,
@@ -214,7 +215,9 @@ const MessageScreen = () => {
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
   const [isGroupDisbanded, setIsGroupDisbanded] = useState(false)
   const [disbandMessage, setDisbandMessage] = useState('')
-
+  const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
+  const [showPinnedModal, setShowPinnedModal] = useState(false);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
   const [pendingMedia, setPendingMedia] = useState<any[]>([])
   const [previewMedia, setPreviewMedia] = useState<{
     items: { id: string; url: string; isVideo: boolean }[]
@@ -228,12 +231,69 @@ const MessageScreen = () => {
     }
   }, [conversationId])
 
+  useEffect(() => {
+    const fetchConversationDetail = async () => {
+      try {
+        const res = await getConversationDetail(route.params.id);
+        if (res.data?.result?.pinnedMessages) {
+          setPinnedMessages(res.data.result.pinnedMessages);
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchConversationDetail();
+  }, [route.params.id]);
+
+  // 3. Lắng nghe sự kiện Socket (thêm vào useEffect chứa socket của bạn)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePinnedUpdate = (data: any) => {
+      if (data.conversationId === route.params.id) {
+        setPinnedMessages(data.pinnedMessages);
+      }
+    };
+
+    socket.on('pinned_messages_updated', handlePinnedUpdate);
+
+    return () => {
+      socket.off('pinned_messages_updated', handlePinnedUpdate);
+    };
+  }, [socket, route.params.id]);
+
   const handleForward = () => {
     setShowMenu(false)
     if (selectedMsg) {
       navigation.navigate('ForwardMessageScreen', { messageId: selectedMsg._id })
     }
   }
+
+  // 2. Hàm xử lý cuộn và nháy sáng tin nhắn
+  const scrollToMessage = (msgId: string) => {
+    setShowPinnedModal(false); // Đóng danh sách ghim nếu đang mở
+
+    const index = groupedMessages.findIndex(msg => msg._id === msgId);
+    if (index !== -1) {
+      // Cuộn tới vị trí tin nhắn
+      flatListRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.5 // Căn tin nhắn ra giữa màn hình
+      });
+
+      // Bật highlight
+      setHighlightedMsgId(msgId);
+
+      // Tắt highlight sau 2 giây
+      setTimeout(() => {
+        setHighlightedMsgId(null);
+      }, 2000);
+    } else {
+      Alert.alert("Thông báo", "Tin nhắn này ở quá xa, vui lòng cuộn lên để tải thêm lịch sử trò chuyện.");
+    }
+  };
+
 
   const handleSuggestReply = async () => {
     if (messages.length === 0) return
@@ -555,7 +615,7 @@ const MessageScreen = () => {
             resolvedUserId = decoded.user_id || decoded._id || decoded.id
             setCurrentUserId(resolvedUserId)
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (conversationId && resolvedUserId) {
@@ -570,11 +630,36 @@ const MessageScreen = () => {
 
           // 2. Chỉ gọi API lấy chi tiết nếu đây là Chat Nhóm
           if (isGroup) {
+            // 2. Gọi API lấy chi tiết hội thoại (Lấy cả tên nhóm và TIN NHẮN GHIM)
             const detailRes = await getConversationDetail(conversationId)
             const conv = detailRes.data?.result
-            // Cập nhật tên nhóm mới nhất từ API
-            if (conv?.name) {
-              setCurrentChatName(conv.name)
+
+            if (conv) {
+              // Lấy danh sách ghim
+              if (conv.pinnedMessages) {
+                setPinnedMessages(conv.pinnedMessages)
+              }
+
+              // Chỉ cập nhật các thông tin nhóm nếu là nhóm
+              if (isGroup) {
+                if (conv.name) {
+                  setCurrentChatName(conv.name)
+                }
+
+                if (conv.is_disbanded || conv.isDisbanded) {
+                  setIsGroupDisbanded(true)
+                  setDisbandMessage(conv.disbanded_message || 'Nhóm đã bị giải tán.')
+                } else {
+                  setIsGroupDisbanded(false)
+                }
+
+                const myMember = (conv.members || []).find(
+                  (m: any) => m.userId?.toString() === resolvedUserId
+                )
+                if (myMember?.hasMuted !== undefined) {
+                  setIsMutedState(myMember.hasMuted)
+                }
+              }
             }
 
             // BƯỚC 3: Cập nhật state giải tán từ database
@@ -743,9 +828,9 @@ const MessageScreen = () => {
 
   const groupedMessages = messages
 
-  const handleSummarizeChat = async () => {}
-  const handleToggleReact = async (message: any, emoji: string) => {}
-  const handleRemoveAllReactions = async (message: any) => {}
+  const handleSummarizeChat = async () => { }
+  const handleToggleReact = async (message: any, emoji: string) => { }
+  const handleRemoveAllReactions = async (message: any) => { }
 
   const buildReactionGroups = (reactions: any[] = []) => {
     const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>()
@@ -774,9 +859,9 @@ const MessageScreen = () => {
     return []
   }, [reactionFilter, reactionGroupsForModal, currentUserId])
 
-  const handleRevoke = async () => {}
-  const handleDeleteForMe = async () => {}
-  const handleDoubleTap = (message: any) => {}
+  const handleRevoke = async () => { }
+  const handleDeleteForMe = async () => { }
+  const handleDoubleTap = (message: any) => { }
 
   const handleLongPress = (event: any, message: any) => {
     if (message.type === 'revoked') return
@@ -831,6 +916,20 @@ const MessageScreen = () => {
       minute: '2-digit'
     })
   }
+
+  const handleTogglePinMessage = async (message: any) => {
+    try {
+      // Kiểm tra xem tin nhắn đã được ghim chưa
+      const isPinned = pinnedMessages.some(p => p.messageId === message._id);
+      const action = isPinned ? 'unpin' : 'pin';
+
+      // Gọi API (UI sẽ tự động cập nhật nhờ Socket)
+      await pinMessageApi(message._id, action);
+
+    } catch (error: any) {
+      Alert.alert("Lỗi", error.response?.data?.message || "Không thể thực hiện hành động này.");
+    }
+  };
 
   const formatMessageDate = (dateString: string) => {
     if (!dateString) return ''
@@ -928,6 +1027,7 @@ const MessageScreen = () => {
     }
     const showTime = !isRevoked && !(isSameSenderAsNewer && isCloseInTime)
     const showAvatar = !isMe && !isSameSenderAsNewer
+    const isHighlighted = item._id === highlightedMsgId;
 
     return (
       <View>
@@ -956,7 +1056,8 @@ const MessageScreen = () => {
           <View
             style={[
               styles.messageContent,
-              isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }
+              isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
+              { position: 'relative' } // Rất quan trọng để chốt dính lớp Overlay phát sáng
             ]}
           >
             <TouchableOpacity
@@ -1162,6 +1263,8 @@ const MessageScreen = () => {
                                       initialIndex: idx
                                     })
                                   }
+                                  onLongPress={(e) => handleLongPress(e, item)}
+                                  delayLongPress={200}
                                 >
                                   <Image
                                     source={{ uri: url }}
@@ -1210,39 +1313,6 @@ const MessageScreen = () => {
                             const { color: fileColor, label: fileLabel } = getFileIconInfo(payload)
                             const sizeLabel = payload.size ? formatBytes(payload.size) : ''
                             const ext = payload.originalName.split('.').pop()?.toLowerCase() || ''
-
-                            // Gradient nền theo loại file
-                            const previewBgColors: [string, string] = (() => {
-                              if (ext === 'pdf' || payload.mimeType === 'application/pdf')
-                                return ['#dc2626', '#7f1d1d']
-                              if (
-                                ['doc', 'docx'].includes(ext) ||
-                                payload.mimeType.includes('word')
-                              )
-                                return ['#2563eb', '#1e3a8a']
-                              if (
-                                ['xls', 'xlsx', 'csv'].includes(ext) ||
-                                payload.mimeType.includes('spreadsheet')
-                              )
-                                return ['#16a34a', '#14532d']
-                              if (
-                                ['ppt', 'pptx'].includes(ext) ||
-                                payload.mimeType.includes('presentation')
-                              )
-                                return ['#ea580c', '#7c2d12']
-                              if (['zip', 'rar', '7z'].includes(ext)) return ['#7c3aed', '#3b0764']
-                              if (
-                                ['mp4', 'mov', 'avi'].includes(ext) ||
-                                payload.mimeType.startsWith('video/')
-                              )
-                                return ['#db2777', '#831843']
-                              if (
-                                ['mp3', 'wav', 'm4a'].includes(ext) ||
-                                payload.mimeType.startsWith('audio/')
-                              )
-                                return ['#ca8a04', '#713f12']
-                              return ['#475569', '#1e293b']
-                            })()
 
                             return (
                               <View
@@ -1351,6 +1421,25 @@ const MessageScreen = () => {
                     )
                   })()
                 )}
+
+                {/* 👇 OVERLAY PHÁT SÁNG CHO MỌI LOẠI TIN NHẮN (ẢNH, FILE, TEXT) 👇 */}
+                {isHighlighted && (
+                  <View
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+                        borderRadius: (item.type === 'image' || item.type === 'media' || item.type === 'file' || item.type === 'video') ? 16 : 18,
+                        borderWidth: 2,
+                        borderColor: COLORS.primary,
+                        zIndex: 10
+                      }
+                    ]}
+                    pointerEvents="none" 
+                  />
+                )}
+                {/* 👆 OVERLAY PHÁT SÁNG 👆 */}
+
               </View>
 
               {showTime && !item.isSending && item.type !== 'call' && item.type !== 'file' && (
@@ -1439,9 +1528,64 @@ const MessageScreen = () => {
     onViewableItemsChangedRef.current = handleViewableItemsChanged
   }, [handleViewableItemsChanged])
 
+  // Hàm xử lý hiển thị nội dung tin nhắn ghim (bóc tách tên file từ link AWS)
+  const renderPinnedMessageContent = (message: any) => {
+    if (!message || !message.content) return "[Nội dung không khả dụng]";
+
+    const type = message.type || 'text';
+
+    // Nếu là tin nhắn chữ bình thường
+    if (type === 'text') {
+      if (message.content.startsWith('@PulseAI ')) {
+        return message.content.substring(9);
+      }
+      return message.content;
+    }
+
+    try {
+      const payloads = parseMediaContent(message.content);
+      if (payloads && payloads.length > 0) {
+        const firstPayload = payloads[0];
+        let fileName = firstPayload.originalName || '';
+
+        // Ẩn tên nếu tên là chuỗi hash quá dài của AWS S3
+        if (fileName === 'file' || fileName.length > 50) {
+          fileName = '';
+        }
+
+        const ext = firstPayload.originalName.split('.').pop()?.toLowerCase() || '';
+        const mime = firstPayload.mimeType || '';
+
+        // Lô-gic nhận diện thông minh y hệt như lúc render tin nhắn
+        const isVideo = type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) || mime.startsWith('video/');
+        const isDocument = type === 'file' || mime.startsWith('application/') || mime.startsWith('text/') || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'csv', '7z'].includes(ext);
+
+        if (isDocument) {
+          return `[File] ${fileName}`.trim();
+        } else if (isVideo) {
+          return `[Video] ${fileName}`.trim();
+        } else {
+          return `[Photo] ${fileName}`.trim();
+        }
+      }
+    } catch (error) {
+      console.log("Error parsing pinned media", error);
+    }
+
+    // Fallback nếu không parse được
+    if (type === 'video') return '[Video]';
+    if (type === 'file') return '[Tệp đính kèm]';
+    if (type === 'image' || type === 'media') return '[Hình ảnh]';
+    if (type === 'call') return '[Cuộc gọi]';
+
+    return message.content;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
+
+      {/* 1. KHỐI HEADER MÀU XANH/TÍM */}
       <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -1454,25 +1598,17 @@ const MessageScreen = () => {
                 <Ionicons name="notifications-off" size={14} color="rgba(255,255,255,0.75)" />
               )}
             </View>
-            {/* Ẩn chữ Trực tuyến nếu nhóm đã bị giải tán */}
             {!isGroupDisbanded && <Text style={styles.headerStatus}>Trực tuyến</Text>}
           </View>
+
         </View>
 
         <View style={styles.headerRight}>
-          {/* Gom toàn bộ các nút chức năng (bao gồm cả nút Menu 3 gạch) vào điều kiện !isGroupDisbanded */}
           {!isGroupDisbanded && (
             <>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={handleSummarizeChat}
-                disabled={isSummarizing}
-              >
-                {isSummarizing ? (
-                  <ActivityIndicator size="small" color="#FFD700" />
-                ) : (
-                  <Ionicons name="sparkles" size={24} color="#FFD700" />
-                )}
+              {/* Các nút gọi điện, video, menu giữ nguyên */}
+              <TouchableOpacity style={styles.iconBtn} onPress={handleSummarizeChat} disabled={isSummarizing}>
+                {isSummarizing ? <ActivityIndicator size="small" color="#FFD700" /> : <Ionicons name="sparkles" size={24} color="#FFD700" />}
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn}>
                 <Ionicons name="call-outline" size={24} color="white" />
@@ -1480,16 +1616,7 @@ const MessageScreen = () => {
               <TouchableOpacity style={styles.iconBtn}>
                 <Ionicons name="videocam-outline" size={26} color="white" />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() =>
-                  navigation.navigate('ConversationDetail', {
-                    id: conversationId,
-                    name: chatName,
-                    isGroup: isGroup
-                  })
-                }
-              >
+              <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('ConversationDetail', { id: conversationId, name: chatName, isGroup: isGroup })}>
                 <Ionicons name="menu" size={28} color="white" />
               </TouchableOpacity>
             </>
@@ -1497,6 +1624,35 @@ const MessageScreen = () => {
         </View>
       </LinearGradient>
 
+      {/* ========================================== */}
+
+      {/* 2. THANH TIN NHẮN GHIM NẰM NGAY DƯỚI HEADER */}
+      {pinnedMessages.length > 0 && (
+        <View style={styles.pinnedBannerContainer}>
+          <View style={styles.pinnedIcon}>
+            <Ionicons name="pin" size={16} color={COLORS.primary} />
+          </View>
+          <TouchableOpacity
+            style={styles.pinnedContent}
+            onPress={() => {
+              // Lấy tin nhắn ghim cuối cùng và cuộn tới nó
+              const latestPin = pinnedMessages[pinnedMessages.length - 1];
+              if (latestPin) scrollToMessage(latestPin.messageId);
+            }}
+          >
+            <Text style={styles.pinnedTitle}>Pinned message ({pinnedMessages.length})</Text>
+            <Text style={styles.pinnedText} numberOfLines={1}>
+              {renderPinnedMessageContent(pinnedMessages[pinnedMessages.length - 1]?.message)}
+            </Text>
+          </TouchableOpacity>
+          {/* MỞ MODAL KHI BẤM NÚT MŨI TÊN */}
+          <TouchableOpacity onPress={() => setShowPinnedModal(true)}>
+            <Ionicons name="chevron-down" size={20} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 3. KHU VỰC CHAT BÊN DƯỚI */}
       <KeyboardAvoidingView
         style={styles.chatArea}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1548,6 +1704,15 @@ const MessageScreen = () => {
               keyExtractor={(item, index) => `${item._id ?? 'msg'}_${index}`}
               renderItem={renderMessage}
               contentContainerStyle={styles.listContent}
+
+              // 👇 THÊM DÒNG NÀY ĐỂ TRÁNH CRASH KHI CUỘN 👇
+              onScrollToIndexFailed={(info) => {
+                const wait = new Promise(resolve => setTimeout(resolve, 500));
+                wait.then(() => {
+                  flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+                });
+              }}
+
               onEndReached={loadMoreMessages}
               onEndReachedThreshold={0.5}
               ListFooterComponent={
@@ -1748,6 +1913,52 @@ const MessageScreen = () => {
         )}
       </KeyboardAvoidingView>
 
+      {/* ========================================== */}
+      {/* MODAL DANH SÁCH TIN NHẮN ĐÃ GHIM */}
+      {/* ========================================== */}
+      <Modal visible={showPinnedModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowPinnedModal(false)}>
+          <View style={styles.pinnedModalContainer}>
+            <View style={styles.pinnedModalHeader}>
+              <Text style={styles.pinnedModalTitle}> Pin list ({pinnedMessages.length}/3)</Text>
+              <TouchableOpacity onPress={() => setShowPinnedModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={[...pinnedMessages].reverse()} // Đảo ngược để tin ghim mới nhất lên đầu
+              keyExtractor={(item) => item.messageId}
+              renderItem={({ item }) => (
+                <View style={styles.pinnedItemRow}>
+                  {/* ĐỔI VIEW THÀNH TOUCHABLE ĐỂ BẤM VÀO ITEM TRONG DANH SÁCH */}
+                  <TouchableOpacity
+                    style={styles.pinnedItemContent}
+                    onPress={() => scrollToMessage(item.messageId)}
+                  >
+                    <Text style={styles.pinnedItemText} numberOfLines={2}>
+                      {renderPinnedMessageContent(item.message)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.unpinBtn}
+                    onPress={() => {
+                      // Truyền object chứa _id để hàm handleTogglePinMessage xử lý đúng
+                      handleTogglePinMessage({ _id: item.messageId });
+                      // Nếu đây là tin nhắn ghim cuối cùng thì đóng modal luôn
+                      if (pinnedMessages.length === 1) {
+                        setShowPinnedModal(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.unpinText}>Unpin messages</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showMenu} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowMenu(false)}>
           <View style={[styles.menuBox, { top: menuPos.y }]}>
@@ -1794,6 +2005,7 @@ const MessageScreen = () => {
 
             {/* KHỐI CÁC NÚT HÀNH ĐỘNG */}
             <View style={styles.actionRow}>
+              {/* Nút Chuyển tiếp (Đã có sẵn) */}
               <TouchableOpacity style={styles.menuItem} onPress={handleForward}>
                 <Ionicons name="arrow-redo-outline" size={20} color={COLORS.text} />
                 <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
@@ -1801,7 +2013,30 @@ const MessageScreen = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* NÚT: THU HỒI (Chỉ hiện nếu là tin nhắn của mình) */}
+              {/* ========================================== */}
+              {/* THÊM BƯỚC 5 VÀO ĐÂY: NÚT GHIM TIN NHẮN */}
+              {/* ========================================== */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  if (selectedMsg) {
+                    handleTogglePinMessage(selectedMsg);
+                    setShowMenu(false); // Đóng menu sau khi bấm
+                  }
+                }}
+              >
+                <Ionicons
+                  name={pinnedMessages.some(p => p.messageId === selectedMsg?._id) ? "pin-outline" : "pin"}
+                  size={20}
+                  color={COLORS.text}
+                />
+                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
+                  {pinnedMessages.some(p => p.messageId === selectedMsg?._id) ? "Unpin messages" : "Message pin"}
+                </Text>
+              </TouchableOpacity>
+              {/* ========================================== */}
+
+              {/* NÚT: THU HỒI (Đã có sẵn) */}
               {selectedMsg?.sender?._id === currentUserId && (
                 <TouchableOpacity style={styles.menuItem} onPress={handleRevoke}>
                   <Ionicons name="refresh-outline" size={20} color={COLORS.badge} />
@@ -1811,7 +2046,7 @@ const MessageScreen = () => {
                 </TouchableOpacity>
               )}
 
-              {/* NÚT: XÓA Ở PHÍA TÔI */}
+              {/* NÚT: XÓA Ở PHÍA TÔI (Đã có sẵn) */}
               <TouchableOpacity style={styles.menuItem} onPress={handleDeleteForMe}>
                 <Ionicons name="trash-outline" size={20} color={COLORS.text} />
                 <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
@@ -2576,6 +2811,94 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     callActionText: {
       fontSize: 15,
       fontWeight: '600'
+    },
+
+    pinnedBannerContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF', // Hoặc màu nền phù hợp với theme của bạn
+      paddingVertical: 10,
+      paddingHorizontal: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E2E8F0',
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      zIndex: 10,
+    },
+    pinnedIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#EEF2FF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    pinnedContent: {
+      flex: 1,
+    },
+    pinnedTitle: {
+      fontSize: 12,
+      color: '#6366F1',
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    pinnedText: {
+      fontSize: 14,
+      color: '#0F172A',
+    },
+    // CSS CHO MODAL DANH SÁCH GHIM
+    pinnedModalContainer: {
+      position: 'absolute',
+      bottom: 0,
+      width: '100%',
+      maxHeight: '60%',
+      backgroundColor: COLORS.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    },
+    pinnedModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    pinnedModalTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: COLORS.text,
+    },
+    pinnedItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    pinnedItemContent: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    pinnedItemText: {
+      fontSize: 14,
+      color: COLORS.text,
+      lineHeight: 20,
+    },
+    unpinBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      backgroundColor: isDarkMode ? '#332727' : '#FEF2F2', // Nền đỏ nhạt
+      borderRadius: 8,
+    },
+    unpinText: {
+      fontSize: 13,
+      color: COLORS.badge, // Chữ đỏ
+      fontWeight: '600',
     }
   })
 

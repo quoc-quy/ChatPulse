@@ -177,6 +177,17 @@ export const searchMessages = (
 export const suggestReplyApi = (messages: any[]) => {
   return api.post('/conversations/suggest-reply', { messages })
 }
+
+// Thêm vào cuối file mobile/src/apis/chat.api.ts
+
+/**
+ * Ghim hoặc bỏ ghim một tin nhắn
+ * POST /messages/:id/pin
+ */
+export const pinMessageApi = (messageId: string, action: 'pin' | 'unpin') => {
+  return api.post(`/messages/${messageId}/pin`, { action });
+};
+
 // ✅ Ghim / bỏ ghim hội thoại
 export const pinConversation = (conversationId: string, is_pin: boolean) =>
   api.patch(`/conversations/${conversationId}/pin`, { is_pin })
