@@ -129,7 +129,18 @@ class GroupService {
     const conversationObjectId = new ObjectId(conversationId)
     const memberObjectId = new ObjectId(memberId)
 
-    const result = await databaseService.conversations.findOneAndUpdate(
+    // Lấy thông tin nhóm để biết ai là Trưởng nhóm (người thực hiện kick)
+    const conversation = await databaseService.conversations.findOne({ _id: conversationObjectId })
+    if (!conversation) return null
+
+    // Lấy tên của Trưởng nhóm và tên của thành viên bị xóa
+    const adminUser = await databaseService.users.findOne({ _id: conversation.admin_id })
+    const kickedUser = await databaseService.users.findOne({ _id: memberObjectId })
+    const adminName = adminUser?.userName || 'Trưởng nhóm'
+    const kickedName = kickedUser?.userName || 'Một thành viên'
+
+    // Thực hiện xóa thành viên khỏi DB
+    const updatedConversation = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
       {
         $pull: {
@@ -137,12 +148,48 @@ class GroupService {
           members: { userId: memberObjectId }
         }
       },
-      {
-        returnDocument: 'after'
-      }
+      { returnDocument: 'after' }
     )
 
-    return result
+    // Tạo tin nhắn hệ thống báo xóa thành viên
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: conversation.admin_id,
+      type: 'system',
+      content: `${adminName} đã xóa ${kickedName} khỏi nhóm`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await databaseService.messages.insertOne(systemMessage as any)
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      { $set: { last_message_id: systemMessageId, updated_at: new Date() } }
+    )
+
+    // Gửi Socket cho các thành viên CÒN LẠI trong nhóm
+    const populatedMessage = {
+      ...systemMessage,
+      sender: {
+        _id: adminUser?._id?.toString(),
+        userName: adminName,
+        avatar: adminUser?.avatar
+      }
+    }
+
+    const remainingParticipants = (updatedConversation?.participants || []).map((p: any) => p.toString())
+    remainingParticipants.forEach((id: string) => {
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+    })
+
+    return updatedConversation
   }
 
   async promoteToAdmin(conversationId: string, targetMemberId: string) {
@@ -156,12 +203,20 @@ class GroupService {
 
     const oldAdminId = conversation.admin_id
 
-    const result = await databaseService.conversations.findOneAndUpdate(
+    // Lấy thông tin user cũ và mới để làm câu thông báo
+    const oldAdminUser = await databaseService.users.findOne({ _id: oldAdminId })
+    const newAdminUser = await databaseService.users.findOne({ _id: targetMemberObjectId })
+    const oldAdminName = oldAdminUser?.userName || 'Trưởng nhóm cũ'
+    const newAdminName = newAdminUser?.userName || 'Một thành viên'
+
+    // Đổi Admin
+    const updatedConversation = await databaseService.conversations.findOneAndUpdate(
       { _id: conversationObjectId },
-      { $set: { admin_id: targetMemberObjectId } },
+      { $set: { admin_id: targetMemberObjectId, updated_at: new Date() } },
       { returnDocument: 'after' }
     )
 
+    // Cập nhật Role
     if (oldAdminId) {
       try {
         await databaseService.conversations.updateOne(
@@ -170,7 +225,6 @@ class GroupService {
         )
       } catch {}
     }
-
     try {
       await databaseService.conversations.updateOne(
         { _id: conversationObjectId, 'members.userId': targetMemberObjectId },
@@ -178,7 +232,45 @@ class GroupService {
       )
     } catch {}
 
-    return result
+    // Tạo tin nhắn hệ thống
+    const systemMessageId = new ObjectId()
+    const systemMessage = {
+      _id: systemMessageId,
+      conversationId: conversationObjectId,
+      senderId: oldAdminId,
+      type: 'system',
+      content: `${oldAdminName} đã nhường quyền Trưởng nhóm cho ${newAdminName}`,
+      reactions: [],
+      deletedByUsers: [],
+      status: 'SENT',
+      deliveredTo: [],
+      seenBy: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await databaseService.messages.insertOne(systemMessage as any)
+    await databaseService.conversations.updateOne(
+      { _id: conversationObjectId },
+      { $set: { last_message_id: systemMessageId } }
+    )
+
+    // Phát Socket cho tất cả mọi người
+    const populatedMessage = {
+      ...systemMessage,
+      sender: {
+        _id: oldAdminUser?._id?.toString(),
+        userName: oldAdminName,
+        avatar: oldAdminUser?.avatar
+      }
+    }
+
+    const allParticipants = (updatedConversation?.participants || []).map((p: any) => p.toString())
+    allParticipants.forEach((id: string) => {
+      socketService.emitToUser(id, 'receive_message', populatedMessage)
+    })
+
+    return updatedConversation
   }
 
   async leaveGroup(conversationId: string, userId: string) {
