@@ -15,5 +15,6 @@ export interface User {
   fcm_token?: string
   isBlocked?: boolean
   isFriend?: boolean
+  hasPendingRequest?: boolean
   public_key?: string
 }
