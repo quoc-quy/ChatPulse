@@ -41,41 +41,6 @@ import {
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
-// ── Color Palettes (đồng nhất với ChatScreen) ────────────────────────────────
-const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  destructive: "hsl(0, 84%, 60%)",
-  border: "hsl(240, 15%, 85%)",
-  sectionBg: "hsl(240, 20%, 96%)",
-  success: "#34C759",
-  adminBadgeBg: "#EEF2FF",
-  adminBadgeText: "hsl(230, 85%, 60%)",
-  white: "#FFFFFF",
-};
-
-const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  destructive: "hsl(0, 62%, 55%)",
-  border: "hsl(240, 20%, 18%)",
-  sectionBg: "hsl(240, 25%, 5%)",
-  success: "#34C759",
-  adminBadgeBg: "hsl(230, 40%, 20%)",
-  adminBadgeText: "hsl(230, 85%, 65%)",
-  white: "#FFFFFF",
-};
-
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   name,
@@ -107,7 +72,7 @@ const MemberItem = ({
   member,
   isCurrentUser,
   currentUserIsAdmin,
-  COLORS,
+  colors,
   onKick,
   onPromote,
 }: any) => {
@@ -133,37 +98,29 @@ const MemberItem = ({
 
   return (
     <TouchableOpacity
-      style={[styles.memberItem, { borderBottomColor: COLORS.border }]}
+      style={[styles.memberItem, { borderBottomColor: colors.border }]}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
-      <Avatar name={name} size={44} bgColor={COLORS.secondary} />
+      <Avatar name={name} size={44} bgColor={colors.secondary} />
       <View style={styles.memberInfo}>
         <Text
-          style={[styles.memberName, { color: COLORS.foreground }]}
+          style={[styles.memberName, { color: colors.foreground }]}
           numberOfLines={1}
         >
           {name}
           {isCurrentUser ? " (Bạn)" : ""}
         </Text>
         {member.phone && (
-          <Text style={[styles.memberSub, { color: COLORS.mutedForeground }]}>
+          <Text style={[styles.memberSub, { color: colors.mutedForeground }]}>
             {member.phone}
           </Text>
         )}
       </View>
       {role === "admin" && (
-        <View
-          style={[styles.adminBadge, { backgroundColor: COLORS.adminBadgeBg }]}
-        >
-          <Ionicons
-            name="shield-checkmark"
-            size={11}
-            color={COLORS.adminBadgeText}
-          />
-          <Text
-            style={[styles.adminBadgeText, { color: COLORS.adminBadgeText }]}
-          >
+        <View style={[styles.adminBadge, { backgroundColor: colors.accent }]}>
+          <Ionicons name="shield-checkmark" size={11} color={colors.primary} />
+          <Text style={[styles.adminBadgeText, { color: colors.primary }]}>
             Admin
           </Text>
         </View>
@@ -180,7 +137,7 @@ const MenuRow = ({
   onPress,
   danger = false,
   rightElement,
-  COLORS,
+  colors,
 }: {
   iconName: string;
   iconLib?: "ionicons" | "feather";
@@ -188,14 +145,14 @@ const MenuRow = ({
   onPress?: () => void;
   danger?: boolean;
   rightElement?: React.ReactNode;
-  COLORS: any;
+  colors: any;
 }) => {
-  const iconColor = danger ? COLORS.destructive : COLORS.mutedForeground;
+  const iconColor = danger ? colors.destructive : colors.mutedForeground;
   const IconComponent = iconLib === "feather" ? Feather : Ionicons;
 
   return (
     <TouchableOpacity
-      style={[styles.menuRow, { borderTopColor: COLORS.border }]}
+      style={[styles.menuRow, { borderTopColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -204,7 +161,7 @@ const MenuRow = ({
         <Text
           style={[
             styles.menuRowLabel,
-            { color: danger ? COLORS.destructive : COLORS.foreground },
+            { color: danger ? colors.destructive : colors.foreground },
           ]}
         >
           {label}
@@ -216,7 +173,7 @@ const MenuRow = ({
         <Feather
           name="chevron-right"
           size={20}
-          color={COLORS.mutedForeground}
+          color={colors.mutedForeground}
         />
       )}
     </TouchableOpacity>
@@ -229,11 +186,7 @@ export default function ConversationDetailScreen() {
   const route = useRoute<any>();
   const { id: conversationId, name: routeName, isGroup } = route.params || {};
 
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
 
   const [conversation, setConversation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -246,16 +199,13 @@ export default function ConversationDetailScreen() {
   const [leavingAfterTransfer, setLeavingAfterTransfer] = useState(false);
   const [showGroupQRModal, setShowGroupQRModal] = useState(false);
 
-  // ── Đổi tên nhóm ──
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameText, setRenameText] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
 
-  // ── Avatar nhóm ──
   const [groupAvatar, setGroupAvatar] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
-  // ── Media & Links ──
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [showLinksModal, setShowLinksModal] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<any[]>([]);
@@ -299,29 +249,23 @@ export default function ConversationDetailScreen() {
     fetchDetail();
   }, [fetchDetail]);
 
-  // Sync trạng thái mute
   useEffect(() => {
     if (!conversation || !currentUserId) return;
     const myMeta = (conversation.members || []).find(
       (m: any) => m.userId?.toString() === currentUserId,
     );
-    if (myMeta?.hasMuted !== undefined) {
-      setMuteEnabled(myMeta.hasMuted);
-    }
+    if (myMeta?.hasMuted !== undefined) setMuteEnabled(myMeta.hasMuted);
   }, [conversation, currentUserId]);
 
-  // Sync avatar từ conversation
   useEffect(() => {
-    if (conversation?.avatarUrl) {
-      setGroupAvatar(conversation.avatarUrl);
-    }
+    if (conversation?.avatarUrl) setGroupAvatar(conversation.avatarUrl);
   }, [conversation]);
 
-  // Derived
   const isGroupChat = conversation?.type === "group" || isGroup;
   const chatName = isGroupChat
     ? conversation?.name || routeName || "Nhóm"
     : routeName || "Người dùng";
+
   const members: any[] = useMemo(() => {
     const infos: any[] = conversation?.participants_info || [];
     const membersMeta: any[] = conversation?.members || [];
@@ -338,11 +282,11 @@ export default function ConversationDetailScreen() {
       };
     });
   }, [conversation]);
+
   const adminId = conversation?.admin_id?.toString?.() || "";
   const currentUserIsAdmin = adminId === currentUserId;
 
   // ── Actions ──────────────────────────────────────────────────────────────
-
   const doLeaveGroup = useCallback(async () => {
     try {
       await leaveGroup(conversationId);
@@ -373,15 +317,10 @@ export default function ConversationDetailScreen() {
   );
 
   const handleLeaveGroup = async () => {
-    // 1. KIỂM TRA: Nếu là Admin và nhóm vẫn còn thành viên khác
-    // Yêu cầu chọn trưởng nhóm mới thông qua Modal
     if (currentUserIsAdmin && members.length > 1) {
       setShowTransferModal(true);
       return;
     }
-
-    // 2. LOGIC BÌNH THƯỜNG: Dành cho thành viên thường,
-    // hoặc Admin khi nhóm chỉ còn đúng 1 mình (nhóm 1 người)
     Alert.alert("Rời nhóm", "Bạn có chắc muốn rời khỏi nhóm này?", [
       { text: "Hủy", style: "cancel" },
       {
@@ -390,10 +329,7 @@ export default function ConversationDetailScreen() {
         onPress: async () => {
           try {
             const res = await leaveGroup(conversationId);
-
-            // KIỂM TRA PHẢN HỒI TỪ BACKEND
             if (res.data?.result?.isDisbanded) {
-              // Nếu là người cuối cùng và nhóm giải tán -> Quay về MessageScreen để xem lịch sử
               navigation.navigate("MessageScreen", {
                 id: conversationId,
                 name: chatName,
@@ -401,16 +337,16 @@ export default function ConversationDetailScreen() {
                 isGroupDisbanded: true,
               });
             } else {
-              // Nếu nhóm vẫn còn người -> Quay về danh sách chat chính
               navigation.popToTop();
             }
-          } catch (error) {
+          } catch {
             Alert.alert("Lỗi", "Không thể rời nhóm.");
           }
         },
       },
     ]);
   };
+
   const handleDisbandGroup = () => {
     Alert.alert(
       "Giải tán nhóm",
@@ -469,7 +405,6 @@ export default function ConversationDetailScreen() {
     ]);
   };
 
-  // ── Tắt/bật thông báo ────────────────────────────────────────────────────
   const handleToggleMute = async (value: boolean) => {
     setMuteEnabled(value);
     setMuteSaving(true);
@@ -483,7 +418,6 @@ export default function ConversationDetailScreen() {
     }
   };
 
-  // ── Đổi tên nhóm ────────────────────────────────────────────────────────
   const openRenameModal = () => {
     setRenameText(conversation?.name || "");
     setShowRenameModal(true);
@@ -524,31 +458,26 @@ export default function ConversationDetailScreen() {
       aspect: [1, 1],
       quality: 0.8,
     });
-
     if (result.canceled) return;
 
     setAvatarUploading(true);
     try {
-      // Upload file lên S3 và update avatar nhóm trong 1 request
       const res = await uploadGroupAvatarApi(
         conversationId,
         result.assets[0].uri,
       );
-      //const newAvatarUrl = res.data?.result?.avatarUrl;
       const newAvatarUrl = res.data?.result?.avatarUrl;
-
-      // Thêm dòng này để xem response trả về gì
       console.log("Avatar upload response:", JSON.stringify(res.data));
       setGroupAvatar(newAvatarUrl);
       await fetchDetail();
       Alert.alert("Thành công", "Đã cập nhật ảnh nhóm");
     } catch {
-      Alert.alert("Lỗi", "Không thể cập nhật ảnh nhóm");
+      Alert.alert("Lỗi", "Không thể cập nhật ảnh nhóm.");
     } finally {
       setAvatarUploading(false);
     }
   };
-  // ── Ảnh/Video/File ───────────────────────────────────────────────────────
+
   const openMediaModal = async () => {
     setShowMediaModal(true);
     if (mediaFiles.length > 0) return;
@@ -563,7 +492,6 @@ export default function ConversationDetailScreen() {
     }
   };
 
-  // ── Link đã chia sẻ ──────────────────────────────────────────────────────
   const openLinksModal = async () => {
     setShowLinksModal(true);
     if (sharedLinks.length > 0) return;
@@ -586,29 +514,26 @@ export default function ConversationDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: COLORS.background }]}
+        style={[styles.container, { backgroundColor: colors.background }]}
       >
         <View
           style={[
             styles.headerBar,
-            {
-              backgroundColor: COLORS.card,
-              borderBottomColor: COLORS.border,
-            },
+            { backgroundColor: colors.card, borderBottomColor: colors.border },
           ]}
         >
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backBtn}
           >
-            <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+            <Feather name="arrow-left" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             Tùy chọn
           </Text>
           <View style={{ width: 32 }} />
         </View>
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       </SafeAreaView>
     );
   }
@@ -616,22 +541,22 @@ export default function ConversationDetailScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View
         style={[
           styles.headerBar,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Tùy chọn
         </Text>
         <View style={{ width: 32 }} />
@@ -644,8 +569,8 @@ export default function ConversationDetailScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
       >
@@ -653,13 +578,9 @@ export default function ConversationDetailScreen() {
         <View
           style={[
             styles.heroSection,
-            {
-              backgroundColor: COLORS.card,
-              borderBottomColor: COLORS.border,
-            },
+            { backgroundColor: colors.card, borderBottomColor: colors.border },
           ]}
         >
-          {/* Avatar — tất cả thành viên trong nhóm đều có thể nhấn để đổi ảnh */}
           <TouchableOpacity
             onPress={isGroupChat ? handleChangeAvatar : undefined}
             activeOpacity={isGroupChat ? 0.8 : 1}
@@ -675,11 +596,9 @@ export default function ConversationDetailScreen() {
                 <Avatar
                   name={chatName}
                   size={80}
-                  bgColor={isGroupChat ? COLORS.secondary : COLORS.primary}
+                  bgColor={isGroupChat ? colors.secondary : colors.primary}
                 />
               )}
-
-              {/* Icon camera overlay — hiện với tất cả thành viên nhóm */}
               {isGroupChat && (
                 <View
                   style={{
@@ -687,15 +606,15 @@ export default function ConversationDetailScreen() {
                     bottom: 0,
                     right: 0,
                     backgroundColor: avatarUploading
-                      ? COLORS.mutedForeground
-                      : COLORS.primary,
+                      ? colors.mutedForeground
+                      : colors.primary,
                     borderRadius: 12,
                     width: 24,
                     height: 24,
                     justifyContent: "center",
                     alignItems: "center",
                     borderWidth: 2,
-                    borderColor: COLORS.card,
+                    borderColor: colors.card,
                   }}
                 >
                   {avatarUploading ? (
@@ -707,12 +626,11 @@ export default function ConversationDetailScreen() {
               )}
             </View>
           </TouchableOpacity>
-
-          <Text style={[styles.heroName, { color: COLORS.foreground }]}>
+          <Text style={[styles.heroName, { color: colors.foreground }]}>
             {chatName}
           </Text>
           {isGroupChat && (
-            <Text style={[styles.heroSub, { color: COLORS.mutedForeground }]}>
+            <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
               {members.length} thành viên
             </Text>
           )}
@@ -722,10 +640,7 @@ export default function ConversationDetailScreen() {
         <View
           style={[
             styles.quickActions,
-            {
-              backgroundColor: COLORS.card,
-              borderBottomColor: COLORS.border,
-            },
+            { backgroundColor: colors.card, borderBottomColor: colors.border },
           ]}
         >
           <TouchableOpacity
@@ -738,15 +653,15 @@ export default function ConversationDetailScreen() {
               })
             }
           >
-            <View style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}>
+            <View style={[styles.quickIcon, { backgroundColor: colors.muted }]}>
               <Ionicons
                 name="search-outline"
                 size={20}
-                color={COLORS.foreground}
+                color={colors.foreground}
               />
             </View>
             <Text
-              style={[styles.quickLabel, { color: COLORS.mutedForeground }]}
+              style={[styles.quickLabel, { color: colors.mutedForeground }]}
             >
               Tìm tin{"\n"}nhắn
             </Text>
@@ -756,7 +671,7 @@ export default function ConversationDetailScreen() {
             style={styles.quickBtn}
             onPress={() => handleToggleMute(!muteEnabled)}
           >
-            <View style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}>
+            <View style={[styles.quickIcon, { backgroundColor: colors.muted }]}>
               <Ionicons
                 name={
                   muteEnabled
@@ -764,11 +679,11 @@ export default function ConversationDetailScreen() {
                     : "notifications-outline"
                 }
                 size={20}
-                color={COLORS.foreground}
+                color={colors.foreground}
               />
             </View>
             <Text
-              style={[styles.quickLabel, { color: COLORS.mutedForeground }]}
+              style={[styles.quickLabel, { color: colors.mutedForeground }]}
             >
               {muteEnabled ? "Đã tắt" : "Tắt TB"}
             </Text>
@@ -787,16 +702,16 @@ export default function ConversationDetailScreen() {
               }
             >
               <View
-                style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}
+                style={[styles.quickIcon, { backgroundColor: colors.muted }]}
               >
                 <Ionicons
                   name="person-add-outline"
                   size={20}
-                  color={COLORS.foreground}
+                  color={colors.foreground}
                 />
               </View>
               <Text
-                style={[styles.quickLabel, { color: COLORS.mutedForeground }]}
+                style={[styles.quickLabel, { color: colors.mutedForeground }]}
               >
                 Thêm{"\n"}người
               </Text>
@@ -828,16 +743,16 @@ export default function ConversationDetailScreen() {
               }}
             >
               <View
-                style={[styles.quickIcon, { backgroundColor: COLORS.muted }]}
+                style={[styles.quickIcon, { backgroundColor: colors.muted }]}
               >
                 <Ionicons
                   name="person-outline"
                   size={20}
-                  color={COLORS.foreground}
+                  color={colors.foreground}
                 />
               </View>
               <Text
-                style={[styles.quickLabel, { color: COLORS.mutedForeground }]}
+                style={[styles.quickLabel, { color: colors.mutedForeground }]}
               >
                 Trang{"\n"}cá nhân
               </Text>
@@ -845,16 +760,18 @@ export default function ConversationDetailScreen() {
           )}
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: colors.background }]}
+        />
 
         {/* ── Thành viên (chỉ group) ── */}
         {isGroupChat && (
           <>
-            <View style={[styles.section, { backgroundColor: COLORS.card }]}>
+            <View style={[styles.section, { backgroundColor: colors.card }]}>
               <TouchableOpacity
                 style={[
                   styles.sectionHeaderRow,
-                  { borderBottomColor: COLORS.border },
+                  { borderBottomColor: colors.border },
                 ]}
                 onPress={() =>
                   navigation.navigate("MembersScreen", {
@@ -869,10 +786,10 @@ export default function ConversationDetailScreen() {
                   <Ionicons
                     name="people-outline"
                     size={22}
-                    color={COLORS.mutedForeground}
+                    color={colors.mutedForeground}
                   />
                   <Text
-                    style={[styles.menuRowLabel, { color: COLORS.foreground }]}
+                    style={[styles.menuRowLabel, { color: colors.foreground }]}
                   >
                     Xem thành viên ({members.length})
                   </Text>
@@ -880,13 +797,13 @@ export default function ConversationDetailScreen() {
                 <Feather
                   name="chevron-right"
                   size={20}
-                  color={COLORS.mutedForeground}
+                  color={colors.mutedForeground}
                 />
               </TouchableOpacity>
 
               {members.length > 3 && (
                 <TouchableOpacity
-                  style={[styles.viewAllBtn, { borderTopColor: COLORS.border }]}
+                  style={[styles.viewAllBtn, { borderTopColor: colors.border }]}
                   onPress={() =>
                     navigation.navigate("MembersScreen", {
                       conversationId,
@@ -895,99 +812,88 @@ export default function ConversationDetailScreen() {
                       currentUserId,
                     })
                   }
-                ></TouchableOpacity>
+                />
               )}
             </View>
 
             <View
-              style={[styles.divider, { backgroundColor: COLORS.sectionBg }]}
+              style={[styles.divider, { backgroundColor: colors.background }]}
             />
 
-            <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-              {/* <MenuRow
-                iconName="person-add-outline"
-                label="Thêm thành viên"
-                COLORS={COLORS}
-                onPress={() =>
-                  navigation.navigate("AddMemberScreen", {
-                    conversationId,
-                    existingMemberIds: members.map((m: any) =>
-                      (m._id || m.userId || "").toString(),
-                    ),
-                  })
-                }
-              /> */}
+            <View style={[styles.section, { backgroundColor: colors.card }]}>
               <MenuRow
                 iconName="pencil-outline"
                 label="Đổi tên nhóm"
-                COLORS={COLORS}
+                colors={colors}
                 onPress={openRenameModal}
               />
             </View>
 
             <View
-              style={[styles.divider, { backgroundColor: COLORS.sectionBg }]}
+              style={[styles.divider, { backgroundColor: colors.background }]}
             />
           </>
         )}
 
         {/* ── Media & Files ── */}
-        <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-          {/* ✅ Thêm điều kiện isGroupChat ở đây */}
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
           {isGroupChat && (
             <MenuRow
               iconName="qr-code-outline"
               label="Mã QR nhóm"
-              COLORS={COLORS}
+              colors={colors}
               onPress={() => setShowGroupQRModal(true)}
             />
           )}
-
           <MenuRow
             iconName="image-outline"
             label="Ảnh, video, file đã gửi"
-            COLORS={COLORS}
+            colors={colors}
             onPress={openMediaModal}
           />
           <MenuRow
             iconName="link-outline"
             label="Link đã chia sẻ"
-            COLORS={COLORS}
+            colors={colors}
             onPress={openLinksModal}
           />
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: colors.background }]}
+        />
 
         {/* ── Thông báo ── */}
-        <View style={[styles.section, { backgroundColor: COLORS.card }]}>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
           <MenuRow
             iconName="notifications-outline"
             label="Tắt thông báo"
-            COLORS={COLORS}
+            colors={colors}
             rightElement={
               <Switch
                 value={muteEnabled}
                 onValueChange={handleToggleMute}
                 disabled={muteSaving}
-                trackColor={{ false: COLORS.muted, true: COLORS.primary }}
-                thumbColor={COLORS.white}
+                trackColor={{ false: colors.muted, true: colors.primary }}
+                thumbColor={colors.primaryForeground}
               />
             }
           />
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: colors.background }]}
+        />
 
         {/* ── Nguy hiểm ── */}
-        <View style={[styles.section, { backgroundColor: COLORS.card }]}>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
           {isGroupChat ? (
             <>
               <MenuRow
                 iconName="log-out-outline"
                 label="Rời nhóm"
                 danger
-                COLORS={COLORS}
+                colors={colors}
                 onPress={handleLeaveGroup}
                 rightElement={null}
               />
@@ -996,7 +902,7 @@ export default function ConversationDetailScreen() {
                   iconName="trash-outline"
                   label="Giải tán nhóm"
                   danger
-                  COLORS={COLORS}
+                  colors={colors}
                   onPress={handleDisbandGroup}
                   rightElement={null}
                 />
@@ -1007,7 +913,7 @@ export default function ConversationDetailScreen() {
               iconName="ban-outline"
               label="Chặn người dùng"
               danger
-              COLORS={COLORS}
+              colors={colors}
               onPress={() => {
                 const otherUser = members.find(
                   (m: any) =>
@@ -1070,34 +976,34 @@ export default function ConversationDetailScreen() {
         onRequestClose={() => !renameLoading && setShowRenameModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: COLORS.card }]}>
-            <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
               Đổi tên nhóm
             </Text>
             <TextInput
               style={[
                 styles.renameInput,
                 {
-                  color: COLORS.foreground,
-                  backgroundColor: COLORS.background,
-                  borderColor: COLORS.border,
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
                 },
               ]}
               value={renameText}
               onChangeText={setRenameText}
               placeholder="Nhập tên nhóm mới..."
-              placeholderTextColor={COLORS.mutedForeground}
+              placeholderTextColor={colors.mutedForeground}
               maxLength={50}
               autoFocus
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalBtn, { borderColor: COLORS.border }]}
+                style={[styles.modalBtn, { borderColor: colors.border }]}
                 onPress={() => setShowRenameModal(false)}
                 disabled={renameLoading}
               >
                 <Text
-                  style={{ color: COLORS.mutedForeground, fontWeight: "500" }}
+                  style={{ color: colors.mutedForeground, fontWeight: "500" }}
                 >
                   Hủy
                 </Text>
@@ -1106,15 +1012,25 @@ export default function ConversationDetailScreen() {
                 style={[
                   styles.modalBtn,
                   styles.modalBtnPrimary,
-                  { backgroundColor: COLORS.primary },
+                  { backgroundColor: colors.primary },
                 ]}
                 onPress={handleRenameGroup}
                 disabled={renameLoading}
               >
                 {renameLoading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.primaryForeground}
+                  />
                 ) : (
-                  <Text style={{ color: "#FFF", fontWeight: "600" }}>Lưu</Text>
+                  <Text
+                    style={{
+                      color: colors.primaryForeground,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Lưu
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1130,22 +1046,21 @@ export default function ConversationDetailScreen() {
         onRequestClose={() => setShowMediaModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View
-              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+              style={[styles.modalHeader, { borderBottomColor: colors.border }]}
             >
               <TouchableOpacity onPress={() => setShowMediaModal(false)}>
-                <Feather name="x" size={22} color={COLORS.foreground} />
+                <Feather name="x" size={22} color={colors.foreground} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
                 Ảnh, video, file đã gửi
               </Text>
               <View style={{ width: 22 }} />
             </View>
-
             {mediaLoading ? (
               <ActivityIndicator
-                color={COLORS.primary}
+                color={colors.primary}
                 size="large"
                 style={{ marginTop: 40 }}
               />
@@ -1159,12 +1074,12 @@ export default function ConversationDetailScreen() {
                     <Ionicons
                       name="image-outline"
                       size={48}
-                      color={COLORS.border}
+                      color={colors.border}
                     />
                     <Text
                       style={[
                         styles.emptyText,
-                        { color: COLORS.mutedForeground },
+                        { color: colors.mutedForeground },
                       ]}
                     >
                       Chưa có ảnh, video hoặc file nào
@@ -1182,7 +1097,7 @@ export default function ConversationDetailScreen() {
                     <TouchableOpacity
                       style={[
                         styles.mediaItem,
-                        { borderBottomColor: COLORS.border },
+                        { borderBottomColor: colors.border },
                       ]}
                       onPress={() =>
                         item.fileUrl && Linking.openURL(item.fileUrl)
@@ -1192,20 +1107,20 @@ export default function ConversationDetailScreen() {
                       <View
                         style={[
                           styles.mediaIcon,
-                          { backgroundColor: COLORS.muted },
+                          { backgroundColor: colors.muted },
                         ]}
                       >
                         <Ionicons
                           name={typeIcon as any}
                           size={22}
-                          color={COLORS.primary}
+                          color={colors.primary}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text
                           style={[
                             styles.mediaName,
-                            { color: COLORS.foreground },
+                            { color: colors.foreground },
                           ]}
                           numberOfLines={1}
                         >
@@ -1214,7 +1129,7 @@ export default function ConversationDetailScreen() {
                         <Text
                           style={[
                             styles.mediaSub,
-                            { color: COLORS.mutedForeground },
+                            { color: colors.mutedForeground },
                           ]}
                         >
                           {item.sender?.userName || "Thành viên"} ·{" "}
@@ -1228,7 +1143,7 @@ export default function ConversationDetailScreen() {
                       <Feather
                         name="download"
                         size={18}
-                        color={COLORS.mutedForeground}
+                        color={colors.mutedForeground}
                       />
                     </TouchableOpacity>
                   );
@@ -1247,22 +1162,21 @@ export default function ConversationDetailScreen() {
         onRequestClose={() => setShowLinksModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View
-              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+              style={[styles.modalHeader, { borderBottomColor: colors.border }]}
             >
               <TouchableOpacity onPress={() => setShowLinksModal(false)}>
-                <Feather name="x" size={22} color={COLORS.foreground} />
+                <Feather name="x" size={22} color={colors.foreground} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
                 Link đã chia sẻ
               </Text>
               <View style={{ width: 22 }} />
             </View>
-
             {linksLoading ? (
               <ActivityIndicator
-                color={COLORS.primary}
+                color={colors.primary}
                 size="large"
                 style={{ marginTop: 40 }}
               />
@@ -1276,12 +1190,12 @@ export default function ConversationDetailScreen() {
                     <Ionicons
                       name="link-outline"
                       size={48}
-                      color={COLORS.border}
+                      color={colors.border}
                     />
                     <Text
                       style={[
                         styles.emptyText,
-                        { color: COLORS.mutedForeground },
+                        { color: colors.mutedForeground },
                       ]}
                     >
                       Chưa có link nào được chia sẻ
@@ -1294,7 +1208,7 @@ export default function ConversationDetailScreen() {
                     <TouchableOpacity
                       style={[
                         styles.linkItem,
-                        { borderBottomColor: COLORS.border },
+                        { borderBottomColor: colors.border },
                       ]}
                       onPress={() => url && Linking.openURL(url)}
                       activeOpacity={0.7}
@@ -1302,18 +1216,18 @@ export default function ConversationDetailScreen() {
                       <View
                         style={[
                           styles.mediaIcon,
-                          { backgroundColor: COLORS.muted },
+                          { backgroundColor: colors.muted },
                         ]}
                       >
                         <Ionicons
                           name="link-outline"
                           size={20}
-                          color={COLORS.primary}
+                          color={colors.primary}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text
-                          style={[styles.linkUrl, { color: COLORS.primary }]}
+                          style={[styles.linkUrl, { color: colors.primary }]}
                           numberOfLines={1}
                         >
                           {url}
@@ -1321,7 +1235,7 @@ export default function ConversationDetailScreen() {
                         <Text
                           style={[
                             styles.mediaSub,
-                            { color: COLORS.mutedForeground },
+                            { color: colors.mutedForeground },
                           ]}
                         >
                           {item.sender?.userName || "Thành viên"} ·{" "}
@@ -1335,7 +1249,7 @@ export default function ConversationDetailScreen() {
                       <Feather
                         name="external-link"
                         size={16}
-                        color={COLORS.mutedForeground}
+                        color={colors.mutedForeground}
                       />
                     </TouchableOpacity>
                   );
@@ -1354,9 +1268,9 @@ export default function ConversationDetailScreen() {
         onRequestClose={() => !transferring && setShowTransferModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: COLORS.card }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <View
-              style={[styles.modalHeader, { borderBottomColor: COLORS.border }]}
+              style={[styles.modalHeader, { borderBottomColor: colors.border }]}
             >
               <TouchableOpacity
                 onPress={() => !transferring && setShowTransferModal(false)}
@@ -1365,22 +1279,20 @@ export default function ConversationDetailScreen() {
                 <Feather
                   name="x"
                   size={22}
-                  color={transferring ? COLORS.muted : COLORS.foreground}
+                  color={transferring ? colors.muted : colors.foreground}
                 />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: COLORS.foreground }]}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
                 Chọn nhóm trưởng mới
               </Text>
               <View style={{ width: 22 }} />
             </View>
-
             <Text
-              style={[styles.modalSubtitle, { color: COLORS.mutedForeground }]}
+              style={[styles.modalSubtitle, { color: colors.mutedForeground }]}
             >
               Chọn 1 thành viên để chuyển quyền. Bạn sẽ tự động rời nhóm sau khi
               xác nhận.
             </Text>
-
             <FlatList
               data={members.filter(
                 (m: any) =>
@@ -1401,7 +1313,7 @@ export default function ConversationDetailScreen() {
                   <TouchableOpacity
                     style={[
                       styles.mediaItem,
-                      { borderBottomColor: COLORS.border },
+                      { borderBottomColor: colors.border },
                     ]}
                     onPress={() => {
                       if (transferring) return;
@@ -1423,7 +1335,7 @@ export default function ConversationDetailScreen() {
                     <View
                       style={[
                         styles.mediaIcon,
-                        { backgroundColor: COLORS.secondary },
+                        { backgroundColor: colors.secondary },
                       ]}
                     >
                       <Text style={{ color: "#FFF", fontWeight: "bold" }}>
@@ -1431,7 +1343,7 @@ export default function ConversationDetailScreen() {
                       </Text>
                     </View>
                     <Text
-                      style={[styles.mediaName, { color: COLORS.foreground }]}
+                      style={[styles.mediaName, { color: colors.foreground }]}
                       numberOfLines={1}
                     >
                       {mName}
@@ -1439,25 +1351,24 @@ export default function ConversationDetailScreen() {
                     <Feather
                       name="chevron-right"
                       size={18}
-                      color={COLORS.mutedForeground}
+                      color={colors.mutedForeground}
                     />
                   </TouchableOpacity>
                 );
               }}
             />
-
             {(transferring || leavingAfterTransfer) && (
               <View
                 style={[
                   styles.loadingOverlay,
-                  { backgroundColor: COLORS.card + "CC" },
+                  { backgroundColor: colors.card + "CC" },
                 ]}
               >
-                <ActivityIndicator size="large" color={COLORS.primary} />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text
                   style={[
                     styles.mediaSub,
-                    { color: COLORS.foreground, marginTop: 8 },
+                    { color: colors.foreground, marginTop: 8 },
                   ]}
                 >
                   {leavingAfterTransfer
@@ -1485,7 +1396,7 @@ export default function ConversationDetailScreen() {
             style={[
               styles.modalBox,
               {
-                backgroundColor: COLORS.card,
+                backgroundColor: colors.card,
                 alignItems: "center",
                 position: "relative",
               },
@@ -1501,18 +1412,16 @@ export default function ConversationDetailScreen() {
               }}
               onPress={() => setShowGroupQRModal(false)}
             >
-              <Ionicons name="close" size={24} color={COLORS.mutedForeground} />
+              <Ionicons name="close" size={24} color={colors.mutedForeground} />
             </TouchableOpacity>
-
             <Text
               style={[
                 styles.modalTitle,
-                { color: COLORS.foreground, marginBottom: 20, marginTop: 10 },
+                { color: colors.foreground, marginBottom: 20, marginTop: 10 },
               ]}
             >
               Mã QR của nhóm
             </Text>
-
             <View
               style={{ padding: 20, backgroundColor: "#FFF", borderRadius: 20 }}
             >
@@ -1525,31 +1434,27 @@ export default function ConversationDetailScreen() {
                 logoBackgroundColor="transparent"
               />
             </View>
-
             <Text
-              style={[
-                {
-                  color: COLORS.mutedForeground,
-                  textAlign: "center",
-                  marginTop: 20,
-                  marginBottom: 20,
-                  paddingHorizontal: 10,
-                },
-              ]}
+              style={{
+                color: colors.mutedForeground,
+                textAlign: "center",
+                marginTop: 20,
+                marginBottom: 20,
+                paddingHorizontal: 10,
+              }}
             >
               Bạn bè có thể dùng tính năng quét QR trên màn hình chính để quét
               mã này và tham gia nhóm.
             </Text>
-
             <TouchableOpacity
               style={[
                 styles.modalBtn,
-                { borderColor: COLORS.border, width: "100%" },
+                { borderColor: colors.border, width: "100%" },
               ]}
               onPress={() => setShowGroupQRModal(false)}
             >
               <Text
-                style={{ color: COLORS.mutedForeground, fontWeight: "600" }}
+                style={{ color: colors.mutedForeground, fontWeight: "600" }}
               >
                 Đóng
               </Text>
@@ -1690,10 +1595,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     lineHeight: 18,
   },
-  modalActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  modalActions: { flexDirection: "row", gap: 10 },
   modalBtn: {
     flex: 1,
     height: 42,

@@ -14,42 +14,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { api } from "../apis/api";
 import { addMembers } from "../apis/chat.api";
-import { useTheme } from "../contexts/ThemeContext"; // Import ThemeContext để đồng bộ app
-
-// ── Colors ────────────────────────────────────────────────────────────────────
-const lightColors = {
-  primary: "#4F46E5",
-  secondary: "#A855F7",
-  background: "#F8FAFC",
-  foreground: "#1E293B",
-  muted: "#94A3B8",
-  mutedDark: "#64748B",
-  white: "#FFFFFF",
-  border: "#E2E8F0",
-  success: "#22C55E",
-  danger: "#EF4444",
-  card: "#FFFFFF",
-  searchBg: "#F1F5F9",
-  searchFocusedBg: "#EEF2FF",
-  sectionHeaderBg: "#F8FAFC",
-};
-
-const darkColors = {
-  primary: "#818CF8",
-  secondary: "#C084FC",
-  background: "#070B1A",
-  foreground: "#F8FAFC",
-  muted: "#64748B",
-  mutedDark: "#94A3B8",
-  white: "#11182D", // Màu tối dùng để làm nổi bật text/icon trên nền màu sáng (primary) ở dark mode
-  border: "#1E2946",
-  success: "#4ADE80",
-  danger: "#F87171",
-  card: "#11182D",
-  searchBg: "#1E2946",
-  searchFocusedBg: "#1E2040",
-  sectionHeaderBg: "#0D1428",
-};
+import { useTheme } from "../contexts/ThemeContext";
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -83,12 +48,7 @@ export default function AddMemberScreen() {
   const route = useRoute<any>();
   const { conversationId, existingMemberIds = [] } = route.params || {};
 
-  // Sử dụng useTheme thay vì useColorScheme để đồng bộ với setting của App
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
 
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +56,6 @@ export default function AddMemberScreen() {
   const [searchText, setSearchText] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Fetch danh sách bạn bè + lọc người đã trong nhóm
   useEffect(() => {
     const fetchFriends = async () => {
       try {
@@ -121,7 +80,6 @@ export default function AddMemberScreen() {
     fetchFriends();
   }, [conversationId]);
 
-  // Filter theo search
   const filtered = useMemo(() => {
     if (!searchText.trim()) return friends;
     const q = searchText.toLowerCase();
@@ -132,7 +90,6 @@ export default function AddMemberScreen() {
     });
   }, [friends, searchText]);
 
-  // Toggle chọn
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -141,7 +98,6 @@ export default function AddMemberScreen() {
     });
   };
 
-  // Thêm thành viên
   const handleAdd = async () => {
     if (selectedIds.size === 0) return;
     setAdding(true);
@@ -171,8 +127,8 @@ export default function AddMemberScreen() {
         style={[
           styles.item,
           {
-            borderBottomColor: COLORS.border,
-            backgroundColor: isSelected ? COLORS.searchFocusedBg : COLORS.card,
+            borderBottomColor: colors.border,
+            backgroundColor: isSelected ? colors.accent : colors.card,
           },
         ]}
         onPress={() => toggleSelect(id)}
@@ -181,19 +137,19 @@ export default function AddMemberScreen() {
         <Avatar
           name={name}
           size={48}
-          bgColor={isSelected ? COLORS.primary : COLORS.secondary}
+          bgColor={isSelected ? colors.primary : colors.secondary}
         />
 
         <View style={styles.info}>
           <Text
-            style={[styles.name, { color: COLORS.foreground }]}
+            style={[styles.name, { color: colors.foreground }]}
             numberOfLines={1}
           >
             {name}
           </Text>
           {sub ? (
             <Text
-              style={[styles.sub, { color: COLORS.mutedDark }]}
+              style={[styles.sub, { color: colors.mutedForeground }]}
               numberOfLines={1}
             >
               {sub}
@@ -206,13 +162,17 @@ export default function AddMemberScreen() {
           style={[
             styles.checkbox,
             {
-              borderColor: isSelected ? COLORS.primary : COLORS.border,
-              backgroundColor: isSelected ? COLORS.primary : "transparent",
+              borderColor: isSelected ? colors.primary : colors.border,
+              backgroundColor: isSelected ? colors.primary : "transparent",
             },
           ]}
         >
           {isSelected && (
-            <Ionicons name="checkmark" size={14} color={COLORS.white} />
+            <Ionicons
+              name="checkmark"
+              size={14}
+              color={colors.primaryForeground}
+            />
           )}
         </View>
       </TouchableOpacity>
@@ -222,53 +182,55 @@ export default function AddMemberScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             Thêm thành viên
           </Text>
           {selectedIds.size > 0 && (
-            <Text style={[styles.headerSub, { color: COLORS.mutedDark }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
               Đã chọn {selectedIds.size}
             </Text>
           )}
         </View>
 
-        {/* Nút xác nhận */}
         <TouchableOpacity
           style={[
             styles.confirmBtn,
             {
               backgroundColor:
-                selectedIds.size > 0 ? COLORS.primary : COLORS.muted,
+                selectedIds.size > 0 ? colors.primary : colors.muted,
             },
           ]}
           onPress={handleAdd}
           disabled={selectedIds.size === 0 || adding}
         >
           {adding ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
+            <ActivityIndicator size="small" color={colors.primaryForeground} />
           ) : (
             <Text
               style={[
                 styles.confirmText,
                 {
-                  color: selectedIds.size > 0 ? COLORS.white : COLORS.mutedDark,
+                  color:
+                    selectedIds.size > 0
+                      ? colors.primaryForeground
+                      : colors.mutedForeground,
                 },
               ]}
             >
@@ -282,15 +244,19 @@ export default function AddMemberScreen() {
       <View
         style={[
           styles.searchContainer,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
-        <View style={[styles.searchBar, { backgroundColor: COLORS.searchBg }]}>
-          <Ionicons name="search-outline" size={16} color={COLORS.mutedDark} />
+        <View style={[styles.searchBar, { backgroundColor: colors.input }]}>
+          <Ionicons
+            name="search-outline"
+            size={16}
+            color={colors.mutedForeground}
+          />
           <TextInput
             placeholder="Tìm bạn bè..."
-            placeholderTextColor={COLORS.mutedDark}
-            style={[styles.searchInput, { color: COLORS.foreground }]}
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.searchInput, { color: colors.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
           />
@@ -299,7 +265,7 @@ export default function AddMemberScreen() {
               <Ionicons
                 name="close-circle"
                 size={16}
-                color={COLORS.mutedDark}
+                color={colors.mutedForeground}
               />
             </TouchableOpacity>
           )}
@@ -307,8 +273,8 @@ export default function AddMemberScreen() {
       </View>
 
       {/* Count */}
-      <View style={[styles.countRow, { backgroundColor: COLORS.background }]}>
-        <Text style={[styles.countText, { color: COLORS.primary }]}>
+      <View style={[styles.countRow, { backgroundColor: colors.background }]}>
+        <Text style={[styles.countText, { color: colors.primary }]}>
           Bạn bè ({filtered.length})
         </Text>
       </View>
@@ -316,7 +282,7 @@ export default function AddMemberScreen() {
       {/* List */}
       {loading ? (
         <ActivityIndicator
-          color={COLORS.primary}
+          color={colors.primary}
           style={{ marginTop: 40 }}
           size="large"
         />
@@ -329,8 +295,10 @@ export default function AddMemberScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="people-outline" size={48} color={COLORS.border} />
-              <Text style={[styles.emptyText, { color: COLORS.mutedDark }]}>
+              <Ionicons name="people-outline" size={48} color={colors.border} />
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
                 {searchText ? "Không tìm thấy" : "Tất cả bạn bè đã trong nhóm"}
               </Text>
             </View>
@@ -381,10 +349,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
 
-  countRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
+  countRow: { paddingHorizontal: 16, paddingVertical: 10 },
   countText: { fontSize: 13, fontWeight: "700" },
 
   item: {
