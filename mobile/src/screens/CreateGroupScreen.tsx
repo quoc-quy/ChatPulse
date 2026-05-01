@@ -10,7 +10,6 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
-  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -19,45 +18,9 @@ import * as ImagePicker from "expo-image-picker";
 import { createGroup, uploadGroupAvatarApi } from "../apis/chat.api";
 import { useTheme } from "../contexts/ThemeContext";
 
-// ==========================================
-// BẢNG MÀU ĐỒNG BỘ 100%
-// ==========================================
-const lightColors = {
-  background: "#F5F7FB",
-  surface: "#FFFFFF",
-  surfaceSoft: "#EEF2FF",
-  text: "#0F172A",
-  textLight: "#64748B",
-  border: "#E2E8F0",
-  primary: "#6366F1",
-  accent: "#711cc1",
-  success: "#10B981",
-  badge: "#EF4444",
-  headerText: "#FFFFFF",
-  mutedForeground: "#94A3B8",
-};
-
-const darkColors = {
-  background: "#070B1A",
-  surface: "#11182D",
-  surfaceSoft: "#0D1428",
-  text: "#F8FAFC",
-  textLight: "#9CA3AF",
-  border: "#1E2946",
-  primary: "#1c0249",
-  accent: "#711cc1",
-  success: "#10B981",
-  badge: "#EF4444",
-  headerText: "#FFFFFF",
-  mutedForeground: "#475569",
-};
-
 export default function CreateGroupScreen() {
   const navigation = useNavigation<any>();
-  const { isDarkMode } = useTheme();
-
-  // Chọn bộ màu dựa trên theme
-  const colors = isDarkMode ? darkColors : lightColors;
+  const { colors } = useTheme();
 
   const [groupName, setGroupName] = useState("");
   const [friends, setFriends] = useState<any[]>([]);
@@ -138,24 +101,29 @@ export default function CreateGroupScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      {/* Header - Sử dụng accent hoặc primary tùy phong cách app */}
+      {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: colors.accent, borderBottomColor: colors.border },
+          {
+            backgroundColor: colors.secondary,
+            borderBottomColor: colors.border,
+          },
         ]}
       >
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={24} color={colors.headerText} />
+          <Ionicons name="close" size={24} color={colors.secondaryForeground} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.headerText }]}>
+          <Text
+            style={[styles.headerTitle, { color: colors.secondaryForeground }]}
+          >
             Nhóm mới
           </Text>
           <Text
             style={[
               styles.headerSubtitle,
-              { color: colors.headerText, opacity: 0.8 },
+              { color: colors.secondaryForeground, opacity: 0.8 },
             ]}
           >
             Đã chọn: {selected.size}
@@ -166,7 +134,10 @@ export default function CreateGroupScreen() {
           disabled={creating || !groupName.trim() || selected.size === 0}
         >
           {creating ? (
-            <ActivityIndicator size="small" color={colors.headerText} />
+            <ActivityIndicator
+              size="small"
+              color={colors.secondaryForeground}
+            />
           ) : (
             <Text
               style={[
@@ -174,7 +145,7 @@ export default function CreateGroupScreen() {
                 {
                   color:
                     groupName.trim() && selected.size > 0
-                      ? colors.headerText
+                      ? colors.secondaryForeground
                       : colors.mutedForeground,
                 },
               ]}
@@ -189,21 +160,21 @@ export default function CreateGroupScreen() {
       <View
         style={[
           styles.nameRow,
-          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
-          style={[styles.cameraIcon, { backgroundColor: colors.surfaceSoft }]}
+          style={[styles.cameraIcon, { backgroundColor: colors.accent }]}
           onPress={pickImage}
         >
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarPreview} />
           ) : (
-            <Feather name="camera" size={20} color={colors.textLight} />
+            <Feather name="camera" size={20} color={colors.accentForeground} />
           )}
         </TouchableOpacity>
         <TextInput
-          style={[styles.nameInput, { color: colors.text }]}
+          style={[styles.nameInput, { color: colors.foreground }]}
           placeholder="Đặt tên nhóm"
           placeholderTextColor={colors.mutedForeground}
           value={groupName}
@@ -212,7 +183,7 @@ export default function CreateGroupScreen() {
       </View>
 
       {/* Search Bar */}
-      <View style={[styles.searchRow, { backgroundColor: colors.surfaceSoft }]}>
+      <View style={[styles.searchRow, { backgroundColor: colors.input }]}>
         <Ionicons
           name="search"
           size={18}
@@ -220,7 +191,7 @@ export default function CreateGroupScreen() {
           style={{ marginLeft: 12 }}
         />
         <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
+          style={[styles.searchInput, { color: colors.foreground }]}
           placeholder="Tìm tên hoặc số điện thoại"
           placeholderTextColor={colors.mutedForeground}
           value={searchQuery}
@@ -244,15 +215,19 @@ export default function CreateGroupScreen() {
               <View
                 style={[
                   styles.checkbox,
+                  { borderColor: colors.border },
                   selected.has(item._id) && {
                     backgroundColor: colors.primary,
                     borderColor: colors.primary,
                   },
-                  { borderColor: colors.border },
                 ]}
               >
                 {selected.has(item._id) && (
-                  <Ionicons name="checkmark" size={14} color="#fff" />
+                  <Ionicons
+                    name="checkmark"
+                    size={14}
+                    color={colors.primaryForeground}
+                  />
                 )}
               </View>
               <Image
@@ -261,7 +236,7 @@ export default function CreateGroupScreen() {
                 }}
                 style={styles.avatar}
               />
-              <Text style={[styles.friendName, { color: colors.text }]}>
+              <Text style={[styles.friendName, { color: colors.foreground }]}>
                 {item.userName}
               </Text>
             </TouchableOpacity>

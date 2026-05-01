@@ -13,8 +13,11 @@ import { Button } from "../components/ui";
 import { validateEmail } from "../utils/validations";
 import { forgotPasswordApi } from "../apis/user.api";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function ForgotPasswordScreen({ navigation }: any) {
+  const { colors } = useTheme();
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,16 +53,20 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1E293B" />
+          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>Forgot Password</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.primary }]}>
+          Forgot Password
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Enter your email and we'll send you instructions to reset your
           password.
         </Text>
@@ -89,10 +96,10 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   header: { paddingHorizontal: 16, paddingVertical: 12 },
   content: { padding: 24, justifyContent: "center", flex: 1 },
-  title: { fontSize: 28, fontWeight: "800", color: "#4F46E5", marginBottom: 8 },
-  subtitle: { fontSize: 15, color: "#64748B", marginBottom: 32 },
+  title: { fontSize: 28, fontWeight: "800", marginBottom: 8 },
+  subtitle: { fontSize: 15, marginBottom: 32 },
   btn: { marginTop: 10, height: 50 },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,32 +14,8 @@ import { friendApi } from "../apis/friends.api";
 import { FriendItem } from "../components/friends/FriendItem";
 import { useTheme } from "../contexts/ThemeContext";
 
-const lightColors = {
-  primary: "#4F46E5",
-  secondary: "#A855F7",
-  background: "#F8FAFC",
-  foreground: "#1E293B",
-  muted: "#94A3B8",
-  card: "#FFFFFF",
-  border: "#E2E8F0",
-};
-
-const darkColors = {
-  primary: "#818CF8",
-  secondary: "#C084FC",
-  background: "#070B1A",
-  foreground: "#F8FAFC",
-  muted: "#64748B",
-  card: "#11182D",
-  border: "#1E2946",
-};
-
 export default function SentRequestsScreen({ navigation }: any) {
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
 
   const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,28 +50,28 @@ export default function SentRequestsScreen({ navigation }: any) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View
         style={[
           styles.header,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <ChevronLeft size={24} color={COLORS.foreground} />
+          <ChevronLeft size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Lời mời đã gửi
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.secondary} style={{ marginTop: 20 }} />
+        <ActivityIndicator color={colors.secondary} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={sentRequests}
@@ -105,7 +81,9 @@ export default function SentRequestsScreen({ navigation }: any) {
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: COLORS.muted }]}>
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
                 Bạn chưa gửi lời mời nào
               </Text>
             </View>

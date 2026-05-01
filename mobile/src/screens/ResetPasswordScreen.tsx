@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Alert } from "react-native";
-import { Input, Button } from "../components/ui"; //
-import { resetPasswordApi } from "../apis/user.api"; //
+import { Input, Button } from "../components/ui";
+import { resetPasswordApi } from "../apis/user.api";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function ResetPasswordScreen({ route, navigation }: any) {
   const { email } = route.params;
+  const { colors } = useTheme();
+
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,7 +22,6 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
 
     setLoading(true);
     try {
-      // Gọi phương thức POST theo đúng cấu trúc backend của bạn
       const response = await resetPasswordApi({
         email,
         otp,
@@ -47,10 +49,16 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <View style={styles.content}>
-        <Text style={styles.title}>Xác thực OTP</Text>
-        <Text style={styles.subtitle}>Nhập mã xác thực gửi đến {email}</Text>
+        <Text style={[styles.title, { color: colors.primary }]}>
+          Xác thực OTP
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          Nhập mã xác thực gửi đến {email}
+        </Text>
 
         <Input
           label="Mã OTP"
@@ -64,27 +72,18 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
           placeholder="••••••••"
           value={newPassword}
           onChangeText={setNewPassword}
-          isPassword //
+          isPassword
         />
 
-        <Button
-          title="Đổi mật khẩu"
-          onPress={handleReset}
-          loading={loading} //
-        />
+        <Button title="Đổi mật khẩu" onPress={handleReset} loading={loading} />
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   content: { padding: 24, flex: 1, justifyContent: "center" },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#4F46E5",
-    marginBottom: 8,
-  },
-  subtitle: { color: "#64748B", marginBottom: 32 },
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 8 },
+  subtitle: { marginBottom: 32 },
 });

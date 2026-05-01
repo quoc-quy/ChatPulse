@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,32 +14,6 @@ import { useNavigation } from "@react-navigation/native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { friendApi } from "../apis/friends.api";
-
-const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  destructive: "hsl(0, 84%, 60%)",
-  border: "hsl(240, 15%, 85%)",
-  sectionBg: "hsl(240, 20%, 96%)",
-};
-
-const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  destructive: "hsl(0, 62%, 55%)",
-  border: "hsl(240, 20%, 18%)",
-  sectionBg: "hsl(240, 25%, 5%)",
-};
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -69,11 +43,7 @@ const Avatar = ({
 
 export default function BlockedUsersScreen() {
   const navigation = useNavigation<any>();
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
 
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,20 +106,20 @@ export default function BlockedUsersScreen() {
       <View
         style={[
           styles.itemRow,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
-        <Avatar name={userName} size={48} bgColor={COLORS.secondary} />
+        <Avatar name={userName} size={48} bgColor={colors.secondary} />
         <View style={styles.itemInfo}>
           <Text
-            style={[styles.itemName, { color: COLORS.foreground }]}
+            style={[styles.itemName, { color: colors.foreground }]}
             numberOfLines={1}
           >
             {userName}
           </Text>
           {item.phone && (
             <Text
-              style={[styles.itemSub, { color: COLORS.mutedForeground }]}
+              style={[styles.itemSub, { color: colors.mutedForeground }]}
               numberOfLines={1}
             >
               {item.phone}
@@ -157,14 +127,14 @@ export default function BlockedUsersScreen() {
           )}
         </View>
         <TouchableOpacity
-          style={[styles.unblockBtn, { borderColor: COLORS.primary }]}
+          style={[styles.unblockBtn, { borderColor: colors.primary }]}
           onPress={() => handleUnblock(userId, userName)}
           disabled={isUnblocking}
         >
           {isUnblocking ? (
-            <ActivityIndicator size="small" color={COLORS.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={[styles.unblockText, { color: COLORS.primary }]}>
+            <Text style={[styles.unblockText, { color: colors.primary }]}>
               Bỏ chặn
             </Text>
           )}
@@ -175,29 +145,29 @@ export default function BlockedUsersScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Danh sách chặn
         </Text>
         <View style={{ width: 32 }} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={blockedUsers}
@@ -207,14 +177,14 @@ export default function BlockedUsersScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchBlockedUsers(true)}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
           ListHeaderComponent={
             blockedUsers.length > 0 ? (
               <Text
-                style={[styles.listHeader, { color: COLORS.mutedForeground }]}
+                style={[styles.listHeader, { color: colors.mutedForeground }]}
               >
                 {blockedUsers.length} người bị chặn
               </Text>
@@ -225,13 +195,13 @@ export default function BlockedUsersScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={56}
-                color={COLORS.muted}
+                color={colors.muted}
               />
-              <Text style={[styles.emptyTitle, { color: COLORS.foreground }]}>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
                 Chưa chặn ai
               </Text>
               <Text
-                style={[styles.emptySub, { color: COLORS.mutedForeground }]}
+                style={[styles.emptySub, { color: colors.mutedForeground }]}
               >
                 Những người bạn chặn sẽ xuất hiện ở đây
               </Text>
