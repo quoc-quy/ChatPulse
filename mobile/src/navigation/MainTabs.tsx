@@ -38,6 +38,18 @@ interface MainTabsProps {
 
 const DummyScreen = () => <View style={{ flex: 1, backgroundColor: '#111111' }} />
 
+const ComingSoonScreen = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={{ flex: 1, backgroundColor: '#111111', justifyContent: 'center', alignItems: 'center' }}>
+      <Phone size={48} color="#4B5563" style={{ marginBottom: 16 }} />
+      <Text style={{ color: '#9CA3AF', fontSize: 16, fontWeight: '600' }}>
+        {(t as any).featureComingSoon || "Tính năng đang phát triển thêm"}
+      </Text>
+    </View>
+  );
+};
+
 const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
