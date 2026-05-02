@@ -32,7 +32,6 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useChatContext } from "../contexts/ChatContext";
 import { CameraView, useCameraPermissions } from "expo-camera";
-// Sửa dòng import cũ thành thế này:
 import {
   Swipeable,
   GestureHandlerRootView,
@@ -45,38 +44,31 @@ import {
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
-// ==========================================
-// 1. BẢNG MÀU ĐỒNG BỘ 100%
-// ==========================================
-const lightColors = {
-  background: "#F5F7FB",
-  surface: "#FFFFFF",
-  surfaceSoft: "#EEF2FF",
-  text: "#0F172A",
-  textLight: "#64748B",
-  border: "#E2E8F0",
-  primary: "#6366F1",
-  accent: "#711cc1",
-  success: "#10B981",
-  badge: "#EF4444",
-  headerText: "#FFFFFF",
-  mutedForeground: "#94A3B8",
+// 👇 1. Đổi cách import màu từ file colors.ts
+import { lightColors as globalLight, darkColors as globalDark } from "../theme/colors";
+
+// 👇 2. Mở rộng (extend) các màu bị thiếu dùng riêng cho ChatScreen 
+// (Giữ nguyên tone Xanh dương gốc của bạn)
+const localLightColors = {
+  ...globalLight,
+  badge: 'hsl(0, 84%, 60%)',          
+  textLight: 'hsl(240, 10%, 45%)',    
+  surface: globalLight.card,  
+  text: globalLight.foreground,    
+  success: 'hsl(142, 76%, 36%)',   
+  surfaceSoft: 'hsl(240, 15%, 95%)', 
 };
 
-const darkColors = {
-  background: "#070B1A",
-  surface: "#11182D",
-  surfaceSoft: "#0D1428",
-  text: "#F8FAFC",
-  textLight: "#9CA3AF",
-  border: "#1E2946",
-  primary: "#1c0249",
-  accent: "#711cc1",
-  success: "#10B981",
-  badge: "#EF4444",
-  headerText: "#FFFFFF",
-  mutedForeground: "#475569",
+const localDarkColors = {
+  ...globalDark,
+  badge: 'hsl(0, 62%, 50%)',
+  textLight: 'hsl(240, 10%, 65%)',
+  surface: globalDark.card,
+  text: globalDark.foreground,
+  success: 'hsl(142, 69%, 58%)',
+  surfaceSoft: 'hsl(240, 20%, 14%)',
 };
+
 
 const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
@@ -92,7 +84,13 @@ const ChatScreen = ({ route }: any) => {
   } = useChatContext() as any;
 
   const { isDarkMode } = useTheme();
-  const COLORS = isDarkMode ? darkColors : lightColors;
+  
+  // 👇 3. Gán COLORS bằng bộ màu local đã được mở rộng
+  const COLORS = useMemo(
+    () => (isDarkMode ? localDarkColors : localLightColors),
+    [isDarkMode]
+  );
+  
   const styles = useMemo(
     () => getStyles(COLORS, isDarkMode),
     [isDarkMode, COLORS],
@@ -110,8 +108,6 @@ const ChatScreen = ({ route }: any) => {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
 
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
-
-  // ✅ STATE QUẢN LÝ LƯU TRỮ (ARCHIVE)
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
 
   const [showPinMenu, setShowPinMenu] = useState(false);
@@ -141,22 +137,7 @@ const ChatScreen = ({ route }: any) => {
     loadArchived();
   }, []);
 
-  // Load danh sách đã lưu trữ từ AsyncStorage
-  useEffect(() => {
-    const loadArchived = async () => {
-      try {
-        const stored = await AsyncStorage.getItem("archived_chats");
-        if (stored) {
-          setArchivedIds(new Set(JSON.parse(stored)));
-        }
-      } catch (error) {
-        console.log("Lỗi load archive:", error);
-      }
-    };
-    loadArchived();
-  }, []);
-
-  // ✅ LOGIC MỚI: TỰ ĐỘNG BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
+  // TỰ ĐỘNG BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
   useEffect(() => {
     if (archivedIds.size === 0 || conversations.length === 0) return;
 
@@ -164,14 +145,8 @@ const ChatScreen = ({ route }: any) => {
     const newArchivedIds = new Set(archivedIds);
 
     conversations.forEach((conv) => {
-      // Kiểm tra nếu chat này đang bị lưu trữ
       if (newArchivedIds.has(conv._id)) {
-        // Kiểm tra xem chat có tin nhắn mới (chưa đọc) không
         const unread = getLocalUnread(conv._id);
-
-        // HOẶC kiểm tra xem updated_at có mới hơn thời điểm bạn lưu trữ không
-        // Ở đây đơn giản nhất là: Cứ có unread > 0 thì tự động bung ra.
-        // Bạn cũng có thể bung ra ngay lập tức nếu thấy nó nhảy lên đầu danh sách (tức là có tin nhắn mới từ mình/người kia).
         if (unread > 0 || conv.lastMessage?.senderId === currentUserId) {
           newArchivedIds.delete(conv._id);
           hasChanges = true;
@@ -186,9 +161,9 @@ const ChatScreen = ({ route }: any) => {
         JSON.stringify(Array.from(newArchivedIds)),
       );
     }
-  }, [conversations, localUnreadMap]); // Lắng nghe sự thay đổi của conversations và unread
+  }, [conversations, localUnreadMap]); 
 
-  React.useEffect(() => {
+  useEffect(() => {
     const totalUnread = Object.values(localUnreadMap).reduce(
       (sum: any, count: any) => sum + (count || 0),
       0,
@@ -217,15 +192,15 @@ const ChatScreen = ({ route }: any) => {
     }
   };
 
-  const initializedConvsRef = React.useRef<Set<string>>(new Set());
+  const initializedConvsRef = useRef<Set<string>>(new Set());
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (Object.keys(localUnreadMap).length === 0) {
       initializedConvsRef.current.clear();
     }
   }, [localUnreadMap]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       initializedConvsRef.current.clear();
     };
@@ -238,11 +213,9 @@ const ChatScreen = ({ route }: any) => {
       const newConversations = response.data.result || [];
       setHasMore(newConversations.length >= 20);
 
-      // ✅ TÍCH HỢP KIỂM TRA LƯU TRỮ NGAY TẠI ĐÂY
       let archivedHasChanged = false;
       const currentArchived = new Set(archivedIds);
 
-      // Lấy ID người dùng hiện tại
       let resolvedUserId = currentUserId;
       if (!resolvedUserId) {
         try {
@@ -262,8 +235,6 @@ const ChatScreen = ({ route }: any) => {
           setLocalUnread(conv._id, conv.unread_count || 0);
         }
 
-        // KHI CÓ TIN MỚI -> TỰ BUNG KHỎI LƯU TRỮ
-        // Điều kiện bung: (Đang nằm trong Archived) VÀ (Có tin nhắn chưa đọc HOẶC Tin mới nhất là do mình vừa nhắn)
         if (currentArchived.has(conv._id)) {
           const isUnread = conv.unread_count > 0;
           const isMyLatestMessage =
@@ -294,9 +265,8 @@ const ChatScreen = ({ route }: any) => {
         setConversations((prev) => [...prev, ...newConversations]);
       }
 
-      // Cập nhật lại AsyncStorage nếu có chat tự động bật ra
       if (archivedHasChanged) {
-        setArchivedIds(new Set(currentArchived)); // Force trigger render
+        setArchivedIds(new Set(currentArchived)); 
         AsyncStorage.setItem(
           "archived_chats",
           JSON.stringify(Array.from(currentArchived)),
@@ -312,9 +282,6 @@ const ChatScreen = ({ route }: any) => {
     }
   };
 
-  // =========================================================================
-  // 🔥 FIX REALTIME: CẬP NHẬT DANH SÁCH CHAT KHI CÓ TIN NHẮN TỚI
-  // =========================================================================
   useEffect(() => {
     if (!socket) return;
 
@@ -327,18 +294,15 @@ const ChatScreen = ({ route }: any) => {
         if (convIndex > -1) {
           const newConversations = [...prev];
 
-          // Cập nhật tin nhắn mới nhất và thời gian
           const updatedConv = {
             ...newConversations[convIndex],
             lastMessage: newMessage,
             updated_at: newMessage.createdAt || new Date().toISOString(),
           };
 
-          // Đẩy hội thoại có tin nhắn mới lên đầu danh sách
           newConversations.splice(convIndex, 1);
           newConversations.unshift(updatedConv);
 
-          // Tăng số lượng báo đỏ (chưa đọc) nếu tin nhắn đó không phải của mình gửi
           if (newMessage.sender?._id !== currentUserId && currentUserId) {
             const currentUnread = getLocalUnread(convId) || 0;
             setLocalUnread(convId, currentUnread + 1);
@@ -346,22 +310,17 @@ const ChatScreen = ({ route }: any) => {
 
           return newConversations;
         } else {
-          // Nếu đây là tin nhắn từ một người hoàn toàn mới chưa có mặt trong danh sách,
-          // gọi API load lại danh sách 1 lần
           fetchConversations(1, true);
           return prev;
         }
       });
     };
 
-    socket.on("receive_message", handleReceiveMessage);
-    // ✅ Xử lý nhóm bị giải tán
     const handleGroupDisbanded = ({
       conversationId,
     }: {
       conversationId: string;
     }) => {
-      // Xóa khỏi danh sách chat
       setConversations((prev) => prev.filter((c) => c._id !== conversationId));
     };
 
@@ -463,7 +422,6 @@ const ChatScreen = ({ route }: any) => {
     setShowPinMenu(true);
   };
 
-  // HÀM XỬ LÝ LƯU TRỮ CHAT (Đã làm đơn giản hóa)
   const handleToggleArchive = async (item: any) => {
     const id = item._id;
 
@@ -471,9 +429,9 @@ const ChatScreen = ({ route }: any) => {
       const next = new Set(prev);
 
       if (next.has(id)) {
-        next.delete(id); // Nếu đã lưu thì bỏ lưu
+        next.delete(id); 
       } else {
-        next.add(id); // Nếu chưa lưu thì lưu vào
+        next.add(id); 
       }
 
       AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(next)));
@@ -481,7 +439,6 @@ const ChatScreen = ({ route }: any) => {
     });
   };
 
-  // HÀM XỬ LÝ XÓA CHAT
   const handleDeleteConversation = (id: string) => {
     const conv = conversations.find((c) => c._id === id);
     const isDisbanded = conv?.isDisbanded;
@@ -497,9 +454,7 @@ const ChatScreen = ({ route }: any) => {
           text: "Xóa",
           style: "destructive",
           onPress: () => {
-            // Xóa khỏi UI
             setConversations((prev) => prev.filter((c) => c._id !== id));
-            // Xóa khỏi archived nếu có
             setArchivedIds((prev) => {
               const next = new Set(prev);
               next.delete(id);
@@ -625,7 +580,6 @@ const ChatScreen = ({ route }: any) => {
   const renderItem = ({ item }: any) => {
     const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
 
-    // --- LOGIC XỬ LÝ NỘI DUNG TIN NHẮN CUỐI CÙNG ---
     let messageContent = t.chatNoMessagesYet;
     if (item.lastMessage) {
       if (
@@ -649,8 +603,6 @@ const ChatScreen = ({ route }: any) => {
         messageContent = item.lastMessage.content || t.chatNoMessagesYet;
       }
     }
-    // --- KẾT THÚC LOGIC ---
-    // --- KẾT THÚC LOGIC ---
 
     const unread = getLocalUnread(item._id);
     const isPinned = pinnedIds.has(item._id);
@@ -659,7 +611,6 @@ const ChatScreen = ({ route }: any) => {
     const renderRightActions = () => {
       return (
         <View style={styles.rightActionContainer}>
-          {/* Ẩn nút Lưu trữ nếu nhóm đã giải tán */}
           {!item.isDisbanded && (
             <TouchableOpacity
               style={[
@@ -695,7 +646,6 @@ const ChatScreen = ({ route }: any) => {
         <Swipeable renderRightActions={renderRightActions}>
           <TouchableOpacity
             onPress={() => {
-              // Tìm object otherUser trong mảng participants/members
               const otherUser =
                 item.participants?.find((p: any) => p._id !== currentUserId) ||
                 item.members?.find((m: any) => m.userId?._id !== currentUserId)
@@ -706,10 +656,7 @@ const ChatScreen = ({ route }: any) => {
                 name: item.name || otherUser?.userName,
                 isGroup: item.type === "group",
                 targetUserId: otherUser?._id,
-
-                // ✅ FIX 1: TRUYỀN THẲNG PUBLIC KEY TỪ CHAT SCREEN VÀO MESSAGE SCREEN
                 targetPublicKey: otherUser?.public_key || otherUser?.publicKey,
-
                 unreadCount: item.unread_count,
               });
             }}
@@ -822,7 +769,6 @@ const ChatScreen = ({ route }: any) => {
   }, [conversations, blockedUserIds, currentUserId]);
 
   const displayConversations = useMemo(() => {
-    // Chỉ cần lọc những cuộc gọi KHÔNG NẰM trong danh sách archivedIds
     let list = validConversations.filter((c) => !archivedIds.has(c._id));
 
     if (activeTab === "unread") {
@@ -849,7 +795,6 @@ const ChatScreen = ({ route }: any) => {
   }, [validConversations, activeTab, pinnedIds, drafts, archivedIds]);
 
   const searchResults = useMemo(() => {
-    // ✅ KHI TÌM KIẾM THÌ VẪN HIỆN CÁC CHAT ĐÃ LƯU TRỮ
     if (!searchQuery.trim()) return validConversations;
     return validConversations.filter((c) => {
       const { chatName } = getChatDetails(c);
@@ -1149,7 +1094,7 @@ const ChatScreen = ({ route }: any) => {
           </SafeAreaView>
         </View>
       </Modal>
-      {/* ── PLUS MENU (Zalo-style dropdown) ── */}
+
       <Modal
         visible={showPlusMenu}
         transparent
@@ -1161,7 +1106,6 @@ const ChatScreen = ({ route }: any) => {
           activeOpacity={1}
           onPress={() => setShowPlusMenu(false)}
         >
-          {/* Dropdown box căn góc phải phía dưới nút + */}
           <View style={styles.plusMenuContainer}>
             <TouchableOpacity
               style={styles.plusMenuItem}
@@ -1325,11 +1269,10 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     emptyContainer: { alignItems: "center", marginTop: 40 },
     emptyText: { color: COLORS.textLight, fontSize: 15 },
 
-    // ✅ STYLE CHO SWIPEABLE VÀ CARD BÊN TRONG
     swipeableWrapper: {
       marginBottom: 12,
       borderRadius: 24,
-      overflow: "hidden", // Quan trọng để giữ viền bo tròn cho card
+      overflow: "hidden", 
     },
     rightActionContainer: {
       flexDirection: "row",
@@ -1352,7 +1295,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       flexDirection: "row",
       backgroundColor: COLORS.surface,
       padding: 12,
-      borderRadius: 24, // Giữ nguyên để card vẫn bo tròn
+      borderRadius: 24, 
       alignItems: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
