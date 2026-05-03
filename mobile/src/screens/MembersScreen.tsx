@@ -19,42 +19,12 @@ import {
   getConversationDetail,
 } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
-import { useTheme } from "../contexts/ThemeContext"; // Import ThemeContext
+import { useTheme } from "../contexts/ThemeContext";
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-const lightColors = {
-  primary: "#4F46E5",
-  secondary: "#A855F7",
-  background: "#F8FAFC",
-  foreground: "#1E293B",
-  muted: "#94A3B8",
-  mutedDark: "#64748B",
-  white: "#FFFFFF",
-  border: "#E2E8F0",
-  success: "#22C55E",
-  danger: "#EF4444",
-  card: "#FFFFFF",
-  searchBg: "#F1F5F9",
-  searchFocusedBg: "#EEF2FF",
-  sectionHeaderBg: "#F8FAFC",
-};
-
-const darkColors = {
-  primary: "#818CF8",
-  secondary: "#C084FC",
-  background: "#070B1A",
-  foreground: "#F8FAFC",
-  muted: "#64748B",
-  mutedDark: "#94A3B8",
-  white: "#11182D",
-  border: "#1E2946",
-  success: "#4ADE80",
-  danger: "#F87171",
-  card: "#11182D",
-  searchBg: "#1E2946",
-  searchFocusedBg: "#1E2040",
-  sectionHeaderBg: "#0D1428",
-};
+// ── Types ─────────────────────────────────────────────────────────────────────
+type FriendStatus = "friend" | "pending" | "none";
+type FriendStatusMap = Record<string, FriendStatus>;
+type PendingRequestIdMap = Record<string, string>;
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -82,14 +52,6 @@ const Avatar = ({
   </View>
 );
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-// "friend"  : đã là bạn bè → ẩn nút
-// "pending" : đã gửi lời mời, chưa được chấp nhận → hiện icon đồng hồ, bấm để hủy
-// "none"    : chưa gửi lời mời → hiện icon person-add
-type FriendStatus = "friend" | "pending" | "none";
-type FriendStatusMap = Record<string, FriendStatus>;
-type PendingRequestIdMap = Record<string, string>;
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function MembersScreen() {
   const navigation = useNavigation<any>();
@@ -101,12 +63,7 @@ export default function MembersScreen() {
     currentUserId,
   } = route.params || {};
 
-  // Sử dụng useTheme thay cho useColorScheme
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
 
   const [memberList, setMemberList] = useState<any[]>(members);
   const [adminIdState, setAdminIdState] = useState<string>(adminId || "");
@@ -114,12 +71,9 @@ export default function MembersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
 
-  // Trạng thái kết bạn theo memberId
   const [friendStatusMap, setFriendStatusMap] = useState<FriendStatusMap>({});
-  // requestId của lời mời đang pending theo memberId (để hủy)
   const [pendingRequestIdMap, setPendingRequestIdMap] =
     useState<PendingRequestIdMap>({});
-  // Set các memberId đang gọi API (tránh double-tap)
   const [loadingFriendIds, setLoadingFriendIds] = useState<Set<string>>(
     new Set(),
   );
@@ -135,14 +89,12 @@ export default function MembersScreen() {
       const newStatusMap: FriendStatusMap = {};
       const newPendingMap: PendingRequestIdMap = {};
 
-      // Danh sách bạn bè hiện tại
       const friends: any[] = friendsRes.data?.result || friendsRes.data || [];
       friends.forEach((f: any) => {
         const fId = (f._id || f.userId || f.friend_id || "").toString();
         if (fId) newStatusMap[fId] = "friend";
       });
 
-      // Lời mời đang pending — chỉ lấy những lời mời currentUser đã GỬI ĐI
       const pending: any[] = pendingRes.data?.result || pendingRes.data || [];
       pending.forEach((req: any) => {
         const senderId = (req.sender_id || req.from || "").toString();
@@ -160,7 +112,7 @@ export default function MembersScreen() {
       setFriendStatusMap(newStatusMap);
       setPendingRequestIdMap(newPendingMap);
     } catch {
-      // Silent fail — không ảnh hưởng UI chính
+      // Silent fail
     }
   }, [currentUserId]);
 
@@ -254,6 +206,7 @@ export default function MembersScreen() {
         onPress: () => handleKick(memberId, name),
       });
     }
+
     if (options.length > 0) {
       Alert.alert(name, "Chọn hành động", [
         ...options,
@@ -304,22 +257,18 @@ export default function MembersScreen() {
       if (loadingFriendIds.has(memberId)) return;
 
       if (status === "none") {
-        // Gửi lời mời kết bạn
         Alert.alert("Kết bạn", `Gửi lời mời kết bạn đến ${memberName}?`, [
           { text: "Hủy", style: "cancel" },
           {
             text: "Gửi lời mời",
             onPress: async () => {
-              // Optimistic update
               setFriendStatusMap((prev) => ({
                 ...prev,
                 [memberId]: "pending",
               }));
               setLoadingFriendIds((prev) => new Set(prev).add(memberId));
-
               try {
                 const res = await friendApi.sendFriendRequest(memberId);
-                // Lưu requestId để dùng khi hủy lời mời
                 const requestId = (
                   res.data?.result?._id ||
                   res.data?._id ||
@@ -332,11 +281,7 @@ export default function MembersScreen() {
                   }));
                 }
               } catch {
-                // Rollback
-                setFriendStatusMap((prev) => ({
-                  ...prev,
-                  [memberId]: "none",
-                }));
+                setFriendStatusMap((prev) => ({ ...prev, [memberId]: "none" }));
                 Alert.alert("Lỗi", "Không thể gửi lời mời kết bạn.");
               } finally {
                 setLoadingFriendIds((prev) => {
@@ -349,7 +294,6 @@ export default function MembersScreen() {
           },
         ]);
       } else if (status === "pending") {
-        // Hủy lời mời đã gửi
         const requestId = pendingRequestIdMap[memberId];
         Alert.alert(
           "Hủy lời mời",
@@ -360,24 +304,16 @@ export default function MembersScreen() {
               text: "Hủy lời mời",
               style: "destructive",
               onPress: async () => {
-                // Optimistic update
-                setFriendStatusMap((prev) => ({
-                  ...prev,
-                  [memberId]: "none",
-                }));
+                setFriendStatusMap((prev) => ({ ...prev, [memberId]: "none" }));
                 setLoadingFriendIds((prev) => new Set(prev).add(memberId));
-
                 try {
-                  if (requestId) {
-                    await friendApi.cancelRequest(requestId);
-                  }
+                  if (requestId) await friendApi.cancelRequest(requestId);
                   setPendingRequestIdMap((prev) => {
                     const next = { ...prev };
                     delete next[memberId];
                     return next;
                   });
                 } catch {
-                  // Rollback
                   setFriendStatusMap((prev) => ({
                     ...prev,
                     [memberId]: "pending",
@@ -395,7 +331,6 @@ export default function MembersScreen() {
           ],
         );
       }
-      // status === "friend" → nút đã ẩn, không bao giờ vào đây
     },
     [friendStatusMap, pendingRequestIdMap, loadingFriendIds],
   );
@@ -416,20 +351,20 @@ export default function MembersScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.item, { borderBottomColor: COLORS.border }]}
+        style={[styles.item, { borderBottomColor: colors.border }]}
         onLongPress={() => handleLongPress(item)}
         activeOpacity={0.7}
       >
         <Avatar
           name={name}
           size={50}
-          bgColor={isAdmin ? COLORS.primary : COLORS.secondary}
+          bgColor={isAdmin ? colors.primary : colors.secondary}
         />
 
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <Text
-              style={[styles.name, { color: COLORS.foreground }]}
+              style={[styles.name, { color: colors.foreground }]}
               numberOfLines={1}
             >
               {name}
@@ -437,17 +372,14 @@ export default function MembersScreen() {
             </Text>
             {isAdmin && (
               <View
-                style={[
-                  styles.adminBadge,
-                  { backgroundColor: COLORS.searchFocusedBg },
-                ]}
+                style={[styles.adminBadge, { backgroundColor: colors.accent }]}
               >
                 <Ionicons
                   name="shield-checkmark"
                   size={10}
-                  color={COLORS.primary}
+                  color={colors.primary}
                 />
-                <Text style={[styles.adminText, { color: COLORS.primary }]}>
+                <Text style={[styles.adminText, { color: colors.primary }]}>
                   Admin
                 </Text>
               </View>
@@ -455,7 +387,7 @@ export default function MembersScreen() {
           </View>
           {roleText ? (
             <Text
-              style={[styles.sub, { color: COLORS.mutedDark }]}
+              style={[styles.sub, { color: colors.mutedForeground }]}
               numberOfLines={1}
             >
               {roleText}
@@ -463,13 +395,6 @@ export default function MembersScreen() {
           ) : null}
         </View>
 
-        {/*
-          Nút kết bạn:
-          - Ẩn hoàn toàn nếu là bản thân HOẶC đã là bạn bè
-          - icon đồng hồ màu primary  → đang pending (bấm để hủy)
-          - icon person-add màu muted → chưa gửi lời mời
-          - ActivityIndicator         → đang gọi API
-        */}
         {!isMe && !isFriend && (
           <TouchableOpacity
             style={[styles.addBtn, isPending && { opacity: 0.75 }]}
@@ -478,12 +403,12 @@ export default function MembersScreen() {
             disabled={isFriendLoading}
           >
             {isFriendLoading ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : (
               <Ionicons
                 name={isPending ? "time-outline" : "person-add-outline"}
                 size={20}
-                color={isPending ? COLORS.primary : COLORS.mutedDark}
+                color={isPending ? colors.primary : colors.mutedForeground}
               />
             )}
           </TouchableOpacity>
@@ -495,22 +420,22 @@ export default function MembersScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: COLORS.foreground }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Thành viên
         </Text>
         <TouchableOpacity
@@ -522,7 +447,7 @@ export default function MembersScreen() {
           <Ionicons
             name="person-add-outline"
             size={22}
-            color={COLORS.foreground}
+            color={colors.foreground}
           />
         </TouchableOpacity>
       </View>
@@ -531,15 +456,19 @@ export default function MembersScreen() {
       <View
         style={[
           styles.searchContainer,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
-        <View style={[styles.searchBar, { backgroundColor: COLORS.searchBg }]}>
-          <Ionicons name="search-outline" size={16} color={COLORS.mutedDark} />
+        <View style={[styles.searchBar, { backgroundColor: colors.input }]}>
+          <Ionicons
+            name="search-outline"
+            size={16}
+            color={colors.mutedForeground}
+          />
           <TextInput
             placeholder="Tìm thành viên..."
-            placeholderTextColor={COLORS.mutedDark}
-            style={[styles.searchInput, { color: COLORS.foreground }]}
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.searchInput, { color: colors.foreground }]}
             value={searchText}
             onChangeText={setSearchText}
           />
@@ -548,7 +477,7 @@ export default function MembersScreen() {
               <Ionicons
                 name="close-circle"
                 size={16}
-                color={COLORS.mutedDark}
+                color={colors.mutedForeground}
               />
             </TouchableOpacity>
           )}
@@ -556,12 +485,12 @@ export default function MembersScreen() {
       </View>
 
       {/* Count */}
-      <View style={[styles.countRow, { backgroundColor: COLORS.background }]}>
-        <Text style={[styles.countText, { color: COLORS.primary }]}>
+      <View style={[styles.countRow, { backgroundColor: colors.background }]}>
+        <Text style={[styles.countText, { color: colors.primary }]}>
           Thành viên ({filtered.length})
         </Text>
         {currentUserIsAdmin && (
-          <Text style={[styles.hintText, { color: COLORS.mutedDark }]}>
+          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
             Giữ để quản lý
           </Text>
         )}
@@ -570,7 +499,7 @@ export default function MembersScreen() {
       {/* List */}
       {loading ? (
         <ActivityIndicator
-          color={COLORS.primary}
+          color={colors.primary}
           size="large"
           style={{ marginTop: 40 }}
         />
@@ -587,14 +516,16 @@ export default function MembersScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="people-outline" size={48} color={COLORS.border} />
-              <Text style={[styles.emptyText, { color: COLORS.mutedDark }]}>
+              <Ionicons name="people-outline" size={48} color={colors.border} />
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
                 Không tìm thấy thành viên
               </Text>
             </View>
