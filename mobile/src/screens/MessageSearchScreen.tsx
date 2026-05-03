@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -15,33 +15,6 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { searchMessages } from "../apis/chat.api";
 
-// ── Colors (đồng nhất toàn app) ───────────────────────────────────────────────
-const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  border: "hsl(240, 15%, 85%)",
-  searchBg: "hsl(240, 15%, 94%)",
-  highlight: "hsl(50, 100%, 70%)", // màu highlight từ khóa
-};
-
-const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  border: "hsl(240, 20%, 18%)",
-  searchBg: "hsl(240, 20%, 15%)",
-  highlight: "hsl(50, 80%, 45%)",
-};
-
 // ── Highlight từ khóa trong text ─────────────────────────────────────────────
 const HighlightText = ({
   text,
@@ -54,9 +27,7 @@ const HighlightText = ({
   textStyle: any;
   highlightColor: string;
 }) => {
-  if (!keyword.trim()) {
-    return <Text style={textStyle}>{text}</Text>;
-  }
+  if (!keyword.trim()) return <Text style={textStyle}>{text}</Text>;
 
   const regex = new RegExp(
     `(${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
@@ -99,22 +70,19 @@ const formatDate = (dateStr: string) => {
     (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
   );
 
-  if (diffDays === 0) {
+  if (diffDays === 0)
     return date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
     });
-  } else if (diffDays === 1) {
-    return "Hôm qua";
-  } else if (diffDays < 7) {
+  if (diffDays === 1) return "Hôm qua";
+  if (diffDays < 7)
     return date.toLocaleDateString("vi-VN", { weekday: "short" });
-  } else {
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  }
+  return date.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 };
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -123,24 +91,21 @@ export default function MessageSearchScreen() {
   const route = useRoute<any>();
   const { conversationId, conversationName, isGroup } = route.params || {};
 
-  const { isDarkMode } = useTheme();
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
+  const { colors } = useTheme();
+
+  // màu highlight từ khóa — không có trong colors.ts nên giữ inline theo theme
+  const highlightColor = colors.ring;
 
   const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false); // đã từng search chưa
+  const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  
 
   // ── Search ────────────────────────────────────────────────────────────────
   const doSearch = useCallback(
@@ -165,7 +130,6 @@ export default function MessageSearchScreen() {
         setPage(pageNum);
         setSearched(true);
       } catch {
-        // silent — không cần Alert, chỉ hiện empty state
         setResults([]);
         setSearched(true);
       } finally {
@@ -176,7 +140,6 @@ export default function MessageSearchScreen() {
     [conversationId],
   );
 
-  // Debounce khi gõ — tự động search sau 400ms
   const handleChangeText = (text: string) => {
     setKeyword(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -190,20 +153,18 @@ export default function MessageSearchScreen() {
     }, 400);
   };
 
-  // Load thêm khi scroll tới cuối
   const handleLoadMore = () => {
     if (loadingMore || page >= totalPages) return;
     doSearch(keyword, page + 1, true);
   };
 
-  // Bấm vào kết quả → navigate về MessageScreen, truyền messageId để scroll tới
   const handleSelectResult = (item: any) => {
     Keyboard.dismiss();
     navigation.navigate("MessageScreen", {
       id: conversationId,
       name: conversationName,
       isGroup,
-      targetMessageId: item._id, // MessageScreen dùng để scroll tới
+      targetMessageId: item._id,
     });
   };
 
@@ -212,47 +173,43 @@ export default function MessageSearchScreen() {
     const senderName = item.sender?.userName || "Thành viên";
     return (
       <TouchableOpacity
-        style={[styles.resultItem, { borderBottomColor: COLORS.border }]}
+        style={[styles.resultItem, { borderBottomColor: colors.border }]}
         onPress={() => handleSelectResult(item)}
         activeOpacity={0.7}
       >
-        {/* Avatar chữ cái */}
-        <View style={[styles.avatar, { backgroundColor: COLORS.secondary }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.secondary }]}>
           <Text style={styles.avatarText}>
             {senderName.charAt(0).toUpperCase()}
           </Text>
         </View>
 
         <View style={styles.itemContent}>
-          {/* Tên người gửi + thời gian */}
           <View style={styles.itemHeader}>
             <Text
-              style={[styles.senderName, { color: COLORS.foreground }]}
+              style={[styles.senderName, { color: colors.foreground }]}
               numberOfLines={1}
             >
               {senderName}
             </Text>
-            <Text style={[styles.dateText, { color: COLORS.mutedForeground }]}>
+            <Text style={[styles.dateText, { color: colors.mutedForeground }]}>
               {formatDate(item.createdAt)}
             </Text>
           </View>
-
-          {/* Nội dung tin nhắn với từ khóa được highlight */}
           <HighlightText
             text={item.content || ""}
             keyword={keyword}
             textStyle={[
               styles.messagePreview,
-              { color: COLORS.mutedForeground },
+              { color: colors.mutedForeground },
             ]}
-            highlightColor={COLORS.highlight}
+            highlightColor={highlightColor}
           />
         </View>
 
         <Feather
           name="chevron-right"
           size={16}
-          color={COLORS.mutedForeground}
+          color={colors.mutedForeground}
         />
       </TouchableOpacity>
     );
@@ -261,13 +218,13 @@ export default function MessageSearchScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: COLORS.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: COLORS.card, borderBottomColor: COLORS.border },
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
@@ -275,20 +232,19 @@ export default function MessageSearchScreen() {
           style={styles.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="arrow-left" size={24} color={COLORS.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
 
-        {/* Search input */}
-        <View style={[styles.searchBar, { backgroundColor: COLORS.searchBg }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.input }]}>
           <Ionicons
             name="search-outline"
             size={16}
-            color={COLORS.mutedForeground}
+            color={colors.mutedForeground}
           />
           <TextInput
-            style={[styles.searchInput, { color: COLORS.foreground }]}
+            style={[styles.searchInput, { color: colors.foreground }]}
             placeholder="Tìm tin nhắn..."
-            placeholderTextColor={COLORS.mutedForeground}
+            placeholderTextColor={colors.mutedForeground}
             value={keyword}
             onChangeText={handleChangeText}
             returnKeyType="search"
@@ -307,7 +263,7 @@ export default function MessageSearchScreen() {
               <Ionicons
                 name="close-circle"
                 size={16}
-                color={COLORS.mutedForeground}
+                color={colors.mutedForeground}
               />
             </TouchableOpacity>
           )}
@@ -317,7 +273,7 @@ export default function MessageSearchScreen() {
       {/* Kết quả */}
       {loading ? (
         <ActivityIndicator
-          color={COLORS.primary}
+          color={colors.primary}
           size="large"
           style={{ marginTop: 48 }}
         />
@@ -335,7 +291,7 @@ export default function MessageSearchScreen() {
           ListHeaderComponent={
             searched && results.length > 0 ? (
               <Text
-                style={[styles.resultCount, { color: COLORS.mutedForeground }]}
+                style={[styles.resultCount, { color: colors.mutedForeground }]}
               >
                 {total} kết quả cho "{keyword}"
               </Text>
@@ -344,7 +300,7 @@ export default function MessageSearchScreen() {
           ListFooterComponent={
             loadingMore ? (
               <ActivityIndicator
-                color={COLORS.primary}
+                color={colors.primary}
                 style={{ paddingVertical: 16 }}
               />
             ) : null
@@ -355,15 +311,15 @@ export default function MessageSearchScreen() {
                 <Ionicons
                   name="search-outline"
                   size={52}
-                  color={COLORS.border}
+                  color={colors.border}
                 />
-                <Text style={[styles.emptyTitle, { color: COLORS.foreground }]}>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
                   Không tìm thấy kết quả
                 </Text>
                 <Text
                   style={[
                     styles.emptySubtitle,
-                    { color: COLORS.mutedForeground },
+                    { color: colors.mutedForeground },
                   ]}
                 >
                   Không có tin nhắn nào chứa "{keyword}"
@@ -374,12 +330,12 @@ export default function MessageSearchScreen() {
                 <Ionicons
                   name="chatbubble-outline"
                   size={52}
-                  color={COLORS.border}
+                  color={colors.border}
                 />
                 <Text
                   style={[
                     styles.emptySubtitle,
-                    { color: COLORS.mutedForeground },
+                    { color: colors.mutedForeground },
                   ]}
                 >
                   Nhập từ khóa để tìm kiếm tin nhắn
@@ -418,11 +374,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
 
-  resultCount: {
-    fontSize: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
+  resultCount: { fontSize: 12, paddingHorizontal: 16, paddingVertical: 10 },
 
   resultItem: {
     flexDirection: "row",
