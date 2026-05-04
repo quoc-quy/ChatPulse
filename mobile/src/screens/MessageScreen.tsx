@@ -52,35 +52,41 @@ import {
 } from '../apis/chat.api'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-const lightColors = {
-  background: '#F5F7FB',
-  surface: '#FFFFFF',
-  surfaceSoft: '#EEF2FF',
-  text: '#0F172A',
-  textLight: '#64748B',
-  border: '#E2E8F0',
-  primary: '#6366F1',
-  accent: '#8B5CF6',
-  success: '#10B981',
-  badge: '#EF4444',
-  headerText: '#FFFFFF',
-  fileBg: '#F0F4F8'
-}
+// 👇 1. Import bộ màu gốc từ colors.ts
+import { lightColors as globalLight, darkColors as globalDark } from '../theme/colors';
 
-const darkColors = {
-  background: '#070B1A',
-  surface: '#11182D',
-  surfaceSoft: '#0D1428',
-  text: '#F8FAFC',
-  textLight: '#9CA3AF',
-  border: '#1E2946',
-  primary: '#7C3AED',
-  accent: '#A855F7',
-  success: '#10B981',
-  badge: '#EF4444',
+// 👇 2. Ghi đè thành màu Tím và thêm các màu phụ ngay tại local
+const localLightColors = {
+  ...globalLight,
+  primary: 'hsl(262, 83%, 60%)', // Ép thành Tím
+  ring: 'hsl(262, 80%, 55%)',
+  badge: 'hsl(0, 84%, 60%)',
+  textLight: 'hsl(240, 10%, 45%)',
+  surface: globalLight.card,
+  text: globalLight.foreground,
+  success: 'hsl(142, 76%, 36%)',
+  surfaceSoft: 'hsl(240, 15%, 95%)',
+  searchBg: 'hsl(240, 15%, 94%)',
+  highlight: 'hsl(50, 100%, 70%)',
   headerText: '#FFFFFF',
-  fileBg: '#1E293B'
-}
+  fileBg: 'hsl(260, 33%, 96%)',
+};
+
+const localDarkColors = {
+  ...globalDark,
+  primary: 'hsl(262, 85%, 65%)', // Ép thành Tím sáng cho Dark Mode
+  ring: 'hsl(262, 80%, 65%)',
+  badge: 'hsl(0, 62%, 50%)',
+  textLight: 'hsl(240, 10%, 65%)',
+  surface: globalDark.card,
+  text: globalDark.foreground,
+  success: 'hsl(142, 69%, 58%)',
+  surfaceSoft: 'hsl(240, 20%, 14%)',
+  searchBg: 'hsl(240, 20%, 15%)',
+  highlight: 'hsl(50, 80%, 45%)',
+  headerText: '#FFFFFF',
+  fileBg: 'hsl(260, 33%, 17%)',
+};
 
 const REACTION_LIST = ['👍', '❤️', '🤣', '😮', '😭', '😡']
 const BLOCKED_EXTENSIONS = [
@@ -187,7 +193,13 @@ const MessageScreen = () => {
 
   const { isDarkMode } = useTheme()
   const { language, t } = useTranslation()
-  const COLORS = isDarkMode ? darkColors : lightColors
+
+  // 👇 3. Gán COLORS bằng bộ màu local đã được ép sang Tím
+  const COLORS = useMemo(
+    () => (isDarkMode ? localDarkColors : localLightColors),
+    [isDarkMode]
+  );
+
   const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS])
 
   const { clearLocalUnread, drafts, updateDraft, socket } = useChatContext() as any
@@ -245,7 +257,6 @@ const MessageScreen = () => {
     fetchConversationDetail()
   }, [route.params.id])
 
-  // 3. Lắng nghe sự kiện Socket (thêm vào useEffect chứa socket của bạn)
   useEffect(() => {
     if (!socket) return
 
@@ -269,23 +280,19 @@ const MessageScreen = () => {
     }
   }
 
-  // 2. Hàm xử lý cuộn và nháy sáng tin nhắn
   const scrollToMessage = (msgId: string) => {
-    setShowPinnedModal(false) // Đóng danh sách ghim nếu đang mở
+    setShowPinnedModal(false)
 
     const index = groupedMessages.findIndex((msg) => msg._id === msgId)
     if (index !== -1) {
-      // Cuộn tới vị trí tin nhắn
       flatListRef.current?.scrollToIndex({
         index,
         animated: true,
-        viewPosition: 0.5 // Căn tin nhắn ra giữa màn hình
+        viewPosition: 0.5
       })
 
-      // Bật highlight
       setHighlightedMsgId(msgId)
 
-      // Tắt highlight sau 2 giây
       setTimeout(() => {
         setHighlightedMsgId(null)
       }, 2000)
@@ -413,7 +420,6 @@ const MessageScreen = () => {
     setIsUploading(true)
     const tempId = Date.now().toString()
 
-    // Tạo payload với đầy đủ metadata để hiển thị ngay (tên, size, mimeType)
     const filePayloads: FilePayload[] = files.map((f) => ({
       url: f.uri,
       originalName: f.name || f.fileName || `file_${Date.now()}`,
@@ -521,10 +527,6 @@ const MessageScreen = () => {
       }
     }
 
-    // for (const media of mediaToSend) {
-    //   await uploadAttachment(media, media.attachmentType)
-    // }
-
     const mediaFiles = mediaToSend.filter((m) => m.attachmentType === 'media')
     const docFiles = mediaToSend.filter((m) => m.attachmentType === 'file')
 
@@ -547,10 +549,8 @@ const MessageScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Gọi API xóa phía người dùng hiện tại
               await deleteConversationForMe(conversationId)
 
-              // Cập nhật lại AsyncStorage để gỡ nhóm này khỏi danh sách lưu trữ (nếu đang lưu)
               const stored = await AsyncStorage.getItem('archived_chats')
               if (stored) {
                 let archivedArray: string[] = JSON.parse(stored)
@@ -558,7 +558,6 @@ const MessageScreen = () => {
                 await AsyncStorage.setItem('archived_chats', JSON.stringify(nextArray))
               }
 
-              // Quay về màn hình ChatScreen (ChatScreen sẽ tự động reload lại danh sách nhờ useFocusEffect)
               navigation.goBack()
             } catch (error) {
               Alert.alert('Lỗi', 'Không thể xóa trò chuyện. Vui lòng thử lại!')
@@ -617,32 +616,27 @@ const MessageScreen = () => {
             resolvedUserId = decoded.user_id || decoded._id || decoded.id
             setCurrentUserId(resolvedUserId)
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (conversationId && resolvedUserId) {
         setLoading(true)
         try {
-          // 1. Tải danh sách tin nhắn
           const res = await getMessages(conversationId, null, 20)
           const rawData = res.data.result || res.data.data || []
           if (rawData.length > 0) setCursor(rawData[rawData.length - 1]._id)
           if (rawData.length < 20) setHasMore(false)
           setMessages(rawData)
 
-          // 2. Chỉ gọi API lấy chi tiết nếu đây là Chat Nhóm
           if (isGroup) {
-            // 2. Gọi API lấy chi tiết hội thoại (Lấy cả tên nhóm và TIN NHẮN GHIM)
             const detailRes = await getConversationDetail(conversationId)
             const conv = detailRes.data?.result
 
             if (conv) {
-              // Lấy danh sách ghim
               if (conv.pinnedMessages) {
                 setPinnedMessages(conv.pinnedMessages)
               }
 
-              // Chỉ cập nhật các thông tin nhóm nếu là nhóm
               if (isGroup) {
                 if (conv.name) {
                   setCurrentChatName(conv.name)
@@ -664,7 +658,6 @@ const MessageScreen = () => {
               }
             }
 
-            // BƯỚC 3: Cập nhật state giải tán từ database
             if (conv?.is_disbanded || conv?.isDisbanded) {
               setIsGroupDisbanded(true)
               setDisbandMessage(conv?.disbanded_message || 'Nhóm đã bị giải tán.')
@@ -672,7 +665,6 @@ const MessageScreen = () => {
               setIsGroupDisbanded(false)
             }
 
-            // Cập nhật trạng thái thông báo (Mute)
             const myMember = (conv?.members || []).find(
               (m: any) => m.userId?.toString() === resolvedUserId
             )
@@ -689,17 +681,12 @@ const MessageScreen = () => {
     }
 
     initChat()
-  }, [conversationId, isGroup, currentUserId]) // Thêm isGroup vào dependency array
+  }, [conversationId, isGroup, currentUserId])
 
-  // =========================================================================
-  // 🔥 FIX REALTIME: LẮNG NGHE SỰ KIỆN SOCKET NHẬN TIN NHẮN TỪ NGƯỜI KHÁC
-  // =========================================================================
   useEffect(() => {
     if (!socket || !conversationId) return
 
     const handleReceiveMessage = (newMessage: any) => {
-      console.log('📩 Mobile received:', newMessage)
-      // Bỏ qua nếu là tin nhắn của chính mình (đã được xử lý bởi optimistic update)
       if (newMessage.sender?._id === currentUserId && newMessage.type !== 'system') {
         return
       }
@@ -711,7 +698,6 @@ const MessageScreen = () => {
           return [newMessage, ...prev]
         })
 
-        // Đánh dấu đã xem nếu tin nhắn không phải của mình
         if (currentUserId) {
           socket.emit('message_seen', {
             messageId: newMessage._id,
@@ -756,7 +742,6 @@ const MessageScreen = () => {
       )
     }
     const handleConversationUpdated = (data: any) => {
-      // Kiểm tra nếu đúng là ID của cuộc hội thoại hiện tại và có tên mới
       if (data.conversationId === conversationId && data.name) {
         setCurrentChatName(data.name)
       }
@@ -777,76 +762,21 @@ const MessageScreen = () => {
     }
   }, [socket, conversationId, currentUserId, clearLocalUnread])
 
-  // const groupedMessages = useMemo(() => {
-  //   const result = []
-  //   let currentGroup: any = null
-
-  //   for (let i = 0; i < messages.length; i++) {
-  //     const msg = messages[i]
-  //     const urlLower = msg.content?.split('?')[0].toLowerCase() || ''
-  //     const isVideo = msg.type === 'video' || urlLower.match(/\.(mp4|mov|avi|mkv)$/i)
-  //     const isDocument =
-  //       msg.type === 'file' ||
-  //       urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i)
-  //     const isImage =
-  //       (msg.type === 'media' ||
-  //         msg.type === 'image' ||
-  //         urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
-  //       !isVideo &&
-  //       !isDocument
-
-  //     if (isImage && !msg.isSending) {
-  //       if (currentGroup && currentGroup.senderId === (msg.sender?._id || msg.senderId)) {
-  //         const timeDiff = Math.abs(
-  //           new Date(currentGroup.createdAt).getTime() - new Date(msg.createdAt).getTime()
-  //         )
-  //         if (timeDiff < 60000) {
-  //           currentGroup.images.push(msg)
-  //           continue
-  //         }
-  //       }
-  //       if (currentGroup) {
-  //         result.push(currentGroup)
-  //       }
-  //       currentGroup = {
-  //         isGroup: true,
-  //         _id: `group_${msg._id}`,
-  //         senderId: msg.sender?._id || msg.senderId,
-  //         sender: msg.sender,
-  //         createdAt: msg.createdAt,
-  //         images: [msg]
-  //       }
-  //     } else {
-  //       if (currentGroup) {
-  //         result.push(currentGroup)
-  //         currentGroup = null
-  //       }
-  //       result.push(msg)
-  //     }
-  //   }
-  //   if (currentGroup) result.push(currentGroup)
-  //   return result
-  // }, [messages])
-
   const groupedMessages = messages
 
   const handleSummarizeChat = async () => {
-    // Không tóm tắt nếu chưa có tin nhắn nào
     if (!messages || messages.length === 0) {
       Alert.alert(t.error || 'Lỗi', 'Chưa có tin nhắn nào để tóm tắt.')
       return
     }
 
-    setIsSummarizing(true) // Bật loading ở icon header
-    setShowAiModal(true) // Hiển thị Modal AI
-    setIsAiProcessing(true) // Bật trạng thái loading bên trong modal
-    setAiSummaryText('') // Clear nội dung cũ (nếu có)
+    setIsSummarizing(true)
+    setShowAiModal(true)
+    setIsAiProcessing(true)
+    setAiSummaryText('')
 
     try {
-      // Vì danh sách flatlist inverted (mới nhất ở đầu), lấy 50 tin nhắn gần nhất
-      // để tránh payload quá lớn, sau đó đảo ngược lại để đúng thứ tự thời gian cho AI dễ hiểu
       const recentMessages = [...messages].slice(0, 50).reverse()
-
       const res = await summarizeChatApi(recentMessages)
 
       if (res.data?.result) {
@@ -862,8 +792,8 @@ const MessageScreen = () => {
       setIsAiProcessing(false)
     }
   }
-  const handleToggleReact = async (message: any, emoji: string) => {}
-  const handleRemoveAllReactions = async (message: any) => {}
+  const handleToggleReact = async (message: any, emoji: string) => { }
+  const handleRemoveAllReactions = async (message: any) => { }
 
   const buildReactionGroups = (reactions: any[] = []) => {
     const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>()
@@ -892,9 +822,9 @@ const MessageScreen = () => {
     return []
   }, [reactionFilter, reactionGroupsForModal, currentUserId])
 
-  const handleRevoke = async () => {}
-  const handleDeleteForMe = async () => {}
-  const handleDoubleTap = (message: any) => {}
+  const handleRevoke = async () => { }
+  const handleDeleteForMe = async () => { }
+  const handleDoubleTap = (message: any) => { }
 
   const handleLongPress = (event: any, message: any) => {
     if (message.type === 'revoked') return
@@ -952,11 +882,8 @@ const MessageScreen = () => {
 
   const handleTogglePinMessage = async (message: any) => {
     try {
-      // Kiểm tra xem tin nhắn đã được ghim chưa
       const isPinned = pinnedMessages.some((p) => p.messageId === message._id)
       const action = isPinned ? 'unpin' : 'pin'
-
-      // Gọi API (UI sẽ tự động cập nhật nhờ Socket)
       await pinMessageApi(message._id, action)
     } catch (error: any) {
       Alert.alert('Lỗi', error.response?.data?.message || 'Không thể thực hiện hành động này.')
@@ -979,8 +906,6 @@ const MessageScreen = () => {
   }
 
   const renderAiText = (text: string) => {
-    // Nếu AI có trả về các markdown cơ bản (ví dụ **in đậm**), bạn có thể xử lý ở đây
-    // Hoặc đơn giản nhất là return text để hiển thị chuỗi thông thường
     return text || ''
   }
 
@@ -1091,12 +1016,11 @@ const MessageScreen = () => {
             style={[
               styles.messageContent,
               isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
-              { position: 'relative' } // Rất quan trọng để chốt dính lớp Overlay phát sáng
+              { position: 'relative' }
             ]}
           >
             <TouchableOpacity
               onPress={() => {
-                // Parse content dùng helper thống nhất
                 const clickPayloads = parseMediaContent(displayContent)
                 const clickUrls: string[] = clickPayloads.map((p) => p.url)
                 const firstClickPayload = clickPayloads[0] || {
@@ -1115,7 +1039,6 @@ const MessageScreen = () => {
                   item.type === 'video' ||
                   ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstClickExt) ||
                   firstClickMime.startsWith('video/')
-                // Kiểm tra document trước để không nhầm file .docx là ảnh khi type='media'
                 const isDocumentClick =
                   item.type === 'file' ||
                   firstClickMime.startsWith('application/') ||
@@ -1213,7 +1136,6 @@ const MessageScreen = () => {
                   </Text>
                 ) : (
                   (() => {
-                    // Parse JSON metadata (new format) hoặc URL array (legacy)
                     const mediaPayloads = parseMediaContent(displayContent)
                     const parsedUrls: string[] = mediaPayloads.map((p) => p.url)
                     const firstPayload = mediaPayloads[0] || {
@@ -1231,7 +1153,6 @@ const MessageScreen = () => {
                       item.type === 'video' ||
                       ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstExt) ||
                       firstMime.startsWith('video/')
-                    // isDocument phải check TRƯỚC isImage vì type 'media' bao gồm cả file document
                     const isDocument =
                       item.type === 'file' ||
                       firstMime.startsWith('application/') ||
@@ -1260,86 +1181,121 @@ const MessageScreen = () => {
                         ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(firstExt) ||
                         !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
 
-                    // XỬ LÝ RENDER MULTI-IMAGE & VIDEO
+                    // 👇 BẮT ĐẦU GRID MULTI-IMAGE STYLE ZALO 👇
                     if (isVideo || isImage) {
+                      const count = parsedUrls.length;
+                      const GRID_WIDTH = 240; // Tổng chiều rộng khối chứa ảnh
+                      const GAP = 4; // Khoảng cách giữa các ảnh
+
+                      // Hàm render từng khung ảnh con trong lưới
+                      const renderGridItem = (url: string, w: number, h: number, idx: number, isLast = false) => (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() =>
+                            setPreviewMedia({
+                              items: parsedUrls.map((u) => ({ id: item._id, url: u, isVideo: false })),
+                              initialIndex: idx
+                            })
+                          }
+                          onLongPress={(e) => handleLongPress(e, item)}
+                          delayLongPress={200}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: url }}
+                            style={{
+                              width: w,
+                              height: h,
+                              borderRadius: 8,
+                              backgroundColor: COLORS.surfaceSoft
+                            }}
+                            resizeMode="cover"
+                          />
+                          {/* Lớp phủ hiển thị số lượng ảnh còn lại (nếu tổng > 5) */}
+                          {isLast && count > 5 && (
+                            <View
+                              style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: 'rgba(0,0,0,0.5)',
+                                borderRadius: 8,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 20 }}>
+                                +{count - 5}
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+
                       return (
                         <View style={{ position: 'relative', marginBottom: 5 }}>
-                          {parsedUrls.length === 1 ? (
+                          {count === 1 ? (
+                            // Trạng thái 1 Ảnh/Video
                             isVideo ? (
                               <VideoThumbnail url={parsedUrls[0]} />
                             ) : (
-                              <Image
-                                source={{ uri: parsedUrls[0] }}
-                                style={styles.mediaImage}
-                                resizeMode="cover"
-                              />
+                              <Image source={{ uri: parsedUrls[0] }} style={styles.mediaImage} resizeMode="cover" />
                             )
                           ) : (
-                            // RENDER GRID NHIỀU ẢNH
-                            <View
-                              style={{
-                                flexDirection: 'row',
-                                flexWrap: 'wrap',
-                                width: 250,
-                                gap: 4
-                              }}
-                            >
-                              {parsedUrls.slice(0, 9).map((url, idx) => (
-                                <TouchableOpacity
-                                  key={idx}
-                                  onPress={() =>
-                                    setPreviewMedia({
-                                      items: parsedUrls.map((u) => ({
-                                        id: item._id,
-                                        url: u,
-                                        isVideo: false
-                                      })),
-                                      initialIndex: idx
-                                    })
-                                  }
-                                  onLongPress={(e) => handleLongPress(e, item)}
-                                  delayLongPress={200}
-                                >
-                                  <Image
-                                    source={{ uri: url }}
-                                    style={{
-                                      width: 78,
-                                      height: 78,
-                                      borderRadius: 8
-                                    }}
-                                  />
-                                  {/* Hiển thị số ảnh còn lại nếu số lượng > 9 */}
-                                  {idx === 8 && parsedUrls.length > 9 && (
-                                    <View
-                                      style={{
-                                        ...StyleSheet.absoluteFillObject,
-                                        backgroundColor: 'rgba(0,0,0,0.5)',
-                                        borderRadius: 8,
-                                        justifyContent: 'center',
-                                        alignItems: 'center'
-                                      }}
-                                    >
-                                      <Text
-                                        style={{
-                                          color: 'white',
-                                          fontWeight: 'bold',
-                                          fontSize: 16
-                                        }}
-                                      >
-                                        +{parsedUrls.length - 9}
-                                      </Text>
-                                    </View>
-                                  )}
-                                </TouchableOpacity>
-                              ))}
+                            <View style={{ gap: GAP }}>
+                              {/* Lưới 2 ảnh: Chia 2 cột đều nhau */}
+                              {count === 2 && (
+                                <View style={{ flexDirection: 'row', gap: GAP }}>
+                                  {renderGridItem(parsedUrls[0], (GRID_WIDTH - GAP) / 2, 160, 0)}
+                                  {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, 160, 1)}
+                                </View>
+                              )}
+
+                              {/* Lưới 3 ảnh: 1 to phía trên, 2 nhỏ phía dưới */}
+                              {count === 3 && (
+                                <>
+                                  {renderGridItem(parsedUrls[0], GRID_WIDTH, 150, 0)}
+                                  <View style={{ flexDirection: 'row', gap: GAP }}>
+                                    {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 1)}
+                                    {renderGridItem(parsedUrls[2], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 2)}
+                                  </View>
+                                </>
+                              )}
+
+                              {/* Lưới 4 ảnh: 2x2 vuông vức */}
+                              {count === 4 && (
+                                <>
+                                  <View style={{ flexDirection: 'row', gap: GAP }}>
+                                    {renderGridItem(parsedUrls[0], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 0)}
+                                    {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 1)}
+                                  </View>
+                                  <View style={{ flexDirection: 'row', gap: GAP }}>
+                                    {renderGridItem(parsedUrls[2], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 2)}
+                                    {renderGridItem(parsedUrls[3], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 3)}
+                                  </View>
+                                </>
+                              )}
+
+                              {/* Lưới từ 5 ảnh trở lên: 2 to phía trên, 3 nhỏ phía dưới (Kèm nhãn +N) */}
+                              {count >= 5 && (
+                                <>
+                                  <View style={{ flexDirection: 'row', gap: GAP }}>
+                                    {renderGridItem(parsedUrls[0], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 0)}
+                                    {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, (GRID_WIDTH - GAP) / 2, 1)}
+                                  </View>
+                                  <View style={{ flexDirection: 'row', gap: GAP }}>
+                                    {renderGridItem(parsedUrls[2], (GRID_WIDTH - GAP * 2) / 3, (GRID_WIDTH - GAP * 2) / 3, 2)}
+                                    {renderGridItem(parsedUrls[3], (GRID_WIDTH - GAP * 2) / 3, (GRID_WIDTH - GAP * 2) / 3, 3)}
+                                    {renderGridItem(parsedUrls[4], (GRID_WIDTH - GAP * 2) / 3, (GRID_WIDTH - GAP * 2) / 3, 4, true)}
+                                  </View>
+                                </>
+                              )}
                             </View>
                           )}
                         </View>
                       )
                     }
+                    // 👆 KẾT THÚC GRID MULTI-IMAGE STYLE ZALO 👆
 
                     if (isDocument) {
-                      // Parse lại toàn bộ payloads để lấy metadata đúng
                       const docPayloads = parseMediaContent(displayContent)
                       return (
                         <View style={{ gap: 8 }}>
@@ -1359,18 +1315,15 @@ const MessageScreen = () => {
                                   }
                                 ]}
                               >
-                                {/* ── Info row ── */}
                                 <View
                                   style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}
                                 >
-                                  {/* Badge loại file */}
                                   <View
                                     style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}
                                   >
                                     <Text style={styles.fileTypeBadgeText}>{fileLabel}</Text>
                                   </View>
                                   <View style={{ flex: 1, paddingRight: 8 }}>
-                                    {/* Tên file gốc */}
                                     <Text
                                       style={[styles.fileNameCardText, { color: COLORS.text }]}
                                       numberOfLines={1}
@@ -1378,7 +1331,6 @@ const MessageScreen = () => {
                                       {payload.originalName}
                                     </Text>
                                     <View style={styles.fileMetaRow}>
-                                      {/* Dung lượng file */}
                                       {sizeLabel ? (
                                         <Text
                                           style={[styles.fileMetaText, { color: COLORS.textLight }]}
@@ -1411,7 +1363,6 @@ const MessageScreen = () => {
                                       </Text>
                                     </View>
                                   </View>
-                                  {/* Nút tải xuống */}
                                   <TouchableOpacity
                                     style={styles.downloadIconBtn}
                                     onPress={() => Linking.openURL(payload.url)}
@@ -1456,7 +1407,6 @@ const MessageScreen = () => {
                   })()
                 )}
 
-                {/* 👇 OVERLAY PHÁT SÁNG CHO MỌI LOẠI TIN NHẮN (ẢNH, FILE, TEXT) 👇 */}
                 {isHighlighted && (
                   <View
                     style={[
@@ -1467,9 +1417,9 @@ const MessageScreen = () => {
                           : 'rgba(99, 102, 241, 0.15)',
                         borderRadius:
                           item.type === 'image' ||
-                          item.type === 'media' ||
-                          item.type === 'file' ||
-                          item.type === 'video'
+                            item.type === 'media' ||
+                            item.type === 'file' ||
+                            item.type === 'video'
                             ? 16
                             : 18,
                         borderWidth: 2,
@@ -1480,7 +1430,6 @@ const MessageScreen = () => {
                     pointerEvents="none"
                   />
                 )}
-                {/* 👆 OVERLAY PHÁT SÁNG 👆 */}
               </View>
 
               {showTime && !item.isSending && item.type !== 'call' && item.type !== 'file' && (
@@ -1569,13 +1518,11 @@ const MessageScreen = () => {
     onViewableItemsChangedRef.current = handleViewableItemsChanged
   }, [handleViewableItemsChanged])
 
-  // Hàm xử lý hiển thị nội dung tin nhắn ghim (bóc tách tên file từ link AWS)
   const renderPinnedMessageContent = (message: any) => {
     if (!message || !message.content) return '[Nội dung không khả dụng]'
 
     const type = message.type || 'text'
 
-    // Nếu là tin nhắn chữ bình thường
     if (type === 'text') {
       if (message.content.startsWith('@PulseAI ')) {
         return message.content.substring(9)
@@ -1589,7 +1536,6 @@ const MessageScreen = () => {
         const firstPayload = payloads[0]
         let fileName = firstPayload.originalName || ''
 
-        // Ẩn tên nếu tên là chuỗi hash quá dài của AWS S3
         if (fileName === 'file' || fileName.length > 50) {
           fileName = ''
         }
@@ -1597,7 +1543,6 @@ const MessageScreen = () => {
         const ext = firstPayload.originalName.split('.').pop()?.toLowerCase() || ''
         const mime = firstPayload.mimeType || ''
 
-        // Lô-gic nhận diện thông minh y hệt như lúc render tin nhắn
         const isVideo =
           type === 'video' ||
           ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) ||
@@ -1633,7 +1578,6 @@ const MessageScreen = () => {
       console.log('Error parsing pinned media', error)
     }
 
-    // Fallback nếu không parse được
     if (type === 'video') return '[Video]'
     if (type === 'file') return '[Tệp đính kèm]'
     if (type === 'image' || type === 'media') return '[Hình ảnh]'
@@ -1646,7 +1590,6 @@ const MessageScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
 
-      {/* 1. KHỐI HEADER MÀU XANH/TÍM */}
       <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -1666,7 +1609,6 @@ const MessageScreen = () => {
         <View style={styles.headerRight}>
           {!isGroupDisbanded && (
             <>
-              {/* Các nút gọi điện, video, menu giữ nguyên */}
               <TouchableOpacity
                 style={styles.iconBtn}
                 onPress={handleSummarizeChat}
@@ -1701,9 +1643,6 @@ const MessageScreen = () => {
         </View>
       </LinearGradient>
 
-      {/* ========================================== */}
-
-      {/* 2. THANH TIN NHẮN GHIM NẰM NGAY DƯỚI HEADER */}
       {pinnedMessages.length > 0 && (
         <View style={styles.pinnedBannerContainer}>
           <View style={styles.pinnedIcon}>
@@ -1712,7 +1651,6 @@ const MessageScreen = () => {
           <TouchableOpacity
             style={styles.pinnedContent}
             onPress={() => {
-              // Lấy tin nhắn ghim cuối cùng và cuộn tới nó
               const latestPin = pinnedMessages[pinnedMessages.length - 1]
               if (latestPin) scrollToMessage(latestPin.messageId)
             }}
@@ -1722,20 +1660,17 @@ const MessageScreen = () => {
               {renderPinnedMessageContent(pinnedMessages[pinnedMessages.length - 1]?.message)}
             </Text>
           </TouchableOpacity>
-          {/* MỞ MODAL KHI BẤM NÚT MŨI TÊN */}
           <TouchableOpacity onPress={() => setShowPinnedModal(true)}>
             <Ionicons name="chevron-down" size={20} color={COLORS.textLight} />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* 3. KHU VỰC CHAT BÊN DƯỚI */}
       <KeyboardAvoidingView
         style={styles.chatArea}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {isGroupDisbanded ? (
-          // ── GIAO DIỆN KHI NHÓM ĐÃ GIẢI TÁN (GIỐNG ZALO ẢNH 2) ──
           <View
             style={{
               flex: 1,
@@ -1772,7 +1707,6 @@ const MessageScreen = () => {
             </View>
           </View>
         ) : (
-          // ── GIAO DIỆN HIỂN THỊ TIN NHẮN BÌNH THƯỜNG ──
           <>
             <FlatList
               ref={flatListRef}
@@ -1781,7 +1715,6 @@ const MessageScreen = () => {
               keyExtractor={(item, index) => `${item._id ?? 'msg'}_${index}`}
               renderItem={renderMessage}
               contentContainerStyle={styles.listContent}
-              // 👇 THÊM DÒNG NÀY ĐỂ TRÁNH CRASH KHI CUỘN 👇
               onScrollToIndexFailed={(info) => {
                 const wait = new Promise((resolve) => setTimeout(resolve, 500))
                 wait.then(() => {
@@ -1859,7 +1792,6 @@ const MessageScreen = () => {
         )}
 
         {isGroupDisbanded ? (
-          // ── Input disabled khi nhóm đã bị giải tán ──────────────────────────
           <View
             style={[
               styles.inputContainer,
@@ -1884,7 +1816,6 @@ const MessageScreen = () => {
             </Text>
           </View>
         ) : (
-          // ── Input bình thường ────────────────────────────────────────────────
           <View
             style={[
               styles.inputContainer,
@@ -1958,6 +1889,7 @@ const MessageScreen = () => {
                   paddingBottom: 10,
                   textAlignVertical: 'center'
                 }}
+
                 placeholder={t.messageInputPlaceholder}
                 placeholderTextColor={COLORS.textLight}
                 value={inputText.startsWith('@PulseAI ') ? inputText.substring(9) : inputText}
@@ -1988,9 +1920,6 @@ const MessageScreen = () => {
         )}
       </KeyboardAvoidingView>
 
-      {/* ========================================== */}
-      {/* MODAL DANH SÁCH TIN NHẮN ĐÃ GHIM */}
-      {/* ========================================== */}
       <Modal visible={showPinnedModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowPinnedModal(false)}>
           <View style={styles.pinnedModalContainer}>
@@ -2001,11 +1930,10 @@ const MessageScreen = () => {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={[...pinnedMessages].reverse()} // Đảo ngược để tin ghim mới nhất lên đầu
+              data={[...pinnedMessages].reverse()}
               keyExtractor={(item) => item.messageId}
               renderItem={({ item }) => (
                 <View style={styles.pinnedItemRow}>
-                  {/* ĐỔI VIEW THÀNH TOUCHABLE ĐỂ BẤM VÀO ITEM TRONG DANH SÁCH */}
                   <TouchableOpacity
                     style={styles.pinnedItemContent}
                     onPress={() => scrollToMessage(item.messageId)}
@@ -2017,9 +1945,7 @@ const MessageScreen = () => {
                   <TouchableOpacity
                     style={styles.unpinBtn}
                     onPress={() => {
-                      // Truyền object chứa _id để hàm handleTogglePinMessage xử lý đúng
                       handleTogglePinMessage({ _id: item.messageId })
-                      // Nếu đây là tin nhắn ghim cuối cùng thì đóng modal luôn
                       if (pinnedMessages.length === 1) {
                         setShowPinnedModal(false)
                       }
@@ -2037,7 +1963,6 @@ const MessageScreen = () => {
       <Modal visible={showMenu} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowMenu(false)}>
           <View style={[styles.menuBox, { top: menuPos.y }]}>
-            {/* KHỐI REACTION (Giữ nguyên của bạn) */}
             <View style={styles.emojiRow}>
               <View
                 style={styles.emojiStrip}
@@ -2078,9 +2003,7 @@ const MessageScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* KHỐI CÁC NÚT HÀNH ĐỘNG */}
             <View style={styles.actionRow}>
-              {/* Nút Chuyển tiếp (Đã có sẵn) */}
               <TouchableOpacity style={styles.menuItem} onPress={handleForward}>
                 <Ionicons name="arrow-redo-outline" size={20} color={COLORS.text} />
                 <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
@@ -2088,15 +2011,12 @@ const MessageScreen = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* ========================================== */}
-              {/* THÊM BƯỚC 5 VÀO ĐÂY: NÚT GHIM TIN NHẮN */}
-              {/* ========================================== */}
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   if (selectedMsg) {
                     handleTogglePinMessage(selectedMsg)
-                    setShowMenu(false) // Đóng menu sau khi bấm
+                    setShowMenu(false)
                   }
                 }}
               >
@@ -2115,9 +2035,7 @@ const MessageScreen = () => {
                     : 'Message pin'}
                 </Text>
               </TouchableOpacity>
-              {/* ========================================== */}
 
-              {/* NÚT: THU HỒI (Đã có sẵn) */}
               {selectedMsg?.sender?._id === currentUserId && (
                 <TouchableOpacity style={styles.menuItem} onPress={handleRevoke}>
                   <Ionicons name="refresh-outline" size={20} color={COLORS.badge} />
@@ -2127,7 +2045,6 @@ const MessageScreen = () => {
                 </TouchableOpacity>
               )}
 
-              {/* NÚT: XÓA Ở PHÍA TÔI (Đã có sẵn) */}
               <TouchableOpacity style={styles.menuItem} onPress={handleDeleteForMe}>
                 <Ionicons name="trash-outline" size={20} color={COLORS.text} />
                 <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
@@ -2447,7 +2364,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     systemMessageText: { fontSize: 12, textAlign: 'center', lineHeight: 17 },
     inputContainer: {
       flexDirection: 'row',
-      padding: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6, // 👈 Thay `padding: 10` thành `paddingVertical: 6` để khối này lùn lại
       backgroundColor: COLORS.surface,
       alignItems: 'flex-end',
       borderTopWidth: 1,
@@ -2455,7 +2373,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     attachBtn: {
       padding: 6,
-      marginBottom: 4
+      marginBottom: 0 // 👈 Đổi từ 4 thành 0 để các icon (ảnh, file) hạ thấp xuống cân bằng với ô text
     },
     textInput: {
       flex: 1,
@@ -2463,7 +2381,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       color: COLORS.text,
       borderRadius: 20,
       paddingHorizontal: 16,
-      minHeight: 40
+      minHeight: 38 // 👈 Giảm từ 40 xuống 38
     },
     sendBtn: {
       width: 36,
@@ -2471,7 +2389,8 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       borderRadius: 18,
       justifyContent: 'center',
       alignItems: 'center',
-      marginLeft: 8
+      marginLeft: 8,
+      marginBottom: 1 // 👈 Thêm dòng này để căn giữa nút Gửi với ô text
     },
     reactionContainer: {
       position: 'absolute',
@@ -2897,11 +2816,11 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     pinnedBannerContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#FFFFFF', // Hoặc màu nền phù hợp với theme của bạn
+      backgroundColor: COLORS.surface, // Dùng màu nền động
       paddingVertical: 10,
       paddingHorizontal: 15,
       borderBottomWidth: 1,
-      borderBottomColor: '#E2E8F0',
+      borderBottomColor: COLORS.border, // Dùng màu viền động
       elevation: 2,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
@@ -2912,7 +2831,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: '#EEF2FF',
+      backgroundColor: COLORS.surfaceSoft, // Trả màu nền cho icon ghim
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 10
@@ -2922,13 +2841,13 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     },
     pinnedTitle: {
       fontSize: 12,
-      color: '#6366F1',
+      color: COLORS.primary, // Chữ tiêu đề sẽ ăn màu Tím
       fontWeight: '600',
       marginBottom: 2
     },
     pinnedText: {
       fontSize: 14,
-      color: '#0F172A'
+      color: COLORS.text // Dùng chữ động theo mode
     },
     // CSS CHO MODAL DANH SÁCH GHIM
     pinnedModalContainer: {
@@ -2973,12 +2892,12 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     unpinBtn: {
       paddingVertical: 8,
       paddingHorizontal: 12,
-      backgroundColor: isDarkMode ? '#332727' : '#FEF2F2', // Nền đỏ nhạt
+      backgroundColor: isDarkMode ? '#332727' : '#FEF2F2',
       borderRadius: 8
     },
     unpinText: {
       fontSize: 13,
-      color: COLORS.badge, // Chữ đỏ
+      color: COLORS.badge,
       fontWeight: '600'
     }
   })
