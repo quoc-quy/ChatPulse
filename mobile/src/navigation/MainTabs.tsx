@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo, useEffect } from 'react' // 👈 Thêm useEffect vào đây
 import {
   View,
   Text,
@@ -10,13 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Animated,
+  Easing,
   ScrollView
 } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useChatContext } from '../contexts/ChatContext'
 import { MessageCircle, Users, User, Sparkles, X, ArrowUpCircle, Phone } from 'lucide-react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-// Thêm dòng này vào phần import ở đầu file
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 // Import API
@@ -27,6 +28,35 @@ import ChatScreen from '../screens/ChatScreen'
 import FriendsScreen from '../screens/FriendsScreen'
 import ProfileScreen from '../screens/ProfileScreen'
 import { useTranslation } from '../hooks/useTranslation'
+import { useTheme } from '../contexts/ThemeContext'
+
+// 👇 1. Import bộ màu gốc từ colors.ts
+import { lightColors as globalLight, darkColors as globalDark } from "../theme/colors";
+
+// 👇 2. Mở rộng (extend) các màu bị thiếu và ép sang màu Tím
+const localLightColors = {
+  ...globalLight,
+  primary: 'hsl(262, 83%, 60%)',
+  ring: 'hsl(262, 80%, 55%)',
+  badge: 'hsl(0, 84%, 60%)',
+  textLight: 'hsl(240, 10%, 45%)',
+  surface: globalLight.card,
+  text: globalLight.foreground,
+  success: 'hsl(142, 76%, 36%)',
+  surfaceSoft: 'hsl(240, 15%, 95%)',
+};
+
+const localDarkColors = {
+  ...globalDark,
+  primary: 'hsl(262, 85%, 65%)',
+  ring: 'hsl(262, 80%, 65%)',
+  badge: 'hsl(0, 62%, 50%)',
+  textLight: 'hsl(240, 10%, 65%)',
+  surface: globalDark.card,
+  text: globalDark.foreground,
+  success: 'hsl(142, 69%, 58%)',
+  surfaceSoft: 'hsl(240, 20%, 14%)',
+};
 
 const Tab = createBottomTabNavigator()
 
@@ -38,14 +68,111 @@ interface MainTabsProps {
 
 const DummyScreen = () => <View style={{ flex: 1, backgroundColor: '#111111' }} />
 
+// Màn hình Coming Soon cho Tab Gọi điện
 const ComingSoonScreen = () => {
   const { t } = useTranslation();
+  const { isDarkMode } = useTheme();
+
+  const COLORS = useMemo(
+    () => (isDarkMode ? localDarkColors : localLightColors),
+    [isDarkMode]
+  );
+
+  // Khởi tạo các giá trị Animation
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Hiệu ứng 1: Tỏa sáng (Pulse) liên tục ra xung quanh
+    Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 2500,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: false,
+      })
+    ).start();
+
+    // Hiệu ứng 2: Icon lơ lửng (Bouncing/Floating) lên xuống
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -12,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: false,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  // Map giá trị anim sang độ lớn (scale) và độ mờ (opacity)
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2], // Tỏa to gấp đôi
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 0], // Mờ dần khi tỏa ra
+  });
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#111111', justifyContent: 'center', alignItems: 'center' }}>
-      <Phone size={48} color="#4B5563" style={{ marginBottom: 16 }} />
-      <Text style={{ color: '#9CA3AF', fontSize: 16, fontWeight: '600' }}>
-        {(t as any).featureComingSoon || "Tính năng đang phát triển thêm"}
+    <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+
+      {/* VÙNG CHỨA ICON & ANIMATION */}
+      <View style={{ position: 'relative', justifyContent: 'center', alignItems: 'center', height: 160 }}>
+
+        {/* Lớp màu nền tỏa ra (Pulse Effect) */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: 90,
+            height: 90,
+            borderRadius: 45,
+            backgroundColor: COLORS.primary,
+            opacity: pulseOpacity,
+            transform: [{ scale: pulseScale }],
+          }}
+        />
+
+        {/* Lớp Icon trôi lơ lửng (Float Effect) */}
+        <Animated.View
+          style={{
+            width: 100,
+            height: 100,
+            borderRadius: 50,
+            backgroundColor: COLORS.surfaceSoft,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            transform: [{ translateY: floatAnim }],
+            shadowColor: COLORS.primary,
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.25,
+            shadowRadius: 20,
+            elevation: 10,
+          }}
+        >
+          <Phone size={44} color={COLORS.primary} />
+        </Animated.View>
+      </View>
+
+      <Text style={{ color: COLORS.text, fontSize: 24, fontWeight: '800', marginBottom: 10, marginTop: 10 }}>
+        Tính năng đang phát triển
       </Text>
+
+      <Text style={{ color: COLORS.textLight, fontSize: 15, textAlign: 'center', paddingHorizontal: 40, lineHeight: 24 }}>
+        {t.featureComingSoon || "Tính năng gọi điện đang được đội ngũ ChatPulse khẩn trương phát triển và sẽ sớm ra mắt!"}
+      </Text>
+
     </View>
   );
 };
@@ -53,6 +180,14 @@ const ComingSoonScreen = () => {
 const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
   const { t } = useTranslation()
   const insets = useSafeAreaInsets()
+  const { isDarkMode } = useTheme()
+
+  // Gán COLORS bằng bộ màu local đã được ép sang Tím
+  const COLORS = useMemo(
+    () => (isDarkMode ? localDarkColors : localLightColors),
+    [isDarkMode]
+  );
+
   const [isAiVisible, setIsAiVisible] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [aiMessages, setAiMessages] = useState<any[]>([])
@@ -127,9 +262,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
     }
   }
 
-  // ==========================================
-  // HÀM DỊCH LINK ĐÃ ĐƯỢC LÀM ĐẸP
-  // ==========================================
   const renderAiTextWithLinks = (text: string) => {
     if (!text) return null
     const parts = text.split(/(\[[^\]]+\]\(nav:[^)]+\))/g)
@@ -143,9 +275,8 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           <Text
             key={index}
             style={{
-              color: '#C084FC', // Màu tím sáng
-              fontWeight: '700' // Đậm vừa phải, thanh lịch hơn
-              // ĐÃ XÓA gạch chân (underline) để không bị lỗi nét đứt
+              color: '#C084FC',
+              fontWeight: '700'
             }}
             onPress={() => {
               setIsAiVisible(false)
@@ -156,7 +287,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
               }
             }}
           >
-            {/* Dùng \u00A0 (Non-breaking space) để mũi tên dính chặt vào chữ cuối, không bị rớt dòng */}
             {linkText}
             {'\u00A0'}➔
           </Text>
@@ -204,11 +334,12 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           headerShown: false,
           tabBarShowLabel: false,
           tabBarStyle: {
-            height: Platform.OS === 'ios' ? 85 + insets.bottom : 65 + insets.bottom,
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom : Math.max(insets.bottom, 10),
-            backgroundColor: '#161618',
+            height: Platform.OS === 'ios' ? 60 + insets.bottom : 55 + insets.bottom,
+            paddingBottom: Platform.OS === 'ios' ? insets.bottom : Math.max(insets.bottom, 8),
+            paddingTop: 5,
+            backgroundColor: isDarkMode ? '#161618' : COLORS.surface,
             borderTopWidth: 1,
-            borderTopColor: '#2A2A2A',
+            borderTopColor: COLORS.border,
             elevation: 0
           }
         }}
@@ -220,8 +351,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <View>
-                  <MessageCircle size={24} color={focused ? '#818CF8' : '#9CA3AF'} />
-                  {/* Chỉ hiển thị badge khi có tin nhắn chưa đọc */}
+                  <MessageCircle size={24} color={focused ? COLORS.primary : COLORS.textLight} />
                   {totalUnreadCount > 0 && (
                     <View style={styles.badgeContainer}>
                       <Text style={styles.badgeText}>
@@ -230,7 +360,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.tabLabel, { color: focused ? '#818CF8' : '#9CA3AF' }]}>
+                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
                   {t.tabChats}
                 </Text>
               </View>
@@ -244,8 +374,8 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
-                <Users size={24} color={focused ? '#818CF8' : '#9CA3AF'} />
-                <Text style={[styles.tabLabel, { color: focused ? '#818CF8' : '#9CA3AF' }]}>
+                <Users size={24} color={focused ? COLORS.primary : COLORS.textLight} />
+                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
                   {t.tabContacts}
                 </Text>
               </View>
@@ -257,12 +387,12 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           name="AIPulse"
           component={DummyScreen}
           options={{
-            tabBarIcon: () => (
+            tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <View style={styles.aiIconCircle}>
-                  <Sparkles size={24} color="#D1D5DB" />
+                  <Sparkles size={24} color={focused ? COLORS.primary : "#D1D5DB"} />
                 </View>
-                <Text style={[styles.tabLabel, { color: '#9CA3AF', marginTop: 4 }]}>
+                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
                   {t.tabAiPulse}
                 </Text>
               </View>
@@ -279,12 +409,12 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
 
         <Tab.Screen
           name="Calls"
-          component={DummyScreen}
+          component={ComingSoonScreen}
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
-                <Phone size={24} color={focused ? '#818CF8' : '#9CA3AF'} />
-                <Text style={[styles.tabLabel, { color: focused ? '#818CF8' : '#9CA3AF' }]}>
+                <Phone size={24} color={focused ? COLORS.primary : COLORS.textLight} />
+                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
                   {t.tabCalls}
                 </Text>
               </View>
@@ -297,8 +427,8 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
-                <User size={24} color={focused ? '#818CF8' : '#9CA3AF'} />
-                <Text style={[styles.tabLabel, { color: focused ? '#818CF8' : '#9CA3AF' }]}>
+                <User size={24} color={focused ? COLORS.primary : COLORS.textLight} />
+                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
                   {t.tabProfile}
                 </Text>
               </View>
@@ -351,7 +481,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                   )}
 
                   <View style={styles.inputArea}>
-                    {/* GỢI Ý DÍNH TRÊN INPUT */}
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -388,7 +517,6 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                       ))}
                     </ScrollView>
 
-                    {/* INPUT */}
                     <View style={styles.inputWrapper}>
                       <TextInput
                         style={styles.input}
@@ -422,12 +550,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 10,
-    width: 60
+    width: 70 // 👈 Đổi từ flex: 1 thành width: 70 để đảm bảo đủ chỗ cho chữ "Contacts"
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10, // 👈 Giảm font size xuống một xíu (từ 11 xuống 10) để chữ không bị tràn
     fontWeight: '600',
-    marginTop: 4
+    marginTop: 4,
+    textAlign: 'center', // 👈 Đảm bảo chữ luôn canh giữa
   },
   activeLine: {
     height: 3,
@@ -442,7 +571,8 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: '#262626',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    marginTop: -4
   },
   badgeContainer: {
     position: 'absolute',
