@@ -16,13 +16,15 @@ import { SocialButtons } from "../components/auth/SocialButtons";
 import {
   validateEmail,
   validatePassword,
-  // validateFullName,
   validateUserName,
   validatePhone,
 } from "../utils/validations";
 import { registerApi } from "../apis/user.api";
+import { useTheme } from "../contexts/ThemeContext";
 
 export function SignUpForm({ navigation }: any) {
+  const { colors } = useTheme();
+
   const [userName, setUserName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -44,7 +46,6 @@ export function SignUpForm({ navigation }: any) {
     }
 
     if (
-      // nameError ||
       userError ||
       phoneError ||
       emailError ||
@@ -52,7 +53,6 @@ export function SignUpForm({ navigation }: any) {
       confirmError
     ) {
       setErrors({
-        // fullName: nameError,
         userName: userError,
         phone: phoneError,
         email: emailError,
@@ -93,7 +93,9 @@ export function SignUpForm({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -102,15 +104,18 @@ export function SignUpForm({ navigation }: any) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.header}>
-              <Text style={styles.title}>Create your account</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: colors.secondary }]}>
+                Create your account
+              </Text>
+              <Text
+                style={[styles.subtitle, { color: colors.mutedForeground }]}
+              >
                 Enter your email below to create your account
               </Text>
             </View>
 
-            {/* Các trường dữ liệu với Spacing hợp lý */}
             <View style={styles.formGroup}>
               <Input
                 label="User Name"
@@ -172,29 +177,45 @@ export function SignUpForm({ navigation }: any) {
             </View>
 
             <TouchableOpacity
-              style={[styles.btnPrimary, loading && { opacity: 0.7 }]}
+              style={[
+                styles.btnPrimary,
+                { backgroundColor: colors.primary },
+                loading && { opacity: 0.7 },
+              ]}
               onPress={handleSignUp}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.primaryForeground} />
               ) : (
-                <Text style={styles.btnText}>Sign up</Text>
+                <Text
+                  style={[styles.btnText, { color: colors.primaryForeground }]}
+                >
+                  Sign up
+                </Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.separatorContainer}>
-              <View style={styles.line} />
-              <Text style={styles.sepText}>OR REGISTER WITH</Text>
-              <View style={styles.line} />
+              <View style={[styles.line, { backgroundColor: colors.border }]} />
+              <Text style={[styles.sepText, { color: colors.mutedForeground }]}>
+                OR REGISTER WITH
+              </Text>
+              <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
 
             <SocialButtons />
 
             <View style={styles.footer}>
-              <Text style={styles.footerGray}>Already have an account? </Text>
+              <Text
+                style={[styles.footerGray, { color: colors.mutedForeground }]}
+              >
+                Already have an account?{" "}
+              </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-                <Text style={styles.boldLink}>Login</Text>
+                <Text style={[styles.boldLink, { color: colors.primary }]}>
+                  Login
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -205,10 +226,7 @@ export function SignUpForm({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC", // Màu nền nhạt hơn giúp Card nổi bật
-  },
+  container: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
@@ -217,8 +235,7 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: 24,
-    borderRadius: 20, // Bo góc mềm mại hơn theo hình mẫu
-    backgroundColor: "#fff",
+    borderRadius: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -226,64 +243,31 @@ const styles = StyleSheet.create({
     elevation: 5,
     width: "100%",
   },
-  header: {
-    alignItems: "center",
-    marginBottom: 24, // Giảm khoảng cách header để gọn hơn
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#A855F7", // Màu chữ tiêu đề đậm hơn
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: "#94A3B8",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  formGroup: {
-    marginBottom: 20, // Gom nhóm các input lại
-  },
+  header: { alignItems: "center", marginBottom: 24 },
+  title: { fontSize: 26, fontWeight: "bold", marginBottom: 8 },
+  subtitle: { marginTop: 4, textAlign: "center" },
+  formGroup: { marginBottom: 20 },
   btnPrimary: {
-    backgroundColor: "#4F46E5", // Giữ màu chủ đạo của bạn
     height: 52,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
   },
-  btnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  btnText: { fontWeight: "bold", fontSize: 16 },
   separatorContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 24,
   },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E2E8F0",
-  },
+  line: { flex: 1, height: 1 },
   sepText: {
     marginHorizontal: 12,
-    color: "#94A3B8",
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 1,
   },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  footerGray: {
-    color: "#64748B",
-  },
-  boldLink: {
-    fontWeight: "bold",
-    color: "#4F46E5",
-  },
+  footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
+  footerGray: {},
+  boldLink: { fontWeight: "bold" },
 });

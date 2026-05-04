@@ -11,7 +11,6 @@ import {
   Alert,
   ActivityIndicator,
   TouchableWithoutFeedback,
-  Keyboard
 } from 'react-native'
 import { Input } from '../components/ui/Input'
 import { SocialButtons } from '../components/auth/SocialButtons'
@@ -19,30 +18,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api } from '../apis/api'
 import { validateLoginIdentifier, validatePassword } from '../utils/validations'
 import { useChatContext } from '../contexts/ChatContext'
-
-// Bảng màu đồng bộ với index.css
-const COLORS = {
-  primary: '#4F46E5', // --primary: hsl(230 85% 60%)
-  secondary: '#A855F7', // --secondary: hsl(270 75% 65%)
-  background: '#F8FAFC', // --background: hsl(240 30% 98%)
-  foreground: '#1E293B', // --foreground: hsl(240 10% 15%)
-  muted: '#94A3B8',
-  white: '#FFFFFF'
-}
+import { useTheme } from '../contexts/ThemeContext'
 
 interface LoginFormProps {
   navigation: any
-  onLoginSuccess?: () => void // Prop để cập nhật trạng thái tại App.tsx
+  onLoginSuccess?: () => void
 }
 
 export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
+  const { colors } = useTheme()
+
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{
-    identifier?: string
-    password?: string
-  }>({})
+  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({})
 
   const { connectSocket } = useChatContext()
 
@@ -53,7 +42,7 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
     if (identifierError || passwordError) {
       setErrors({
         identifier: identifierError || undefined,
-        password: passwordError || undefined
+        password: passwordError || undefined,
       })
       return
     }
@@ -65,17 +54,15 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
       const response = await api.post('/auth/login', {
         identifier: identifier.trim(),
         email: identifier.trim(),
-        password: password
+        password: password,
       })
 
       if (response.data.result) {
         const { access_token, refresh_token } = response.data.result
-        // Lưu trữ token vào bộ nhớ máy
         await AsyncStorage.setItem('access_token', access_token)
         await AsyncStorage.setItem('refresh_token', refresh_token)
         connectSocket()
 
-        // Gọi callback để App.tsx biết đã đăng nhập thành công
         if (onLoginSuccess) {
           onLoginSuccess()
         } else {
@@ -97,7 +84,7 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
 
       Alert.alert(
         'Đăng nhập thất bại',
-        backendMessage || networkMessage || 'Email/username hoặc mật khẩu không chính xác.'
+        backendMessage || networkMessage || 'Email/username hoặc mật khẩu không chính xác.',
       )
     } finally {
       setLoading(false)
@@ -105,21 +92,16 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <TouchableWithoutFeedback>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.card}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
               <View style={styles.header}>
-                {/* Tiêu đề dùng màu secondary giống Contacts */}
-                <Text style={styles.title}>Welcome back</Text>
-                <Text style={styles.subtitle}>Login to your ChatPulse account</Text>
+                <Text style={[styles.title, { color: colors.secondary }]}>Welcome back</Text>
+                <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+                  Login to your ChatPulse account
+                </Text>
               </View>
 
               <Input
@@ -138,7 +120,7 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
                 <View style={styles.rowBetween}>
                   <View />
                   <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-                    <Text style={styles.link}>Forgot password?</Text>
+                    <Text style={[styles.link, { color: colors.primary }]}>Forgot password?</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -155,31 +137,32 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
                 />
               </View>
 
-              {/* Nút bấm dùng màu primary tím xanh từ index.css */}
               <TouchableOpacity
-                style={[styles.btnPrimary, loading && { opacity: 0.7 }]}
+                style={[styles.btnPrimary, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]}
                 onPress={handleLogin}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.primaryForeground} />
                 ) : (
-                  <Text style={styles.btnText}>Login</Text>
+                  <Text style={[styles.btnText, { color: colors.primaryForeground }]}>Login</Text>
                 )}
               </TouchableOpacity>
 
               <View style={styles.separatorContainer}>
-                <View style={styles.line} />
-                <Text style={styles.sepText}>Or continue with</Text>
-                <View style={styles.line} />
+                <View style={[styles.line, { backgroundColor: colors.border }]} />
+                <Text style={[styles.sepText, { color: colors.mutedForeground }]}>Or continue with</Text>
+                <View style={[styles.line, { backgroundColor: colors.border }]} />
               </View>
 
               <SocialButtons />
 
               <View style={styles.footer}>
-                <Text style={styles.footerGray}>Don't have an account? </Text>
+                <Text style={[styles.footerGray, { color: colors.mutedForeground }]}>
+                  Don't have an account?{' '}
+                </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                  <Text style={styles.boldLink}>Sign up</Text>
+                  <Text style={[styles.boldLink, { color: colors.primary }]}>Sign up</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -191,55 +174,35 @@ export function LoginForm({ navigation, onLoginSuccess }: LoginFormProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
   card: {
     padding: 24,
-    borderRadius: 24, // Bo góc lớn hơn cho hiện đại
-    backgroundColor: COLORS.white,
-    // Hiệu ứng bóng đổ nhẹ
+    borderRadius: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
-    elevation: 3
+    elevation: 3,
   },
   header: { alignItems: 'center', marginBottom: 30 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.secondary },
-  subtitle: { color: COLORS.muted, marginTop: 4, textAlign: 'center' },
+  title: { fontSize: 28, fontWeight: '800' },
+  subtitle: { marginTop: 4, textAlign: 'center' },
   passwordSection: { marginBottom: 10 },
   btnPrimary: {
-    backgroundColor: COLORS.primary,
     height: 50,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 10,
   },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8
-  },
-  link: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
-  separatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 25
-  },
-  line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  sepText: {
-    marginHorizontal: 10,
-    color: COLORS.muted,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 1
-  },
+  btnText: { fontWeight: '700', fontSize: 16 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  link: { fontSize: 13, fontWeight: '600' },
+  separatorContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 25 },
+  line: { flex: 1, height: 1 },
+  sepText: { marginHorizontal: 10, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 25 },
-  footerGray: { color: COLORS.muted },
-  boldLink: {
-    fontWeight: 'bold',
-    color: COLORS.primary
-  }
+  footerGray: {},
+  boldLink: { fontWeight: 'bold' },
 })
