@@ -106,12 +106,10 @@ export function SignUpForm({ navigation }: any) {
         >
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.secondary }]}>
+              <Text style={[styles.title, { color: colors.primary }]}>
                 Create your account
               </Text>
-              <Text
-                style={[styles.subtitle, { color: colors.mutedForeground }]}
-              >
+              <Text style={[styles.subtitle, { color: colors.primary }]}>
                 Enter your email below to create your account
               </Text>
             </View>

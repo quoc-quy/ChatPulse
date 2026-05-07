@@ -1,11 +1,28 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import React from "react";
+import { View, StyleSheet, ViewStyle } from "react-native";
+import { useTheme } from "../../contexts/ThemeContext";
 
-const Card = ({ children, style }: { children: React.ReactNode, style?: ViewStyle }) => (
-  <View style={[styles.card, style]}>{children}</View>
-);
+const Card = ({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card }, style]}>
+      {children}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 16, elevation: 2 },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    elevation: 2,
+  },
 });
+
 export default Card;
