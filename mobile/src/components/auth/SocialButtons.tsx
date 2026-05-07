@@ -1,15 +1,18 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { useTheme } from "../../contexts/ThemeContext";
 
 export const SocialButtons = () => {
+  const { colors } = useTheme();
+
   const AppleIcon = () => (
     <Svg
-      width="24"
-      height="24"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
+      stroke={colors.foreground}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -20,18 +23,18 @@ export const SocialButtons = () => {
   );
 
   const GoogleIcon = () => (
-    <Svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <Svg width="22" height="22" viewBox="0 0 24 24" fill={colors.foreground}>
       <Path d="M12 2a9.96 9.96 0 0 1 6.29 2.226a1 1 0 0 1 .04 1.52l-1.51 1.362a1 1 0 0 1 -1.265 .06a6 6 0 1 0 2.103 6.836l.001 -.004h-3.66a1 1 0 0 1 -.992 -.883l-.007 -.117v-2a1 1 0 0 1 1 -1h6.945a1 1 0 0 1 .994 .89c.04 .367 .061 .737 .061 1.11c0 5.523 -4.477 10 -10 10s-10 -4.477 -10 -10s4.477 -10 10 -10z" />
     </Svg>
   );
 
   const MetaIcon = () => (
     <Svg
-      width="24"
-      height="24"
+      width="22"
+      height="22"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
+      stroke={colors.foreground}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -44,7 +47,16 @@ export const SocialButtons = () => {
   return (
     <View style={styles.row}>
       {[AppleIcon, GoogleIcon, MetaIcon].map((IconComponent, index) => (
-        <TouchableOpacity key={index} style={styles.button}>
+        <TouchableOpacity
+          key={index}
+          style={[
+            styles.button,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           <IconComponent />
         </TouchableOpacity>
       ))}
@@ -53,15 +65,18 @@ export const SocialButtons = () => {
 };
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", gap: 12, marginVertical: 12, width: "100%" },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+    marginVertical: 8,
+    width: "100%",
+  },
   button: {
     flex: 1,
-    height: 44,
+    height: 46,
     borderWidth: 1,
-    borderColor: "#e4e4e7",
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
   },
 });

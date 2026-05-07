@@ -1,4 +1,3 @@
-//
 import React, { useState } from "react";
 import {
   View,
@@ -11,6 +10,7 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -31,23 +31,31 @@ export const Input = ({
   ...props
 }: InputProps) => {
   const [showPassword, setShowPassword] = useState(false);
+  const { colors } = useTheme();
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
+      {label && (
+        <Text style={[styles.label, { color: colors.foreground }, labelStyle]}>
+          {label}
+        </Text>
+      )}
 
       <View style={styles.inputContainer}>
         <TextInput
-          {...props} // Đẩy props lên đầu để các thuộc tính định danh bên dưới ghi đè nếu cần
+          {...props}
           style={[
             styles.input,
-            error ? styles.inputError : null,
-            isPassword ? { paddingRight: 40 } : null,
+            {
+              backgroundColor: colors.input,
+              borderColor: error ? "#ef4444" : colors.border,
+              color: colors.foreground,
+            },
+            isPassword ? { paddingRight: 44 } : null,
             inputStyle,
             props.style,
           ]}
-          placeholderTextColor={props.placeholderTextColor || "#a1a1aa"}
-          // Kiểm soát chặt chẽ thuộc tính ẩn mật khẩu
+          placeholderTextColor={colors.mutedForeground}
           secureTextEntry={isPassword ? !showPassword : props.secureTextEntry}
         />
 
@@ -68,18 +76,19 @@ export const Input = ({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16, width: "100%" },
-  label: { fontSize: 14, fontWeight: "500", color: "#09090b", marginBottom: 8 },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 6,
+  },
   inputContainer: { position: "relative" },
   input: {
-    height: 44,
+    height: 48,
     borderWidth: 1,
-    borderColor: "#e4e4e7",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "#fff",
-    color: "#09090b", // Đảm bảo màu chữ hiển thị rõ
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 15,
   },
-  inputError: { borderColor: "#ef4444" },
   errorText: { color: "#ef4444", fontSize: 12, marginTop: 4 },
-  eyeIcon: { position: "absolute", right: 12, top: 10, zIndex: 1 },
+  eyeIcon: { position: "absolute", right: 12, top: 12, zIndex: 1 },
 });
