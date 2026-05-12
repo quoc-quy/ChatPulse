@@ -1,8 +1,6 @@
 import { useState, useContext } from 'react'
 import { AppContext } from '@/context/app.context'
 import type { ChatItem } from '@/context/app.context'
-
-// Import các sub-components đã tách
 import { InfoPanelMain } from './info-panel/InfoPanelMain'
 import { InfoPanelMembers } from './info-panel/InfoPanelMembers'
 import { AddMemberModal } from './info-panel/AddMemberModal'
@@ -65,7 +63,7 @@ export function ChatInfoPanel({ chat, onClose, onMemberUpdate, onLeaveSuccess }:
         mode='leave_group'
       />
 
-      {/* Modal Giải tán nhóm - tái sử dụng LeaveGroupModal với mode='disband' */}
+      {/* Modal Giải tán nhóm */}
       <LeaveGroupModal
         isOpen={isDisbandModalOpen}
         onClose={() => setIsDisbandModalOpen(false)}

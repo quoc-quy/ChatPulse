@@ -179,12 +179,25 @@ class ChatService {
 
     if (type === 'direct') {
       const receiverId = memberObjectIds[0]
+
+      // 1. Dùng findOne để lấy exaclt document (không bị bọc bởi thuộc tính .value)
       const existingConversation = await databaseService.conversations.findOne({
         type: 'direct',
         participants: { $all: [userObjectId, receiverId], $size: 2 }
       })
-      if (existingConversation) return existingConversation
 
+      if (existingConversation) {
+        // 2. Reset lại mảng deletedByUsers để khôi phục hội thoại cho CẢ HAI
+        await databaseService.conversations.updateOne(
+          { _id: existingConversation._id },
+          { $set: { deletedByUsers: [], updated_at: new Date() } }
+        )
+
+        // 3. Trả về đúng document để Frontend có thể lấy được ._id
+        return { ...existingConversation, deletedByUsers: [] }
+      }
+
+      // KHÔNG CÓ THÌ TẠO MỚI (Phần này giữ nguyên của bạn)
       const newConversation = new Conversation({
         participants: [userObjectId, receiverId],
         type: 'direct',

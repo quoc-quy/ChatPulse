@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   X,
@@ -25,6 +26,9 @@ import { messagesApi } from '@/apis/messages.api'
 import { toast } from 'sonner'
 import { ChatAvatar } from '@/components/chat-avatar'
 import { useSocket } from '@/context/socket.context'
+import { useNavigate } from 'react-router-dom'
+import { conversationsApi } from '@/apis/conversations.api'
+import { LeaveGroupModal } from './LeaveGroupModal'
 
 interface InfoPanelMainProps {
   chat: ChatItem
@@ -33,6 +37,7 @@ interface InfoPanelMainProps {
   onOpenAddMember: () => void
   onLeaveGroup: () => void
   onDisbandGroup?: () => void
+  onLeaveSuccess?: () => void
 }
 
 export function InfoPanelMain({
@@ -41,7 +46,8 @@ export function InfoPanelMain({
   onViewMembers,
   onOpenAddMember,
   onLeaveGroup,
-  onDisbandGroup
+  onDisbandGroup,
+  onLeaveSuccess
 }: InfoPanelMainProps) {
   const isGroup = chat.type === 'group'
   const [isEditingName, setIsEditingName] = useState(false)
@@ -50,9 +56,32 @@ export function InfoPanelMain({
   const { profile } = useContext(AppContext)
   const { socket } = useSocket()
   const isAdmin = profile?._id === chat.admin_id
+  const navigate = useNavigate()
 
   // State duy nhất lưu toàn bộ messages cho Panel (Phục vụ Media/File/Link)
   const [panelMessages, setPanelMessages] = useState<any[]>([])
+  const [isDeleteChatModalOpen, setIsDeleteChatModalOpen] = useState(false)
+
+  const handleDeleteConversation = async () => {
+    try {
+      await conversationsApi.deleteConversation(chat.id)
+      toast.success('Đã xóa lịch sử trò chuyện')
+      setIsDeleteChatModalOpen(false)
+
+      // 1. Phát event để Sidebar lập tức gỡ hội thoại này ra khỏi UI
+      window.dispatchEvent(
+        new CustomEvent('conversation_deleted', {
+          detail: { conversationId: chat.id }
+        })
+      )
+
+      // 2. Chuyển hướng người dùng về màn hình chờ (trống)
+      navigate('/')
+      if (onLeaveSuccess) onLeaveSuccess()
+    } catch (error) {
+      toast.error('Không thể xóa lịch sử trò chuyện')
+    }
+  }
 
   // FETCH TIN NHẮN BAN ĐẦU
   useEffect(() => {
@@ -291,15 +320,35 @@ export function InfoPanelMain({
                   <span className='text-[15px] font-medium'>Giải tán nhóm</span>
                 </button>
               )}
+
+              <button
+                onClick={() => setIsDeleteChatModalOpen(true)}
+                className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'
+              >
+                <Trash2 className='w-5 h-5' />
+                <span className='text-[15px] font-medium'>Xóa lịch sử trò chuyện</span>
+              </button>
             </>
           ) : (
-            <button className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'>
+            <button
+              onClick={() => setIsDeleteChatModalOpen(true)}
+              className='flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 transition-colors text-left w-full'
+            >
               <Trash2 className='w-5 h-5' />
               <span className='text-[15px] font-medium'>Xóa lịch sử trò chuyện</span>
             </button>
           )}
         </div>
       </div>
+      <LeaveGroupModal
+        isOpen={isDeleteChatModalOpen}
+        onClose={() => setIsDeleteChatModalOpen(false)}
+        title='Xóa lịch sử trò chuyện?'
+        description='Toàn bộ tin nhắn sẽ bị ẩn đi đối với bạn. Người kia (hoặc các thành viên khác trong nhóm) vẫn có thể xem được lịch sử này.'
+        confirmText='Xác nhận xóa'
+        onConfirm={handleDeleteConversation}
+        mode='unfriend'
+      />
     </div>
   )
 }

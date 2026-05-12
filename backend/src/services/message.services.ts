@@ -184,8 +184,15 @@ class MessageService {
 
     await databaseService.conversations.updateOne(
       { _id: convObjectId },
-      { $set: { last_message_id: messageId, updated_at: new Date() } }
+      {
+        $set: {
+          last_message_id: messageId,
+          updated_at: new Date(),
+          deletedByUsers: []
+        }
+      }
     )
+
     await databaseService.conversations.updateOne(
       { _id: convObjectId, 'members.userId': userObjectId },
       { $set: { 'members.$.lastViewedMessageId': messageId } }

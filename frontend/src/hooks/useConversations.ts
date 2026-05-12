@@ -436,6 +436,23 @@ export function useConversations() {
   }, [profile])
 
   useEffect(() => {
+    const handleConversationDeleted = (e: any) => {
+      const { conversationId } = e.detail
+
+      // 1. Gỡ hội thoại khỏi danh sách Sidebar ngay lập tức
+      setChatList((prevChats) => prevChats.filter((chat) => String(chat.id) !== String(conversationId)))
+
+      // 2. Nếu đang mở đúng hội thoại vừa xóa thì clear activeChat
+      if (String(activeChatRef.current?.id) === String(conversationId)) {
+        setActiveChat(null)
+      }
+    }
+
+    window.addEventListener('conversation_deleted', handleConversationDeleted)
+    return () => window.removeEventListener('conversation_deleted', handleConversationDeleted)
+  }, [setActiveChat])
+
+  useEffect(() => {
     const handleRefresh = () => {
       fetchChats()
     }
