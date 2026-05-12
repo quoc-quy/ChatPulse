@@ -20,16 +20,16 @@ export const lightColors = {
   ring: 'hsl(262, 80%, 55%)',
 
   // 👇 Các màu bổ sung cho UI Mobile
-  badge: 'hsl(0, 84%, 60%)',          
-  textLight: 'hsl(260, 10%, 45%)',    
-  surface: 'hsl(260, 30%, 100%)',  
-  text: 'hsl(260, 10%, 15%)',    
-  success: 'hsl(142, 76%, 36%)',   
-  surfaceSoft: 'hsl(260, 15%, 95%)', 
+  badge: 'hsl(0, 84%, 60%)',
+  textLight: 'hsl(260, 10%, 45%)',
+  surface: 'hsl(260, 30%, 100%)',
+  text: 'hsl(260, 10%, 15%)',
+  success: 'hsl(142, 76%, 36%)',
+  surfaceSoft: 'hsl(260, 15%, 95%)',
   searchBg: 'hsl(260, 15%, 94%)',
   highlight: 'hsl(50, 100%, 70%)',
   headerText: '#FFFFFF',
-  fileBg: 'hsl(260, 33%, 96%)',
+  fileBg: 'hsl(260, 33%, 96%)'
 }
 
 export const darkColors = {
@@ -63,7 +63,7 @@ export const darkColors = {
   searchBg: 'hsl(240, 20%, 15%)',
   highlight: 'hsl(50, 80%, 45%)',
   headerText: '#FFFFFF',
-  fileBg: 'hsl(260, 33%, 17%)',
+  fileBg: 'hsl(260, 33%, 17%)'
 }
 
 export type ThemeColors = typeof lightColors
