@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import * as React from 'react'
 import {
   Sidebar,
   SidebarHeader,
@@ -12,6 +11,7 @@ import {
 import { NavUser } from '@/components/nav-user'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSidebar } from '@/components/ui/sidebar'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface SidebarPanel1Props {
   navMain: any[]
@@ -20,6 +20,7 @@ interface SidebarPanel1Props {
   hasUnreadMessages: boolean
   currentUser: any
   requestCount: number
+  isLoading?: boolean
 }
 
 export function SidebarPanel1({
@@ -28,7 +29,8 @@ export function SidebarPanel1({
   setActiveItem,
   hasUnreadMessages,
   currentUser,
-  requestCount
+  requestCount,
+  isLoading
 }: SidebarPanel1Props) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -42,6 +44,7 @@ export function SidebarPanel1({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
+            {/* Giữ nguyên Logo */}
             <SidebarMenuButton
               size='lg'
               asChild
@@ -59,43 +62,57 @@ export function SidebarPanel1({
 
       <SidebarContent>
         <SidebarMenu className='gap-2 mt-2'>
-          {navMain.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                tooltip={{ children: item.title, hidden: false }}
-                onClick={() => {
-                  setActiveItem(item)
-                  setOpen(true)
-                  if (item.title === 'Tin nhắn' && location.pathname !== '/') {
-                    navigate('/')
-                  }
-                }}
-                isActive={activeItem.title === item.title}
-                className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
-              >
-                <div className='relative flex items-center justify-center'>
-                  <item.icon className='!size-6' />
-                  {item.title === 'Tin nhắn' && hasUnreadMessages && (
-                    <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
-                      <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
-                      <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
-                    </span>
-                  )}
-                  {item.title === 'Danh bạ' && requestCount > 0 && (
-                    <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
-                      <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
-                      <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
-                    </span>
-                  )}
-                </div>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, idx) => (
+                <SidebarMenuItem key={idx}>
+                  <div className='mx-auto md:h-11 md:w-11 flex items-center justify-center'>
+                    <Skeleton className='size-8 rounded-full' />
+                  </div>
+                </SidebarMenuItem>
+              ))
+            : navMain.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    tooltip={{ children: item.title, hidden: false }}
+                    onClick={() => {
+                      setActiveItem(item)
+                      setOpen(true)
+                      if (item.title === 'Tin nhắn' && location.pathname !== '/') {
+                        navigate('/')
+                      }
+                    }}
+                    isActive={activeItem.title === item.title}
+                    className='mx-auto md:h-11 md:w-11 flex items-center justify-center rounded-xl group-data-[collapsible=icon]:!w-11 group-data-[collapsible=icon]:!h-11 group-data-[collapsible=icon]:!p-0'
+                  >
+                    <div className='relative flex items-center justify-center'>
+                      <item.icon className='!size-6' />
+                      {item.title === 'Tin nhắn' && hasUnreadMessages && (
+                        <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
+                          <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
+                          <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
+                        </span>
+                      )}
+                      {item.title === 'Danh bạ' && requestCount > 0 && (
+                        <span className='absolute -top-1 -right-1.5 flex h-3 w-3'>
+                          <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#a139e4] opacity-75'></span>
+                          <span className='relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-[#6b45e9] to-[#a139e4] border-2 border-background'></span>
+                        </span>
+                      )}
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
         </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={currentUser} />
+        {isLoading ? (
+          <div className='flex items-center justify-center p-2'>
+            <Skeleton className='size-10 rounded-full' />
+          </div>
+        ) : (
+          <NavUser user={currentUser} />
+        )}
       </SidebarFooter>
     </Sidebar>
   )

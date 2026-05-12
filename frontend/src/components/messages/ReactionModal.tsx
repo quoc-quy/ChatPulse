@@ -1,16 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useState, useMemo } from 'react'
 import type { Reaction } from '@/types/message.type'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ReactionModalProps {
   isOpen: boolean
   onClose: () => void
   reactions: Reaction[]
+  isLoading?: boolean
 }
 
-export function ReactionModal({ isOpen, onClose, reactions }: ReactionModalProps) {
+export function ReactionModal({ isOpen, onClose, reactions, isLoading }: ReactionModalProps) {
   const [activeTab, setActiveTab] = useState('ALL')
 
   // Tính toán số lượng từng loại emoji
@@ -51,23 +54,30 @@ export function ReactionModal({ isOpen, onClose, reactions }: ReactionModalProps
       >
         {/* CỘT 1: Danh sách Emoji tổng hợp */}
         <div className='w-1/3 bg-muted/30 border-r border-border p-2 flex flex-col gap-1 overflow-y-auto'>
-          <button
-            onClick={() => setActiveTab('ALL')}
-            className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'ALL' ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
-          >
-            <span>Tất cả</span>
-            <span>{reactions.length}</span>
-          </button>
-          {Object.entries(reactionCounts).map(([emoji, count]) => (
-            <button
-              key={emoji}
-              onClick={() => setActiveTab(emoji)}
-              className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === emoji ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
-            >
-              <span className='text-lg'>{emoji}</span>
-              <span>{count as React.ReactNode}</span>
-            </button>
-          ))}
+          {isLoading ? (
+            // SKELETON TABS
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className='h-9 w-full rounded-lg mb-1' />)
+          ) : (
+            <>
+              <button
+                onClick={() => setActiveTab('ALL')}
+                className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'ALL' ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
+              >
+                <span>Tất cả</span>
+                <span>{reactions.length}</span>
+              </button>
+              {Object.entries(reactionCounts).map(([emoji, count]) => (
+                <button
+                  key={emoji}
+                  onClick={() => setActiveTab(emoji)}
+                  className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === emoji ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'}`}
+                >
+                  <span className='text-lg'>{emoji}</span>
+                  <span>{count as React.ReactNode}</span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
         {/* CỘT 2: Danh sách User theo nhóm */}
@@ -79,24 +89,35 @@ export function ReactionModal({ isOpen, onClose, reactions }: ReactionModalProps
             </button>
           </div>
           <div className='flex flex-col gap-4'>
-            {groupedReactions.map((group: any) => (
-              <div key={group.userId} className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <Avatar className='w-10 h-10 border border-border'>
-                    <AvatarImage src={group.user?.avatar} />
-                    <AvatarFallback>{getInitials(group.user?.userName)}</AvatarFallback>
-                  </Avatar>
-                  <span className='font-medium text-sm'>{group.user?.userName || 'Người dùng'}</span>
-                </div>
-                <div className='flex items-center gap-1'>
-                  {group.emojis.map((emj: string, idx: number) => (
-                    <span key={idx} className='text-xl'>
-                      {emj}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+            {isLoading
+              ? // SKELETON USERS
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className='flex items-center justify-between mb-2'>
+                    <div className='flex items-center gap-3'>
+                      <Skeleton className='w-10 h-10 rounded-full shrink-0' />
+                      <Skeleton className='h-4 w-24 rounded' />
+                    </div>
+                    <Skeleton className='w-6 h-6 rounded-full shrink-0' />
+                  </div>
+                ))
+              : groupedReactions.map((group: any) => (
+                  <div key={group.userId} className='flex items-center justify-between'>
+                    <div className='flex items-center gap-3'>
+                      <Avatar className='w-10 h-10 border border-border'>
+                        <AvatarImage src={group.user?.avatar} />
+                        <AvatarFallback>{getInitials(group.user?.userName)}</AvatarFallback>
+                      </Avatar>
+                      <span className='font-medium text-sm'>{group.user?.userName || 'Người dùng'}</span>
+                    </div>
+                    <div className='flex items-center gap-1'>
+                      {group.emojis.map((emj: string, idx: number) => (
+                        <span key={idx} className='text-xl'>
+                          {emj}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
           </div>
         </div>
       </div>

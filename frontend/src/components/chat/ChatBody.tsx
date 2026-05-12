@@ -7,6 +7,7 @@ import { AppContext } from '@/context/app.context'
 import { MessageItem } from '../messages/MessageItem'
 import { formatZaloMessageTime, shouldShowTimeDivider } from '@/utils/time'
 import { ChevronDown } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ChatBodyProps {
   convId: string
@@ -307,10 +308,16 @@ export function ChatBody({ convId, pinnedMessages, onPinMessage }: ChatBodyProps
       <div className='flex-1 overflow-y-auto p-4 scroll-smooth' ref={containerRef} onScroll={handleScroll}>
         <div className='flex flex-col'>
           {isLoading && hasMore && (
-            <div className='flex justify-center py-4'>
-              <span className='px-4 py-1 bg-muted rounded-full text-[12px] text-muted-foreground animate-pulse'>
-                Đang tải tin nhắn...
-              </span>
+            <div className='flex flex-col gap-6 p-4 w-full'>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={`skel-${i}`} className={`flex gap-3 w-full ${i % 2 === 0 ? 'flex-row-reverse' : ''}`}>
+                  <Skeleton className='h-8 w-8 rounded-full shrink-0' />
+                  <div className={`flex flex-col gap-2 ${i % 2 === 0 ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                    <Skeleton className={`h-10 rounded-2xl ${i % 2 === 0 ? 'w-48 bg-blue-500/20' : 'w-64'}`} />
+                    <Skeleton className={`h-10 rounded-2xl ${i % 2 === 0 ? 'w-32 bg-blue-500/20' : 'w-40'}`} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           {messages.map((msg, index) => {

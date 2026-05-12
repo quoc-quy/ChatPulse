@@ -8,8 +8,9 @@ import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChatItem } from '@/context/app.context'
 import { groupApi } from '@/apis/group.api'
-import friendApi from '@/apis/friend.api' //
+import friendApi from '@/apis/friend.api'
 import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface InfoPanelMembersProps {
   chat: ChatItem
@@ -17,6 +18,7 @@ interface InfoPanelMembersProps {
   onBack: () => void
   onOpenAddMember: () => void
   onMemberUpdate?: () => void
+  isLoading?: boolean
 }
 
 export function InfoPanelMembers({
@@ -24,7 +26,8 @@ export function InfoPanelMembers({
   currentUserId,
   onBack,
   onOpenAddMember,
-  onMemberUpdate
+  onMemberUpdate,
+  isLoading
 }: InfoPanelMembersProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const adminId = chat.admin_id
@@ -113,7 +116,7 @@ export function InfoPanelMembers({
         </div>
 
         <div className='flex-1 overflow-y-auto scroll-smooth p-2'>
-          {!searchQuery && (
+          {!searchQuery && !isLoading && (
             <>
               <div
                 onClick={onOpenAddMember}
@@ -128,7 +131,20 @@ export function InfoPanelMembers({
             </>
           )}
 
-          {filteredMembers.length > 0 ? (
+          {isLoading ? (
+            // HIỂN THỊ SKELETON
+            <div className='flex flex-col gap-1 mt-2'>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className='flex items-center gap-3 px-3 py-2.5 rounded-md'>
+                  <Skeleton className='h-10 w-10 rounded-full shrink-0' />
+                  <div className='flex flex-col gap-2 flex-1'>
+                    <Skeleton className='h-4 w-3/4' />
+                    <Skeleton className='h-3 w-1/3' />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredMembers.length > 0 ? (
             filteredMembers.map((member: any) => {
               const memberId = String(member._id || member.user_id)
               const isMe = memberId === String(currentUserId)

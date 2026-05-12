@@ -1,13 +1,27 @@
 import friendApi from '@/apis/friend.api'
 import { useQuery } from '@tanstack/react-query'
-import { GroupIcon, MailPlus, UserPlus, Users, UserX } from 'lucide-react'
+import { GroupIcon, UserPlus, Users, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function PhoneBook() {
-  const { data: requestData } = useQuery({
+  const { data: requestData, isLoading } = useQuery({
     queryKey: ['ListRequest'],
     queryFn: friendApi.getListFriendRequest
   })
+
+  if (isLoading) {
+    return (
+      <div className='flex flex-col gap-2 p-2'>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <div key={idx} className='p-2 flex items-center'>
+            <Skeleton className='w-5 h-5 rounded-full mr-3 shrink-0' />
+            <Skeleton className='h-5 w-3/4 rounded-md' />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   const requestCount = requestData?.data.result.length || 0
 
