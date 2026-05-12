@@ -54,13 +54,17 @@ class FriendService {
       receiver_id: new ObjectId(user_id),
       status: FriendStatus.Pending
     })
+
     if (!friendRequest) {
       throw new ErrorWithStatus({
         message: 'Lời mời kết bạn không tồn tại hoặc bạn không có quyền...',
         status: httpStatus.NOT_FOUND
       })
     }
+
     const { sender_id } = friendRequest
+
+    // 1. Cập nhật trạng thái và thêm vào bảng friends
     await Promise.all([
       databaseService.friendRequests.updateOne(
         { _id: friendRequest._id },
@@ -72,18 +76,18 @@ class FriendService {
       ])
     ])
 
-    // TẠO HỘI THOẠI & GỬI TIN NHẮN HỆ THỐNG
     const userObjId = new ObjectId(user_id)
     const senderObjId = new ObjectId(sender_id)
 
-    // 1. Kiểm tra xem 2 người đã có cuộc trò chuyện 1-1 chưa
+    // 2. Tìm cuộc hội thoại 1-1 cũ
     let conversation = await databaseService.conversations.findOne({
       type: 'direct',
       participants: { $all: [userObjId, senderObjId] }
     })
 
-    // 2. Nếu chưa có, tiến hành tạo mới
+    // 3. Xử lý tạo mới hoặc khôi phục hội thoại
     if (!conversation) {
+      // Trường hợp 1: TẠO MỚI (chưa từng chat)
       const newConv = {
         type: 'direct',
         participants: [userObjId, senderObjId],
@@ -96,19 +100,46 @@ class FriendService {
       }
       const insertResult = await databaseService.conversations.insertOne(newConv as any)
       conversation = { _id: insertResult.insertedId, ...newConv } as any
+    } else {
+      // Trường hợp 2: KHÔI PHỤC HỘI THOẠI CŨ
+      // Xóa cả 2 user khỏi mảng deletedByUsers để hội thoại hiển thị lại trong danh sách
+      await databaseService.conversations.updateOne(
+        { _id: conversation._id },
+        {
+          $pull: { deletedByUsers: { $in: [userObjId, senderObjId] } } as any,
+          $set: { updated_at: new Date() } // Đẩy hội thoại lên đầu danh sách
+        }
+      )
+
+      const payload = {
+        conversationId: conversation._id.toString(),
+        friendId1: user_id.toString(),
+        friendId2: sender_id.toString()
+      }
+
+      // Bắn socket báo cho Frontend mở khóa UI ChatFooter & gỡ mờ SidebarPanel2
+      socketService.emitToUser(user_id.toString(), 'friend_added', payload)
+      socketService.emitToUser(sender_id.toString(), 'friend_added', payload)
+
+      // Bắn socket 'new_conversation' để người đã xóa lịch sử tự động lấy lại box chat
+      socketService.emitToUser(user_id.toString(), 'new_conversation', {
+        ...conversation,
+        _id: conversation._id.toString()
+      })
+      socketService.emitToUser(sender_id.toString(), 'new_conversation', {
+        ...conversation,
+        _id: conversation._id.toString()
+      })
     }
 
-    // 3. Gửi tin nhắn chào mừng hệ thống
+    // 4. Gửi tin nhắn chào mừng hệ thống
     // messageService sẽ tự động cập nhật last_message_id và bắn Socket 'receive_message'
     await messageService.sendMessage(
       user_id, // Lấy người chấp nhận làm sender đại diện
       conversation!._id.toString(),
       'system',
-      'Hai bạn đã trở thành bạn bè. Hãy gửi lời chào cho nhau nhé!'
+      'Hai bạn đã trở thành bạn bè trở lại. Hãy gửi lời chào cho nhau nhé!'
     )
-    // ==============================================================
-    // KẾT THÚC PHẦN THÊM MỚI
-    // ==============================================================
 
     return { message: 'Đã trở thành bạn bè' }
   }

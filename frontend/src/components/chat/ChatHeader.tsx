@@ -96,15 +96,13 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
 
       {!isAI && !isDisbanded && (
         <div className='flex items-center gap-2 text-muted-foreground'>
-          {chat.type === 'group' && (
-            <button
-              onClick={onSummarize}
-              title='Tóm tắt nhóm bằng AI'
-              className='p-2 hover:bg-muted hover:text-foreground hover:text-purple-500 rounded-full transition-colors'
-            >
-              <Sparkles className='h-5 w-5' />
-            </button>
-          )}
+          <button
+            onClick={onSummarize}
+            title='Tóm tắt nhóm bằng AI'
+            className='p-2 hover:bg-muted hover:text-foreground hover:text-purple-500 rounded-full transition-colors'
+          >
+            <Sparkles className='h-5 w-5' />
+          </button>
 
           {/* Ẩn nút Gọi điện và Gọi video nếu đã hủy kết bạn */}
           {!isUnfriended && (

@@ -301,7 +301,6 @@ export function useConversations() {
       )
     }
 
-    // [FIX] Lắng nghe sự kiện giải tán nhóm từ server socket
     const handleGroupDisbanded = (data: { conversationId: string; message: string }) => {
       toast.warning('Nhóm đã bị giải tán', {
         description: data.message || 'Nhóm trưởng đã giải tán nhóm này.'
@@ -320,13 +319,38 @@ export function useConversations() {
       )
     }
 
+    const handleFriendAdded = (data: { conversationId: string }) => {
+      // Mở khóa cuộc trò chuyện trong list (SidebarPanel2)
+      setChatList((prev) =>
+        prev.map((chat) => (String(chat.id) === String(data.conversationId) ? { ...chat, isFriend: true } : chat))
+      )
+
+      // Nếu người dùng đang mở đúng box chat đó, cập nhật luôn để mở khóa ChatFooter ngay lập tức
+      setActiveChat((prev: any) =>
+        prev && String(prev.id) === String(data.conversationId) ? { ...prev, isFriend: true } : prev
+      )
+    }
+
+    const handleNewConversation = (newConv: any) => {
+      // Khi nhận được hội thoại mới (hoặc hội thoại cũ được khôi phục)
+      setChatList((prev) => {
+        const exists = prev.find((c) => String(c.id) === String(newConv._id))
+        if (exists) return prev // Nếu đã có rồi thì không thêm trùng
+
+        // Fetch lại toàn bộ list hoặc chèn manual một item mới vào đầu mảng
+        fetchChats()
+        return prev
+      })
+    }
+
     socket.on('conversation_updated', handleConvUpdated)
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('user_status_change', handleUserStatusChange)
     socket.on('unfriended', handleUnfriended)
     socket.on('group_disbanded', handleGroupDisbanded)
-
+    socket.on('friend_added', handleFriendAdded)
+    socket.on('new_conversation', handleNewConversation)
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_revoked', handleMessageRevoked)
@@ -334,6 +358,8 @@ export function useConversations() {
       socket.off('conversation_updated', handleConvUpdated)
       socket.off('unfriended', handleUnfriended)
       socket.off('group_disbanded', handleGroupDisbanded)
+      socket.off('friend_added', handleFriendAdded)
+      socket.off('new_conversation', handleNewConversation)
     }
   }, [profile, socket, sortChats])
 
