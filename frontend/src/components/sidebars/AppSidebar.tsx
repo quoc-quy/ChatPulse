@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useState } from 'react'
-import { MessageSquare, Users, Settings, Bell } from 'lucide-react'
+import { MessageSquare, Users, Settings } from 'lucide-react'
 import { Sidebar } from '@/components/ui/sidebar'
 import { useConversations } from '@/hooks/useConversations'
 
@@ -12,7 +12,6 @@ import friendApi from '@/apis/friend.api'
 const navMain = [
   { title: 'Tin nhắn', icon: MessageSquare },
   { title: 'Danh bạ', icon: Users },
-  { title: 'Thông báo', icon: Bell },
   { title: 'Cài đặt', icon: Settings }
 ]
 

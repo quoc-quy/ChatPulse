@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { Loader2, UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
+import { UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -14,6 +14,7 @@ import { useMutation } from '@tanstack/react-query'
 import searchApi from '@/apis/search.api'
 import { AppContext } from '@/context/app.context'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface SidebarPanel2Props {
   activeItem: any
@@ -235,8 +236,16 @@ export function SidebarPanel2({
       {keyword && (
         <div className='absolute top-[125px] left-0 w-full h-[calc(100%-80px)] dark:bg-background z-50 overflow-y-auto'>
           {searchUserMutation.isPending ? (
-            <div className='flex justify-center items-center py-6'>
-              <Loader2 className='animate-spin' />
+            <div className='flex flex-col gap-2 p-3'>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className='flex items-center gap-3 p-2'>
+                  <Skeleton className='h-10 w-10 rounded-full' />
+                  <div className='flex-1 space-y-2'>
+                    <Skeleton className='h-4 w-3/4' />
+                    <Skeleton className='h-3 w-1/2' />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : searchResults.length === 0 ? (
             <div className='text-center py-6 text-sm text-muted-foreground'>Không tìm thấy người dùng</div>
@@ -292,8 +301,19 @@ export function SidebarPanel2({
               </div>
 
               {isLoading ? (
-                <div className='flex justify-center items-center py-6'>
-                  <Loader2 className='h-6 w-6 animate-spin text-blue-500' />
+                <div className='flex flex-col gap-2 p-2'>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className='flex items-center gap-3 p-2 rounded-lg'>
+                      <Skeleton className='h-12 w-12 rounded-full shrink-0' />
+                      <div className='flex-1 space-y-2'>
+                        <div className='flex justify-between'>
+                          <Skeleton className='h-4 w-1/2' />
+                          <Skeleton className='h-3 w-8' />
+                        </div>
+                        <Skeleton className='h-3 w-3/4' />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : chatList.length === 0 ? (
                 <div className='text-center py-6 text-sm text-muted-foreground'>Không có cuộc trò chuyện nào</div>

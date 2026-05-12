@@ -13,6 +13,7 @@ import { AIChatArea } from './AIChatArea'
 import { AddMemberModal } from './info-panel/AddMemberModal'
 import { toast } from 'sonner'
 import PinnedBanner from './PinnedBanner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ChatAreaProps {
   chat: ChatItem
@@ -179,8 +180,19 @@ export function ChatArea({ chat }: ChatAreaProps) {
         />
 
         {isSummarizing && (
-          <div className='absolute top-20 right-4 z-50 bg-white p-4 shadow-lg rounded animate-pulse'>
-            Đang phân tích bằng AI...
+          <div className='absolute top-20 right-4 z-50 w-96 bg-card border text-foreground shadow-xl rounded-xl p-4'>
+            <Skeleton className='h-6 w-1/2 mb-4' />
+            <Skeleton className='h-4 w-1/3 mb-3' />
+            <div className='space-y-2 mb-4'>
+              <Skeleton className='h-3 w-full' />
+              <Skeleton className='h-3 w-5/6' />
+              <Skeleton className='h-3 w-4/5' />
+            </div>
+            <Skeleton className='h-4 w-1/3 mb-3' />
+            <div className='space-y-2'>
+              <Skeleton className='h-8 w-full rounded' />
+              <Skeleton className='h-8 w-full rounded' />
+            </div>
           </div>
         )}
         {summaryData && (

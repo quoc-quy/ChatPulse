@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { ChevronDown, X, Download } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface MediaCollapsibleProps {
   title: string
@@ -11,6 +12,7 @@ interface MediaCollapsibleProps {
   defaultOpen?: boolean
   type: 'media' | 'file' | 'link'
   messages: any[]
+  isLoading?: boolean
 }
 
 // Hàm helper để xác định loại file dựa trên URL extension
@@ -42,7 +44,8 @@ export function MediaCollapsible({
   emptyText,
   defaultOpen = false,
   type,
-  messages
+  messages,
+  isLoading
 }: MediaCollapsibleProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
@@ -114,7 +117,18 @@ export function MediaCollapsible({
         </CollapsibleTrigger>
 
         <CollapsibleContent className='px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-200'>
-          {!hasItems ? (
+          {isLoading ? (
+            // SKELETON KHI ĐANG TẢI
+            <div className={type === 'media' ? 'grid grid-cols-3 gap-1.5 mt-1' : 'flex flex-col gap-2 mt-1'}>
+              {Array.from({ length: type === 'media' ? 6 : 3 }).map((_, idx) =>
+                type === 'media' ? (
+                  <Skeleton key={idx} className='aspect-square rounded-md w-full' />
+                ) : (
+                  <Skeleton key={idx} className='h-12 w-full rounded-lg' />
+                )
+              )}
+            </div>
+          ) : !hasItems ? (
             <div className='p-4 text-center text-[13px] text-muted-foreground bg-muted/30 rounded-lg border border-dashed mt-1'>
               {emptyText}
             </div>
