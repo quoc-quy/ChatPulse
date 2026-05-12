@@ -11,6 +11,7 @@ import { useMutation } from '@tanstack/react-query'
 import authApi, { type RegisterBody } from '@/apis/auth.api'
 import { toast } from 'react-toastify'
 import backgroundRegisterImage from '../../public/background-register.png'
+import { useState } from 'react'
 
 type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
@@ -22,6 +23,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
   } = useForm<FormData>({
     resolver: yupResolver(userRegistrationSchema) as Resolver<UserSchema>
   })
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const registrationMutation = useMutation({
     mutationFn: (body: RegisterBody) => authApi.register(body)
@@ -131,8 +133,34 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                 />
               </Field>
               <Field>
-                <Button type='submit' className='cursor-pointer'>
-                  Create Account
+                <div className='flex items-start gap-2 text-sm'>
+                  <input
+                    type='checkbox'
+                    id='terms'
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className='mt-1'
+                  />
+
+                  <label htmlFor='terms' className='leading-5'>
+                    Tôi đã đọc và đồng ý với{' '}
+                    <Link to='/terms' className='text-blue-600 hover:underline'>
+                      Điều khoản & Điều kiện
+                    </Link>{' '}
+                    cùng{' '}
+                    <Link to='/privacy-policy' className='text-blue-600 hover:underline'>
+                      Chính sách bảo mật
+                    </Link>
+                  </label>
+                </div>
+              </Field>
+              <Field>
+                <Button
+                  type='submit'
+                  className='cursor-pointer w-full disabled:opacity-50'
+                  disabled={!acceptedTerms || registrationMutation.isPending}
+                >
+                  {registrationMutation.isPending ? 'Creating...' : 'Create Account'}
                 </Button>
               </Field>
 

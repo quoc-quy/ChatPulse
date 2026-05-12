@@ -15,6 +15,8 @@ import VerifyForgotPasswordToken from './pages/VerifyForgotPasswordToken'
 import ResetPassword from './pages/ResetPassword'
 import { ForgotPasswordForm } from './pages/ForgotPasswordForm'
 import VerifyEmail from './pages/VerifyEmail'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import TermsPage from './pages/TermsPage'
 
 function ProtectedRoute() {
   const { isAuthenticated } = useContext(AppContext)
@@ -123,6 +125,14 @@ export default function useRouteElements() {
     {
       path: '/verify-email',
       element: <VerifyEmail />
+    },
+    {
+      path: '/privacy-policy',
+      element: <PrivacyPolicyPage />
+    },
+    {
+      path: '/terms',
+      element: <TermsPage />
     }
   ])
   return routeElements
