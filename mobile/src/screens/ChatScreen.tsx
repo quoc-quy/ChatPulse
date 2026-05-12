@@ -379,15 +379,23 @@ const ChatScreen = ({ route }: any) => {
     });
   };
 
-  const getChatDetails = (item: any) => {
+ const getChatDetails = (item: any) => {
     let chatName = t.chatUserDefault;
     let chatAvatarUrl = "";
     let isOnline = false;
     let targetUserId = null;
+    let isGroup = item.type === "group";
+    let membersData: any[] = []; 
 
-    if (item.type === "group") {
+    if (isGroup) {
       chatName = item.name || t.chatUnnamedGroup;
       chatAvatarUrl = item.avatarUrl || "";
+      
+      // Lấy danh sách thành viên (KHÔNG LOẠI BỎ BẢN THÂN để avatar nhóm đông đủ)
+      const rawMembers = item.participants || item.members || [];
+      membersData = rawMembers
+        .map((m: any) => (m.userId ? m.userId : m))
+        .filter((m: any) => m != null); // Chỉ lọc bỏ các giá trị rỗng
     } else {
       if (item.participants?.length > 0 && currentUserId) {
         const partner = item.participants.find(
@@ -405,7 +413,7 @@ const ChatScreen = ({ route }: any) => {
         }
       }
     }
-    return { chatName, chatAvatarUrl, isOnline, targetUserId };
+    return { chatName, chatAvatarUrl, isOnline, targetUserId, isGroup, membersData };
   };
 
   const isMutedForItem = (item: any): boolean => {
@@ -577,8 +585,9 @@ const ChatScreen = ({ route }: any) => {
     }
   };
 
-  const renderItem = ({ item }: any) => {
-    const { chatName, chatAvatarUrl, isOnline } = getChatDetails(item);
+const renderItem = ({ item }: any) => {
+    // 1. Lấy danh sách thành viên đầy đủ (không cắt bớt) để tính số dư +N
+    const { chatName, chatAvatarUrl, isOnline, targetUserId, isGroup, membersData } = getChatDetails(item);
 
     let messageContent = t.chatNoMessagesYet;
     if (item.lastMessage) {
@@ -608,6 +617,7 @@ const ChatScreen = ({ route }: any) => {
     const isPinned = pinnedIds.has(item._id);
     const isArchived = archivedIds.has(item._id);
     const draftText = drafts[item._id];
+
     const renderRightActions = () => {
       return (
         <View style={styles.rightActionContainer}>
@@ -641,6 +651,19 @@ const ChatScreen = ({ route }: any) => {
       );
     };
 
+    // Hàm phụ trợ render hình ảnh hoặc chữ cái đầu cho từng hình tròn nhỏ
+    const renderAvatarImg = (m: any, size: number) => {
+      const avatarImg = m?.avatar || m?.avatarUrl;
+      const initial = (m?.userName || m?.fullName || m?.displayName || "G").charAt(0).toUpperCase();
+      return avatarImg ? (
+        <Image source={{ uri: avatarImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+      ) : (
+        <Text style={{ color: "#FFFFFF", fontSize: size * 0.45, fontWeight: "bold" }}>
+          {initial}
+        </Text>
+      );
+    };
+
     return (
       <View style={styles.swipeableWrapper}>
         <Swipeable renderRightActions={renderRightActions}>
@@ -653,8 +676,8 @@ const ChatScreen = ({ route }: any) => {
 
               navigation.navigate("MessageScreen", {
                 id: item._id,
-                name: item.name || otherUser?.userName,
-                isGroup: item.type === "group",
+                name: item.name || otherUser?.userName || chatName,
+                isGroup: isGroup,
                 targetUserId: otherUser?._id,
                 targetPublicKey: otherUser?.public_key || otherUser?.publicKey,
                 unreadCount: item.unread_count,
@@ -666,24 +689,90 @@ const ChatScreen = ({ route }: any) => {
             activeOpacity={1}
           >
             <View style={styles.avatarWrapper}>
-              <View
-                style={[styles.avatarRing, { borderColor: COLORS.primary }]}
-              >
-                {chatAvatarUrl ? (
-                  <Image
-                    source={{ uri: chatAvatarUrl }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View
-                    style={[styles.avatar, { backgroundColor: COLORS.accent }]}
-                  >
-                    <Text style={styles.avatarText}>
-                      {chatName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              
+              {/* === LOGIC AVATAR ZALO (HÌNH TRÒN ĐỘC LẬP CHỒNG LÊN NHAU) === */}
+              {isGroup && !chatAvatarUrl && membersData.length > 0 ? (
+                <View style={{ width: 54, height: 54, justifyContent: 'center', alignItems: 'center' }}>
+                  
+                  {/* Trường hợp 1 người (Lỗi mồ côi hoặc vừa tạo nhóm chưa có ai) */}
+                  {membersData.length === 1 && (
+                     <View style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' }}>
+                       {renderAvatarImg(membersData[0], 50)}
+                     </View>
+                  )}
+
+                  {/* Nhóm 2 người: Kích thước 34x34, xếp chéo */}
+                  {membersData.length === 2 && (
+                    <>
+                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                        {renderAvatarImg(membersData[0], 34)}
+                      </View>
+                      <View style={{ position: 'absolute', top: 2, right: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+                        {renderAvatarImg(membersData[1], 34)}
+                      </View>
+                    </>
+                  )}
+
+                  {/* Nhóm 3 người: Kích thước 28x28, xếp hình tam giác */}
+                  {membersData.length === 3 && (
+                    <>
+                      <View style={{ position: 'absolute', top: 0, alignSelf: 'center', width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+                        {renderAvatarImg(membersData[0], 28)}
+                      </View>
+                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                        {renderAvatarImg(membersData[1], 28)}
+                      </View>
+                      <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
+                        {renderAvatarImg(membersData[2], 28)}
+                      </View>
+                    </>
+                  )}
+
+                  {/* Nhóm >= 4 người: Giữ nguyên kích thước 28x28, góc thứ 4 ghi số nếu lớn hơn 4 */}
+                  {membersData.length >= 4 && (
+                    <>
+                      <View style={{ position: 'absolute', top: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+                        {renderAvatarImg(membersData[0], 28)}
+                      </View>
+                      <View style={{ position: 'absolute', top: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                        {renderAvatarImg(membersData[1], 28)}
+                      </View>
+                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
+                        {renderAvatarImg(membersData[2], 28)}
+                      </View>
+                      
+                      {/* Vị trí góc dưới cùng bên phải: Avatar người thứ 4 HOẶC số lượng dư ra */}
+                      <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: membersData.length > 4 ? '#94a3b8' : COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 4 }}>
+                        {membersData.length === 4 ? (
+                          renderAvatarImg(membersData[3], 28)
+                        ) : (
+                          <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "bold" }}>
+                            +{membersData.length - 3}
+                          </Text>
+                        )}
+                      </View>
+                    </>
+                  )}
+                </View>
+              ) : (
+                // NẾU LÀ CHAT ĐƠN HOẶC NHÓM ĐÃ CÓ ẢNH RIÊNG -> CÓ VÒNG TRÒN PRIMARY BAO QUANH
+                <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
+                  {chatAvatarUrl ? (
+                    <Image
+                      source={{ uri: chatAvatarUrl }}
+                      style={styles.avatar}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
+                      <Text style={styles.avatarText}>
+                        {chatName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {isOnline && !isPinned && <View style={styles.onlineDot} />}
             </View>
 
@@ -692,9 +781,7 @@ const ChatScreen = ({ route }: any) => {
                 <Text style={styles.name} numberOfLines={1}>
                   {chatName}
                 </Text>
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-                >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   {isMutedForItem(item) && (
                     <Ionicons
                       name="notifications-off-outline"
@@ -716,9 +803,7 @@ const ChatScreen = ({ route }: any) => {
                   {messageContent}
                 </Text>
 
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-                >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   {draftText && draftText.trim() !== "" && (
                     <Text
                       style={{
@@ -756,7 +841,7 @@ const ChatScreen = ({ route }: any) => {
       </View>
     );
   };
-
+  
   const validConversations = useMemo(() => {
     return conversations.filter((c) => {
       if (c.type === "group") return true;

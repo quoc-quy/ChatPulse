@@ -566,13 +566,24 @@ const styles = StyleSheet.create({
     bottom: -10
   },
   aiIconCircle: {
-    width: 65,
-    height: 65,
+    width: 70,
+    height: 70,
     borderRadius: 50,
-    backgroundColor: '#262626',
+    backgroundColor: '#8B5CF6', // Dùng luôn màu tím chủ đạo thay vì màu đen (#161618)
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -4
+    marginBottom: 5, 
+    
+    // Đổ bóng phát sáng (Glow effect)
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+    
+    // Viền bao quanh bảo vệ màu
+    borderWidth: 0,
+    borderColor: '#FFFFFF',
   },
   badgeContainer: {
     position: 'absolute',

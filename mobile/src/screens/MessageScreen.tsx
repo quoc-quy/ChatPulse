@@ -58,23 +58,23 @@ import { lightColors as globalLight, darkColors as globalDark } from '../theme/c
 // 👇 2. Ghi đè thành màu Tím và thêm các màu phụ ngay tại local
 const localLightColors = {
   ...globalLight,
-  primary: 'hsl(262, 83%, 60%)', // Ép thành Tím
+  primary: 'hsl(262, 83%, 60%)', // Tím nhạt cho giao diện sáng
   ring: 'hsl(262, 80%, 55%)',
   badge: 'hsl(0, 84%, 60%)',
-  textLight: 'hsl(240, 10%, 45%)',
-  surface: globalLight.card,
-  text: globalLight.foreground,
+  textLight: 'hsl(240, 10%, 50%)', // Làm đậm text time lên chút để dễ đọc
+  surface: '#FFFFFF', // Đảm bảo box chat luôn nền trắng
+  text: '#1F2937', // Text tối trên nền sáng
   success: 'hsl(142, 76%, 36%)',
-  surfaceSoft: 'hsl(240, 15%, 95%)',
-  searchBg: 'hsl(240, 15%, 94%)',
+  surfaceSoft: '#F3F4F6', // Khung xám nhạt thay vì trắng bệch
+  searchBg: '#E5E7EB',
   highlight: 'hsl(50, 100%, 70%)',
-  headerText: '#FFFFFF',
-  fileBg: 'hsl(260, 33%, 96%)',
+  headerText: '#FFFFFF', // Text Header luôn giữ Trắng để nổi trên Gradient
+  fileBg: '#F5F3FF', // Tím nhạt rất nhẹ
 };
 
 const localDarkColors = {
   ...globalDark,
-  primary: 'hsl(262, 85%, 65%)', // Ép thành Tím sáng cho Dark Mode
+  primary: 'hsl(262, 85%, 65%)',
   ring: 'hsl(262, 80%, 65%)',
   badge: 'hsl(0, 62%, 50%)',
   textLight: 'hsl(240, 10%, 65%)',
@@ -90,17 +90,7 @@ const localDarkColors = {
 
 const REACTION_LIST = ['👍', '❤️', '🤣', '😮', '😭', '😡']
 const BLOCKED_EXTENSIONS = [
-  'exe',
-  'bat',
-  'cmd',
-  'msi',
-  'scr',
-  'vbs',
-  'sh',
-  'ps1',
-  'jar',
-  'sys',
-  'dll'
+  'exe', 'bat', 'cmd', 'msi', 'scr', 'vbs', 'sh', 'ps1', 'jar', 'sys', 'dll'
 ]
 const MAX_FILE_SIZE = 50 * 1024 * 1024
 
@@ -113,7 +103,6 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
 }
 
-// ── Helpers parse file metadata từ content JSON ──────────────────────────
 interface FilePayload {
   url: string
   originalName: string
@@ -128,7 +117,6 @@ function parseMediaContent(content: string): FilePayload[] {
       if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].url) {
         return parsed as FilePayload[]
       }
-      // Legacy: array of URL strings
       return (parsed as string[]).map(legacyUrlToPayload)
     }
     if (typeof parsed === 'object' && parsed !== null && parsed.url) {
@@ -194,7 +182,6 @@ const MessageScreen = () => {
   const { isDarkMode } = useTheme()
   const { language, t } = useTranslation()
 
-  // 👇 3. Gán COLORS bằng bộ màu local đã được ép sang Tím
   const COLORS = useMemo(
     () => (isDarkMode ? localDarkColors : localLightColors),
     [isDarkMode]
@@ -204,14 +191,17 @@ const MessageScreen = () => {
 
   const { clearLocalUnread, drafts, updateDraft, socket } = useChatContext() as any
 
+  // ✅ FIX 1: Thêm isFriend = true vào destructure route.params
   const {
     id: conversationId,
     name: chatName,
     isGroup,
     targetUserId,
     unreadCount = 0,
-    isMuted = false
+    isMuted = false,
+    isFriend = true,
   } = route.params || {}
+
   const [currentChatName, setCurrentChatName] = useState(chatName || 'Chat')
   const [messages, setMessages] = useState<any[]>([])
   const [inputText, setInputText] = useState('')
@@ -221,6 +211,8 @@ const MessageScreen = () => {
   const [hasMore, setHasMore] = useState<boolean>(true)
   const [isAiProcessing, setIsAiProcessing] = useState(false)
   const [isMutedState, setIsMutedState] = useState<boolean>(isMuted)
+  // ✅ FIX 1: State kiểm tra bạn bè — chỉ áp dụng cho chat 1-1
+  const [isNotFriendState, setIsNotFriendState] = useState<boolean>(!isFriend)
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [isSummarizing, setIsSummarizing] = useState(false)
@@ -231,6 +223,10 @@ const MessageScreen = () => {
   const [showPinnedModal, setShowPinnedModal] = useState(false)
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
   const [pendingMedia, setPendingMedia] = useState<any[]>([])
+  const [chatAvatarUrl, setChatAvatarUrl] = useState<string>('')
+  const [membersData, setMembersData] = useState<any[]>([])
+  // Thêm state để quản lý trạng thái online của người dùng (trong chat 1-1)
+  const [isOnline, setIsOnline] = useState<boolean>(route.params?.isOnline || false);
   const [previewMedia, setPreviewMedia] = useState<{
     items: { id: string; url: string; isVideo: boolean }[]
     initialIndex: number
@@ -259,15 +255,12 @@ const MessageScreen = () => {
 
   useEffect(() => {
     if (!socket) return
-
     const handlePinnedUpdate = (data: any) => {
       if (data.conversationId === route.params.id) {
         setPinnedMessages(data.pinnedMessages)
       }
     }
-
     socket.on('pinned_messages_updated', handlePinnedUpdate)
-
     return () => {
       socket.off('pinned_messages_updated', handlePinnedUpdate)
     }
@@ -282,25 +275,13 @@ const MessageScreen = () => {
 
   const scrollToMessage = (msgId: string) => {
     setShowPinnedModal(false)
-
     const index = groupedMessages.findIndex((msg) => msg._id === msgId)
     if (index !== -1) {
-      flatListRef.current?.scrollToIndex({
-        index,
-        animated: true,
-        viewPosition: 0.5
-      })
-
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 })
       setHighlightedMsgId(msgId)
-
-      setTimeout(() => {
-        setHighlightedMsgId(null)
-      }, 2000)
+      setTimeout(() => { setHighlightedMsgId(null) }, 2000)
     } else {
-      Alert.alert(
-        'Thông báo',
-        'Tin nhắn này ở quá xa, vui lòng cuộn lên để tải thêm lịch sử trò chuyện.'
-      )
+      Alert.alert('Thông báo', 'Tin nhắn này ở quá xa, vui lòng cuộn lên để tải thêm lịch sử trò chuyện.')
     }
   }
 
@@ -325,14 +306,7 @@ const MessageScreen = () => {
   const VideoThumbnail = ({ url }: { url: string }) => {
     const player = useVideoPlayer({ uri: url }, (p) => p.pause())
     return (
-      <View
-        style={{
-          width: 240,
-          height: 300,
-          borderRadius: 16,
-          overflow: 'hidden'
-        }}
-      >
+      <View style={{ width: 240, height: 300, borderRadius: 16, overflow: 'hidden' }}>
         <VideoView
           style={{ width: '100%', height: '100%' }}
           player={player}
@@ -369,16 +343,11 @@ const MessageScreen = () => {
       quality: 0.8,
       videoExportPreset: ImagePicker.VideoExportPreset.HighestQuality
     })
-
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const validAssets: any[] = []
       for (const asset of result.assets) {
         const isVideo = asset.type === 'video' || asset.uri.match(/\.(mp4|mov|avi|mkv)$/i)
-        validAssets.push({
-          ...asset,
-          attachmentType: 'media',
-          detectedType: isVideo ? 'video' : 'image'
-        })
+        validAssets.push({ ...asset, attachmentType: 'media', detectedType: isVideo ? 'video' : 'image' })
       }
       if (validAssets.length > 0) setPendingMedia((prev) => [...prev, ...validAssets])
     }
@@ -394,10 +363,7 @@ const MessageScreen = () => {
       const validAssets: any[] = []
       for (const asset of result.assets) {
         if (asset.size && asset.size > MAX_FILE_SIZE) {
-          Alert.alert(
-            t.error || 'Lỗi',
-            `Không thể gửi file lớn hơn ${MAX_FILE_SIZE / (1024 * 1024)}MB`
-          )
+          Alert.alert(t.error || 'Lỗi', `Không thể gửi file lớn hơn ${MAX_FILE_SIZE / (1024 * 1024)}MB`)
           continue
         }
         const fileName = asset.name || ''
@@ -406,11 +372,7 @@ const MessageScreen = () => {
           Alert.alert('Lỗi bảo mật', `Không được phép gửi tệp tin định dạng .${extension}`)
           continue
         }
-        validAssets.push({
-          ...asset,
-          attachmentType: 'file',
-          fileSize: asset.size
-        })
+        validAssets.push({ ...asset, attachmentType: 'file', fileSize: asset.size })
       }
       if (validAssets.length > 0) setPendingMedia((prev) => [...prev, ...validAssets])
     }
@@ -419,16 +381,13 @@ const MessageScreen = () => {
   const uploadMultipleAttachments = async (files: any[], type: 'media' | 'file') => {
     setIsUploading(true)
     const tempId = Date.now().toString()
-
     const filePayloads: FilePayload[] = files.map((f) => ({
       url: f.uri,
       originalName: f.name || f.fileName || `file_${Date.now()}`,
       size: f.size || f.fileSize || 0,
       mimeType: f.mimeType || f.type || 'application/octet-stream'
     }))
-    const content =
-      filePayloads.length === 1 ? JSON.stringify(filePayloads[0]) : JSON.stringify(filePayloads)
-
+    const content = filePayloads.length === 1 ? JSON.stringify(filePayloads[0]) : JSON.stringify(filePayloads)
     const tempMessage = {
       _id: tempId,
       conversationId,
@@ -439,7 +398,6 @@ const MessageScreen = () => {
       isSending: true
     }
     setMessages((prev) => [tempMessage, ...prev])
-
     try {
       const res = await sendMediaMessage(conversationId, files, type)
       const realMessage = res.data?.result || res.data
@@ -448,8 +406,7 @@ const MessageScreen = () => {
         unarchiveChat(conversationId)
       }
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || t.messageAttachmentFailed || 'Không thể gửi tệp đính kèm.'
+      const errorMessage = error.response?.data?.message || t.messageAttachmentFailed || 'Không thể gửi tệp đính kèm.'
       setMessages((prev) => {
         const filtered = prev.filter((msg) => msg._id !== tempId)
         return [
@@ -471,22 +428,15 @@ const MessageScreen = () => {
   const handleSend = async () => {
     let textToSend = inputText.trim()
     if (textToSend === '@PulseAI ') textToSend = ''
-
     if (textToSend.length > 2000) {
-      Alert.alert(
-        t.error || 'Cảnh báo',
-        `Tin nhắn quá dài (${textToSend.length}/2000 ký tự). Vui lòng rút gọn nội dung trước khi gửi.`
-      )
+      Alert.alert(t.error || 'Cảnh báo', `Tin nhắn quá dài (${textToSend.length}/2000 ký tự). Vui lòng rút gọn nội dung trước khi gửi.`)
       return
     }
-
     const mediaToSend = [...pendingMedia]
     if (textToSend.length === 0 && mediaToSend.length === 0) return
-
     setInputText('')
     setPendingMedia([])
     if (updateDraft && conversationId) updateDraft(conversationId, '')
-
     if (textToSend.length > 0) {
       const tempId = Date.now().toString()
       const tempMessage = {
@@ -499,18 +449,15 @@ const MessageScreen = () => {
         isSending: true
       }
       setMessages((prev) => [tempMessage, ...prev])
-
       try {
         const res = await sendMessage(conversationId, textToSend, 'text')
         let realMessage = res.data.result || res.data
-
         if (realMessage) {
           setMessages((prev) => prev.map((msg) => (msg._id === tempId ? realMessage : msg)))
           unarchiveChat(conversationId)
         }
       } catch (error: any) {
-        const errorMessage =
-          error.response?.data?.message || 'Không thể gửi tin nhắn. Vui lòng thử lại.'
+        const errorMessage = error.response?.data?.message || 'Không thể gửi tin nhắn. Vui lòng thử lại.'
         setMessages((prev) => {
           const filtered = prev.filter((msg) => msg._id !== tempId)
           return [
@@ -526,46 +473,34 @@ const MessageScreen = () => {
         })
       }
     }
-
     const mediaFiles = mediaToSend.filter((m) => m.attachmentType === 'media')
     const docFiles = mediaToSend.filter((m) => m.attachmentType === 'file')
-
-    if (mediaFiles.length > 0) {
-      await uploadMultipleAttachments(mediaFiles, 'media')
-    }
-    if (docFiles.length > 0) {
-      await uploadMultipleAttachments(docFiles, 'file')
-    }
+    if (mediaFiles.length > 0) await uploadMultipleAttachments(mediaFiles, 'media')
+    if (docFiles.length > 0) await uploadMultipleAttachments(docFiles, 'file')
   }
 
   const handleDeleteDisbandedChat = () => {
-    Alert.alert(
-      'Xóa trò chuyện',
-      'Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteConversationForMe(conversationId)
-
-              const stored = await AsyncStorage.getItem('archived_chats')
-              if (stored) {
-                let archivedArray: string[] = JSON.parse(stored)
-                const nextArray = archivedArray.filter((key: string) => key !== conversationId)
-                await AsyncStorage.setItem('archived_chats', JSON.stringify(nextArray))
-              }
-
-              navigation.goBack()
-            } catch (error) {
-              Alert.alert('Lỗi', 'Không thể xóa trò chuyện. Vui lòng thử lại!')
+    Alert.alert('Xóa trò chuyện', 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Xóa',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteConversationForMe(conversationId)
+            const stored = await AsyncStorage.getItem('archived_chats')
+            if (stored) {
+              let archivedArray: string[] = JSON.parse(stored)
+              const nextArray = archivedArray.filter((key: string) => key !== conversationId)
+              await AsyncStorage.setItem('archived_chats', JSON.stringify(nextArray))
             }
+            navigation.goBack()
+          } catch (error) {
+            Alert.alert('Lỗi', 'Không thể xóa trò chuyện. Vui lòng thử lại!')
           }
         }
-      ]
-    )
+      }
+    ])
   }
 
   const loadMoreMessages = async () => {
@@ -618,7 +553,6 @@ const MessageScreen = () => {
           }
         } catch (e) { }
       }
-
       if (conversationId && resolvedUserId) {
         setLoading(true)
         try {
@@ -628,49 +562,29 @@ const MessageScreen = () => {
           if (rawData.length < 20) setHasMore(false)
           setMessages(rawData)
 
-          if (isGroup) {
-            const detailRes = await getConversationDetail(conversationId)
-            const conv = detailRes.data?.result
+          // LẤY CHI TIẾT ĐỂ RENDER AVATAR HEADER
+          const detailRes = await getConversationDetail(conversationId)
+          const conv = detailRes.data?.result
+          if (conv) {
+            setChatAvatarUrl(conv.avatarUrl || '')
+            const rawMembers = conv.participants || conv.members || []
+            let pMembers = rawMembers.map((m: any) => (m.userId ? m.userId : m)).filter((m: any) => m != null)
 
-            if (conv) {
-              if (conv.pinnedMessages) {
-                setPinnedMessages(conv.pinnedMessages)
-              }
+            // Nếu là chat 1-1, bỏ bản thân ra để lấy avatar đối phương
+            if (!isGroup) pMembers = pMembers.filter((m: any) => m._id !== resolvedUserId)
+            setMembersData(pMembers)
 
-              if (isGroup) {
-                if (conv.name) {
-                  setCurrentChatName(conv.name)
-                }
+            if (conv.pinnedMessages) setPinnedMessages(conv.pinnedMessages)
+            if (conv.name) setCurrentChatName(conv.name)
 
-                if (conv.is_disbanded || conv.isDisbanded) {
-                  setIsGroupDisbanded(true)
-                  setDisbandMessage(conv.disbanded_message || 'Nhóm đã bị giải tán.')
-                } else {
-                  setIsGroupDisbanded(false)
-                }
-
-                const myMember = (conv.members || []).find(
-                  (m: any) => m.userId?.toString() === resolvedUserId
-                )
-                if (myMember?.hasMuted !== undefined) {
-                  setIsMutedState(myMember.hasMuted)
-                }
-              }
-            }
-
-            if (conv?.is_disbanded || conv?.isDisbanded) {
+            if (conv.is_disbanded || conv.isDisbanded) {
               setIsGroupDisbanded(true)
-              setDisbandMessage(conv?.disbanded_message || 'Nhóm đã bị giải tán.')
+              setDisbandMessage(conv.disbanded_message || 'Nhóm đã bị giải tán.')
             } else {
               setIsGroupDisbanded(false)
             }
-
-            const myMember = (conv?.members || []).find(
-              (m: any) => m.userId?.toString() === resolvedUserId
-            )
-            if (myMember?.hasMuted !== undefined) {
-              setIsMutedState(myMember.hasMuted)
-            }
+            const myMember = (conv.members || []).find((m: any) => m.userId?.toString() === resolvedUserId)
+            if (myMember?.hasMuted !== undefined) setIsMutedState(myMember.hasMuted)
           }
         } catch (error: any) {
           console.log('Lỗi tải tin nhắn hoặc chi tiết nhóm:', error.message)
@@ -679,7 +593,6 @@ const MessageScreen = () => {
         }
       }
     }
-
     initChat()
   }, [conversationId, isGroup, currentUserId])
 
@@ -687,26 +600,20 @@ const MessageScreen = () => {
     if (!socket || !conversationId) return
 
     const handleReceiveMessage = (newMessage: any) => {
-      if (newMessage.sender?._id === currentUserId && newMessage.type !== 'system') {
-        return
-      }
-
+      if (newMessage.sender?._id === currentUserId && newMessage.type !== 'system') return
       if (newMessage.conversationId === conversationId || newMessage.convId === conversationId) {
         setMessages((prev) => {
           const isExist = prev.some((msg) => msg._id === newMessage._id)
           if (isExist) return prev
           return [newMessage, ...prev]
         })
-
         if (currentUserId) {
-          socket.emit('message_seen', {
-            messageId: newMessage._id,
-            conversationId
-          })
+          socket.emit('message_seen', { messageId: newMessage._id, conversationId })
           clearLocalUnread(conversationId)
         }
       }
     }
+
     const handleGroupDisbanded = ({ conversationId: disbandedId, message }: any) => {
       if (disbandedId === conversationId) {
         setIsGroupDisbanded(true)
@@ -727,23 +634,26 @@ const MessageScreen = () => {
     const handleMessageRevoked = (data: any) => {
       if (data.conversationId === conversationId) {
         setMessages((prev) =>
-          prev.map((msg) =>
-            msg._id === data.messageId ? { ...msg, type: 'revoked', content: '' } : msg
-          )
+          prev.map((msg) => msg._id === data.messageId ? { ...msg, type: 'revoked', content: '' } : msg)
         )
       }
     }
 
     const handleMessageReacted = (data: any) => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg._id === data.messageId ? { ...msg, reactions: data.reactions } : msg
-        )
+        prev.map((msg) => msg._id === data.messageId ? { ...msg, reactions: data.reactions } : msg)
       )
     }
+
     const handleConversationUpdated = (data: any) => {
-      if (data.conversationId === conversationId && data.name) {
-        setCurrentChatName(data.name)
+      if (data.conversationId === conversationId && data.name) setCurrentChatName(data.name)
+    }
+
+    // ✅ Lắng nghe sự kiện thay đổi trạng thái user từ backend
+    const handleUserStatusChange = (data: any) => {
+      // Giả sử backend trả về data = { userId: string, isOnline: boolean }
+      if (!isGroup && data.userId === targetUserId) {
+        setIsOnline(data.isOnline)
       }
     }
 
@@ -753,14 +663,23 @@ const MessageScreen = () => {
     socket.on('group_disbanded', handleGroupDisbanded)
     socket.on('conversation_updated', handleConversationUpdated)
 
+    // ✅ Tên event ở đây phụ thuộc vào cách backend (Node.js) của bạn định nghĩa
+    socket.on('user_status_change', handleUserStatusChange)
+    // Nếu backend của bạn dùng event 'user_connected' / 'user_disconnected':
+    socket.on('user_connected', (userId: string) => { if (!isGroup && userId === targetUserId) setIsOnline(true) })
+    socket.on('user_disconnected', (userId: string) => { if (!isGroup && userId === targetUserId) setIsOnline(false) })
+
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_revoked', handleMessageRevoked)
       socket.off('message_reacted', handleMessageReacted)
       socket.off('group_disbanded', handleGroupDisbanded)
       socket.off('conversation_updated', handleConversationUpdated)
+      socket.off('user_status_change', handleUserStatusChange)
+      socket.off('user_connected')
+      socket.off('user_disconnected')
     }
-  }, [socket, conversationId, currentUserId, clearLocalUnread])
+  }, [socket, conversationId, currentUserId, targetUserId, isGroup, clearLocalUnread])
 
   const groupedMessages = messages
 
@@ -769,16 +688,13 @@ const MessageScreen = () => {
       Alert.alert(t.error || 'Lỗi', 'Chưa có tin nhắn nào để tóm tắt.')
       return
     }
-
     setIsSummarizing(true)
     setShowAiModal(true)
     setIsAiProcessing(true)
     setAiSummaryText('')
-
     try {
       const recentMessages = [...messages].slice(0, 50).reverse()
       const res = await summarizeChatApi(recentMessages)
-
       if (res.data?.result) {
         setAiSummaryText(res.data.result)
       } else {
@@ -792,6 +708,7 @@ const MessageScreen = () => {
       setIsAiProcessing(false)
     }
   }
+
   const handleToggleReact = async (message: any, emoji: string) => { }
   const handleRemoveAllReactions = async (message: any) => { }
 
@@ -818,9 +735,7 @@ const MessageScreen = () => {
     () => buildReactionGroups(reactionDetailMessage?.reactions || []),
     [reactionDetailMessage, currentUserId]
   )
-  const reactionUsersForModal = useMemo(() => {
-    return []
-  }, [reactionFilter, reactionGroupsForModal, currentUserId])
+  const reactionUsersForModal = useMemo(() => { return [] }, [reactionFilter, reactionGroupsForModal, currentUserId])
 
   const handleRevoke = async () => { }
   const handleDeleteForMe = async () => { }
@@ -855,12 +770,8 @@ const MessageScreen = () => {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => {
-          setHoveredReaction(getReactionFromX(event.nativeEvent.locationX))
-        },
-        onPanResponderMove: (event) => {
-          setHoveredReaction(getReactionFromX(event.nativeEvent.locationX))
-        },
+        onPanResponderGrant: (event) => { setHoveredReaction(getReactionFromX(event.nativeEvent.locationX)) },
+        onPanResponderMove: (event) => { setHoveredReaction(getReactionFromX(event.nativeEvent.locationX)) },
         onPanResponderRelease: () => {
           if (hoveredReaction && selectedMsg) handleToggleReact(selectedMsg, hoveredReaction)
           else setShowMenu(false)
@@ -874,10 +785,7 @@ const MessageScreen = () => {
   const formatTime = (dateString: string) => {
     if (!dateString) return ''
     const date = new Date(dateString)
-    return date.toLocaleTimeString(language === 'vi' ? 'vi-VN' : 'en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return date.toLocaleTimeString(language === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
   }
 
   const handleTogglePinMessage = async (message: any) => {
@@ -898,36 +806,17 @@ const MessageScreen = () => {
     yesterday.setDate(today.getDate() - 1)
     if (date.toDateString() === today.toDateString()) return t.messageToday
     if (date.toDateString() === yesterday.toDateString()) return t.messageYesterday
-    return date.toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    })
+    return date.toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
-  const renderAiText = (text: string) => {
-    return text || ''
-  }
+  const renderAiText = (text: string) => { return text || '' }
 
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const isMe = (item.sender?._id || item.senderId) === currentUserId
 
     if (item.isGroup) {
-      const showAvatar = !isMe
-      const orderedImages = item.images.slice().reverse()
-      const count = orderedImages.length
-      const displayImages = orderedImages.slice(0, 5)
-      const hiddenCount = count - 5
-      const W = 240
-      const gap = 3
-
       return (
-        <View
-          style={[
-            styles.messageWrapper,
-            isMe ? styles.messageWrapperMe : styles.messageWrapperOther
-          ]}
-        ></View>
+        <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}></View>
       )
     }
 
@@ -939,7 +828,6 @@ const MessageScreen = () => {
       const currentDate = new Date(item.createdAt).toDateString()
       const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null
       const showDateDivider = currentDate !== olderDate && item.type !== 'system_error'
-
       return (
         <View>
           {showDateDivider && (
@@ -948,12 +836,7 @@ const MessageScreen = () => {
             </View>
           )}
           <View style={[styles.systemMessageWrapper, item.type === 'system_error' && {}]}>
-            <Text
-              style={[
-                styles.systemMessageText,
-                item.type === 'system_error' ? { color: COLORS.badge } : { color: COLORS.textLight }
-              ]}
-            >
+            <Text style={[styles.systemMessageText, item.type === 'system_error' ? { color: COLORS.badge } : { color: COLORS.textLight }]}>
               {item.content}
             </Text>
           </View>
@@ -966,10 +849,7 @@ const MessageScreen = () => {
     const reactionGroups = buildReactionGroups(item.reactions || [])
     const totalReactions = reactionGroups.reduce((acc, group) => acc + group.count, 0)
     const hasReactions = totalReactions > 0
-    const reactionPreview = reactionGroups
-      .slice(0, 3)
-      .map((group) => group.emoji)
-      .join(' ')
+    const reactionPreview = reactionGroups.slice(0, 3).map((group) => group.emoji).join(' ')
     const isLatestMessage = index === messages.length - 1
     const shouldShowReactionCorner = !isRevoked && (hasReactions || isLatestMessage)
 
@@ -995,88 +875,34 @@ const MessageScreen = () => {
             <Text style={styles.dateDividerText}>{formatMessageDate(item.createdAt)}</Text>
           </View>
         )}
-        <View
-          style={[
-            styles.messageWrapper,
-            isMe ? styles.messageWrapperMe : styles.messageWrapperOther
-          ]}
-        >
+        <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}>
           {!isMe && (
             <View style={styles.avatarPlaceholder}>
               {showAvatar && (
                 <View style={styles.avatarSmall}>
-                  <Text style={styles.avatarText}>
-                    {item.sender?.userName?.charAt(0).toUpperCase() || 'U'}
-                  </Text>
+                  <Text style={styles.avatarText}>{item.sender?.userName?.charAt(0).toUpperCase() || 'U'}</Text>
                 </View>
               )}
             </View>
           )}
-          <View
-            style={[
-              styles.messageContent,
-              isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
-              { position: 'relative' }
-            ]}
-          >
+          <View style={[styles.messageContent, isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }, { position: 'relative' }]}>
             <TouchableOpacity
               onPress={() => {
                 const clickPayloads = parseMediaContent(displayContent)
                 const clickUrls: string[] = clickPayloads.map((p) => p.url)
-                const firstClickPayload = clickPayloads[0] || {
-                  url: '',
-                  originalName: '',
-                  size: 0,
-                  mimeType: ''
-                }
+                const firstClickPayload = clickPayloads[0] || { url: '', originalName: '', size: 0, mimeType: '' }
                 const firstUrl = firstClickPayload.url
-                const firstClickExt =
-                  firstClickPayload.originalName.split('.').pop()?.toLowerCase() || ''
+                const firstClickExt = firstClickPayload.originalName.split('.').pop()?.toLowerCase() || ''
                 const firstClickMime = firstClickPayload.mimeType || ''
                 const urlLower = firstUrl.split('?')[0].toLowerCase()
-
-                const isVideoClick =
-                  item.type === 'video' ||
-                  ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstClickExt) ||
-                  firstClickMime.startsWith('video/')
-                const isDocumentClick =
-                  item.type === 'file' ||
-                  firstClickMime.startsWith('application/') ||
-                  firstClickMime.startsWith('text/') ||
-                  [
-                    'pdf',
-                    'doc',
-                    'docx',
-                    'xls',
-                    'xlsx',
-                    'ppt',
-                    'pptx',
-                    'txt',
-                    'zip',
-                    'rar',
-                    'csv',
-                    '7z'
-                  ].includes(firstClickExt) ||
-                  !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
-                const isImageClick =
-                  !isVideoClick &&
-                  !isDocumentClick &&
-                  (item.type === 'image' ||
-                    item.type === 'media' ||
-                    firstClickMime.startsWith('image/') ||
-                    ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(firstClickExt) ||
-                    !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
-
+                const isVideoClick = item.type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstClickExt) || firstClickMime.startsWith('video/')
+                const isDocumentClick = item.type === 'file' || firstClickMime.startsWith('application/') || firstClickMime.startsWith('text/') || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'csv', '7z'].includes(firstClickExt) || !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
+                const isImageClick = !isVideoClick && !isDocumentClick && (item.type === 'image' || item.type === 'media' || firstClickMime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(firstClickExt) || !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
                 if (isDocumentClick) {
                   Linking.openURL(firstUrl)
                 } else if (isImageClick || isVideoClick) {
-                  const parsedUrls = clickUrls
                   setPreviewMedia({
-                    items: parsedUrls.map((u: string) => ({
-                      id: item._id,
-                      url: u,
-                      isVideo: !!isVideoClick
-                    })),
+                    items: clickUrls.map((u: string) => ({ id: item._id, url: u, isVideo: !!isVideoClick })),
                     initialIndex: 0
                   })
                 } else {
@@ -1088,168 +914,62 @@ const MessageScreen = () => {
             >
               <View
                 style={[
-                  !(
-                    item.type === 'media' ||
-                    item.type === 'image' ||
-                    item.type === 'video' ||
-                    item.type === 'call' ||
-                    item.type === 'file' ||
-                    displayContent
-                      ?.split('?')[0]
-                      .toLowerCase()
-                      .match(
-                        /\.(mp4|mov|avi|mkv|jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i
-                      )
-                  ) && styles.bubble,
-                  !(
-                    item.type === 'media' ||
-                    item.type === 'image' ||
-                    item.type === 'video' ||
-                    item.type === 'call' ||
-                    item.type === 'file'
-                  ) && (isMe ? styles.bubbleMe : styles.bubbleOther),
-                  isRevoked && {
-                    backgroundColor: isDarkMode ? '#1E2946' : '#E2E8F0',
-                    opacity: 0.6
-                  },
+                  !(item.type === 'media' || item.type === 'image' || item.type === 'video' || item.type === 'call' || item.type === 'file' || displayContent?.split('?')[0].toLowerCase().match(/\.(mp4|mov|avi|mkv|jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv)$/i)) && styles.bubble,
+                  !(item.type === 'media' || item.type === 'image' || item.type === 'video' || item.type === 'call' || item.type === 'file') && (isMe ? styles.bubbleMe : styles.bubbleOther),
+                  isRevoked && { backgroundColor: isDarkMode ? '#1E2946' : '#E2E8F0', opacity: 0.6 },
                   item.isSending && { opacity: 0.6 },
-                  (item.type === 'call' || item.type === 'file') && {
-                    backgroundColor: 'transparent',
-                    borderWidth: 0,
-                    paddingHorizontal: 0,
-                    paddingVertical: 0
-                  }
+                  (item.type === 'call' || item.type === 'file') && { backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }
                 ]}
               >
                 {isRevoked ? (
-                  <Text
-                    style={[
-                      styles.messageText,
-                      {
-                        fontStyle: 'italic',
-                        color: COLORS.textLight,
-                        paddingRight: 5
-                      }
-                    ]}
-                  >
+                  <Text style={[styles.messageText, { fontStyle: 'italic', color: COLORS.textLight, paddingRight: 5 }]}>
                     {t.messageRevoked}
                   </Text>
                 ) : (
                   (() => {
                     const mediaPayloads = parseMediaContent(displayContent)
                     const parsedUrls: string[] = mediaPayloads.map((p) => p.url)
-                    const firstPayload = mediaPayloads[0] || {
-                      url: '',
-                      originalName: '',
-                      size: 0,
-                      mimeType: ''
-                    }
+                    const firstPayload = mediaPayloads[0] || { url: '', originalName: '', size: 0, mimeType: '' }
                     const firstUrl = firstPayload.url
                     const firstExt = firstPayload.originalName.split('.').pop()?.toLowerCase() || ''
                     const firstMime = firstPayload.mimeType || ''
                     const urlLower = firstUrl.split('?')[0].toLowerCase()
+                    const isVideo = item.type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstExt) || firstMime.startsWith('video/')
+                    const isDocument = item.type === 'file' || firstMime.startsWith('application/') || firstMime.startsWith('text/') || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'csv', '7z'].includes(firstExt) || !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
+                    const isImage = !isVideo && !isDocument && (item.type === 'image' || item.type === 'media' || firstMime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(firstExt) || !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
 
-                    const isVideo =
-                      item.type === 'video' ||
-                      ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(firstExt) ||
-                      firstMime.startsWith('video/')
-                    const isDocument =
-                      item.type === 'file' ||
-                      firstMime.startsWith('application/') ||
-                      firstMime.startsWith('text/') ||
-                      [
-                        'pdf',
-                        'doc',
-                        'docx',
-                        'xls',
-                        'xlsx',
-                        'ppt',
-                        'pptx',
-                        'txt',
-                        'zip',
-                        'rar',
-                        'csv',
-                        '7z'
-                      ].includes(firstExt) ||
-                      !!urlLower.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar|csv|7z)$/i)
-                    const isImage =
-                      !isVideo &&
-                      !isDocument &&
-                      (item.type === 'image' ||
-                        item.type === 'media' ||
-                        firstMime.startsWith('image/') ||
-                        ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(firstExt) ||
-                        !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
-
-                    // 👇 BẮT ĐẦU GRID MULTI-IMAGE STYLE ZALO 👇
                     if (isVideo || isImage) {
                       const count = parsedUrls.length;
-                      const GRID_WIDTH = 240; // Tổng chiều rộng khối chứa ảnh
-                      const GAP = 4; // Khoảng cách giữa các ảnh
-
-                      // Hàm render từng khung ảnh con trong lưới
+                      const GRID_WIDTH = 240;
+                      const GAP = 4;
                       const renderGridItem = (url: string, w: number, h: number, idx: number, isLast = false) => (
                         <TouchableOpacity
                           key={idx}
-                          onPress={() =>
-                            setPreviewMedia({
-                              items: parsedUrls.map((u) => ({ id: item._id, url: u, isVideo: false })),
-                              initialIndex: idx
-                            })
-                          }
+                          onPress={() => setPreviewMedia({ items: parsedUrls.map((u) => ({ id: item._id, url: u, isVideo: false })), initialIndex: idx })}
                           onLongPress={(e) => handleLongPress(e, item)}
                           delayLongPress={200}
                           activeOpacity={0.8}
                         >
-                          <Image
-                            source={{ uri: url }}
-                            style={{
-                              width: w,
-                              height: h,
-                              borderRadius: 8,
-                              backgroundColor: COLORS.surfaceSoft
-                            }}
-                            resizeMode="cover"
-                          />
-                          {/* Lớp phủ hiển thị số lượng ảnh còn lại (nếu tổng > 5) */}
+                          <Image source={{ uri: url }} style={{ width: w, height: h, borderRadius: 8, backgroundColor: COLORS.surfaceSoft }} resizeMode="cover" />
                           {isLast && count > 5 && (
-                            <View
-                              style={{
-                                ...StyleSheet.absoluteFillObject,
-                                backgroundColor: 'rgba(0,0,0,0.5)',
-                                borderRadius: 8,
-                                justifyContent: 'center',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 20 }}>
-                                +{count - 5}
-                              </Text>
+                            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 20 }}>+{count - 5}</Text>
                             </View>
                           )}
                         </TouchableOpacity>
                       );
-
                       return (
                         <View style={{ position: 'relative', marginBottom: 5 }}>
                           {count === 1 ? (
-                            // Trạng thái 1 Ảnh/Video
-                            isVideo ? (
-                              <VideoThumbnail url={parsedUrls[0]} />
-                            ) : (
-                              <Image source={{ uri: parsedUrls[0] }} style={styles.mediaImage} resizeMode="cover" />
-                            )
+                            isVideo ? <VideoThumbnail url={parsedUrls[0]} /> : <Image source={{ uri: parsedUrls[0] }} style={styles.mediaImage} resizeMode="cover" />
                           ) : (
                             <View style={{ gap: GAP }}>
-                              {/* Lưới 2 ảnh: Chia 2 cột đều nhau */}
                               {count === 2 && (
                                 <View style={{ flexDirection: 'row', gap: GAP }}>
                                   {renderGridItem(parsedUrls[0], (GRID_WIDTH - GAP) / 2, 160, 0)}
                                   {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, 160, 1)}
                                 </View>
                               )}
-
-                              {/* Lưới 3 ảnh: 1 to phía trên, 2 nhỏ phía dưới */}
                               {count === 3 && (
                                 <>
                                   {renderGridItem(parsedUrls[0], GRID_WIDTH, 150, 0)}
@@ -1259,8 +979,6 @@ const MessageScreen = () => {
                                   </View>
                                 </>
                               )}
-
-                              {/* Lưới 4 ảnh: 2x2 vuông vức */}
                               {count === 4 && (
                                 <>
                                   <View style={{ flexDirection: 'row', gap: GAP }}>
@@ -1273,8 +991,6 @@ const MessageScreen = () => {
                                   </View>
                                 </>
                               )}
-
-                              {/* Lưới từ 5 ảnh trở lên: 2 to phía trên, 3 nhỏ phía dưới (Kèm nhãn +N) */}
                               {count >= 5 && (
                                 <>
                                   <View style={{ flexDirection: 'row', gap: GAP }}>
@@ -1293,7 +1009,6 @@ const MessageScreen = () => {
                         </View>
                       )
                     }
-                    // 👆 KẾT THÚC GRID MULTI-IMAGE STYLE ZALO 👆
 
                     if (isDocument) {
                       const docPayloads = parseMediaContent(displayContent)
@@ -1302,76 +1017,25 @@ const MessageScreen = () => {
                           {docPayloads.map((payload, pidx) => {
                             const { color: fileColor, label: fileLabel } = getFileIconInfo(payload)
                             const sizeLabel = payload.size ? formatBytes(payload.size) : ''
-                            const ext = payload.originalName.split('.').pop()?.toLowerCase() || ''
-
                             return (
-                              <View
-                                key={pidx}
-                                style={[
-                                  styles.fileCard,
-                                  {
-                                    backgroundColor: COLORS.fileBg,
-                                    borderColor: COLORS.border
-                                  }
-                                ]}
-                              >
-                                <View
-                                  style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}
-                                >
-                                  <View
-                                    style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}
-                                  >
+                              <View key={pidx} style={[styles.fileCard, { backgroundColor: COLORS.fileBg, borderColor: COLORS.border }]}>
+                                <View style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}>
+                                  <View style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}>
                                     <Text style={styles.fileTypeBadgeText}>{fileLabel}</Text>
                                   </View>
                                   <View style={{ flex: 1, paddingRight: 8 }}>
-                                    <Text
-                                      style={[styles.fileNameCardText, { color: COLORS.text }]}
-                                      numberOfLines={1}
-                                    >
+                                    <Text style={[styles.fileNameCardText, { color: COLORS.text }]} numberOfLines={1}>
                                       {payload.originalName}
                                     </Text>
                                     <View style={styles.fileMetaRow}>
-                                      {sizeLabel ? (
-                                        <Text
-                                          style={[styles.fileMetaText, { color: COLORS.textLight }]}
-                                        >
-                                          {sizeLabel}
-                                        </Text>
-                                      ) : null}
-                                      {sizeLabel ? (
-                                        <Text
-                                          style={[
-                                            styles.fileMetaText,
-                                            { color: COLORS.textLight, marginHorizontal: 4 }
-                                          ]}
-                                        >
-                                          •
-                                        </Text>
-                                      ) : null}
-                                      <Ionicons
-                                        name="cloud-done-outline"
-                                        size={12}
-                                        color={COLORS.textLight}
-                                      />
-                                      <Text
-                                        style={[
-                                          styles.fileMetaText,
-                                          { color: COLORS.textLight, marginLeft: 2 }
-                                        ]}
-                                      >
-                                        Đã có trên Cloud
-                                      </Text>
+                                      {sizeLabel ? <Text style={[styles.fileMetaText, { color: COLORS.textLight }]}>{sizeLabel}</Text> : null}
+                                      {sizeLabel ? <Text style={[styles.fileMetaText, { color: COLORS.textLight, marginHorizontal: 4 }]}>•</Text> : null}
+                                      <Ionicons name="cloud-done-outline" size={12} color={COLORS.textLight} />
+                                      <Text style={[styles.fileMetaText, { color: COLORS.textLight, marginLeft: 2 }]}>Đã có trên Cloud</Text>
                                     </View>
                                   </View>
-                                  <TouchableOpacity
-                                    style={styles.downloadIconBtn}
-                                    onPress={() => Linking.openURL(payload.url)}
-                                  >
-                                    <Ionicons
-                                      name="download-outline"
-                                      size={20}
-                                      color={COLORS.text}
-                                    />
+                                  <TouchableOpacity style={styles.downloadIconBtn} onPress={() => Linking.openURL(payload.url)}>
+                                    <Ionicons name="download-outline" size={20} color={COLORS.text} />
                                   </TouchableOpacity>
                                 </View>
                               </View>
@@ -1382,24 +1046,9 @@ const MessageScreen = () => {
                     }
 
                     return (
-                      <Text
-                        style={[
-                          styles.messageText,
-                          {
-                            color: isMe ? COLORS.headerText : COLORS.text,
-                            paddingRight: 5
-                          }
-                        ]}
-                      >
+                      <Text style={[styles.messageText, { color: isMe ? COLORS.headerText : COLORS.text, paddingRight: 5 }]}>
                         {isAiGenerated && (
-                          <Text
-                            style={{
-                              color: isMe ? '#E9D5FF' : '#C084FC',
-                              fontWeight: '900'
-                            }}
-                          >
-                            @PulseAI{' '}
-                          </Text>
+                          <Text style={{ color: isMe ? '#E9D5FF' : '#C084FC', fontWeight: '900' }}>@PulseAI{' '}</Text>
                         )}
                         {displayContent}
                       </Text>
@@ -1409,66 +1058,30 @@ const MessageScreen = () => {
 
                 {isHighlighted && (
                   <View
-                    style={[
-                      StyleSheet.absoluteFillObject,
-                      {
-                        backgroundColor: isDarkMode
-                          ? 'rgba(99, 102, 241, 0.2)'
-                          : 'rgba(99, 102, 241, 0.15)',
-                        borderRadius:
-                          item.type === 'image' ||
-                            item.type === 'media' ||
-                            item.type === 'file' ||
-                            item.type === 'video'
-                            ? 16
-                            : 18,
-                        borderWidth: 2,
-                        borderColor: COLORS.primary,
-                        zIndex: 10
-                      }
-                    ]}
+                    style={[StyleSheet.absoluteFillObject, {
+                      backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+                      borderRadius: item.type === 'image' || item.type === 'media' || item.type === 'file' || item.type === 'video' ? 16 : 18,
+                      borderWidth: 2,
+                      borderColor: COLORS.primary,
+                      zIndex: 10
+                    }]}
                     pointerEvents="none"
                   />
                 )}
               </View>
 
               {showTime && !item.isSending && item.type !== 'call' && item.type !== 'file' && (
-                <Text
-                  style={[
-                    styles.messageTime,
-                    {
-                      alignSelf: isMe ? 'flex-end' : 'flex-start',
-                      color: isMe ? 'rgba(255,255,255,0.7)' : COLORS.textLight
-                    }
-                  ]}
-                >
+                <Text style={[styles.messageTime, { alignSelf: isMe ? 'flex-end' : 'flex-start', color: isMe ? 'rgba(255,255,255,0.7)' : COLORS.textLight }]}>
                   {formatTime(item.createdAt)}
                 </Text>
               )}
               {showTime && (item.type === 'call' || item.type === 'file') && (
-                <Text
-                  style={[
-                    styles.messageTime,
-                    {
-                      alignSelf: isMe ? 'flex-end' : 'flex-start',
-                      color: COLORS.textLight,
-                      marginTop: 4
-                    }
-                  ]}
-                >
+                <Text style={[styles.messageTime, { alignSelf: isMe ? 'flex-end' : 'flex-start', color: COLORS.textLight, marginTop: 4 }]}>
                   {formatTime(item.createdAt)}
                 </Text>
               )}
               {item.isSending && (
-                <Text
-                  style={[
-                    styles.messageTime,
-                    {
-                      alignSelf: isMe ? 'flex-end' : 'flex-start',
-                      color: COLORS.textLight
-                    }
-                  ]}
-                >
+                <Text style={[styles.messageTime, { alignSelf: isMe ? 'flex-end' : 'flex-start', color: COLORS.textLight }]}>
                   {t.updating}
                 </Text>
               )}
@@ -1476,18 +1089,12 @@ const MessageScreen = () => {
               {shouldShowReactionCorner && !item.isSending && (
                 <View style={styles.reactionContainer}>
                   {hasReactions ? (
-                    <TouchableOpacity
-                      style={styles.reactionSummary}
-                      onPress={() => openReactionDetails(item)}
-                    >
+                    <TouchableOpacity style={styles.reactionSummary} onPress={() => openReactionDetails(item)}>
                       <Text style={styles.reactionEmojiPreview}>{reactionPreview}</Text>
                       <Text style={styles.reactionCountText}>{totalReactions}</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      style={styles.defaultLike}
-                      onPress={() => handleToggleReact(item, '👍')}
-                    >
+                    <TouchableOpacity style={styles.defaultLike} onPress={() => handleToggleReact(item, '👍')}>
                       <Ionicons name="heart-outline" size={13} color={COLORS.textLight} />
                     </TouchableOpacity>
                   )}
@@ -1505,115 +1112,184 @@ const MessageScreen = () => {
       if (!viewableItems || viewableItems.length === 0) return
       const lastVisibleItem = viewableItems[viewableItems.length - 1]
       const lastMessageIndex = messages.length - 1
-      if (lastVisibleItem?.index === lastMessageIndex) {
-        clearLocalUnread(conversationId)
-      }
+      if (lastVisibleItem?.index === lastMessageIndex) clearLocalUnread(conversationId)
     },
     [messages.length, conversationId, clearLocalUnread]
   )
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 })
   const onViewableItemsChangedRef = useRef(handleViewableItemsChanged)
-  useEffect(() => {
-    onViewableItemsChangedRef.current = handleViewableItemsChanged
-  }, [handleViewableItemsChanged])
+  useEffect(() => { onViewableItemsChangedRef.current = handleViewableItemsChanged }, [handleViewableItemsChanged])
 
   const renderPinnedMessageContent = (message: any) => {
     if (!message || !message.content) return '[Nội dung không khả dụng]'
-
     const type = message.type || 'text'
-
     if (type === 'text') {
-      if (message.content.startsWith('@PulseAI ')) {
-        return message.content.substring(9)
-      }
+      if (message.content.startsWith('@PulseAI ')) return message.content.substring(9)
       return message.content
     }
-
     try {
       const payloads = parseMediaContent(message.content)
       if (payloads && payloads.length > 0) {
         const firstPayload = payloads[0]
         let fileName = firstPayload.originalName || ''
-
-        if (fileName === 'file' || fileName.length > 50) {
-          fileName = ''
-        }
-
+        if (fileName === 'file' || fileName.length > 50) fileName = ''
         const ext = firstPayload.originalName.split('.').pop()?.toLowerCase() || ''
         const mime = firstPayload.mimeType || ''
-
-        const isVideo =
-          type === 'video' ||
-          ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) ||
-          mime.startsWith('video/')
-        const isDocument =
-          type === 'file' ||
-          mime.startsWith('application/') ||
-          mime.startsWith('text/') ||
-          [
-            'pdf',
-            'doc',
-            'docx',
-            'xls',
-            'xlsx',
-            'ppt',
-            'pptx',
-            'txt',
-            'zip',
-            'rar',
-            'csv',
-            '7z'
-          ].includes(ext)
-
-        if (isDocument) {
-          return `[File] ${fileName}`.trim()
-        } else if (isVideo) {
-          return `[Video] ${fileName}`.trim()
-        } else {
-          return `[Photo] ${fileName}`.trim()
-        }
+        const isVideo = type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) || mime.startsWith('video/')
+        const isDocument = type === 'file' || mime.startsWith('application/') || mime.startsWith('text/') || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar', 'csv', '7z'].includes(ext)
+        if (isDocument) return `[File] ${fileName}`.trim()
+        else if (isVideo) return `[Video] ${fileName}`.trim()
+        else return `[Photo] ${fileName}`.trim()
       }
     } catch (error) {
       console.log('Error parsing pinned media', error)
     }
-
     if (type === 'video') return '[Video]'
     if (type === 'file') return '[Tệp đính kèm]'
     if (type === 'image' || type === 'media') return '[Hình ảnh]'
     if (type === 'call') return '[Cuộc gọi]'
-
     return message.content
   }
+
+  // ✅ Computed: input bị disable khi nhóm giải tán HOẶC chat 1-1 không còn là bạn bè
+  const isInputDisabled = isGroupDisbanded || (!isGroup && isNotFriendState)
+
+  const renderHeaderAvatar = () => {
+    // Hàm phụ trợ giống hệt ChatScreen
+    const renderAvatarImg = (m: any, size: number) => {
+      const avatarImg = m?.avatar || m?.avatarUrl;
+      const initial = (m?.userName || m?.fullName || m?.displayName || "G").charAt(0).toUpperCase();
+      return avatarImg ? (
+        <Image source={{ uri: avatarImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+      ) : (
+        <Text style={{ color: "#FFFFFF", fontSize: size * 0.45, fontWeight: "bold" }}>
+          {initial}
+        </Text>
+      );
+    };
+
+    // NẾU LÀ CHAT ĐƠN HOẶC NHÓM ĐÃ CÓ ẢNH ĐẠI DIỆN RIÊNG
+    if (!isGroup || chatAvatarUrl) {
+      const m = membersData.length > 0 ? membersData[0] : null;
+      return (
+        <View style={{ width: 54, height: 54, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+          <View style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' }}>
+            {chatAvatarUrl ? (
+              <Image source={{ uri: chatAvatarUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : m ? (
+              renderAvatarImg(m, 50)
+            ) : (
+              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: "bold" }}>
+                {currentChatName.charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    // LOGIC AVATAR NHÓM GHÉP TỪ NHIỀU ẢNH THÀNH VIÊN (Kích thước lớn giống ChatScreen)
+    const count = membersData.length;
+    if (count === 0) return <View style={{ width: 54, height: 54, marginRight: 10 }} />;
+
+    return (
+      <View style={{ width: 54, height: 54, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+        {count === 1 && (
+          <View style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' }}>
+            {renderAvatarImg(membersData[0], 50)}
+          </View>
+        )}
+
+        {count === 2 && (
+          <>
+            <View style={{ position: 'absolute', bottom: 2, left: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+              {renderAvatarImg(membersData[0], 34)}
+            </View>
+            <View style={{ position: 'absolute', top: 2, right: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+              {renderAvatarImg(membersData[1], 34)}
+            </View>
+          </>
+        )}
+
+        {count === 3 && (
+          <>
+            <View style={{ position: 'absolute', top: 0, alignSelf: 'center', width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+              {renderAvatarImg(membersData[0], 28)}
+            </View>
+            <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+              {renderAvatarImg(membersData[1], 28)}
+            </View>
+            <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
+              {renderAvatarImg(membersData[2], 28)}
+            </View>
+          </>
+        )}
+
+        {count >= 4 && (
+          <>
+            <View style={{ position: 'absolute', top: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+              {renderAvatarImg(membersData[0], 28)}
+            </View>
+            <View style={{ position: 'absolute', top: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+              {renderAvatarImg(membersData[1], 28)}
+            </View>
+            <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
+              {renderAvatarImg(membersData[2], 28)}
+            </View>
+            <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, overflow: 'hidden', backgroundColor: count > 4 ? '#94a3b8' : COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 4 }}>
+              {count === 4 ? (
+                renderAvatarImg(membersData[3], 28)
+              ) : (
+                <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "bold" }}>+{count - 3}</Text>
+              )}
+            </View>
+          </>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
 
       <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.header}>
+        {/* ✅ FIX 2: headerLeft có flex:1 để giới hạn chiều rộng, tránh tràn sang headerRight */}
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={28} color="white" />
           </TouchableOpacity>
-          <View>
+
+          {renderHeaderAvatar()}
+          {/* ✅ FIX 2: View bọc tên có flex:1 + minWidth:0 để tên dài tự cắt gọn */}
+          <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.headerName}>{currentChatName}</Text>
+              <Text
+                style={styles.headerName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {currentChatName}
+              </Text>
               {isMutedState && (
                 <Ionicons name="notifications-off" size={14} color="rgba(255,255,255,0.75)" />
               )}
             </View>
-            {!isGroupDisbanded && <Text style={styles.headerStatus}>Trực tuyến</Text>}
+            
+            {/* ✅ FIX 3: Trạng thái User/Group động */}
+            {!isGroupDisbanded && (
+              <Text style={[styles.headerStatus, isOnline && !isGroup ? { color: '#86efac' } : {}]}>
+                {isGroup ? `${membersData.length} thành viên` : (isOnline ? 'Trực tuyến' : 'Ngoại tuyến')}
+              </Text>
+            )}
           </View>
         </View>
 
         <View style={styles.headerRight}>
           {!isGroupDisbanded && (
             <>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={handleSummarizeChat}
-                disabled={isSummarizing}
-              >
+              <TouchableOpacity style={styles.iconBtn} onPress={handleSummarizeChat} disabled={isSummarizing}>
                 {isSummarizing ? (
                   <ActivityIndicator size="small" color="#FFD700" />
                 ) : (
@@ -1628,13 +1304,7 @@ const MessageScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconBtn}
-                onPress={() =>
-                  navigation.navigate('ConversationDetail', {
-                    id: conversationId,
-                    name: chatName,
-                    isGroup: isGroup
-                  })
-                }
+                onPress={() => navigation.navigate('ConversationDetail', { id: conversationId, name: chatName, isGroup: isGroup })}
               >
                 <Ionicons name="menu" size={28} color="white" />
               </TouchableOpacity>
@@ -1666,43 +1336,16 @@ const MessageScreen = () => {
         </View>
       )}
 
-      <KeyboardAvoidingView
-        style={styles.chatArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.chatArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {isGroupDisbanded ? (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              paddingBottom: 24
-            }}
-          >
+          <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 24 }}>
             <View style={styles.dateDivider}>
-              <Text style={styles.dateDividerText}>
-                {formatMessageDate(new Date().toISOString())}
-              </Text>
+              <Text style={styles.dateDividerText}>{formatMessageDate(new Date().toISOString())}</Text>
             </View>
-
-            <View
-              style={{
-                backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
-                paddingVertical: 12,
-                paddingHorizontal: 18,
-                borderRadius: 20,
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: 8
-              }}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 14 }}>
-                {disbandMessage || 'Trưởng nhóm đã giải tán nhóm.'}
-              </Text>
+            <View style={{ backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 20, flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+              <Text style={{ color: COLORS.text, fontSize: 14 }}>{disbandMessage || 'Trưởng nhóm đã giải tán nhóm.'}</Text>
               <TouchableOpacity onPress={handleDeleteDisbandedChat}>
-                <Text style={{ color: '#3B82F6', fontSize: 14, marginLeft: 6 }}>
-                  Xoá trò chuyện
-                </Text>
+                <Text style={{ color: '#3B82F6', fontSize: 14, marginLeft: 6 }}>Xoá trò chuyện</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1717,29 +1360,15 @@ const MessageScreen = () => {
               contentContainerStyle={styles.listContent}
               onScrollToIndexFailed={(info) => {
                 const wait = new Promise((resolve) => setTimeout(resolve, 500))
-                wait.then(() => {
-                  flatListRef.current?.scrollToIndex({ index: info.index, animated: true })
-                })
+                wait.then(() => { flatListRef.current?.scrollToIndex({ index: info.index, animated: true }) })
               }}
               onEndReached={loadMoreMessages}
               onEndReachedThreshold={0.5}
               ListFooterComponent={
                 !hasMore && messages.length > 0 ? (
-                  <Text
-                    style={{
-                      textAlign: 'center',
-                      color: COLORS.textLight,
-                      paddingVertical: 10
-                    }}
-                  >
-                    Đã tải hết lịch sử trò chuyện
-                  </Text>
+                  <Text style={{ textAlign: 'center', color: COLORS.textLight, paddingVertical: 10 }}>Đã tải hết lịch sử trò chuyện</Text>
                 ) : isFetchingMore ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={COLORS.primary}
-                    style={{ marginVertical: 10 }}
-                  />
+                  <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 10 }} />
                 ) : null
               }
               onViewableItemsChanged={(info) => onViewableItemsChangedRef.current(info)}
@@ -1748,24 +1377,16 @@ const MessageScreen = () => {
 
             {pendingMedia.length > 0 && (
               <View style={styles.pendingContainerWrap}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.pendingContainer}
-                >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pendingContainer}>
                   {pendingMedia.map((media, index) => (
                     <View key={index} style={styles.pendingMediaWrap}>
-                      <TouchableOpacity
-                        style={styles.removePendingBtn}
-                        onPress={() => {
-                          const newPending = [...pendingMedia]
-                          newPending.splice(index, 1)
-                          setPendingMedia(newPending)
-                        }}
-                      >
+                      <TouchableOpacity style={styles.removePendingBtn} onPress={() => {
+                        const newPending = [...pendingMedia]
+                        newPending.splice(index, 1)
+                        setPendingMedia(newPending)
+                      }}>
                         <Ionicons name="close" size={14} color="#FFF" />
                       </TouchableOpacity>
-
                       {media.attachmentType === 'media' ? (
                         <Image source={{ uri: media.uri }} style={styles.pendingImage} />
                       ) : (
@@ -1791,126 +1412,63 @@ const MessageScreen = () => {
           </>
         )}
 
+        {/* ✅ FIX 1: Khu vực input — 3 trường hợp */}
         {isGroupDisbanded ? (
-          <View
-            style={[
-              styles.inputContainer,
-              {
-                justifyContent: 'center',
-                alignItems: 'center',
-                paddingVertical: 14,
-                backgroundColor: COLORS.surface,
-                borderTopWidth: 1,
-                borderTopColor: COLORS.border
-              }
-            ]}
-          >
-            <Ionicons
-              name="ban-outline"
-              size={16}
-              color={COLORS.textLight}
-              style={{ marginRight: 6 }}
-            />
+          // Trường hợp 1: Nhóm đã giải tán
+          <View style={[styles.inputContainer, { justifyContent: 'center', alignItems: 'center', paddingVertical: 14, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border }]}>
+            <Ionicons name="ban-outline" size={16} color={COLORS.textLight} style={{ marginRight: 6 }} />
             <Text style={{ color: COLORS.textLight, fontSize: 14 }}>
               Nhóm đã bị giải tán, bạn không thể gửi tin nhắn
             </Text>
           </View>
+        ) : !isGroup && isNotFriendState ? (
+          // Trường hợp 2: Chat 1-1 không còn là bạn bè
+          <View style={[styles.inputContainer, { justifyContent: 'center', alignItems: 'center', paddingVertical: 14, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border }]}>
+            <Ionicons name="person-remove-outline" size={16} color={COLORS.textLight} style={{ marginRight: 6 }} />
+            <Text style={{ color: COLORS.textLight, fontSize: 14 }}>
+              {'Các bạn không còn là bạn bè'}
+            </Text>
+          </View>
         ) : (
-          <View
-            style={[
-              styles.inputContainer,
-              {
-                paddingBottom:
-                  Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : Math.max(insets.bottom, 16)
-              }
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={handlePickMedia}
-              disabled={isUploading}
-            >
+          // Trường hợp 3: Bình thường — hiển thị ô input đầy đủ
+          <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : Math.max(insets.bottom, 16) }]}>
+            <TouchableOpacity style={styles.attachBtn} onPress={handlePickMedia} disabled={isUploading}>
               <Ionicons name="image-outline" size={24} color={COLORS.textLight} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={handlePickDocument}
-              disabled={isUploading}
-            >
+            <TouchableOpacity style={styles.attachBtn} onPress={handlePickDocument} disabled={isUploading}>
               <Ionicons name="attach" size={24} color={COLORS.textLight} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={handleSuggestReply}
-              disabled={isSuggesting}
-            >
+            <TouchableOpacity style={styles.attachBtn} onPress={handleSuggestReply} disabled={isSuggesting}>
               {isSuggesting ? (
                 <ActivityIndicator size="small" color="#A855F7" />
               ) : (
                 <Ionicons name="sparkles" size={22} color="#A855F7" />
               )}
             </TouchableOpacity>
-
-            <View
-              style={[
-                styles.textInput,
-                {
-                  flexDirection: 'row',
-                  alignItems: 'flex-end',
-                  paddingHorizontal: 0
-                }
-              ]}
-            >
+            <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 0 }]}>
               {inputText.startsWith('@PulseAI ') && (
-                <Text
-                  style={{
-                    color: '#C084FC',
-                    fontWeight: '900',
-                    paddingLeft: 16,
-                    paddingBottom: Platform.OS === 'ios' ? 10 : 12
-                  }}
-                >
+                <Text style={{ color: '#C084FC', fontWeight: '900', paddingLeft: 16, paddingBottom: Platform.OS === 'ios' ? 10 : 12 }}>
                   @PulseAI
                 </Text>
               )}
               <TextInput
                 multiline={true}
                 maxLength={2000}
-                style={{
-                  flex: 1,
-                  color: COLORS.text,
-                  paddingHorizontal: inputText.startsWith('@PulseAI ') ? 6 : 16,
-                  minHeight: 40,
-                  lineHeight: 20,
-                  maxHeight: 70,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  textAlignVertical: 'center'
-                }}
-
+                style={{ flex: 1, color: COLORS.text, paddingHorizontal: inputText.startsWith('@PulseAI ') ? 6 : 16, minHeight: 40, lineHeight: 20, maxHeight: 70, paddingTop: 10, paddingBottom: 10, textAlignVertical: 'center' }}
                 placeholder={t.messageInputPlaceholder}
                 placeholderTextColor={COLORS.textLight}
                 value={inputText.startsWith('@PulseAI ') ? inputText.substring(9) : inputText}
                 onChangeText={(txt) => {
                   let newText = txt
-                  if (inputText.startsWith('@PulseAI ')) {
-                    newText = '@PulseAI ' + txt
-                  }
+                  if (inputText.startsWith('@PulseAI ')) newText = '@PulseAI ' + txt
                   setInputText(newText)
-                  if (updateDraft && conversationId) {
-                    updateDraft(conversationId, newText)
-                  }
+                  if (updateDraft && conversationId) updateDraft(conversationId, newText)
                 }}
                 onKeyPress={({ nativeEvent }) => {
-                  if (nativeEvent.key === 'Backspace' && inputText === '@PulseAI ') {
-                    setInputText('')
-                  }
+                  if (nativeEvent.key === 'Backspace' && inputText === '@PulseAI ') setInputText('')
                 }}
               />
             </View>
-
             <TouchableOpacity onPress={handleSend} style={{ marginBottom: 2 }}>
               <LinearGradient colors={[COLORS.primary, COLORS.accent]} style={styles.sendBtn}>
                 <Ionicons name="send" size={18} color="white" style={{ marginLeft: 3 }} />
@@ -1934,23 +1492,15 @@ const MessageScreen = () => {
               keyExtractor={(item) => item.messageId}
               renderItem={({ item }) => (
                 <View style={styles.pinnedItemRow}>
-                  <TouchableOpacity
-                    style={styles.pinnedItemContent}
-                    onPress={() => scrollToMessage(item.messageId)}
-                  >
+                  <TouchableOpacity style={styles.pinnedItemContent} onPress={() => scrollToMessage(item.messageId)}>
                     <Text style={styles.pinnedItemText} numberOfLines={2}>
                       {renderPinnedMessageContent(item.message)}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.unpinBtn}
-                    onPress={() => {
-                      handleTogglePinMessage({ _id: item.messageId })
-                      if (pinnedMessages.length === 1) {
-                        setShowPinnedModal(false)
-                      }
-                    }}
-                  >
+                  <TouchableOpacity style={styles.unpinBtn} onPress={() => {
+                    handleTogglePinMessage({ _id: item.messageId })
+                    if (pinnedMessages.length === 1) setShowPinnedModal(false)
+                  }}>
                     <Text style={styles.unpinText}>Unpin messages</Text>
                   </TouchableOpacity>
                 </View>
@@ -1972,84 +1522,36 @@ const MessageScreen = () => {
                 {REACTION_LIST.map((e) => {
                   const isHovered = hoveredReaction === e
                   return (
-                    <View
-                      key={e}
-                      style={[
-                        styles.reactionEmojiWrap,
-                        isHovered && styles.reactionEmojiWrapHovered
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.reactionEmojiText,
-                          isHovered && styles.reactionEmojiTextHovered
-                        ]}
-                      >
-                        {e}
-                      </Text>
+                    <View key={e} style={[styles.reactionEmojiWrap, isHovered && styles.reactionEmojiWrapHovered]}>
+                      <Text style={[styles.reactionEmojiText, isHovered && styles.reactionEmojiTextHovered]}>{e}</Text>
                     </View>
                   )
                 })}
               </View>
-              <TouchableOpacity
-                onPress={() => handleRemoveAllReactions(selectedMsg)}
-                style={styles.removeAllReactionBtn}
-              >
-                <Ionicons
-                  name="heart-dislike-outline"
-                  size={Platform.OS === 'android' ? 20 : 24}
-                  color={COLORS.textLight}
-                />
+              <TouchableOpacity onPress={() => handleRemoveAllReactions(selectedMsg)} style={styles.removeAllReactionBtn}>
+                <Ionicons name="heart-dislike-outline" size={Platform.OS === 'android' ? 20 : 24} color={COLORS.textLight} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.menuItem} onPress={handleForward}>
                 <Ionicons name="arrow-redo-outline" size={20} color={COLORS.text} />
+                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>{t.messageForward || 'Chuyển tiếp'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { if (selectedMsg) { handleTogglePinMessage(selectedMsg); setShowMenu(false) } }}>
+                <Ionicons name={pinnedMessages.some((p) => p.messageId === selectedMsg?._id) ? 'pin-outline' : 'pin'} size={20} color={COLORS.text} />
                 <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
-                  {t.messageForward || 'Chuyển tiếp'}
+                  {pinnedMessages.some((p) => p.messageId === selectedMsg?._id) ? 'Unpin messages' : 'Message pin'}
                 </Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  if (selectedMsg) {
-                    handleTogglePinMessage(selectedMsg)
-                    setShowMenu(false)
-                  }
-                }}
-              >
-                <Ionicons
-                  name={
-                    pinnedMessages.some((p) => p.messageId === selectedMsg?._id)
-                      ? 'pin-outline'
-                      : 'pin'
-                  }
-                  size={20}
-                  color={COLORS.text}
-                />
-                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
-                  {pinnedMessages.some((p) => p.messageId === selectedMsg?._id)
-                    ? 'Unpin messages'
-                    : 'Message pin'}
-                </Text>
-              </TouchableOpacity>
-
               {selectedMsg?.sender?._id === currentUserId && (
                 <TouchableOpacity style={styles.menuItem} onPress={handleRevoke}>
                   <Ionicons name="refresh-outline" size={20} color={COLORS.badge} />
-                  <Text style={{ color: COLORS.badge, marginLeft: 12, fontSize: 16 }}>
-                    {t.messageRecall || 'Thu hồi'}
-                  </Text>
+                  <Text style={{ color: COLORS.badge, marginLeft: 12, fontSize: 16 }}>{t.messageRecall || 'Thu hồi'}</Text>
                 </TouchableOpacity>
               )}
-
               <TouchableOpacity style={styles.menuItem} onPress={handleDeleteForMe}>
                 <Ionicons name="trash-outline" size={20} color={COLORS.text} />
-                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>
-                  {t.messageDeleteForMe || 'Xóa phía tôi'}
-                </Text>
+                <Text style={{ color: COLORS.text, marginLeft: 12, fontSize: 16 }}>{t.messageDeleteForMe || 'Xóa phía tôi'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2067,27 +1569,12 @@ const MessageScreen = () => {
             </View>
             <View style={styles.reactionDetailBody}>
               <View style={styles.reactionFilterCol}>
-                <TouchableOpacity
-                  style={[
-                    styles.reactionFilterItem,
-                    reactionFilter === 'ALL' && styles.reactionFilterItemActive
-                  ]}
-                  onPress={() => setReactionFilter('ALL')}
-                >
+                <TouchableOpacity style={[styles.reactionFilterItem, reactionFilter === 'ALL' && styles.reactionFilterItemActive]} onPress={() => setReactionFilter('ALL')}>
                   <Text style={styles.reactionFilterLabel}>Tất cả</Text>
-                  <Text style={styles.reactionFilterCount}>
-                    {reactionGroupsForModal.reduce((acc, group) => acc + group.count, 0)}
-                  </Text>
+                  <Text style={styles.reactionFilterCount}>{reactionGroupsForModal.reduce((acc, group) => acc + group.count, 0)}</Text>
                 </TouchableOpacity>
                 {reactionGroupsForModal.map((group) => (
-                  <TouchableOpacity
-                    key={group.emoji}
-                    style={[
-                      styles.reactionFilterItem,
-                      reactionFilter === group.emoji && styles.reactionFilterItemActive
-                    ]}
-                    onPress={() => setReactionFilter(group.emoji)}
-                  >
+                  <TouchableOpacity key={group.emoji} style={[styles.reactionFilterItem, reactionFilter === group.emoji && styles.reactionFilterItemActive]} onPress={() => setReactionFilter(group.emoji)}>
                     <Text style={styles.reactionFilterLabel}>{group.emoji}</Text>
                     <Text style={styles.reactionFilterCount}>{group.count}</Text>
                   </TouchableOpacity>
@@ -2096,16 +1583,12 @@ const MessageScreen = () => {
               <View style={styles.reactionUsersCol}>
                 <FlatList
                   data={reactionUsersForModal}
-                  keyExtractor={(reaction: any, index) =>
-                    `${reaction.userId}-${reaction.emoji || 'ALL'}-${index}`
-                  }
+                  keyExtractor={(reaction: any, index) => `${reaction.userId}-${reaction.emoji || 'ALL'}-${index}`}
                   renderItem={({ item: reaction }: { item: any }) => {
                     const userName = reaction.userName
                     const avatar = reaction.avatar
                     const isAllFilter = reactionFilter === 'ALL'
-                    const rightEmojiText = isAllFilter
-                      ? (reaction.emojis || []).join(' ')
-                      : reaction?.emoji
+                    const rightEmojiText = isAllFilter ? (reaction.emojis || []).join(' ') : reaction?.emoji
                     const rightCountText = isAllFilter ? reaction.totalCount : reaction?.count
                     return (
                       <View style={styles.reactionUserRow}>
@@ -2113,9 +1596,7 @@ const MessageScreen = () => {
                           <Image source={{ uri: avatar }} style={styles.reactionUserAvatar} />
                         ) : (
                           <View style={styles.reactionUserAvatarFallback}>
-                            <Text style={styles.reactionUserAvatarText}>
-                              {userName.charAt(0).toUpperCase()}
-                            </Text>
+                            <Text style={styles.reactionUserAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
                           </View>
                         )}
                         <Text style={styles.reactionUserName}>{userName}</Text>
@@ -2126,9 +1607,7 @@ const MessageScreen = () => {
                       </View>
                     )
                   }}
-                  ListEmptyComponent={
-                    <Text style={styles.reactionEmptyText}>{t.messageNoReactions}</Text>
-                  }
+                  ListEmptyComponent={<Text style={styles.reactionEmptyText}>{t.messageNoReactions}</Text>}
                 />
               </View>
             </View>
@@ -2177,7 +1656,6 @@ const MessageScreen = () => {
           <TouchableOpacity style={styles.closePreviewBtn} onPress={() => setPreviewMedia(null)}>
             <Ionicons name="close" size={32} color="#FFFFFF" />
           </TouchableOpacity>
-
           {previewMedia && (
             <FlatList
               data={previewMedia.items}
@@ -2186,28 +1664,13 @@ const MessageScreen = () => {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               initialScrollIndex={previewMedia.initialIndex}
-              getItemLayout={(_, index) => ({
-                length: SCREEN_WIDTH,
-                offset: SCREEN_WIDTH * index,
-                index
-              })}
+              getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
               renderItem={({ item }) => (
-                <View
-                  style={{
-                    width: SCREEN_WIDTH,
-                    height: SCREEN_HEIGHT,
-                    justifyContent: 'center',
-                    alignItems: 'center'
-                  }}
-                >
+                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
                   {item.isVideo ? (
                     <VideoViewer url={item.url} />
                   ) : (
-                    <Image
-                      source={{ uri: item.url }}
-                      style={styles.fullScreenImage}
-                      resizeMode="contain"
-                    />
+                    <Image source={{ uri: item.url }} style={styles.fullScreenImage} resizeMode="contain" />
                   )}
                 </View>
               )}
@@ -2217,6 +1680,8 @@ const MessageScreen = () => {
       </Modal>
     </SafeAreaView>
   )
+
+
 }
 
 const getStyles = (COLORS: any, isDarkMode: boolean) =>
@@ -2230,676 +1695,134 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       paddingVertical: 12,
       paddingTop: Platform.OS === 'android' ? 40 : 10
     },
-    headerLeft: { flexDirection: 'row', alignItems: 'center' },
-    backBtn: { marginRight: 10 },
-    headerName: { color: COLORS.headerText, fontSize: 18, fontWeight: '600' },
+    // ✅ FIX 2: flex:1 + minWidth:0 giúp headerLeft co lại khi tên quá dài
+    headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, marginRight: 8 },
+    backBtn: { marginRight: 10, flexShrink: 0 },
+    // ✅ FIX 2: flexShrink:1 giúp Text tự cắt ngắn thay vì đẩy sang phải
+    headerName: { color: COLORS.headerText, fontSize: 18, fontWeight: '600', flexShrink: 1 },
     headerStatus: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
-    headerRight: { flexDirection: 'row', alignItems: 'center' },
+    headerRight: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
     iconBtn: { marginLeft: 16 },
     chatArea: { flex: 1, backgroundColor: COLORS.background },
     listContent: { paddingHorizontal: 16, paddingVertical: 20 },
-    messageWrapper: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      marginBottom: 10
-    },
-    aiOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.85)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 25
-    },
-    aiContainer: {
-      width: '100%',
-      backgroundColor: '#0F172A',
-      borderRadius: 30,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: '#1E293B',
-      shadowColor: '#8B5CF6',
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.5,
-      shadowRadius: 20,
-      elevation: 20
-    },
-    aiHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 18,
-      borderBottomWidth: 1,
-      borderBottomColor: '#1E293B'
-    },
-    aiTitle: {
-      color: '#F8FAFC',
-      fontSize: 14,
-      fontWeight: '800',
-      letterSpacing: 2
-    },
-    aiText: {
-      color: '#E2E8F0',
-      fontSize: 16,
-      lineHeight: 28,
-      textAlign: 'left'
-    },
+    messageWrapper: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 10 },
+    aiOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 25 },
+    aiContainer: { width: '100%', backgroundColor: '#0F172A', borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: '#1E293B', shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 20 },
+    aiHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
+    aiTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '800', letterSpacing: 2 },
+    aiText: { color: '#E2E8F0', fontSize: 16, lineHeight: 28, textAlign: 'left' },
     loadingContainer: { paddingVertical: 40, alignItems: 'center' },
-    loadingText: {
-      marginTop: 15,
-      color: '#94A3B8',
-      fontSize: 14,
-      fontStyle: 'italic'
-    },
-    aiBtn: {
-      paddingVertical: 15,
-      borderRadius: 20,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: '#4C1D95'
-    },
-    aiBtnText: {
-      color: '#DDD6FE',
-      fontSize: 15,
-      fontWeight: '700',
-      letterSpacing: 1
-    },
-    aiLink: {
-      color: '#8B5CF6',
-      textDecorationLine: 'underline',
-      fontWeight: 'bold'
-    },
+    loadingText: { marginTop: 15, color: '#94A3B8', fontSize: 14, fontStyle: 'italic' },
+    aiBtn: { paddingVertical: 15, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#4C1D95' },
+    aiBtnText: { color: '#DDD6FE', fontSize: 15, fontWeight: '700', letterSpacing: 1 },
+    aiLink: { color: '#8B5CF6', textDecorationLine: 'underline', fontWeight: 'bold' },
     messageWrapperMe: { justifyContent: 'flex-end' },
     messageWrapperOther: { justifyContent: 'flex-start' },
     avatarPlaceholder: { width: 35, marginRight: 8 },
-    avatarSmall: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: COLORS.accent,
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
+    avatarSmall: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
     avatarText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
     messageContent: { maxWidth: '75%' },
-    bubble: {
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 15,
-      borderRadius: 18,
-      position: 'relative',
-      minWidth: 60,
-      marginBottom: 5
-    },
-    bubbleMe: { backgroundColor: COLORS.primary, borderBottomRightRadius: 2 },
-    bubbleOther: {
-      backgroundColor: COLORS.surface,
-      borderWidth: isDarkMode ? 1 : 1,
-      borderColor: COLORS.border,
-      borderBottomLeftRadius: 2
-    },
+    bubble: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 15, borderRadius: 18, position: 'relative', minWidth: 60, marginBottom: 5 },
+    bubbleMe: { backgroundColor: COLORS.primary, borderBottomRightRadius: 2, elevation: 1 },
+    bubbleOther: { backgroundColor: COLORS.surface, borderWidth: isDarkMode ? 1 : 0.5, borderColor: COLORS.border, borderBottomLeftRadius: 2, elevation: 1 }, // Giảm borderWidth và thêm bóng đổ
     messageText: { fontSize: 16, lineHeight: 22, paddingRight: 5 },
-    messageTime: {
-      fontSize: 11,
-      color: COLORS.textLight,
-      marginTop: 4,
-      alignSelf: 'flex-end'
-    },
-    dateDivider: { alignItems: 'center', marginVertical: 15 },
-    dateDividerText: {
-      backgroundColor: COLORS.border,
-      color: COLORS.textLight,
-      fontSize: 12,
-      fontWeight: '600',
-      paddingHorizontal: 14,
-      paddingVertical: 4,
-      borderRadius: 12,
-      overflow: 'hidden'
-    },
-    systemMessageWrapper: {
-      alignItems: 'center',
-      marginVertical: 6,
-      paddingHorizontal: 24
-    },
+    messageTime: { fontSize: 11, color: isDarkMode ? COLORS.textLight : '#6B7280', marginTop: 4, alignSelf: 'flex-end' }, dateDivider: { alignItems: 'center', marginVertical: 15 },
+    dateDividerText: { backgroundColor: COLORS.border, color: COLORS.textLight, fontSize: 12, fontWeight: '600', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12, overflow: 'hidden' },
+    systemMessageWrapper: { alignItems: 'center', marginVertical: 6, paddingHorizontal: 24 },
     systemMessageText: { fontSize: 12, textAlign: 'center', lineHeight: 17 },
-    inputContainer: {
-      flexDirection: 'row',
-      paddingHorizontal: 10,
-      paddingVertical: 6, // 👈 Thay `padding: 10` thành `paddingVertical: 6` để khối này lùn lại
-      backgroundColor: COLORS.surface,
-      alignItems: 'flex-end',
-      borderTopWidth: 1,
-      borderColor: COLORS.border
-    },
-    attachBtn: {
-      padding: 6,
-      marginBottom: 0 // 👈 Đổi từ 4 thành 0 để các icon (ảnh, file) hạ thấp xuống cân bằng với ô text
-    },
-    textInput: {
-      flex: 1,
-      backgroundColor: COLORS.background,
-      color: COLORS.text,
-      borderRadius: 20,
-      paddingHorizontal: 16,
-      minHeight: 38 // 👈 Giảm từ 40 xuống 38
-    },
-    sendBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: 8,
-      marginBottom: 1 // 👈 Thêm dòng này để căn giữa nút Gửi với ô text
-    },
-    reactionContainer: {
-      position: 'absolute',
-      bottom: -8,
-      right: -8,
-      flexDirection: 'row',
-      zIndex: 2
-    },
-    miniReact: {
-      width: 24,
-      height: 24,
-      backgroundColor: COLORS.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      elevation: 2
-    },
-    reactionSummary: {
-      minHeight: 24,
-      minWidth: 40,
-      paddingHorizontal: 8,
-      backgroundColor: COLORS.surface,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 4,
-      elevation: 2
-    },
+    inputContainer: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 6, backgroundColor: COLORS.surface, alignItems: 'flex-end', borderTopWidth: 1, borderColor: COLORS.border },
+    attachBtn: { padding: 6, marginBottom: 0 },
+    textInput: { flex: 1, backgroundColor: COLORS.background, color: COLORS.text, borderRadius: 20, paddingHorizontal: 16, minHeight: 38 },
+    sendBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginLeft: 8, marginBottom: 1 },
+    reactionContainer: { position: 'absolute', bottom: -8, right: -8, flexDirection: 'row', zIndex: 2 },
+    miniReact: { width: 24, height: 24, backgroundColor: COLORS.surface, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', elevation: 2 },
+    reactionSummary: { minHeight: 24, minWidth: 40, paddingHorizontal: 8, backgroundColor: COLORS.surface, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, elevation: 2 },
     reactionEmojiPreview: { fontSize: 11 },
     reactionCountText: { fontSize: 11, fontWeight: '700', color: COLORS.text },
-    defaultLike: {
-      width: 24,
-      height: 24,
-      backgroundColor: COLORS.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      opacity: 0.75
-    },
+    defaultLike: { width: 24, height: 24, backgroundColor: COLORS.surface, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', opacity: 0.75 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-    reactionDetailBox: {
-      position: 'absolute',
-      top: '20%',
-      alignSelf: 'center',
-      width: '92%',
-      maxHeight: 430,
-      backgroundColor: COLORS.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: COLORS.border
-    },
-    reactionDetailHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border
-    },
-    reactionDetailTitle: {
-      fontSize: 30,
-      fontWeight: '700',
-      color: COLORS.text
-    },
-    reactionDetailBody: {
-      flexDirection: 'row',
-      minHeight: 260,
-      maxHeight: 360
-    },
-    reactionFilterCol: {
-      width: 115,
-      backgroundColor: isDarkMode ? '#0F172A' : '#F3F4F6'
-    },
-    reactionFilterItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 12,
-      paddingVertical: 12
-    },
-    reactionFilterItemActive: {
-      backgroundColor: isDarkMode ? '#11182D' : '#E5E7EB'
-    },
-    reactionFilterLabel: {
-      color: COLORS.text,
-      fontSize: 20,
-      fontWeight: '500'
-    },
-    reactionFilterCount: {
-      color: COLORS.text,
-      fontSize: 18,
-      fontWeight: '600'
-    },
-    reactionUsersCol: {
-      flex: 1,
-      backgroundColor: COLORS.surface,
-      paddingVertical: 8
-    },
-    reactionUserRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 10
-    },
-    reactionUserAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      marginRight: 10
-    },
-    reactionUserAvatarFallback: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      marginRight: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: COLORS.surfaceSoft
-    },
-    reactionUserAvatarText: {
-      color: COLORS.text,
-      fontWeight: '700',
-      fontSize: 14
-    },
-    reactionUserName: {
-      flex: 1,
-      color: COLORS.text,
-      fontSize: 20,
-      fontWeight: '500'
-    },
-    reactionUserRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      maxWidth: '48%'
-    },
-    reactionUserEmoji: {
-      color: COLORS.text,
-      fontSize: 22,
-      marginRight: 8,
-      textAlign: 'right',
-      flexShrink: 1
-    },
+    reactionDetailBox: { position: 'absolute', top: '20%', alignSelf: 'center', width: '92%', maxHeight: 430, backgroundColor: COLORS.surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+    reactionDetailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    reactionDetailTitle: { fontSize: 30, fontWeight: '700', color: COLORS.text },
+    reactionDetailBody: { flexDirection: 'row', minHeight: 260, maxHeight: 360 },
+    reactionFilterCol: { width: 115, backgroundColor: isDarkMode ? '#0F172A' : '#F3F4F6' },
+    reactionFilterItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
+    reactionFilterItemActive: { backgroundColor: isDarkMode ? '#11182D' : '#E5E7EB' },
+    reactionFilterLabel: { color: COLORS.text, fontSize: 20, fontWeight: '500' },
+    reactionFilterCount: { color: COLORS.text, fontSize: 18, fontWeight: '600' },
+    reactionUsersCol: { flex: 1, backgroundColor: COLORS.surface, paddingVertical: 8 },
+    reactionUserRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10 },
+    reactionUserAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
+    reactionUserAvatarFallback: { width: 36, height: 36, borderRadius: 18, marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceSoft },
+    reactionUserAvatarText: { color: COLORS.text, fontWeight: '700', fontSize: 14 },
+    reactionUserName: { flex: 1, color: COLORS.text, fontSize: 20, fontWeight: '500' },
+    reactionUserRight: { flexDirection: 'row', alignItems: 'center', maxWidth: '48%' },
+    reactionUserEmoji: { color: COLORS.text, fontSize: 22, marginRight: 8, textAlign: 'right', flexShrink: 1 },
     reactionUserCount: { color: COLORS.text, fontSize: 20, fontWeight: '700' },
-    reactionEmptyText: {
-      textAlign: 'center',
-      color: COLORS.textLight,
-      paddingVertical: 20
-    },
-    menuBox: {
-      position: 'absolute',
-      alignSelf: 'center',
-      backgroundColor: COLORS.surface,
-      width: '85%',
-      borderRadius: 25,
-      padding: 10,
-      elevation: 10,
-      borderWidth: isDarkMode ? 1 : 0,
-      borderColor: COLORS.border
-    },
-    emojiRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 15,
-      borderBottomWidth: 0.5,
-      borderBottomColor: COLORS.border,
-      paddingHorizontal: 8
-    },
-    emojiStrip: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 4,
-      marginRight: 6
-    },
-    reactionEmojiWrap: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    reactionEmojiWrapHovered: {
-      backgroundColor: COLORS.surfaceSoft,
-      transform: [{ translateY: -6 }]
-    },
+    reactionEmptyText: { textAlign: 'center', color: COLORS.textLight, paddingVertical: 20 },
+    menuBox: { position: 'absolute', alignSelf: 'center', backgroundColor: COLORS.surface, width: '85%', borderRadius: 25, padding: 10, elevation: 10, borderWidth: isDarkMode ? 1 : 0, borderColor: COLORS.border },
+    emojiRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: COLORS.border, paddingHorizontal: 8 },
+    emojiStrip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginRight: 6 },
+    reactionEmojiWrap: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+    reactionEmojiWrapHovered: { backgroundColor: COLORS.surfaceSoft, transform: [{ translateY: -6 }] },
     reactionEmojiText: { fontSize: 33 },
     reactionEmojiTextHovered: { fontSize: 40 },
-    removeAllReactionBtn: {
-      width: 54,
-      height: 54,
-      borderRadius: 27,
-      backgroundColor: COLORS.background,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginLeft: 4
-    },
+    removeAllReactionBtn: { width: 54, height: 54, borderRadius: 27, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: 'row', alignItems: 'center', padding: 15 },
     aiContent: { maxHeight: 350, paddingHorizontal: 20, paddingVertical: 20 },
     aiFooter: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10 },
-
-    mediaImage: {
-      width: 240,
-      height: 300,
-      borderRadius: 16,
-      borderWidth: 0.5,
-      borderColor: 'rgba(0,0,0,0.1)'
-    },
-    playIconOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.15)',
-      borderRadius: 16
-    },
-
-    fileCard: {
-      width: 240,
-      borderRadius: 16,
-      borderWidth: 1,
-      overflow: 'hidden',
-      marginBottom: 5
-    },
-    fileCardPreview: {
-      height: 120,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'transparent'
-    },
-    fileCardInfo: {
-      flexDirection: 'row',
-      padding: 12,
-      alignItems: 'center',
-      borderTopWidth: 1,
-      borderTopColor: COLORS.border
-    },
-    fileTypeBadge: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 10
-    },
-    fileTypeBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 10,
-      fontWeight: 'bold'
-    },
-    fileNameCardText: {
-      fontSize: 14,
-      fontWeight: '600',
-      marginBottom: 4
-    },
-    fileMetaRow: {
-      flexDirection: 'row',
-      alignItems: 'center'
-    },
-    fileMetaText: {
-      fontSize: 11
-    },
-    downloadIconBtn: {
-      padding: 6,
-      backgroundColor: COLORS.background,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: COLORS.border
-    },
-
-    imagePreviewContainer: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.95)',
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    closePreviewBtn: {
-      position: 'absolute',
-      top: Platform.OS === 'ios' ? 50 : 40,
-      right: 20,
-      zIndex: 10,
-      padding: 10,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderRadius: 20
-    },
-    fullScreenImage: {
-      width: '100%',
-      height: '80%'
-    },
-    pendingContainerWrap: {
-      backgroundColor: COLORS.surface,
-      borderTopWidth: 1,
-      borderColor: COLORS.border
-    },
-    pendingContainer: {
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-      alignItems: 'center'
-    },
-    pendingMediaWrap: {
-      position: 'relative',
-      width: 60,
-      height: 60,
-      borderRadius: 8,
-      marginRight: 15
-    },
+    mediaImage: { width: 240, height: 300, borderRadius: 16, borderWidth: 0.5, borderColor: 'rgba(0,0,0,0.1)' },
+    playIconOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 16 },
+    fileCard: { width: 240, borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 5 },
+    fileCardPreview: { height: 120, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
+    fileCardInfo: { flexDirection: 'row', padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border },
+    fileTypeBadge: { width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    fileTypeBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' },
+    fileNameCardText: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+    fileMetaRow: { flexDirection: 'row', alignItems: 'center' },
+    fileMetaText: { fontSize: 11 },
+    downloadIconBtn: { padding: 6, backgroundColor: COLORS.background, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border },
+    imagePreviewContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+    closePreviewBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 50 : 40, right: 20, zIndex: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
+    fullScreenImage: { width: '100%', height: '80%' },
+    pendingContainerWrap: { backgroundColor: COLORS.surface, borderTopWidth: 1, borderColor: COLORS.border },
+    pendingContainer: { paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' },
+    pendingMediaWrap: { position: 'relative', width: 60, height: 60, borderRadius: 8, marginRight: 15 },
     pendingImage: { width: '100%', height: '100%', borderRadius: 8 },
-    pendingFile: {
-      width: '100%',
-      height: '100%',
-      borderRadius: 8,
-      backgroundColor: COLORS.surfaceSoft,
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    removePendingBtn: {
-      position: 'absolute',
-      top: -8,
-      right: -8,
-      backgroundColor: COLORS.badge,
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10
-    },
-    pendingFileNameOverlay: {
-      position: 'absolute',
-      bottom: -18,
-      left: 0,
-      width: 60,
-      fontSize: 10,
-      color: COLORS.text,
-      textAlign: 'center'
-    },
-    pendingVideoIcon: {
-      position: 'absolute',
-      bottom: 4,
-      left: 4,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      padding: 2,
-      borderRadius: 4
-    },
-
-    imageGridContainer: {
-      width: 240,
-      marginTop: 5,
-      backgroundColor: 'transparent',
-      borderWidth: 0.5,
-      borderColor: 'rgba(0,0,0,0.05)'
-    },
+    pendingFile: { width: '100%', height: '100%', borderRadius: 8, backgroundColor: COLORS.surfaceSoft, justifyContent: 'center', alignItems: 'center' },
+    removePendingBtn: { position: 'absolute', top: -8, right: -8, backgroundColor: COLORS.badge, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+    pendingFileNameOverlay: { position: 'absolute', bottom: -18, left: 0, width: 60, fontSize: 10, color: COLORS.text, textAlign: 'center' },
+    pendingVideoIcon: { position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.5)', padding: 2, borderRadius: 4 },
+    imageGridContainer: { width: 240, marginTop: 5, backgroundColor: 'transparent', borderWidth: 0.5, borderColor: 'rgba(0,0,0,0.05)' },
     gridRow: { flexDirection: 'row', justifyContent: 'space-between' },
     gridCol: { flexDirection: 'column' },
     gridImageWrapper: { backgroundColor: '#E2E8F0', overflow: 'hidden' },
     fullImage: { width: '100%', height: '100%' },
-    moreOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
+    moreOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
     moreText: { color: 'white', fontSize: 24, fontWeight: '700' },
-    callCard: {
-      minWidth: 220,
-      maxWidth: 280,
-      padding: 0,
-      borderRadius: 18,
-      overflow: 'hidden',
-      marginBottom: 5
-    },
-    callCardTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 14
-    },
-    callIconWrapper: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12
-    },
-    callInfo: {
-      flex: 1
-    },
-    callTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 3
-    },
-    callSubtitle: {
-      fontSize: 13
-    },
-    callDivider: {
-      height: 1,
-      width: '100%'
-    },
-    callActionBtn: {
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '100%'
-    },
-    callActionText: {
-      fontSize: 15,
-      fontWeight: '600'
-    },
-
-    pinnedBannerContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: COLORS.surface, // Dùng màu nền động
-      paddingVertical: 10,
-      paddingHorizontal: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border, // Dùng màu viền động
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      zIndex: 10
-    },
-    pinnedIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: COLORS.surfaceSoft, // Trả màu nền cho icon ghim
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 10
-    },
-    pinnedContent: {
-      flex: 1
-    },
-    pinnedTitle: {
-      fontSize: 12,
-      color: COLORS.primary, // Chữ tiêu đề sẽ ăn màu Tím
-      fontWeight: '600',
-      marginBottom: 2
-    },
-    pinnedText: {
-      fontSize: 14,
-      color: COLORS.text // Dùng chữ động theo mode
-    },
-    // CSS CHO MODAL DANH SÁCH GHIM
-    pinnedModalContainer: {
-      position: 'absolute',
-      bottom: 0,
-      width: '100%',
-      maxHeight: '60%',
-      backgroundColor: COLORS.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingBottom: Platform.OS === 'ios' ? 30 : 20
-    },
-    pinnedModalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border
-    },
-    pinnedModalTitle: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: COLORS.text
-    },
-    pinnedItemRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border
-    },
-    pinnedItemContent: {
-      flex: 1,
-      paddingRight: 10
-    },
-    pinnedItemText: {
-      fontSize: 14,
-      color: COLORS.text,
-      lineHeight: 20
-    },
-    unpinBtn: {
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      backgroundColor: isDarkMode ? '#332727' : '#FEF2F2',
-      borderRadius: 8
-    },
-    unpinText: {
-      fontSize: 13,
-      color: COLORS.badge,
-      fontWeight: '600'
-    }
+    callCard: { minWidth: 220, maxWidth: 280, padding: 0, borderRadius: 18, overflow: 'hidden', marginBottom: 5 },
+    callCardTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14 },
+    callIconWrapper: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    callInfo: { flex: 1 },
+    callTitle: { fontSize: 16, fontWeight: '600', marginBottom: 3 },
+    callSubtitle: { fontSize: 13 },
+    callDivider: { height: 1, width: '100%' },
+    callActionBtn: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center', width: '100%' },
+    callActionText: { fontSize: 15, fontWeight: '600' },
+    pinnedBannerContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: COLORS.border, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, zIndex: 10 },
+    pinnedIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.surfaceSoft, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    pinnedContent: { flex: 1 },
+    pinnedTitle: { fontSize: 12, color: COLORS.primary, fontWeight: '600', marginBottom: 2 },
+    pinnedText: { fontSize: 14, color: COLORS.text },
+    pinnedModalContainer: { position: 'absolute', bottom: 0, width: '100%', maxHeight: '60%', backgroundColor: COLORS.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20 },
+    pinnedModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    pinnedModalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+    pinnedItemRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    pinnedItemContent: { flex: 1, paddingRight: 10 },
+    pinnedItemText: { fontSize: 14, color: COLORS.text, lineHeight: 20 },
+    unpinBtn: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: isDarkMode ? '#332727' : '#FEF2F2', borderRadius: 8 },
+    unpinText: { fontSize: 13, color: COLORS.badge, fontWeight: '600' }
   })
 
 export default MessageScreen
