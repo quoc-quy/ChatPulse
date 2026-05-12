@@ -587,9 +587,9 @@ class MessageService {
       userRole = member.role || 'member'
 
       // Chỉ quản trị viên mới được ghim trong group
-      if (action === 'pin' && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
-        throw new ErrorWithStatus({ message: 'Chỉ Trưởng/Phó nhóm mới có quyền ghim tin nhắn', status: 403 })
-      }
+      // if (action === 'pin' && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
+      //   throw new ErrorWithStatus({ message: 'Chỉ Trưởng/Phó nhóm mới có quyền ghim tin nhắn', status: 403 })
+      // }
     }
 
     let updatedPinnedMessages = conversation.pinnedMessages || []
@@ -612,11 +612,11 @@ class MessageService {
       if (!pinnedMsg) throw new ErrorWithStatus({ message: 'Tin nhắn chưa được ghim', status: 400 })
 
       // Quyền bỏ ghim: Admin hoặc Chính người đã ghim
-      if (isGroup && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
-        if (pinnedMsg.pinnedBy.toString() !== userId) {
-          throw new ErrorWithStatus({ message: 'Chỉ người ghim hoặc Quản trị viên mới được bỏ ghim', status: 403 })
-        }
-      }
+      // if (isGroup && !['admin', 'owner', 'sub_admin'].includes(userRole)) {
+      //   if (pinnedMsg.pinnedBy.toString() !== userId) {
+      //     throw new ErrorWithStatus({ message: 'Chỉ người ghim hoặc Quản trị viên mới được bỏ ghim', status: 403 })
+      //   }
+      // }
       updatedPinnedMessages = updatedPinnedMessages.filter((p) => p.messageId.toString() !== messageId)
     }
 
