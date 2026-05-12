@@ -211,6 +211,8 @@ export function useConversations() {
           chatToUpdate.encryptedKeys = newMessage.encryptedKeys || {} // Cập nhật keys
           chatToUpdate.time = newTime
 
+          chatToUpdate.timestamp = new Date(newMessage.createdAt).getTime()
+
           const isCurrentlyViewing = String(activeChatRef.current?.id) === convIdStr
           if (!isMe) {
             if (isCurrentlyViewing) {
@@ -221,7 +223,6 @@ export function useConversations() {
           }
 
           updatedChats.splice(existingChatIndex, 1)
-          // Đẩy vào mảng và sort lại để không giật mất top 1 của cuộc trò chuyện đang có nháp
           updatedChats.push(chatToUpdate)
           return sortChats(updatedChats)
         } else {
