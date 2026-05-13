@@ -1,4 +1,4 @@
-import { LogOut, Sun, Moon, Monitor, User, AlertTriangle } from 'lucide-react'
+import { LogOut, Sun, Moon, Monitor, User as UserIcon, AlertTriangle } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -32,18 +32,13 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
 
   const { setIsAuthenticated, setProfile } = useContext(AppContext)
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
     if (!name) return ''
     return name.charAt(0).toUpperCase()
   }
 
   const executeLogout = () => {
-    if (clearLS) {
-      clearLS()
-    } else {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('profile')
-    }
+    clearLS()
     setIsAuthenticated(false)
     setProfile(null)
     navigate('/signin')
@@ -59,14 +54,16 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
                 size='lg'
                 className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mx-auto h-12 w-12 p-0 flex items-center justify-center rounded-full group-data-[collapsible=icon]:!w-12 group-data-[collapsible=icon]:!h-12 group-data-[collapsible=icon]:!p-0'
               >
-                <Avatar className='h-full w-full rounded-lg'>
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className='font-bold text-lg bg-blue-100 text-blue-600'>
+                {/* HIỂN THỊ AVATAR GÓC TRÁI DƯỚI */}
+                <Avatar className='h-full w-full rounded-lg border border-gray-200 dark:border-gray-800'>
+                  <AvatarImage src={user.avatar} alt={user.name} className='object-cover' />
+                  <AvatarFallback className='font-bold text-lg bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'>
                     {getInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
               </SidebarMenuButton>
             </DropdownMenuTrigger>
+
             <DropdownMenuContent
               className='w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg'
               side={isMobile ? 'bottom' : 'right'}
@@ -75,15 +72,16 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
             >
               <DropdownMenuLabel className='p-0 font-normal'>
                 <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
+                  {/* HIỂN THỊ AVATAR TRONG POPUP MENU */}
                   <Avatar className='h-8 w-8 rounded-lg'>
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className='font-semibold bg-blue-100 text-blue-600'>
+                    <AvatarImage src={user.avatar} alt={user.name} className='object-cover' />
+                    <AvatarFallback className='font-semibold bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'>
                       {getInitials(user.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div className='grid flex-1 text-left text-sm leading-tight'>
                     <span className='truncate font-semibold'>{user.name}</span>
-                    <span className='truncate text-xs'>{user.email}</span>
+                    <span className='truncate text-xs text-muted-foreground'>{user.email}</span>
                   </div>
                 </div>
               </DropdownMenuLabel>
@@ -118,24 +116,14 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
 
               <DropdownMenuSeparator />
               <button
-                className='
-                  focus:bg-accent 
-                  focus:text-accent-foreground 
-                  relative flex items-center gap-2 
-                  rounded-sm px-2 py-1.5 text-sm outline-hidden 
-                  select-none 
-                  [&_svg]:pointer-events-none 
-                  [&_svg]:shrink-0 
-                  [&_svg]:size-4
-                  hover:bg-accent
-                  cursor-pointer
-                  w-full
-                '
+                className='focus:bg-accent focus:text-accent-foreground relative flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4 hover:bg-accent cursor-pointer w-full'
                 onClick={() => setOpen(true)}
               >
-                <User className='mr-2 h-4 w-4' />
+                <UserIcon className='mr-2 h-4 w-4' />
                 Hồ sơ của tôi
               </button>
+
+              {/* COMPONENT PROFILE */}
               <ProfilePage open={open} onOpenChange={setOpen} />
 
               <DropdownMenuSeparator />
@@ -154,15 +142,12 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
         </SidebarMenuItem>
       </SidebarMenu>
 
-      {/* --- MODAL XÁC NHẬN ĐĂNG XUẤT --- */}
       <Dialog open={isLogoutModalOpen} onOpenChange={setIsLogoutModalOpen}>
         <DialogContent className='sm:max-w-[400px] p-0 overflow-hidden border-0'>
           <div className='p-6 flex flex-col items-center text-center pt-8'>
-            {/* Icon cảnh báo */}
             <div className='w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4'>
               <AlertTriangle className='w-7 h-7 text-red-600 dark:text-red-500' />
             </div>
-
             <DialogHeader className='space-y-2'>
               <DialogTitle className='text-xl font-bold text-center'>Đăng xuất tài khoản</DialogTitle>
               <div className='text-sm text-muted-foreground mt-2'>
@@ -172,8 +157,6 @@ export function NavUser({ user }: { user: { name: string; email: string; avatar:
               </div>
             </DialogHeader>
           </div>
-
-          {/* Footer chứa 2 nút */}
           <DialogFooter className='p-4 sm:justify-center gap-3 sm:gap-4 flex-row justify-center'>
             <Button
               variant='outline'

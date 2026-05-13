@@ -7,6 +7,7 @@ import {
   getRefreshTokenFromLS,
   setAccessTokenToLS,
   setProfileFromLS,
+  setProfileToLS,
   setRefreshTokenToLS
 } from './auth'
 
@@ -57,8 +58,9 @@ class Http {
           // Lưu xuống LocalStorage
           setAccessTokenToLS(this.access_token)
           setRefreshTokenToLS(this.refresh_token)
-          // Đảm bảo hàm setProfileFromLS của bạn thực chất là hàm LƯU profile xuống LS (thường đặt tên là setProfileToLS)
-          setProfileFromLS(data.result.user)
+
+          setProfileToLS(data.result.user)
+          // setProfileFromLS(data.result.user)
         }
         // Xử lý khi Đăng xuất
         else if (url === '/auth/logout') {

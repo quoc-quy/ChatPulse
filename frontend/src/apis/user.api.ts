@@ -35,6 +35,14 @@ const userApi = {
 
   changePassword(body: ChangePasswordBody) {
     return http.put('/users/change-password', body)
+  },
+
+  uploadAvatar(body: FormData) {
+    return http.post('/users/upload-avatar', body, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
   }
 }
 
