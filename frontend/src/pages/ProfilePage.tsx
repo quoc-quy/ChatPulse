@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import userApi, { type BodyUpdateProfile } from '@/apis/user.api'
 import { Button } from '@/components/ui/button'
@@ -7,11 +8,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useContext, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getInitials } from '@/utils/common'
 import { toast } from 'react-toastify'
+import { setProfileFromLS, setProfileToLS } from '@/utils/auth'
+import { AppContext } from '@/context/app.context'
+import { Camera, Loader2 } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -20,6 +24,9 @@ interface Props {
 
 export default function ProfilePage({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { setProfile: setGlobalProfile } = useContext(AppContext)
+
   const {
     register,
     handleSubmit,
@@ -36,6 +43,27 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
 
   const updateMeMutation = useMutation({
     mutationFn: userApi.updateMe
+  })
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: userApi.uploadAvatar,
+    onSuccess: (res) => {
+      try {
+        const newUser = res.data.result.user
+        toast.success('Cập nhật ảnh đại diện thành công')
+
+        if (setGlobalProfile) setGlobalProfile(newUser)
+        if (setProfileToLS) setProfileToLS(newUser)
+
+        queryClient.invalidateQueries({ queryKey: ['profile'] })
+      } catch (err) {
+        console.error('Lỗi khi đồng bộ dữ liệu sau upload:', err)
+      }
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message || 'Lỗi khi upload ảnh đại diện'
+      toast.error(msg)
+    }
   })
 
   const handleUpdateMe = handleSubmit((data) => {
@@ -64,6 +92,31 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
     })
   })
 
+  // Xử lý khi chọn ảnh
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileFromLocal = event.target.files?.[0]
+    if (!fileFromLocal) return
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(fileFromLocal.type)) {
+      toast.error('Ảnh chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP')
+      event.target.value = ''
+      return
+    }
+
+    if (fileFromLocal.size > 5 * 1024 * 1024) {
+      toast.error('Kích thước ảnh tối đa là 5MB')
+      event.target.value = ''
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('avatar', fileFromLocal)
+    uploadAvatarMutation.mutate(formData)
+
+    event.target.value = ''
+  }
+
   const profile = userData?.data.user
 
   useEffect(() => {
@@ -88,16 +141,44 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
 
         {/* Avatar */}
         <div className='flex flex-col items-center mb-6 gap-4'>
-          <div className='h-28 w-28 overflow-hidden rounded-full'>
-            {!profile?.avatar && (
-              <Avatar className='h-full w-full object-cover overflow-hidden text-foreground rounded-full border-gray-500'>
-                <AvatarImage alt={profile?.userName} />
-                <AvatarFallback className='text-3xl font-semibold bg-blue-100 text-blue-600'>
-                  {getInitials(profile?.userName)}
-                </AvatarFallback>
-              </Avatar>
-            )}
-            {profile?.avatar && <img src={profile.avatar} alt='avatar' className='h-full w-full object-cover' />}
+          <div className='relative'>
+            <div className='h-28 w-28 overflow-hidden rounded-full ring-2 ring-offset-2 ring-gray-100 dark:ring-gray-800 dark:ring-offset-background shadow-inner'>
+              {!profile?.avatar ? (
+                <Avatar className='h-full w-full object-cover overflow-hidden text-foreground rounded-full border-gray-500'>
+                  <AvatarImage alt={profile?.userName} />
+                  <AvatarFallback className='text-3xl font-semibold bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'>
+                    {getInitials(profile?.userName)}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <img src={profile.avatar} alt='avatar' className='h-full w-full object-cover' />
+              )}
+
+              {uploadAvatarMutation.isPending && (
+                <div className='absolute inset-0 bg-black/50 flex items-center justify-center rounded-full'>
+                  <Loader2 className='w-8 h-8 text-white animate-spin' />
+                </div>
+              )}
+            </div>
+
+            {/* Lưu ý: button này CẦN type="button" để không trigger submit form */}
+            <button
+              type='button'
+              disabled={uploadAvatarMutation.isPending}
+              className='absolute bottom-0 right-0 h-9 w-9 rounded-full flex items-center justify-center shadow-lg border transition-colors cursor-pointer group bg-background border-border hover:bg-accent dark:hover:bg-slate-800 disabled:opacity-50'
+              onClick={() => fileInputRef.current?.click()}
+              title='Đổi ảnh đại diện'
+            >
+              <Camera className='h-4 w-4 text-muted-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400' />
+            </button>
+
+            <input
+              type='file'
+              accept='.jpg,.jpeg,.png,.webp'
+              className='hidden'
+              ref={fileInputRef}
+              onChange={handleAvatarChange}
+            />
           </div>
         </div>
 
