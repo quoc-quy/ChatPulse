@@ -1,112 +1,81 @@
-import React, {
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-  useEffect,
-} from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { joinGroupByLink } from "../apis/chat.api";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  SafeAreaView,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-  StatusBar,
-  Platform,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, StatusBar, Alert } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../contexts/ThemeContext";
 import { useTranslation } from "../hooks/useTranslation";
 import { jwtDecode } from "jwt-decode";
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useChatContext } from "../contexts/ChatContext";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import {
-  Swipeable,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
+import { useCameraPermissions } from "expo-camera";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import {
-  getConversations,
-  pinConversation,
-  deleteConversationForMe,
-} from "../apis/chat.api";
+import { getConversations, pinConversation, deleteConversationForMe } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 
-// 👇 1. Đổi cách import màu từ file colors.ts
+// 1. Import bộ màu
 import { lightColors as globalLight, darkColors as globalDark } from "../theme/colors";
 
-// 👇 2. Mở rộng (extend) các màu bị thiếu dùng riêng cho ChatScreen 
-// (Giữ nguyên tone Xanh dương gốc của bạn)
+// 2. Import các component đã tách
+import { ChatHeader } from '../components/chat/ChatHeader';
+import { ChatTabs } from '../components/chat/ChatTabs';
+import { ConversationItem } from '../components/chat/ConversationItem';
+import { ChatSearchModal } from '../components/chat/ChatSearchModal';
+import { ChatQRScannerModal } from '../components/chat/ChatQRScannerModal';
+import { ChatPinMenuModal } from '../components/chat/ChatPinMenuModal';
+import { ChatPlusMenuModal } from '../components/chat/ChatPlusMenuModal';
+
+// Định nghĩa màu đồng bộ với MessageScreen
 const localLightColors = {
   ...globalLight,
-  badge: 'hsl(0, 84%, 60%)',          
-  textLight: 'hsl(240, 10%, 45%)',    
-  surface: globalLight.card,  
-  text: globalLight.foreground,    
-  success: 'hsl(142, 76%, 36%)',   
-  surfaceSoft: 'hsl(240, 15%, 95%)', 
+  primary: '#8B5CF6',  // Tím chính
+  accent: '#6D28D9',   // Tím đậm
+  ring: '#8B5CF6',
+  badge: '#EF4444',    // Đỏ badge
+  textLight: '#6B7280',
+  surface: '#FFFFFF',
+  text: '#1F2937',
+  success: '#10B981',
+  surfaceSoft: '#F3F4F6',
+  border: '#E5E7EB',
 };
 
 const localDarkColors = {
   ...globalDark,
-  badge: 'hsl(0, 62%, 50%)',
-  textLight: 'hsl(240, 10%, 65%)',
+  primary: '#A78BFA',  // Tím nhạt cho Dark mode
+  accent: '#7C3AED',
+  ring: '#A78BFA',
+  badge: '#EF4444',
+  textLight: '#9CA3AF',
   surface: globalDark.card,
   text: globalDark.foreground,
-  success: 'hsl(142, 69%, 58%)',
-  surfaceSoft: 'hsl(240, 20%, 14%)',
+  success: '#10B981',
+  surfaceSoft: '#1E293B',
+  border: '#334155',
 };
-
 
 const ChatScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const { language, t } = useTranslation();
 
   const {
-    setTotalUnreadCount,
-    setLocalUnread,
-    getLocalUnread,
-    localUnreadMap,
-    drafts = {},
-    socket,
+    setTotalUnreadCount, setLocalUnread, getLocalUnread, localUnreadMap, drafts = {}, socket,
   } = useChatContext() as any;
 
   const { isDarkMode } = useTheme();
-  
-  // 👇 3. Gán COLORS bằng bộ màu local đã được mở rộng
-  const COLORS = useMemo(
-    () => (isDarkMode ? localDarkColors : localLightColors),
-    [isDarkMode]
-  );
-  
-  const styles = useMemo(
-    () => getStyles(COLORS, isDarkMode),
-    [isDarkMode, COLORS],
-  );
+
+  const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode]);
+  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS]);
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [activeTab, setActiveTab] = useState<"all" | "unread" | "groups">(
-    "all",
-  );
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "groups">("all");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
-
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set()); // 🌟 Thêm dòng này
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
 
@@ -122,25 +91,18 @@ const ChatScreen = ({ route }: any) => {
 
   const [showPlusMenu, setShowPlusMenu] = useState(false);
 
-  // Load danh sách đã lưu trữ từ AsyncStorage
   useEffect(() => {
     const loadArchived = async () => {
       try {
         const stored = await AsyncStorage.getItem("archived_chats");
-        if (stored) {
-          setArchivedIds(new Set(JSON.parse(stored)));
-        }
-      } catch (error) {
-        console.log("Lỗi load archive:", error);
-      }
+        if (stored) setArchivedIds(new Set(JSON.parse(stored)));
+      } catch (error) { console.log("Lỗi load archive:", error); }
     };
     loadArchived();
   }, []);
 
-  // TỰ ĐỘNG BỎ LƯU TRỮ KHI CÓ TIN NHẮN MỚI
   useEffect(() => {
     if (archivedIds.size === 0 || conversations.length === 0) return;
-
     let hasChanges = false;
     const newArchivedIds = new Set(archivedIds);
 
@@ -156,18 +118,12 @@ const ChatScreen = ({ route }: any) => {
 
     if (hasChanges) {
       setArchivedIds(newArchivedIds);
-      AsyncStorage.setItem(
-        "archived_chats",
-        JSON.stringify(Array.from(newArchivedIds)),
-      );
+      AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(newArchivedIds)));
     }
-  }, [conversations, localUnreadMap]); 
+  }, [conversations, localUnreadMap]);
 
   useEffect(() => {
-    const totalUnread = Object.values(localUnreadMap).reduce(
-      (sum: any, count: any) => sum + (count || 0),
-      0,
-    );
+    const totalUnread = Object.values(localUnreadMap).reduce((sum: any, count: any) => sum + (count || 0), 0);
     setTotalUnreadCount(totalUnread);
   }, [localUnreadMap, setTotalUnreadCount]);
 
@@ -187,24 +143,13 @@ const ChatScreen = ({ route }: any) => {
         const decoded: any = jwtDecode(token);
         setCurrentUserId(decoded.user_id || decoded._id || decoded.id);
       }
-    } catch (error) {
-      console.log("Lỗi giải mã token:", error);
-    }
+    } catch (error) { }
   };
 
   const initializedConvsRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (Object.keys(localUnreadMap).length === 0) {
-      initializedConvsRef.current.clear();
-    }
-  }, [localUnreadMap]);
-
-  useEffect(() => {
-    return () => {
-      initializedConvsRef.current.clear();
-    };
-  }, []);
+  useEffect(() => { if (Object.keys(localUnreadMap).length === 0) initializedConvsRef.current.clear(); }, [localUnreadMap]);
+  useEffect(() => { return () => { initializedConvsRef.current.clear(); }; }, []);
 
   const fetchConversations = async (pageNumber = 1, isRefresh = false) => {
     try {
@@ -224,12 +169,11 @@ const ChatScreen = ({ route }: any) => {
             const decoded: any = jwtDecode(token);
             resolvedUserId = decoded.user_id || decoded._id || decoded.id;
           }
-        } catch {}
+        } catch { }
       }
 
       const processConversation = (conv: any, pinned: Set<string>) => {
         if (!conv._id) return;
-
         if (!initializedConvsRef.current.has(conv._id)) {
           initializedConvsRef.current.add(conv._id);
           setLocalUnread(conv._id, conv.unread_count || 0);
@@ -237,9 +181,7 @@ const ChatScreen = ({ route }: any) => {
 
         if (currentArchived.has(conv._id)) {
           const isUnread = conv.unread_count > 0;
-          const isMyLatestMessage =
-            conv.lastMessage?.senderId === resolvedUserId;
-
+          const isMyLatestMessage = conv.lastMessage?.senderId === resolvedUserId;
           if (isUnread || isMyLatestMessage) {
             currentArchived.delete(conv._id);
             archivedHasChanged = true;
@@ -247,9 +189,7 @@ const ChatScreen = ({ route }: any) => {
         }
 
         if (resolvedUserId) {
-          const myMember = (conv.members || []).find(
-            (m: any) => m.userId?.toString() === resolvedUserId,
-          );
+          const myMember = (conv.members || []).find((m: any) => m.userId?.toString() === resolvedUserId);
           if (myMember?.isPinned) pinned.add(conv._id);
         }
       };
@@ -266,48 +206,32 @@ const ChatScreen = ({ route }: any) => {
       }
 
       if (archivedHasChanged) {
-        setArchivedIds(new Set(currentArchived)); 
-        AsyncStorage.setItem(
-          "archived_chats",
-          JSON.stringify(Array.from(currentArchived)),
-        );
+        setArchivedIds(new Set(currentArchived));
+        AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(currentArchived)));
       }
-
       setPage(pageNumber);
-    } catch (error: any) {
-      console.log("Lỗi lấy danh sách:", error.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } catch (error: any) { console.log("Lỗi lấy danh sách:", error.message); } finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => {
     if (!socket) return;
-
     const handleReceiveMessage = (newMessage: any) => {
       const convId = newMessage.conversationId || newMessage.convId;
-
       setConversations((prev) => {
         const convIndex = prev.findIndex((c) => c._id === convId);
-
         if (convIndex > -1) {
           const newConversations = [...prev];
-
           const updatedConv = {
             ...newConversations[convIndex],
             lastMessage: newMessage,
             updated_at: newMessage.createdAt || new Date().toISOString(),
           };
-
           newConversations.splice(convIndex, 1);
           newConversations.unshift(updatedConv);
-
           if (newMessage.sender?._id !== currentUserId && currentUserId) {
             const currentUnread = getLocalUnread(convId) || 0;
             setLocalUnread(convId, currentUnread + 1);
           }
-
           return newConversations;
         } else {
           fetchConversations(1, true);
@@ -316,11 +240,7 @@ const ChatScreen = ({ route }: any) => {
       });
     };
 
-    const handleGroupDisbanded = ({
-      conversationId,
-    }: {
-      conversationId: string;
-    }) => {
+    const handleGroupDisbanded = ({ conversationId }: { conversationId: string }) => {
       setConversations((prev) => prev.filter((c) => c._id !== conversationId));
     };
 
@@ -335,81 +255,47 @@ const ChatScreen = ({ route }: any) => {
 
   const fetchBlockedUsers = async () => {
     try {
-      const res = await friendApi.getBlockedUsers();
-      const ids = (res.data?.result || []).map((u: any) =>
-        (u._id || "").toString(),
-      );
-      setBlockedUserIds(new Set(ids));
-    } catch {}
-  };
+      // 1. Lấy danh sách bị chặn như cũ
+      const resBlock = await friendApi.getBlockedUsers();
+      const bIds = (resBlock.data?.result || []).map((u: any) => (u._id || "").toString());
+      setBlockedUserIds(new Set(bIds));
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchCurrentUserId().then(() => {
-        fetchConversations(1, true);
-        fetchBlockedUsers();
-      });
-    }, []),
-  );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchConversations(1, true);
-  };
-
-  const onLoadMore = () => {
-    if (!loading && hasMore && !refreshing && searchQuery === "") {
-      fetchConversations(page + 1);
+      // 🌟 2. Lấy danh sách bạn bè để biết ai là người lạ
+      const resFriends = await friendApi.getFriends();
+      const fIds = (resFriends.data?.result || []).map((f: any) => (f._id || f.id || "").toString());
+      setFriendIds(new Set(fIds));
+    } catch (error) {
+      console.log("Lỗi fetch status:", error);
     }
   };
 
+  useFocusEffect(useCallback(() => { fetchCurrentUserId().then(() => { fetchConversations(1, true); fetchBlockedUsers(); }); }, []));
+
+  const onRefresh = () => { setRefreshing(true); fetchConversations(1, true); };
+  const onLoadMore = () => { if (!loading && hasMore && !refreshing && searchQuery === "") fetchConversations(page + 1); };
+
   const formatTimeZalo = (dateString: string) => {
     if (!dateString) return "";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+    const date = new Date(dateString); const now = new Date();
+    const diffMs = now.getTime() - date.getTime(); const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return t.chatJustNow;
     if (diffMins < 60) return `${diffMins}p`;
-    if (Math.floor(diffMins / 60) < 24 && date.getDate() === now.getDate())
-      return `${Math.floor(diffMins / 60)}g`;
-    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
-      day: "2-digit",
-      month: "2-digit",
-    });
+    if (Math.floor(diffMins / 60) < 24 && date.getDate() === now.getDate()) return `${Math.floor(diffMins / 60)}g`;
+    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", { day: "2-digit", month: "2-digit" });
   };
 
- const getChatDetails = (item: any) => {
-    let chatName = t.chatUserDefault;
-    let chatAvatarUrl = "";
-    let isOnline = false;
-    let targetUserId = null;
-    let isGroup = item.type === "group";
-    let membersData: any[] = []; 
-
+  const getChatDetails = (item: any) => {
+    let chatName = t.chatUserDefault; let chatAvatarUrl = ""; let isOnline = false; let targetUserId = null;
+    let isGroup = item.type === "group"; let membersData: any[] = [];
     if (isGroup) {
-      chatName = item.name || t.chatUnnamedGroup;
-      chatAvatarUrl = item.avatarUrl || "";
-      
-      // Lấy danh sách thành viên (KHÔNG LOẠI BỎ BẢN THÂN để avatar nhóm đông đủ)
-      const rawMembers = item.participants || item.members || [];
-      membersData = rawMembers
-        .map((m: any) => (m.userId ? m.userId : m))
-        .filter((m: any) => m != null); // Chỉ lọc bỏ các giá trị rỗng
+      chatName = item.name || t.chatUnnamedGroup; chatAvatarUrl = item.avatarUrl || "";
+      membersData = (item.participants || item.members || []).map((m: any) => (m.userId ? m.userId : m)).filter((m: any) => m != null);
     } else {
       if (item.participants?.length > 0 && currentUserId) {
-        const partner = item.participants.find(
-          (p: any) => p._id !== currentUserId,
-        );
+        const partner = item.participants.find((p: any) => p._id !== currentUserId);
         if (partner) {
-          chatName =
-            partner.displayName ||
-            partner.fullName ||
-            partner.userName ||
-            t.chatUserDefault;
-          chatAvatarUrl = partner.avatar || "";
-          isOnline = partner.isOnline;
-          targetUserId = partner._id;
+          chatName = partner.displayName || partner.fullName || partner.userName || t.chatUserDefault;
+          chatAvatarUrl = partner.avatar || ""; isOnline = partner.isOnline; targetUserId = partner._id;
         }
       }
     }
@@ -418,30 +304,17 @@ const ChatScreen = ({ route }: any) => {
 
   const isMutedForItem = (item: any): boolean => {
     if (!currentUserId) return false;
-    const myMember = (item.members || []).find(
-      (m: any) =>
-        (m.userId?.toString?.() || m.user_id?.toString?.()) === currentUserId,
-    );
+    const myMember = (item.members || []).find((m: any) => (m.userId?.toString?.() || m.user_id?.toString?.()) === currentUserId);
     return myMember?.hasMuted === true;
   };
 
-  const handleLongPressConv = (item: any) => {
-    setSelectedConvForPin(item);
-    setShowPinMenu(true);
-  };
+  const handleLongPressConv = (item: any) => { setSelectedConvForPin(item); setShowPinMenu(true); };
 
   const handleToggleArchive = async (item: any) => {
     const id = item._id;
-
     setArchivedIds((prev) => {
       const next = new Set(prev);
-
-      if (next.has(id)) {
-        next.delete(id); 
-      } else {
-        next.add(id); 
-      }
-
+      if (next.has(id)) next.delete(id); else next.add(id);
       AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(next)));
       return next;
     });
@@ -450,31 +323,21 @@ const ChatScreen = ({ route }: any) => {
   const handleDeleteConversation = (id: string) => {
     const conv = conversations.find((c) => c._id === id);
     const isDisbanded = conv?.isDisbanded;
-
     Alert.alert(
       "Xóa hội thoại",
-      isDisbanded
-        ? "Nhóm này đã bị giải tán. Bạn có muốn xóa khỏi danh sách không?"
-        : "Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?",
+      isDisbanded ? "Nhóm này đã bị giải tán. Bạn có muốn xóa khỏi danh sách không?" : "Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?",
       [
         { text: "Hủy", style: "cancel" },
         {
-          text: "Xóa",
-          style: "destructive",
+          text: "Xóa", style: "destructive",
           onPress: () => {
             setConversations((prev) => prev.filter((c) => c._id !== id));
             setArchivedIds((prev) => {
-              const next = new Set(prev);
-              next.delete(id);
-              AsyncStorage.setItem(
-                "archived_chats",
-                JSON.stringify(Array.from(next)),
-              );
+              const next = new Set(prev); next.delete(id);
+              AsyncStorage.setItem("archived_chats", JSON.stringify(Array.from(next)));
               return next;
             });
-            try {
-              deleteConversationForMe(id);
-            } catch {}
+            try { deleteConversationForMe(id); } catch { }
           },
         },
       ],
@@ -487,367 +350,56 @@ const ChatScreen = ({ route }: any) => {
     setShowPinMenu(false);
     setPinnedIds((prev) => {
       const next = new Set(prev);
-      if (newIsPinned) next.add(item._id);
-      else next.delete(item._id);
+      if (newIsPinned) next.add(item._id); else next.delete(item._id);
       return next;
     });
-    try {
-      await pinConversation(item._id, newIsPinned);
-    } catch (e) {
+    try { await pinConversation(item._id, newIsPinned); } catch (e) {
       setPinnedIds((prev) => {
         const next = new Set(prev);
-        if (newIsPinned) next.delete(item._id);
-        else next.add(item._id);
+        if (newIsPinned) next.delete(item._id); else next.add(item._id);
         return next;
       });
       Alert.alert(t.error, t.chatActionFailed);
     }
   };
 
-  const navigateToChat = (item: any) => {
-    const { chatName, targetUserId } = getChatDetails(item);
-
-    if (showSearchModal) {
-      setShowSearchModal(false);
-      setSearchQuery("");
-    }
-
-    navigation.navigate("MessageScreen", {
-      id: item._id,
-      name: chatName,
-      isGroup: item.type === "group",
-      targetUserId: targetUserId,
-      unreadCount: item.unread_count || 0,
-      isMuted: isMutedForItem(item),
-    });
-  };
-
   const handleOpenQRScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert(t.chatNotice, t.chatNeedCameraPermission);
-        return;
-      }
+      if (!result.granted) { Alert.alert(t.chatNotice, t.chatNeedCameraPermission); return; }
     }
     scannedRef.current = false;
     setShowQRScanner(true);
   };
 
-  const handleBarcodeScanned = async ({
-    type,
-    data,
-  }: {
-    type: string;
-    data: string;
-  }) => {
+  const handleBarcodeScanned = async ({ type, data }: { type: string; data: string; }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
-
     setShowQRScanner(false);
 
     if (data.startsWith("chatpulse://group/join/")) {
       const groupId = data.split("chatpulse://group/join/")[1];
-
       Alert.alert(t.chatJoinGroup, t.chatQrValidJoining, [
         {
           text: t.chatConfirm,
           onPress: async () => {
             try {
-              setLoading(true);
-              const res = await joinGroupByLink(groupId);
-              Alert.alert(t.success, t.chatJoinedGroupSuccess);
-              fetchConversations(1, true);
-            } catch (error: any) {
-              Alert.alert(t.error, t.chatJoinGroupFailed);
-            } finally {
-              setLoading(false);
-            }
+              setLoading(true); await joinGroupByLink(groupId);
+              Alert.alert(t.success, t.chatJoinedGroupSuccess); fetchConversations(1, true);
+            } catch (error: any) { Alert.alert(t.error, t.chatJoinGroupFailed); } finally { setLoading(false); }
           },
         },
-        {
-          text: t.cancel,
-          style: "cancel",
-          onPress: () => {
-            scannedRef.current = false;
-          },
-        },
+        { text: t.cancel, style: "cancel", onPress: () => { scannedRef.current = false; } },
       ]);
     } else {
-      Alert.alert(t.chatInvalidQrTitle, t.chatInvalidQrMessage, [
-        {
-          text: "OK",
-          onPress: () => {
-            scannedRef.current = false;
-          },
-        },
-      ]);
+      Alert.alert(t.chatInvalidQrTitle, t.chatInvalidQrMessage, [{ text: "OK", onPress: () => { scannedRef.current = false; } }]);
     }
   };
 
-const renderItem = ({ item }: any) => {
-    // 1. Lấy danh sách thành viên đầy đủ (không cắt bớt) để tính số dư +N
-    const { chatName, chatAvatarUrl, isOnline, targetUserId, isGroup, membersData } = getChatDetails(item);
-
-    let messageContent = t.chatNoMessagesYet;
-    if (item.lastMessage) {
-      if (
-        item.lastMessage.type === "image" ||
-        item.lastMessage.type === "media" ||
-        item.lastMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
-      ) {
-        messageContent = "[Hình ảnh]";
-      } else if (
-        item.lastMessage.type === "video" ||
-        item.lastMessage.content?.match(/\.(mp4|mov)(\?.*)?$/i)
-      ) {
-        messageContent = "[Video]";
-      } else if (item.lastMessage.type === "file") {
-        messageContent = "[Tệp đính kèm]";
-      } else if (item.lastMessage.type === "call") {
-        messageContent = "[Cuộc gọi]";
-      } else if (item.lastMessage.type === "revoked") {
-        messageContent = t.messageRevoked || "Tin nhắn đã thu hồi";
-      } else {
-        messageContent = item.lastMessage.content || t.chatNoMessagesYet;
-      }
-    }
-
-    const unread = getLocalUnread(item._id);
-    const isPinned = pinnedIds.has(item._id);
-    const isArchived = archivedIds.has(item._id);
-    const draftText = drafts[item._id];
-
-    const renderRightActions = () => {
-      return (
-        <View style={styles.rightActionContainer}>
-          {!item.isDisbanded && (
-            <TouchableOpacity
-              style={[
-                styles.rightActionBtn,
-                { backgroundColor: COLORS.mutedForeground },
-              ]}
-              onPress={() => handleToggleArchive(item)}
-            >
-              <Ionicons
-                name={isArchived ? "archive-outline" : "archive"}
-                size={22}
-                color="#FFF"
-              />
-              <Text style={styles.rightActionText}>
-                {isArchived ? "Bỏ lưu" : "Lưu trữ"}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.rightActionBtn, { backgroundColor: COLORS.badge }]}
-            onPress={() => handleDeleteConversation(item._id)}
-          >
-            <Ionicons name="trash" size={22} color="#FFF" />
-            <Text style={styles.rightActionText}>Xóa</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    };
-
-    // Hàm phụ trợ render hình ảnh hoặc chữ cái đầu cho từng hình tròn nhỏ
-    const renderAvatarImg = (m: any, size: number) => {
-      const avatarImg = m?.avatar || m?.avatarUrl;
-      const initial = (m?.userName || m?.fullName || m?.displayName || "G").charAt(0).toUpperCase();
-      return avatarImg ? (
-        <Image source={{ uri: avatarImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-      ) : (
-        <Text style={{ color: "#FFFFFF", fontSize: size * 0.45, fontWeight: "bold" }}>
-          {initial}
-        </Text>
-      );
-    };
-
-    return (
-      <View style={styles.swipeableWrapper}>
-        <Swipeable renderRightActions={renderRightActions}>
-          <TouchableOpacity
-            onPress={() => {
-              const otherUser =
-                item.participants?.find((p: any) => p._id !== currentUserId) ||
-                item.members?.find((m: any) => m.userId?._id !== currentUserId)
-                  ?.userId;
-
-              navigation.navigate("MessageScreen", {
-                id: item._id,
-                name: item.name || otherUser?.userName || chatName,
-                isGroup: isGroup,
-                targetUserId: otherUser?._id,
-                targetPublicKey: otherUser?.public_key || otherUser?.publicKey,
-                unreadCount: item.unread_count,
-              });
-            }}
-            style={[styles.chatCard, { marginBottom: 0 }]}
-            onLongPress={() => handleLongPressConv(item)}
-            delayLongPress={400}
-            activeOpacity={1}
-          >
-            <View style={styles.avatarWrapper}>
-              
-              {/* === LOGIC AVATAR ZALO (HÌNH TRÒN ĐỘC LẬP CHỒNG LÊN NHAU) === */}
-              {isGroup && !chatAvatarUrl && membersData.length > 0 ? (
-                <View style={{ width: 54, height: 54, justifyContent: 'center', alignItems: 'center' }}>
-                  
-                  {/* Trường hợp 1 người (Lỗi mồ côi hoặc vừa tạo nhóm chưa có ai) */}
-                  {membersData.length === 1 && (
-                     <View style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' }}>
-                       {renderAvatarImg(membersData[0], 50)}
-                     </View>
-                  )}
-
-                  {/* Nhóm 2 người: Kích thước 34x34, xếp chéo */}
-                  {membersData.length === 2 && (
-                    <>
-                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                        {renderAvatarImg(membersData[0], 34)}
-                      </View>
-                      <View style={{ position: 'absolute', top: 2, right: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
-                        {renderAvatarImg(membersData[1], 34)}
-                      </View>
-                    </>
-                  )}
-
-                  {/* Nhóm 3 người: Kích thước 28x28, xếp hình tam giác */}
-                  {membersData.length === 3 && (
-                    <>
-                      <View style={{ position: 'absolute', top: 0, alignSelf: 'center', width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
-                        {renderAvatarImg(membersData[0], 28)}
-                      </View>
-                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                        {renderAvatarImg(membersData[1], 28)}
-                      </View>
-                      <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
-                        {renderAvatarImg(membersData[2], 28)}
-                      </View>
-                    </>
-                  )}
-
-                  {/* Nhóm >= 4 người: Giữ nguyên kích thước 28x28, góc thứ 4 ghi số nếu lớn hơn 4 */}
-                  {membersData.length >= 4 && (
-                    <>
-                      <View style={{ position: 'absolute', top: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
-                        {renderAvatarImg(membersData[0], 28)}
-                      </View>
-                      <View style={{ position: 'absolute', top: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                        {renderAvatarImg(membersData[1], 28)}
-                      </View>
-                      <View style={{ position: 'absolute', bottom: 2, left: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 3 }}>
-                        {renderAvatarImg(membersData[2], 28)}
-                      </View>
-                      
-                      {/* Vị trí góc dưới cùng bên phải: Avatar người thứ 4 HOẶC số lượng dư ra */}
-                      <View style={{ position: 'absolute', bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.surface, overflow: 'hidden', backgroundColor: membersData.length > 4 ? '#94a3b8' : COLORS.accent, justifyContent: 'center', alignItems: 'center', zIndex: 4 }}>
-                        {membersData.length === 4 ? (
-                          renderAvatarImg(membersData[3], 28)
-                        ) : (
-                          <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "bold" }}>
-                            +{membersData.length - 3}
-                          </Text>
-                        )}
-                      </View>
-                    </>
-                  )}
-                </View>
-              ) : (
-                // NẾU LÀ CHAT ĐƠN HOẶC NHÓM ĐÃ CÓ ẢNH RIÊNG -> CÓ VÒNG TRÒN PRIMARY BAO QUANH
-                <View style={[styles.avatarRing, { borderColor: COLORS.primary }]}>
-                  {chatAvatarUrl ? (
-                    <Image
-                      source={{ uri: chatAvatarUrl }}
-                      style={styles.avatar}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.avatar, { backgroundColor: COLORS.accent }]}>
-                      <Text style={styles.avatarText}>
-                        {chatName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {isOnline && !isPinned && <View style={styles.onlineDot} />}
-            </View>
-
-            <View style={styles.chatContent}>
-              <View style={styles.chatHeader}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {chatName}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {isMutedForItem(item) && (
-                    <Ionicons
-                      name="notifications-off-outline"
-                      size={13}
-                      color={COLORS.textLight}
-                    />
-                  )}
-                  <Text style={[styles.time, unread > 0 && styles.unreadTime]}>
-                    {formatTimeZalo(item.updated_at)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.chatFooter}>
-                <Text
-                  style={[styles.message, unread > 0 && styles.unreadMessage]}
-                  numberOfLines={1}
-                >
-                  {messageContent}
-                </Text>
-
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {draftText && draftText.trim() !== "" && (
-                    <Text
-                      style={{
-                        color: COLORS.badge,
-                        fontSize: 12,
-                        fontWeight: "600",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      [Chưa gửi]
-                    </Text>
-                  )}
-
-                  {unread > 0 ? (
-                    <LinearGradient
-                      colors={[COLORS.primary, COLORS.accent]}
-                      style={styles.badge}
-                    >
-                      <Text style={styles.badgeText}>
-                        {unread > 9 ? "9+" : unread}
-                      </Text>
-                    </LinearGradient>
-                  ) : isPinned ? (
-                    <Ionicons
-                      name="pin-outline"
-                      size={15}
-                      color={COLORS.textLight}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </Swipeable>
-      </View>
-    );
-  };
-  
   const validConversations = useMemo(() => {
     return conversations.filter((c) => {
       if (c.type === "group") return true;
-      const partner = c.participants?.find(
-        (p: any) => p._id?.toString() !== currentUserId,
-      );
+      const partner = c.participants?.find((p: any) => p._id?.toString() !== currentUserId);
       if (!partner) return true;
       return !blockedUserIds.has(partner._id?.toString() || "");
     });
@@ -855,26 +407,15 @@ const renderItem = ({ item }: any) => {
 
   const displayConversations = useMemo(() => {
     let list = validConversations.filter((c) => !archivedIds.has(c._id));
-
-    if (activeTab === "unread") {
-      list = list.filter((c) => getLocalUnread(c._id) > 0);
-    }
-
-    if (activeTab === "groups") {
-      list = list.filter((c) => c.type === "group");
-    }
+    if (activeTab === "unread") list = list.filter((c) => getLocalUnread(c._id) > 0);
+    if (activeTab === "groups") list = list.filter((c) => c.type === "group");
 
     return [...list].sort((a, b) => {
-      const aPinned = pinnedIds.has(a._id) ? 1 : 0;
-      const bPinned = pinnedIds.has(b._id) ? 1 : 0;
+      const aPinned = pinnedIds.has(a._id) ? 1 : 0; const bPinned = pinnedIds.has(b._id) ? 1 : 0;
       if (aPinned !== bPinned) return bPinned - aPinned;
-
-      const aDraft = drafts[a._id] && drafts[a._id].trim() !== "" ? 1 : 0;
-      const bDraft = drafts[b._id] && drafts[b._id].trim() !== "" ? 1 : 0;
+      const aDraft = drafts[a._id] && drafts[a._id].trim() !== "" ? 1 : 0; const bDraft = drafts[b._id] && drafts[b._id].trim() !== "" ? 1 : 0;
       if (aDraft !== bDraft) return bDraft - aDraft;
-
-      const dateA = new Date(a.updated_at || 0).getTime();
-      const dateB = new Date(b.updated_at || 0).getTime();
+      const dateA = new Date(a.updated_at || 0).getTime(); const dateB = new Date(b.updated_at || 0).getTime();
       return dateB - dateA;
     });
   }, [validConversations, activeTab, pinnedIds, drafts, archivedIds]);
@@ -887,630 +428,104 @@ const renderItem = ({ item }: any) => {
     });
   }, [validConversations, searchQuery]);
 
+  // SỬ DỤNG COMPONENT CONVERSATIONITEM
+  const renderItem = ({ item }: any) => {
+    return (
+      <ConversationItem
+        item={item}
+        currentUserId={currentUserId}
+        getLocalUnread={getLocalUnread}
+        pinnedIds={pinnedIds}
+        archivedIds={archivedIds}
+        friendIds={friendIds} // 🌟 TRUYỀN THÊM DÒNG NÀY
+        drafts={drafts}
+        onPress={(itemSelected: any, chatNameFallback: string, isGroup: boolean, targetUserId: string) => {
+
+          // 1. Lấy dữ liệu chuẩn (bao gồm isOnline và avatar) từ ChatScreen
+          const { chatName, chatAvatarUrl, isOnline, membersData } = getChatDetails(itemSelected);
+          const otherUser = itemSelected.participants?.find((p: any) => p._id !== currentUserId) || itemSelected.members?.find((m: any) => m.userId?._id !== currentUserId)?.userId;
+
+          if (showSearchModal) { setShowSearchModal(false); setSearchQuery(""); }
+
+          navigation.navigate("MessageScreen", {
+            id: itemSelected._id,
+            name: itemSelected.name || otherUser?.userName || chatName,
+            isGroup: isGroup,
+            targetUserId: otherUser?._id,
+            targetPublicKey: otherUser?.public_key || otherUser?.publicKey,
+            unreadCount: itemSelected.unread_count,
+            isMuted: isMutedForItem(itemSelected),
+
+            // 🌟 2. THÊM 4 DÒNG NÀY ĐỂ TRUYỀN DATA SANG MESSAGESCREEN
+            isOnline: isOnline,
+            lastOnline: otherUser?.lastActiveAt || otherUser?.lastOnline || otherUser?.last_active,
+            avatar: chatAvatarUrl,
+            members: membersData
+          });
+        }}
+        onLongPress={handleLongPressConv} onToggleArchive={handleToggleArchive} onDeleteConversation={handleDeleteConversation}
+        getChatDetails={getChatDetails} formatTimeZalo={formatTimeZalo} isMutedForItem={isMutedForItem} COLORS={COLORS} t={t}
+      />
+    );
+  };
+
   return (
     <GestureHandlerRootView style={styles.root}>
-      <StatusBar
-        barStyle={isDarkMode ? "light-content" : "dark-content"}
-        backgroundColor={COLORS.primary}
-        translucent={false}
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={COLORS.primary} translucent={false} />
+
+      <ChatHeader
+        COLORS={COLORS} displayConversationsLength={displayConversations.length} t={t}
+        setShowQRScanner={handleOpenQRScanner} setShowPlusMenu={setShowPlusMenu} setShowSearchModal={setShowSearchModal}
       />
 
-      <View style={styles.heroContainer}>
-        <LinearGradient
-          colors={[COLORS.primary, COLORS.accent]}
-          style={styles.heroGradient}
-        >
-          <SafeAreaView style={styles.safeHeader}>
-            <View style={styles.headerTop}>
-              <View>
-                <Text style={styles.title}>{t.chatTitle}</Text>
-                <Text style={styles.subtitle}>
-                  {displayConversations.length} {t.chatConversations}
-                </Text>
-              </View>
-              <View style={styles.headerIcons}>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={handleOpenQRScanner}
-                >
-                  <Ionicons name="qr-code-outline" size={22} color="white" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => setShowPlusMenu(true)}
-                >
-                  <Feather name="plus" size={24} color="white" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.searchWrapper}>
-              <TouchableOpacity
-                style={styles.searchBarFake}
-                activeOpacity={0.8}
-                onPress={() => setShowSearchModal(true)}
-              >
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color="rgba(255,255,255,0.7)"
-                  style={{ marginLeft: 10 }}
-                />
-                <Text style={styles.searchPlaceholderText}>
-                  {t.chatSearchPlaceholder}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-      </View>
-
       <View style={styles.contentContainer}>
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "all" && styles.tabButtonActive,
-            ]}
-            onPress={() => setActiveTab("all")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "all" && styles.tabTextActive,
-              ]}
-            >
-              {t.chatAll}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "unread" && styles.tabButtonActive,
-            ]}
-            onPress={() => setActiveTab("unread")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "unread" && styles.tabTextActive,
-              ]}
-            >
-              {t.chatUnread}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "groups" && styles.tabButtonActive,
-            ]}
-            onPress={() => setActiveTab("groups")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "groups" && styles.tabTextActive,
-              ]}
-            >
-              {t.groups}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
+        <ChatTabs activeTab={activeTab} setActiveTab={setActiveTab} COLORS={COLORS} t={t} />
         {loading && page === 1 ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
         ) : (
           <FlatList
-            data={displayConversations}
-            renderItem={renderItem}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={COLORS.primary}
-              />
-            }
-            onEndReached={onLoadMore}
-            onEndReachedThreshold={0.5}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>{t.chatNoConversations}</Text>
-              </View>
-            }
+            data={displayConversations} renderItem={renderItem} keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+            onEndReached={onLoadMore} onEndReachedThreshold={0.5}
+            ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{t.chatNoConversations}</Text></View>}
           />
         )}
       </View>
 
-      <Modal
-        visible={showSearchModal}
-        animationType="slide"
-        onRequestClose={() => setShowSearchModal(false)}
-      >
-        <View style={[styles.root, { backgroundColor: COLORS.background }]}>
-          <SafeAreaView style={{ backgroundColor: COLORS.surface }}>
-            <View style={styles.searchModalHeader}>
-              <TouchableOpacity
-                onPress={() => setShowSearchModal(false)}
-                style={styles.backBtn}
-              >
-                <Ionicons name="arrow-back" size={26} color={COLORS.text} />
-              </TouchableOpacity>
+      <ChatSearchModal
+        showSearchModal={showSearchModal} setShowSearchModal={setShowSearchModal}
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+        searchResults={searchResults} renderItem={renderItem}
+        COLORS={COLORS} isDarkMode={isDarkMode} t={t}
+      />
 
-              <View style={styles.searchModalInputWrapper}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color={COLORS.textLight}
-                  style={{ marginLeft: 10 }}
-                />
-                <TextInput
-                  style={[styles.searchModalInput, { color: COLORS.text }]}
-                  placeholder={t.chatSearchPlaceholder}
-                  placeholderTextColor={COLORS.textLight}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoFocus={true}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setSearchQuery("")}
-                    style={{ padding: 8 }}
-                  >
-                    <Ionicons
-                      name="close-circle"
-                      size={18}
-                      color={COLORS.textLight}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </SafeAreaView>
+      <ChatPinMenuModal
+        showPinMenu={showPinMenu} setShowPinMenu={setShowPinMenu}
+        handleTogglePin={handleTogglePin} selectedConvForPin={selectedConvForPin}
+        pinnedIds={pinnedIds} COLORS={COLORS} t={t}
+      />
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ flex: 1 }}
-          >
-            <FlatList
-              data={searchResults}
-              renderItem={renderItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Ionicons
-                    name="search-outline"
-                    size={48}
-                    color={COLORS.textLight}
-                    style={{ marginBottom: 10, opacity: 0.5 }}
-                  />
-                  <Text style={styles.emptyText}>{t.chatNoSearchResults}</Text>
-                </View>
-              }
-            />
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      <ChatQRScannerModal
+        showQRScanner={showQRScanner} setShowQRScanner={setShowQRScanner}
+        handleBarcodeScanned={handleBarcodeScanned} t={t}
+      />
 
-      <Modal
-        visible={showPinMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPinMenu(false)}
-      >
-        <TouchableOpacity
-          style={styles.pinOverlay}
-          activeOpacity={1}
-          onPress={() => setShowPinMenu(false)}
-        >
-          <View
-            style={[
-              styles.pinMenuBox,
-              { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.pinMenuItem}
-              onPress={() => handleTogglePin(selectedConvForPin)}
-            >
-              <Ionicons
-                name={
-                  pinnedIds.has(selectedConvForPin?._id) ? "pin-outline" : "pin"
-                }
-                size={20}
-                color={COLORS.accent}
-              />
-              <Text style={[styles.pinMenuText, { color: COLORS.text }]}>
-                {pinnedIds.has(selectedConvForPin?._id)
-                  ? t.chatUnpinConversation
-                  : t.chatPinConversation}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Modal visible={showQRScanner} animationType="slide" transparent={false}>
-        <View style={{ flex: 1, backgroundColor: "#000000" }}>
-          <SafeAreaView style={{ flex: 1 }}>
-            <View style={styles.qrHeader}>
-              <TouchableOpacity onPress={() => setShowQRScanner(false)}>
-                <Ionicons name="close" size={32} color="white" />
-              </TouchableOpacity>
-              <Text style={styles.qrTitle}>{t.chatScanQr}</Text>
-              <View style={{ width: 32 }} />
-            </View>
-
-            <View style={styles.qrCameraContainer}>
-              {showQRScanner && (
-                <CameraView
-                  style={StyleSheet.absoluteFillObject}
-                  facing="back"
-                  onBarcodeScanned={handleBarcodeScanned}
-                  barcodeScannerSettings={{
-                    barcodeTypes: ["qr"],
-                  }}
-                />
-              )}
-              <View style={styles.qrTargetOverlay}>
-                <View style={styles.qrTargetBox} />
-              </View>
-            </View>
-
-            <View style={styles.qrFooter}>
-              <Text
-                style={{
-                  color: "white",
-                  textAlign: "center",
-                  fontSize: 15,
-                  opacity: 0.8,
-                }}
-              >
-                {t.chatScanQrHint}
-              </Text>
-            </View>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showPlusMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPlusMenu(false)}
-      >
-        <TouchableOpacity
-          style={{ flex: 1 }}
-          activeOpacity={1}
-          onPress={() => setShowPlusMenu(false)}
-        >
-          <View style={styles.plusMenuContainer}>
-            <TouchableOpacity
-              style={styles.plusMenuItem}
-              onPress={() => {
-                setShowPlusMenu(false);
-                navigation.navigate("CreateGroupScreen");
-              }}
-            >
-              <View style={styles.plusMenuIcon}>
-                <Ionicons
-                  name="people-outline"
-                  size={22}
-                  color={COLORS.primary}
-                />
-              </View>
-              <Text style={[styles.plusMenuText, { color: COLORS.text }]}>
-                Tạo nhóm
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <ChatPlusMenuModal
+        showPlusMenu={showPlusMenu} setShowPlusMenu={setShowPlusMenu} COLORS={COLORS}
+      />
     </GestureHandlerRootView>
   );
 };
 
-const getStyles = (COLORS: any, isDarkMode: boolean) =>
-  StyleSheet.create({
-    root: { flex: 1, backgroundColor: COLORS.background },
-    heroContainer: {
-      height: Platform.OS === "ios" ? 220 : 190,
-      borderBottomLeftRadius: 32,
-      borderBottomRightRadius: 32,
-      overflow: "hidden",
-    },
-    heroGradient: { flex: 1 },
-    safeHeader: { flex: 1, paddingHorizontal: 20 },
-    headerTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginTop: 10,
-      marginBottom: 15,
-    },
-    title: {
-      fontSize: 30,
-      fontWeight: "800",
-      color: "#FFFFFF",
-      marginLeft: 20,
-    },
-    subtitle: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginLeft: 20 },
-    headerIcons: { flexDirection: "row", right: 20 },
-    iconBtn: {
-      width: 40,
-      height: 40,
-      backgroundColor: "rgba(255,255,255,0.2)",
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      marginLeft: 12,
-    },
-
-    searchWrapper: { marginTop: 10, paddingHorizontal: 20 },
-    searchBarFake: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.15)",
-      borderRadius: 20,
-      height: 42,
-      paddingHorizontal: 10,
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.1)",
-    },
-    searchPlaceholderText: {
-      color: "rgba(255,255,255,0.6)",
-      fontSize: 15,
-      marginLeft: 8,
-    },
-
-    searchModalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 15,
-      paddingVertical: 10,
-      backgroundColor: COLORS.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border,
-      top: 0,
-    },
-    backBtn: { paddingRight: 15 },
-    searchModalInputWrapper: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: isDarkMode ? COLORS.border : "#F1F5F9",
-      borderRadius: 20,
-      height: 40,
-    },
-    searchModalInput: {
-      flex: 1,
-      fontSize: 15,
-      marginLeft: 8,
-      paddingVertical: 0,
-    },
-
-    qrHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 15,
-    },
-    qrTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
-    qrCameraContainer: {
-      flex: 1,
-      borderRadius: 24,
-      overflow: "hidden",
-      marginHorizontal: 15,
-      marginTop: 10,
-      marginBottom: 20,
-      justifyContent: "center",
-      alignItems: "center",
-      backgroundColor: "#222",
-    },
-    qrTargetOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    qrTargetBox: {
-      width: 250,
-      height: 250,
-      borderWidth: 2,
-      borderColor: "rgba(255, 255, 255, 0.5)",
-      borderRadius: 24,
-      backgroundColor: "transparent",
-    },
-    qrFooter: {
-      paddingBottom: 40,
-    },
-
-    contentContainer: { flex: 1, marginTop: -25 },
-    tabsContainer: {
-      flexDirection: "row",
-      paddingHorizontal: 20,
-      marginBottom: 10,
-    },
-    tabButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 20,
-      marginRight: 10,
-      bottom: -7,
-      backgroundColor: COLORS.border,
-    },
-    tabButtonActive: { backgroundColor: COLORS.primary },
-    tabText: { fontSize: 14, color: COLORS.textLight, fontWeight: "600" },
-    tabTextActive: { color: "#FFFFFF" },
-    center: { flex: 1, justifyContent: "center", alignItems: "center" },
-    listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
-    emptyContainer: { alignItems: "center", marginTop: 40 },
-    emptyText: { color: COLORS.textLight, fontSize: 15 },
-
-    swipeableWrapper: {
-      marginBottom: 12,
-      borderRadius: 24,
-      overflow: "hidden", 
-    },
-    rightActionContainer: {
-      flexDirection: "row",
-      width: 150,
-      height: "100%",
-    },
-    rightActionBtn: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    rightActionText: {
-      color: "#FFF",
-      fontSize: 12,
-      fontWeight: "600",
-      marginTop: 4,
-    },
-
-    chatCard: {
-      flexDirection: "row",
-      backgroundColor: COLORS.surface,
-      padding: 12,
-      borderRadius: 24, 
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      elevation: 2,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    pinBadge: {
-      position: "absolute",
-      bottom: 0,
-      right: 0,
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: COLORS.accent,
-      justifyContent: "center",
-      alignItems: "center",
-      borderWidth: 1.5,
-      borderColor: COLORS.surface,
-    },
-    pinOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    pinMenuBox: {
-      width: "75%",
-      borderRadius: 20,
-      borderWidth: 1,
-      overflow: "hidden",
-    },
-    pinMenuItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 18,
-      gap: 14,
-    },
-    pinMenuText: {
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    avatarWrapper: { position: "relative" },
-    avatarRing: { borderWidth: 2, borderRadius: 30, padding: 2 },
-    avatar: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    avatarText: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
-    onlineDot: {
-      position: "absolute",
-      right: 2,
-      bottom: 2,
-      width: 14,
-      height: 14,
-      borderRadius: 7,
-      backgroundColor: COLORS.success,
-      borderWidth: 2,
-      borderColor: COLORS.surface,
-    },
-    chatContent: { flex: 1, marginLeft: 14 },
-    chatHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 4,
-    },
-    name: { color: COLORS.text, fontSize: 16, fontWeight: "700", flex: 1 },
-    time: { color: COLORS.textLight, fontSize: 12 },
-    unreadTime: { color: COLORS.primary, fontWeight: "700" },
-    chatFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    message: {
-      color: COLORS.textLight,
-      fontSize: 14,
-      flex: 1,
-      marginRight: 10,
-    },
-    unreadMessage: { color: COLORS.text, fontWeight: "600" },
-    badge: {
-      minWidth: 22,
-      height: 22,
-      borderRadius: 11,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 6,
-    },
-    badgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "800" },
-    plusMenuContainer: {
-      position: "absolute",
-      top: Platform.OS === "ios" ? 100 : 70,
-      right: 16,
-      backgroundColor: COLORS.surface,
-      borderRadius: 16,
-      paddingVertical: 8,
-      minWidth: 200,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 8,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    plusMenuItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      gap: 12,
-    },
-    plusMenuIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: COLORS.surfaceSoft,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    plusMenuText: {
-      fontSize: 16,
-      fontWeight: "500",
-    },
-  });
+// Stylesheet chung cho ChatScreen
+const getStyles = (COLORS: any, isDarkMode: boolean) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.background },
+  contentContainer: { flex: 1, marginTop: -25 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  listContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 5 },
+  emptyContainer: { alignItems: "center", marginTop: 40 },
+  emptyText: { color: COLORS.textLight, fontSize: 15 },
+});
 
 export default ChatScreen;
