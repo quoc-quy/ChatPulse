@@ -1,30 +1,15 @@
 export default function PrivacyPolicyPage() {
-  return (
-    <div className='max-w-5xl mx-auto px-6 py-10 space-y-8 text-gray-700 leading-7'>
-      <div className='space-y-3'>
-        <h1 className='text-4xl font-bold text-gray-900'>Chính sách bảo mật, bảo vệ và xử lý thông tin</h1>
-
-        <p>
-          Cảm ơn bạn đã sử dụng nền tảng của chúng tôi. Chúng tôi cam kết bảo vệ quyền riêng tư và dữ liệu cá nhân của
-          người dùng khi truy cập và sử dụng website.
-        </p>
-
-        <p>
-          Chính sách này giải thích cách chúng tôi thu thập, sử dụng, lưu trữ, bảo vệ và xử lý dữ liệu cá nhân của Khách
-          hàng và Đối tác theo quy định pháp luật hiện hành.
-        </p>
-      </div>
-
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 1. Định nghĩa</h2>
-
+  const sections = [
+    {
+      title: 'Điều 1. Định nghĩa',
+      content: (
         <div className='space-y-3'>
           <p>
-            <strong>“Chúng tôi”</strong> là đơn vị sở hữu và vận hành website cung cấp dịch vụ học tập trực tuyến.
+            <strong>“ChatPulse”</strong> là nền tảng học tập và hỗ trợ trực tuyến do chúng tôi phát triển và vận hành.
           </p>
 
           <p>
-            <strong>“Khách hàng”</strong> là cá nhân hoặc tổ chức truy cập, đăng ký tài khoản hoặc sử dụng các sản phẩm,
+            <strong>“Người dùng”</strong> là cá nhân hoặc tổ chức truy cập, đăng ký tài khoản hoặc sử dụng các sản phẩm,
             dịch vụ trên website.
           </p>
 
@@ -37,121 +22,208 @@ export default function PrivacyPolicyPage() {
             điện thoại, địa chỉ IP, lịch sử sử dụng dịch vụ hoặc các dữ liệu liên quan khác.
           </p>
         </div>
-      </section>
+      )
+    },
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 2. Dữ liệu chúng tôi thu thập</h2>
-
-        <ul className='list-disc pl-6 space-y-2'>
+    {
+      title: 'Điều 2. Dữ liệu chúng tôi thu thập',
+      content: (
+        <ul className='space-y-3 list-disc pl-5'>
           <li>Họ tên, email, số điện thoại.</li>
+
           <li>Thông tin tài khoản đăng nhập.</li>
+
           <li>Lịch sử sử dụng dịch vụ và hoạt động trên website.</li>
+
           <li>Thông tin thiết bị, địa chỉ IP, cookie và trình duyệt.</li>
+
           <li>Nội dung phản hồi, đánh giá hoặc liên hệ hỗ trợ từ người dùng.</li>
         </ul>
-      </section>
+      )
+    },
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 3. Mục đích sử dụng dữ liệu</h2>
-
-        <ul className='list-disc pl-6 space-y-2'>
+    {
+      title: 'Điều 3. Mục đích sử dụng dữ liệu',
+      content: (
+        <ul className='space-y-3 list-disc pl-5'>
           <li>Cung cấp và vận hành dịch vụ trên website.</li>
+
           <li>Xác minh tài khoản và hỗ trợ đăng nhập.</li>
+
           <li>Hỗ trợ khách hàng và giải quyết khiếu nại.</li>
+
           <li>Nâng cao chất lượng sản phẩm và trải nghiệm người dùng.</li>
+
           <li>Gửi thông báo, cập nhật hoặc chương trình khuyến mãi.</li>
+
           <li>Đảm bảo an toàn, bảo mật và phòng chống gian lận.</li>
         </ul>
-      </section>
+      )
+    },
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 4. Cách thức lưu trữ và bảo mật dữ liệu</h2>
+    {
+      title: 'Điều 4. Cách thức lưu trữ và bảo mật dữ liệu',
+      content: (
+        <div className='space-y-3'>
+          <p>
+            Chúng tôi áp dụng các biện pháp kỹ thuật và bảo mật phù hợp nhằm bảo vệ dữ liệu cá nhân khỏi truy cập trái
+            phép, mất mát hoặc rò rỉ thông tin.
+          </p>
 
-        <p>
-          Chúng tôi áp dụng các biện pháp kỹ thuật và bảo mật phù hợp nhằm bảo vệ dữ liệu cá nhân khỏi truy cập trái
-          phép, mất mát hoặc rò rỉ thông tin.
-        </p>
+          <p>
+            Dữ liệu cá nhân được lưu trữ trong phạm vi cần thiết để phục vụ mục đích cung cấp dịch vụ hoặc theo yêu cầu
+            của pháp luật.
+          </p>
 
-        <p>
-          Dữ liệu cá nhân được lưu trữ trong phạm vi cần thiết để phục vụ mục đích cung cấp dịch vụ hoặc theo yêu cầu
-          của pháp luật.
-        </p>
+          <p>
+            Tuy nhiên, không có hệ thống nào đảm bảo an toàn tuyệt đối trên môi trường internet. Người dùng cần chủ động
+            bảo mật tài khoản và thông tin đăng nhập của mình.
+          </p>
+        </div>
+      )
+    },
 
-        <p>
-          Tuy nhiên, không có hệ thống nào đảm bảo an toàn tuyệt đối trên môi trường internet. Người dùng cần chủ động
-          bảo mật tài khoản và thông tin đăng nhập của mình.
-        </p>
-      </section>
+    {
+      title: 'Điều 5. Chia sẻ dữ liệu cá nhân',
+      content: (
+        <div className='space-y-3'>
+          <p>
+            Chúng tôi cam kết không bán hoặc chia sẻ dữ liệu cá nhân của người dùng cho bên thứ ba, ngoại trừ các trường
+            hợp:
+          </p>
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 5. Chia sẻ dữ liệu cá nhân</h2>
+          <ul className='space-y-3 list-disc pl-5'>
+            <li>Có sự đồng ý của người dùng.</li>
 
-        <p>
-          Chúng tôi cam kết không bán hoặc chia sẻ dữ liệu cá nhân của người dùng cho bên thứ ba, ngoại trừ các trường
-          hợp:
-        </p>
+            <li>Phục vụ cho việc cung cấp dịch vụ thông qua các đối tác liên quan.</li>
 
-        <ul className='list-disc pl-6 space-y-2'>
-          <li>Có sự đồng ý của người dùng.</li>
-          <li>Phục vụ cho việc cung cấp dịch vụ thông qua các đối tác liên quan.</li>
-          <li>Theo yêu cầu của cơ quan nhà nước có thẩm quyền theo quy định pháp luật.</li>
-          <li>Đảm bảo quyền lợi, an toàn và bảo mật của hệ thống và người dùng.</li>
-        </ul>
-      </section>
+            <li>Theo yêu cầu của cơ quan nhà nước có thẩm quyền theo quy định pháp luật.</li>
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 6. Quyền của người dùng</h2>
+            <li>Đảm bảo quyền lợi, an toàn và bảo mật của hệ thống và người dùng.</li>
+          </ul>
+        </div>
+      )
+    },
 
-        <ul className='list-disc pl-6 space-y-2'>
+    {
+      title: 'Điều 6. Quyền của người dùng',
+      content: (
+        <ul className='space-y-3 list-disc pl-5'>
           <li>Yêu cầu xem hoặc chỉnh sửa dữ liệu cá nhân.</li>
+
           <li>Yêu cầu xóa tài khoản và dữ liệu cá nhân.</li>
+
           <li>Rút lại sự đồng ý xử lý dữ liệu.</li>
+
           <li>Yêu cầu hạn chế xử lý dữ liệu cá nhân.</li>
+
           <li>Khiếu nại nếu dữ liệu bị sử dụng sai mục đích.</li>
         </ul>
-      </section>
+      )
+    },
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 7. Cookie và công nghệ theo dõi</h2>
+    {
+      title: 'Điều 7. Cookie và công nghệ theo dõi',
+      content: (
+        <div className='space-y-3'>
+          <p>
+            Website có thể sử dụng cookie hoặc các công nghệ tương tự để cải thiện trải nghiệm người dùng, ghi nhớ thông
+            tin đăng nhập và phân tích hành vi sử dụng dịch vụ.
+          </p>
 
-        <p>
-          Website có thể sử dụng cookie hoặc các công nghệ tương tự để cải thiện trải nghiệm người dùng, ghi nhớ thông
-          tin đăng nhập và phân tích hành vi sử dụng dịch vụ.
-        </p>
+          <p>
+            Người dùng có thể tắt cookie trong cài đặt trình duyệt, tuy nhiên một số tính năng của website có thể không
+            hoạt động chính xác.
+          </p>
+        </div>
+      )
+    },
 
-        <p>
-          Người dùng có thể tắt cookie trong cài đặt trình duyệt, tuy nhiên một số tính năng của website có thể không
-          hoạt động chính xác.
-        </p>
-      </section>
+    {
+      title: 'Điều 8. Thời gian lưu trữ dữ liệu',
+      content: (
+        <div className='space-y-3'>
+          <p>
+            Dữ liệu cá nhân sẽ được lưu trữ trong thời gian cần thiết để phục vụ mục đích cung cấp dịch vụ hoặc theo quy
+            định pháp luật hiện hành.
+          </p>
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 8. Thời gian lưu trữ dữ liệu</h2>
+          <p>
+            Sau khi người dùng yêu cầu xóa dữ liệu hoặc chấm dứt sử dụng dịch vụ, chúng tôi sẽ tiến hành xóa hoặc ẩn
+            danh dữ liệu theo quy trình nội bộ.
+          </p>
+        </div>
+      )
+    },
 
-        <p>
-          Dữ liệu cá nhân sẽ được lưu trữ trong thời gian cần thiết để phục vụ mục đích cung cấp dịch vụ hoặc theo quy
-          định pháp luật hiện hành.
-        </p>
+    {
+      title: 'Điều 9. Điều khoản chung',
+      content: (
+        <div className='space-y-3'>
+          <p>
+            Chúng tôi có quyền cập nhật hoặc điều chỉnh Chính sách bảo mật này vào bất kỳ thời điểm nào để phù hợp với
+            hoạt động kinh doanh và quy định pháp luật hiện hành.
+          </p>
 
-        <p>
-          Sau khi người dùng yêu cầu xóa dữ liệu hoặc chấm dứt sử dụng dịch vụ, chúng tôi sẽ tiến hành xóa hoặc ẩn danh
-          dữ liệu theo quy trình nội bộ.
-        </p>
-      </section>
+          <p>
+            Phiên bản mới nhất sẽ luôn được công khai trên website. Việc tiếp tục sử dụng dịch vụ đồng nghĩa với việc
+            người dùng đồng ý với các thay đổi được cập nhật.
+          </p>
+        </div>
+      )
+    }
+  ]
 
-      <section className='space-y-4'>
-        <h2 className='text-2xl font-semibold text-gray-900'>Điều 9. Điều khoản chung</h2>
+  return (
+    <div className='min-h-screen bg-gradient-to-b from-background via-background to-muted/30'>
+      <div className='mx-auto max-w-6xl px-4 py-12 md:px-6'>
+        {/* Hero */}
+        <div className='relative overflow-hidden rounded-3xl border bg-card p-8 shadow-sm md:p-12'>
+          <div className='absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5' />
 
-        <p>
-          Chúng tôi có quyền cập nhật hoặc điều chỉnh Chính sách bảo mật này vào bất kỳ thời điểm nào để phù hợp với
-          hoạt động kinh doanh và quy định pháp luật hiện hành.
-        </p>
+          <div className='relative z-10 max-w-3xl space-y-5'>
+            <div className='inline-flex items-center rounded-full border bg-background/80 px-4 py-1 text-sm font-medium backdrop-blur'>
+              ChatPulse Privacy Policy
+            </div>
 
-        <p>
-          Phiên bản mới nhất sẽ luôn được công khai trên website. Việc tiếp tục sử dụng dịch vụ đồng nghĩa với việc
-          người dùng đồng ý với các thay đổi được cập nhật.
-        </p>
-      </section>
+            <h1 className='text-4xl font-bold tracking-tight md:text-5xl'>
+              Chính sách <span className='text-primary'>bảo mật</span>
+            </h1>
+
+            <p className='text-base leading-7 text-muted-foreground md:text-lg'>
+              ChatPulse cam kết bảo vệ quyền riêng tư và dữ liệu cá nhân của người dùng khi truy cập và sử dụng nền tảng
+              học tập trực tuyến của chúng tôi.
+            </p>
+          </div>
+        </div>
+
+        {/* Sections */}
+        <div className='mt-10 grid gap-6'>
+          {sections.map((section, index) => (
+            <section
+              key={index}
+              className='group rounded-2xl border bg-card/80 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md md:p-8'
+            >
+              <div className='mb-5 flex items-center gap-4'>
+                <div className='flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary'>
+                  {index + 1}
+                </div>
+
+                <h2 className='text-xl font-semibold tracking-tight md:text-2xl'>{section.title}</h2>
+              </div>
+
+              <div className='leading-7 text-muted-foreground'>{section.content}</div>
+            </section>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className='mt-12 rounded-2xl border bg-card p-6 text-center shadow-sm'>
+          <p className='text-sm text-muted-foreground'>
+            © {new Date().getFullYear()} ChatPulse. Cam kết bảo vệ dữ liệu và quyền riêng tư của người dùng.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
