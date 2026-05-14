@@ -103,7 +103,7 @@ const unarchiveChat = async (conversationId: string) => {
         archivedArray.splice(index, 1); await AsyncStorage.setItem('archived_chats', JSON.stringify(archivedArray))
       }
     }
-  } catch (error) {}
+  } catch (error) { }
 }
 
 const MessageScreen = () => {
@@ -131,10 +131,10 @@ const MessageScreen = () => {
   const [hasMore, setHasMore] = useState<boolean>(true)
   const [isAiProcessing, setIsAiProcessing] = useState(false)
   const [isMutedState, setIsMutedState] = useState<boolean>(isMuted)
-  
+
   const [chatAvatarUrl, setChatAvatarUrl] = useState<string>(avatar)
   const [membersData, setMembersData] = useState<any[]>(members)
-  
+
   // Lấy dữ liệu Partner từ Params khởi tạo để có ngay lập tức
   const partnerInit = members.find((m: any) => m._id === partnerId || m.id === partnerId) || {};
   const [isOnline, setIsOnline] = useState<boolean>(route.params?.isOnline ?? partnerInit.isOnline ?? false);
@@ -211,14 +211,14 @@ const MessageScreen = () => {
           const friendsList = res.data?.result || [];
           const friendInfo = friendsList.find((f: any) => f._id === partnerId || f.id === partnerId);
           setIsNotFriendState(!friendInfo);
-          
+
           if (friendInfo) {
             if (friendInfo.isOnline !== undefined) setIsOnline(!!friendInfo.isOnline);
             if (friendInfo.lastOnline || friendInfo.last_active || friendInfo.lastActiveAt) {
               setLastOnlineTime(friendInfo.lastActiveAt || friendInfo.lastOnline || friendInfo.last_active);
             }
           }
-        } catch (error) {}
+        } catch (error) { }
       }
     };
     checkFriendStatus();
@@ -233,7 +233,7 @@ const MessageScreen = () => {
       try {
         const res = await getConversationDetail(route.params.id)
         if (res.data?.result?.pinnedMessages) setPinnedMessages(res.data.result.pinnedMessages)
-      } catch (error) {}
+      } catch (error) { }
     }
     fetchConversationDetail()
   }, [route.params.id])
@@ -275,7 +275,7 @@ const MessageScreen = () => {
           if (conv) {
             const rawMembers = conv.participants || conv.members || []
             let pMembers = rawMembers.map((m: any) => (m.userId ? m.userId : m)).filter((m: any) => m != null)
-            
+
             const isPopulated = pMembers.length > 0 && typeof pMembers[0] === 'object' && (pMembers[0].avatar || pMembers[0].avatarUrl || pMembers[0].userName);
             let finalMembers = isPopulated ? pMembers : members;
 
@@ -286,7 +286,7 @@ const MessageScreen = () => {
               if (finalMembers.length > 0) {
                 if (!newAvatarUrl) newAvatarUrl = finalMembers[0].avatar || finalMembers[0].avatarUrl || '';
                 if (!partnerId) setPartnerId(finalMembers[0]._id || finalMembers[0].id);
-                
+
                 // Đề phòng API trả về đè mất data xịn, ta chỉ update nếu API thực sự có field này
                 if (finalMembers[0].isOnline !== undefined) setIsOnline(!!finalMembers[0].isOnline);
                 if (finalMembers[0].lastActiveAt || finalMembers[0].lastOnline || finalMembers[0].last_active) {
@@ -307,7 +307,7 @@ const MessageScreen = () => {
             const myMember = (conv.members || []).find((m: any) => m.userId?.toString() === resolvedUserId)
             if (myMember?.hasMuted !== undefined) setIsMutedState(myMember.hasMuted)
           }
-        } catch (error: any) {} finally { setLoading(false) }
+        } catch (error: any) { } finally { setLoading(false) }
       }
     }
     initChat()
@@ -330,7 +330,7 @@ const MessageScreen = () => {
         }
       }
     }
-    
+
     const handleGroupDisbanded = ({ conversationId: disbandedId, message }: any) => {
       if (disbandedId === conversationId) {
         setIsGroupDisbanded(true)
@@ -338,7 +338,7 @@ const MessageScreen = () => {
         setMessages((prev) => [{ _id: `disband_${Date.now()}`, conversationId, type: 'system', content: message || 'Nhóm trưởng đã giải tán nhóm', createdAt: new Date().toISOString() }, ...prev])
       }
     }
-    
+
     const handleMessageRevoked = (data: any) => {
       if (data.conversationId === conversationId) setMessages((prev) => prev.map((msg) => msg._id === data.messageId ? { ...msg, type: 'revoked', content: '' } : msg))
     }
@@ -496,7 +496,7 @@ const MessageScreen = () => {
   const handleDeleteDisbandedChat = () => {
     Alert.alert('Xóa trò chuyện', 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử?', [
       { text: 'Hủy', style: 'cancel' },
-      { text: 'Xóa', style: 'destructive', onPress: async () => { try { await deleteConversationForMe(conversationId); navigation.goBack() } catch (error) {} } }
+      { text: 'Xóa', style: 'destructive', onPress: async () => { try { await deleteConversationForMe(conversationId); navigation.goBack() } catch (error) { } } }
     ])
   }
 
@@ -512,17 +512,135 @@ const MessageScreen = () => {
   }
 
   const handleSummarizeChat = async () => {
-    if (!messages || messages.length === 0) { Alert.alert(t.error || 'Lỗi', 'Chưa có tin nhắn nào.'); return }
-    setIsSummarizing(true); setShowAiModal(true); setIsAiProcessing(true); setAiSummaryText('')
-    try {
-      const recentMessages = [...messages].slice(0, 50).reverse()
-      const res = await summarizeChatApi(recentMessages)
-      setAiSummaryText(res.data?.result || 'Không thể tạo bản tóm tắt lúc này.')
-    } catch (error: any) { setAiSummaryText('Đã có lỗi xảy ra.') } finally { setIsSummarizing(false); setIsAiProcessing(false) }
-  }
+    // 1. Lấy số lượng tin nhắn chưa đọc từ params truyền sang
+    // Nếu không có tin nhắn chưa đọc (count = 0), có thể lấy mặc định 5 tin gần nhất để tóm tắt
+    const unreadCountFromParams = route.params?.unreadCount || 0;
+    const countToSummarize = unreadCountFromParams > 0 ? unreadCountFromParams : 5;
 
-  const handleToggleReact = async (message: any, emoji: string) => { }
-  const handleRemoveAllReactions = async (message: any) => { }
+    if (!messages || messages.length === 0) {
+      Alert.alert(t.error || 'Lỗi', 'Chưa có tin nhắn nào.');
+      return;
+    }
+
+    // 2. Lọc lấy đúng số lượng tin nhắn "mới" và phải là văn bản
+    const newOnlyMessages = messages
+      .slice(0, countToSummarize) // Chỉ cắt đúng số lượng tin nhắn mới nhất
+      .filter((m: any) => m.type === 'text' && typeof m.content === 'string' && m.content.trim() !== '')
+      .reverse() // Đảo ngược để AI đọc theo thứ tự thời gian từ cũ đến mới
+      .map((m: any) => ({
+        _id: m._id,
+        content: m.content,
+        sender: {
+          userName: m.sender?.userName || m.sender?.displayName || 'Người dùng'
+        }
+      }));
+
+    if (newOnlyMessages.length === 0) {
+      Alert.alert('Thông báo', 'Không có tin nhắn văn bản mới nào để tóm tắt.');
+      return;
+    }
+
+    setIsSummarizing(true);
+    setShowAiModal(true);
+    setIsAiProcessing(true);
+    setAiSummaryText('');
+
+    try {
+      // Gửi mảng tin nhắn đã được lọc "chỉ lấy tin mới" lên Server
+      const res = await summarizeChatApi(newOnlyMessages);
+      setAiSummaryText(res.data?.result || 'Không thể tạo bản tóm tắt lúc này.');
+    } catch (error: any) {
+      console.log('Lỗi gọi AI Pulse:', error);
+      setAiSummaryText('Máy chủ AI đang bận (Lỗi 500). Vui lòng thử lại sau.');
+    } finally {
+      setIsSummarizing(false);
+      setIsAiProcessing(false);
+    }
+  };
+
+  // 🌟 1. SỬA HÀM THẢ/THU HỒI CẢM XÚC
+  const handleToggleReact = async (message: any, emoji: string) => {
+    try {
+      // Gọi API lên Backend (Backend sẽ tự toggle: thêm hoặc xóa)
+      await reactMessageApi(message._id, emoji);
+
+      // Cập nhật giao diện ngay lập tức
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg._id !== message._id) return msg;
+
+          const reactions = msg.reactions || [];
+
+          // 🌟 TÌM CHÍNH XÁC ID NGƯỜI DÙNG (Bao phủ mọi trường hợp của Backend)
+          const existingIndex = reactions.findIndex((r: any) => {
+            const uid = r.userId || r.user?._id || r.id;
+            return uid === currentUserId;
+          });
+
+          let updatedReactions = [...reactions];
+
+          if (existingIndex !== -1 && updatedReactions[existingIndex].emoji === emoji) {
+            // 🌟 NẾU BẤM LẠI ĐÚNG EMOJI CŨ -> XÓA (THU HỒI)
+            updatedReactions.splice(existingIndex, 1);
+          } else if (existingIndex !== -1) {
+            // NẾU BẤM SANG EMOJI KHÁC -> CẬP NHẬT
+            updatedReactions[existingIndex] = {
+              ...updatedReactions[existingIndex],
+              emoji,
+            };
+          } else {
+            // THÊM MỚI
+            updatedReactions.push({
+              userId: currentUserId,
+              user: { _id: currentUserId, userName: "Tôi" }, // Mock data để hiển thị mượt
+              emoji,
+            });
+          }
+
+          return {
+            ...msg,
+            reactions: updatedReactions,
+          };
+        })
+      );
+
+      setShowMenu(false);
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể thả cảm xúc lúc này');
+    }
+  };
+
+  // 🌟 2. BỔ SUNG HÀM GỠ BỎ HOÀN TOÀN CẢM XÚC (Khi bấm nút X trên Menu)
+  const handleRemoveAllReactions = async (message: any) => {
+    if (!message) return;
+    try {
+      // Tìm xem mình đang thả cảm xúc gì
+      const myReaction = message.reactions?.find((r: any) => {
+        const uid = r.userId || r.user?._id || r.id;
+        return uid === currentUserId;
+      });
+
+      if (myReaction) {
+        // Gửi lại đúng emoji đó để Backend gỡ bỏ
+        await reactMessageApi(message._id, myReaction.emoji);
+
+        // Lọc bỏ cảm xúc của mình khỏi giao diện
+        setMessages((prev) => prev.map(msg => {
+          if (msg._id !== message._id) return msg;
+          return {
+            ...msg,
+            reactions: msg.reactions?.filter((r: any) => {
+              const uid = r.userId || r.user?._id || r.id;
+              return uid !== currentUserId;
+            }) || []
+          };
+        }));
+      }
+      setShowMenu(false);
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể thu hồi cảm xúc');
+    }
+  };
 
   const buildReactionGroups = (reactions: any[] = []) => {
     const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>()
@@ -538,10 +656,19 @@ const MessageScreen = () => {
   const openReactionDetails = (message: any) => { setReactionDetailMessage(message); setReactionFilter('ALL'); setShowReactionDetails(true) }
 
   const reactionGroupsForModal = useMemo(() => buildReactionGroups(reactionDetailMessage?.reactions || []), [reactionDetailMessage, currentUserId])
-  const reactionUsersForModal = useMemo(() => { return [] }, [reactionFilter, reactionGroupsForModal, currentUserId])
+  const reactionUsersForModal = useMemo(() => {
+    if (!reactionDetailMessage?.reactions) return []
 
+    if (reactionFilter === 'ALL') {
+      return reactionDetailMessage.reactions
+    }
+
+    return reactionDetailMessage.reactions.filter(
+      (r: any) => r.emoji === reactionFilter
+    )
+  }, [reactionFilter, reactionDetailMessage])
   // 🌟 LOGIC THU HỒI
-  const handleRevoke = async () => { 
+  const handleRevoke = async () => {
     if (!selectedMsg || selectedMsg.type === 'revoked') return;
     try {
       await recallMessageApi(selectedMsg._id);
@@ -552,7 +679,21 @@ const MessageScreen = () => {
     }
   }
 
-  const handleDeleteForMe = async () => { }
+  const handleDeleteForMe = async () => {
+    if (!selectedMsg) return
+
+    try {
+      await deleteMessageForMeApi(selectedMsg._id)
+
+      setMessages((prev) =>
+        prev.filter((msg) => msg._id !== selectedMsg._id)
+      )
+
+      setShowMenu(false)
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể xóa tin nhắn')
+    }
+  }
   const handleDoubleTap = (message: any) => { }
 
   const handleLongPress = (event: any, message: any) => {
@@ -628,7 +769,7 @@ const MessageScreen = () => {
         if (type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext) || mime.startsWith('video/')) return `[Video] ${fileName}`.trim()
         return `[Photo] ${fileName}`.trim()
       }
-    } catch (error) {}
+    } catch (error) { }
     if (type === 'video') return '[Video]'; if (type === 'file') return '[Tệp đính kèm]'; if (type === 'image' || type === 'media') return '[Hình ảnh]'; if (type === 'call') return '[Cuộc gọi]'
     return message.content
   }
@@ -637,11 +778,11 @@ const MessageScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
 
-      <MessageHeader 
+      <MessageHeader
         navigation={navigation} conversationId={conversationId} currentChatName={currentChatName}
         chatAvatarUrl={chatAvatarUrl} isGroup={isGroup} isOnline={isOnline} statusText={headerStatusText}
         isMutedState={isMutedState} isGroupDisbanded={isGroupDisbanded} membersData={membersData}
-        isSummarizing={isSummarizing} handleSummarizeChat={handleSummarizeChat} 
+        isSummarizing={isSummarizing} handleSummarizeChat={handleSummarizeChat}
         isNotFriendState={isNotFriendState} // 🌟 TRUYỀN BIẾN NÀY SANG HEADER
         COLORS={COLORS} styles={styles}
       />
@@ -675,29 +816,29 @@ const MessageScreen = () => {
             ref={flatListRef} inverted={true} data={groupedMessages}
             keyExtractor={(item, index) => `${item._id ?? 'msg'}_${index}`}
             renderItem={({ item, index }) => (
-               <MessageBubble 
-                 item={item} index={index} groupedMessages={groupedMessages} 
-                 isMe={(item.sender?._id || item.senderId) === currentUserId} messages={messages} 
-                 highlightedMsgId={highlightedMsgId} formatMessageDate={formatMessageDate} 
-                 formatTime={formatTime} parseMediaContent={parseMediaContent} 
-                 getFileIconInfo={getFileIconInfo} formatBytes={formatBytes} 
-                 buildReactionGroups={buildReactionGroups} handleLongPress={handleLongPress} 
-                 handleDoubleTap={handleDoubleTap} setPreviewMedia={setPreviewMedia} 
-                 handleToggleReact={handleToggleReact} openReactionDetails={openReactionDetails} 
-                 VideoThumbnail={VideoThumbnail} VideoViewer={VideoViewer} COLORS={COLORS} 
-                 styles={styles} t={t} isDarkMode={isDarkMode} 
-                 SCREEN_WIDTH={SCREEN_WIDTH} SCREEN_HEIGHT={SCREEN_HEIGHT}
-               />
+              <MessageBubble
+                item={item} index={index} groupedMessages={groupedMessages}
+                isMe={(item.sender?._id || item.senderId) === currentUserId} messages={messages}
+                highlightedMsgId={highlightedMsgId} formatMessageDate={formatMessageDate}
+                formatTime={formatTime} parseMediaContent={parseMediaContent}
+                getFileIconInfo={getFileIconInfo} formatBytes={formatBytes}
+                buildReactionGroups={buildReactionGroups} handleLongPress={handleLongPress}
+                handleDoubleTap={handleDoubleTap} setPreviewMedia={setPreviewMedia}
+                handleToggleReact={handleToggleReact} openReactionDetails={openReactionDetails}
+                VideoThumbnail={VideoThumbnail} VideoViewer={VideoViewer} COLORS={COLORS}
+                styles={styles} t={t} isDarkMode={isDarkMode}
+                SCREEN_WIDTH={SCREEN_WIDTH} SCREEN_HEIGHT={SCREEN_HEIGHT}
+              />
             )}
             contentContainerStyle={styles.listContent}
             onScrollToIndexFailed={(info) => { const wait = new Promise((resolve) => setTimeout(resolve, 500)); wait.then(() => { flatListRef.current?.scrollToIndex({ index: info.index, animated: true }) }) }}
             onEndReached={loadMoreMessages} onEndReachedThreshold={0.5}
-            ListFooterComponent={ !hasMore && messages.length > 0 ? (<Text style={{ textAlign: 'center', color: COLORS.textLight, paddingVertical: 10 }}>Đã tải hết lịch sử trò chuyện</Text>) : isFetchingMore ? (<ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 10 }} />) : null }
+            ListFooterComponent={!hasMore && messages.length > 0 ? (<Text style={{ textAlign: 'center', color: COLORS.textLight, paddingVertical: 10 }}>Đã tải hết lịch sử trò chuyện</Text>) : isFetchingMore ? (<ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 10 }} />) : null}
             onViewableItemsChanged={(info) => onViewableItemsChangedRef.current(info)} viewabilityConfig={viewabilityConfig.current}
           />
         )}
 
-        <MessageInput 
+        <MessageInput
           isGroupDisbanded={isGroupDisbanded} isInputDisabled={isInputDisabled} disbandMessage={disbandMessage} handleDeleteDisbandedChat={handleDeleteDisbandedChat}
           formatMessageDate={formatMessageDate} inputText={inputText} setInputText={setInputText} updateDraft={updateDraft} conversationId={conversationId}
           handleSend={handleSend} pendingMedia={pendingMedia} setPendingMedia={setPendingMedia} handlePickMedia={handlePickMedia} handlePickDocument={handlePickDocument}
@@ -709,14 +850,14 @@ const MessageScreen = () => {
       <ReactionModal showReactionDetails={showReactionDetails} setShowReactionDetails={setShowReactionDetails} reactionFilter={reactionFilter} setReactionFilter={setReactionFilter} reactionGroupsForModal={reactionGroupsForModal} reactionUsersForModal={reactionUsersForModal} COLORS={COLORS} styles={styles} t={t} isDarkMode={isDarkMode} />
       <AiSummaryModal showAiModal={showAiModal} setShowAiModal={setShowAiModal} isAiProcessing={isAiProcessing} aiSummaryText={aiSummaryText} renderAiText={renderAiText} t={t} styles={styles} />
 
-      <MessageMenuModal 
+      <MessageMenuModal
         showMenu={showMenu} setShowMenu={setShowMenu} menuPos={menuPos} setEmojiStripWidth={setEmojiStripWidth} emojiPanResponder={emojiPanResponder} hoveredReaction={hoveredReaction}
         handleRemoveAllReactions={handleRemoveAllReactions} selectedMsg={selectedMsg} handleForward={handleForward} pinnedMessages={pinnedMessages} handleTogglePinMessage={handleTogglePinMessage}
         currentUserId={currentUserId} handleRevoke={handleRevoke} handleDeleteForMe={handleDeleteForMe} COLORS={COLORS} styles={styles} t={t}
       />
 
-      <MediaPreviewModal 
-        previewMedia={previewMedia} setPreviewMedia={setPreviewMedia} SCREEN_WIDTH={SCREEN_WIDTH} SCREEN_HEIGHT={SCREEN_HEIGHT} VideoViewer={VideoViewer} styles={styles} 
+      <MediaPreviewModal
+        previewMedia={previewMedia} setPreviewMedia={setPreviewMedia} SCREEN_WIDTH={SCREEN_WIDTH} SCREEN_HEIGHT={SCREEN_HEIGHT} VideoViewer={VideoViewer} styles={styles}
       />
     </SafeAreaView>
   )
