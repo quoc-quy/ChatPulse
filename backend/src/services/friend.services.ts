@@ -25,7 +25,7 @@ class FriendService {
     if (existedRequest) {
       throw new ErrorWithStatus({
         message: 'Lời mời kết bạn đã tồn tại hoặc bạn đã là bạn bè với người này',
-        status: httpStatus.UNPROCESSABLE_ENTITY
+        status: httpStatus.CONFLICT
       })
     }
     const reverseRequest = await databaseService.friendRequests.findOne({
@@ -35,7 +35,7 @@ class FriendService {
     if (reverseRequest) {
       throw new ErrorWithStatus({
         message: 'Người này đã gửi lời mời kết bạn cho bạn trước đó, vui lòng kiểm tra danh sách lời mời',
-        status: httpStatus.UNPROCESSABLE_ENTITY
+        status: httpStatus.CONFLICT
       })
     }
     await databaseService.friendRequests.insertOne(
@@ -135,12 +135,13 @@ class FriendService {
     // 4. Gửi tin nhắn chào mừng hệ thống
     // messageService sẽ tự động cập nhật last_message_id và bắn Socket 'receive_message'
     await messageService.sendMessage(
-      user_id, // Lấy người chấp nhận làm sender đại diện
+      user_id,
       conversation!._id.toString(),
       'system',
-      'Hai bạn đã trở thành bạn bè trở lại. Hãy gửi lời chào cho nhau nhé!'
+      conversation
+        ? 'Hai bạn đã trở thành bạn bè trở lại. Hãy gửi lời chào cho nhau nhé!'
+        : 'Hai bạn đã trở thành bạn bè. Hãy gửi lời chào cho nhau nhé!'
     )
-
     return { message: 'Đã trở thành bạn bè' }
   }
 
@@ -208,7 +209,7 @@ class FriendService {
     // Tìm đoạn chat direct chung giữa 2 người
     const conversation = await databaseService.conversations.findOne({
       type: 'direct',
-      participants: { $all: [ObjectId, new ObjectId(friend_id)] }
+      participants: { $all: [new ObjectId(user_id), new ObjectId(friend_id)] }
     })
 
     if (conversation) {
