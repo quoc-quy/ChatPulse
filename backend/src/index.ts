@@ -14,6 +14,8 @@ import authRoute from './routes/auth.routes'
 import advancedSearchRouter from './routes/advancedSearch.routes'
 import groupRouter from './routes/group.routes'
 import callRouter from './routes/call.routes'
+import trafficRouter from './routes/traffic.routes'
+import traffic_ragService from './services/ai/traffic_rag.service'
 config()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
 databaseService.connect().then(async () => {
@@ -51,9 +53,12 @@ app.use('/auth', authRoute)
 app.use('/advanced-search', advancedSearchRouter)
 app.use('/groups', groupRouter)
 app.use('/calls', callRouter)
+app.use('/traffic-ai', trafficRouter)
 
 //default global error
 app.use(defaultErrorHandler)
+
+traffic_ragService.initializeVectorStore().catch(console.error)
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 })
