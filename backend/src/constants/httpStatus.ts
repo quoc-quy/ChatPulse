@@ -11,7 +11,8 @@ const httpStatus = {
   INTERNAL_SERVER_ERROR: 500,
   USER_NOT_FOUND: 404,
   BAD_REQUEST: 400,
-  PARTIAL_CONTENT: 206
+  PARTIAL_CONTENT: 206,
+  CONFLICT: 409,
 } as const
 
 export default httpStatus
