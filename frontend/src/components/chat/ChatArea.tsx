@@ -158,7 +158,7 @@ export function ChatArea({ chat }: ChatAreaProps) {
     })
   }
 
-  if (chat.type === 'ai') {
+  if (chat.type === 'ai' || chat.type === 'traffic-ai') {
     return <AIChatArea chat={chat} />
   }
 
