@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User, Bot } from 'lucide-react'
+import { Phone, Video, Search, Sparkles, PanelLeft, PanelRight, User, Bot, CarFront } from 'lucide-react'
 import { AppContext, type ChatItem } from '@/context/app.context'
 import { ChatAvatar } from '../chat-avatar'
 import { useContext, useState } from 'react'
@@ -22,7 +22,7 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
   const [openUserModal, setOpenUserModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
 
-  const isAI = chat.type === 'ai'
+  const isAI = chat.type === 'ai' || chat.type === 'traffic-ai'
   const isUnfriended = chat.isFriend === false // Kiểm tra trạng thái bạn bè
   const isDisbanded = chat.isDisbanded === true // Kiểm tra giải tán
 
@@ -67,12 +67,22 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
         <SidebarTrigger className='md:hidden -ml-2 text-foreground' />
         <Separator orientation='vertical' className='md:hidden mr-2 h-4' />
 
-        {isAI ? (
-          <div className='flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-sm border border-border shrink-0'>
+        {chat.type === 'traffic-ai' ? (
+          // Thiết kế riêng biệt cho Trợ lý Giao thông (Gradiant Cam -> Đỏ kết hợp với icon Xe ô tô)
+          <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 border border-border shadow-sm'>
+            <CarFront className='h-5 w-5 text-white' />
+          </div>
+        ) : chat.type === 'ai' ? (
+          // Thiết kế mặc định cho ChatPulse AI
+          <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 border border-border shadow-sm'>
             <Bot className='h-5 w-5 text-white' />
           </div>
         ) : (
-          <div className='relative scale-90 -mr-1 cursor-pointer hover:scale-95 transition' onClick={handleClickAvatar}>
+          // Avatar cho người dùng hoặc nhóm thông thường
+          <div
+            onClick={handleClickAvatar}
+            className={`cursor-pointer ${chat.type === 'direct' ? 'hover:brightness-95' : ''}`}
+          >
             <ChatAvatar chat={chat} currentUserId={profile?._id || ''} />
           </div>
         )}

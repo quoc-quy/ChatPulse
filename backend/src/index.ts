@@ -1,5 +1,5 @@
-import dotenv from 'dotenv';
-import path from 'path';
+import dotenv, { config } from 'dotenv'
+import path from 'path'
 import express from 'express'
 import { createServer } from 'http'
 import cors from 'cors'
@@ -29,16 +29,16 @@ databaseService.connect().then(async () => {
   await databaseService.indexConversations()
 })
 // Ép NodeJS đọc chính xác file .env nằm ngoài thư mục src
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 const app = express()
 const httpServer = createServer(app)
 const port = process.env.PORT
 
 const socket = 4001
 // In ra màn hình để kiểm tra xem đã đọc được chưa
-console.log("=== KIỂM TRA MÔI TRƯỜNG ===");
-console.log("GROQ_API_KEY:", process.env.GROQ_API_KEY ? "Đã nhận thành công ✅" : "THẤT BẠI ❌ (Vẫn là undefined)");
-console.log("===========================");
+console.log('=== KIỂM TRA MÔI TRƯỜNG ===')
+console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'Đã nhận thành công ✅' : 'THẤT BẠI ❌ (Vẫn là undefined)')
+console.log('===========================')
 // Khởi tạo Socket Service
 socketService.init(httpServer)
 

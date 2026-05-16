@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
+import { UserPlus, Bot, Users, MoreHorizontal, Trash2, CarFront } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -72,6 +72,20 @@ export function SidebarPanel2({
         avatar: '',
         isOnline: true,
         type: 'ai',
+        unreadCount: 0
+      })
+      if (isMobile) setOpenMobile(false)
+      if (location.pathname !== '/') navigate('/')
+      return
+    }
+
+    if (chatId === 'traffic-ai') {
+      setActiveChat({
+        id: 'traffic-ai',
+        name: 'ChatPulse Giao Thông',
+        avatar: '',
+        isOnline: true,
+        type: 'traffic-ai',
         unreadCount: 0
       })
       if (isMobile) setOpenMobile(false)
@@ -297,6 +311,28 @@ export function SidebarPanel2({
                     </div>
                   </div>
                   <div className='text-sm truncate text-muted-foreground'>Trợ lý ảo thông minh</div>
+                </div>
+              </div>
+
+              <div
+                id='chat-item-traffic-ai'
+                onClick={() => handleChatSelect('traffic-ai')}
+                className={`flex items-center gap-3 min-h-16 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
+                  activeChat?.id === 'traffic-ai' ? 'bg-muted/80' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className='shrink-0'>
+                  <div className='flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 shadow-sm border border-border'>
+                    <CarFront className='h-6 w-6 text-white' />
+                  </div>
+                </div>
+                <div className='flex-1 overflow-hidden'>
+                  <div className='flex justify-between items-center mb-0.5 gap-2'>
+                    <div className='font-bold text-sm truncate text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600'>
+                      ChatPulse Giao Thông
+                    </div>
+                  </div>
+                  <div className='text-sm truncate text-muted-foreground'>Trợ lý Luật GTĐB (RAG)</div>
                 </div>
               </div>
 
