@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 
 // ─────────────────────────────────────────────
-// TYPES (Đồng bộ với Backend mới nhất)
+// TYPES (Đồng bộ với cấu trúc Backend)
 // ─────────────────────────────────────────────
 export interface LegalReference {
   location: string
@@ -75,9 +75,12 @@ const LegalReferencesList = ({ refs }: { refs: LegalReference[] }) => {
         </h4>
         <ul className='space-y-2 pl-1 text-xs text-slate-600 dark:text-slate-400'>
           {refs.map((ref, idx) => {
-            const searchUrl = ref.documentId
-              ? `https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=${encodeURIComponent(ref.documentId)}`
-              : ref.url
+            // Ưu tiên sử dụng liên kết chính xác từ metadata, nếu không có mới dùng link tìm kiếm
+            const targetUrl =
+              ref.url ||
+              (ref.documentId
+                ? `https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=${encodeURIComponent(ref.documentId)}`
+                : undefined)
 
             return (
               <li key={idx} className='flex items-start gap-2'>
@@ -86,14 +89,14 @@ const LegalReferencesList = ({ refs }: { refs: LegalReference[] }) => {
                   <span className='font-medium text-slate-700 dark:text-slate-300'>{ref.location}</span>
                   {ref.documentId && `, ${ref.documentId}`}
                   <p className='text-[11px] opacity-80 mt-0.5'>{ref.documentName}</p>
-                  {searchUrl && (
+                  {targetUrl && (
                     <a
-                      href={searchUrl}
+                      href={targetUrl}
                       target='_blank'
                       rel='noopener noreferrer'
                       className='text-blue-500 hover:underline flex items-center gap-1 mt-0.5'
                     >
-                      Tra cứu văn bản <ExternalLink className='w-3 h-3' />
+                      Xem văn bản gốc <ExternalLink className='w-3 h-3' />
                     </a>
                   )}
                 </div>
@@ -126,7 +129,7 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
   if (data.type === 'general') {
     return (
       <Card className='w-full max-w-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-blue-200 dark:border-blue-900/50 shadow-sm'>
-        <CardHeader className='p-3 bg-blue-50/50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/30'>
+        <CardHeader className='pb-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-t-xl border-b border-blue-100 dark:border-blue-900/30'>
           <CardTitle className='text-[16px] flex items-start gap-2 text-blue-700 dark:text-blue-400 leading-snug'>
             <Info className='w-5 h-5 shrink-0 mt-0.5 text-blue-500' />
             <span>{data.title || 'Thông tin tra cứu'}</span>
@@ -134,7 +137,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
         </CardHeader>
 
         <CardContent className='pt-4 space-y-4 text-sm'>
-          {/* Summary & Explanation */}
           <div className='space-y-3'>
             <p className='font-semibold text-slate-800 dark:text-slate-200 text-[15px] leading-relaxed'>
               {data.summary}
@@ -147,7 +149,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
             )}
           </div>
 
-          {/* Details */}
           {data.details && data.details.length > 0 && (
             <ul className='space-y-2 pl-6 list-disc text-slate-700 dark:text-slate-300 marker:text-blue-400'>
               {data.details.map((detail, idx) => (
@@ -158,7 +159,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
             </ul>
           )}
 
-          {/* Practical Advice */}
           {data.practicalAdvice && (
             <div className='bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 p-3 rounded-md text-xs flex gap-2 border border-emerald-100 dark:border-emerald-800/50 mt-2'>
               <Lightbulb className='w-4 h-4 shrink-0' />
@@ -182,7 +182,7 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
   if (data.type === 'violation') {
     return (
       <Card className='w-full max-w-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden'>
-        <CardHeader className='p-3 bg-red-50/50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/30'>
+        <CardHeader className='pb-3 bg-red-50/50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/30'>
           <CardTitle className='text-[16px] flex items-start gap-2 text-red-700 dark:text-red-400'>
             <ShieldAlert className='w-5 h-5 shrink-0 mt-0.5' />
             <div className='flex flex-col gap-1'>
@@ -193,7 +193,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
         </CardHeader>
 
         <CardContent className='pt-4 space-y-4 text-sm'>
-          {/* User Friendly Explanation */}
           {data.userFriendlyExplanation && (
             <div className='flex gap-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800'>
               <MessageSquare className='w-4 h-4 shrink-0 mt-0.5 text-slate-500' />
@@ -201,7 +200,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
             </div>
           )}
 
-          {/* Penalties List */}
           {data.penalties && data.penalties.length > 0 && (
             <div className='grid gap-3'>
               {data.penalties.map((penalty, idx) => (
@@ -248,7 +246,6 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
             </div>
           )}
 
-          {/* Practical Advice */}
           {data.practicalAdvice && (
             <div className='bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 p-3 rounded-md text-xs flex gap-2 border border-emerald-100 dark:border-emerald-800/50 mt-2'>
               <Lightbulb className='w-4 h-4 shrink-0' />
