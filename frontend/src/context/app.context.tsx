@@ -23,6 +23,7 @@ export interface ChatItem {
   participants?: any[]
   admin_id?: string
   isDisbanded?: boolean
+  isFriend?: boolean
 }
 
 interface AppContextInterface {

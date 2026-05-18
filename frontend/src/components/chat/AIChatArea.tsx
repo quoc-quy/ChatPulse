@@ -7,6 +7,8 @@ import { Send, Bot, CarFront, Loader2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { aiApi } from '@/apis/ai.api'
 import { trafficApi } from '@/apis/traffic.api'
+import { TrafficCard } from './TrafficCard'
+import type { TrafficResponseCard } from './TrafficCard'
 
 interface AIChatAreaProps {
   chat: ChatItem
@@ -26,12 +28,11 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Cấu hình giao diện và nội dung động cho từng loại AI
   const config = {
     welcomeText: isTraffic
-      ? 'Chào bạn! Tôi là chuyên gia Luật Giao Thông của ChatPulse. Tôi sử dụng hệ thống RAG để tra cứu hàng ngàn điều luật cực kỳ chính xác. Bạn muốn tra cứu vấn đề gì?'
+      ? 'Chào bạn! Tôi là chuyên gia Luật Giao Thông của ChatPulse. Bạn muốn tra cứu mức phạt, điều luật hay quy định nào?'
       : 'Xin chào! Tôi là ChatPulse AI. Tôi có thể giúp gì cho bạn hôm nay?',
-    placeholder: isTraffic ? 'Tra cứu luật giao thông, mức phạt, vỉa hè...' : 'Hỏi ChatPulse AI điều gì đó...',
+    placeholder: isTraffic ? 'Tra cứu luật giao thông, mức phạt, nồng độ cồn...' : 'Hỏi ChatPulse AI điều gì đó...',
     themeGradient: isTraffic ? 'from-orange-500 to-red-600' : 'from-purple-600 to-indigo-600',
     avatarGradient: isTraffic ? 'from-orange-400 to-red-500' : 'from-purple-500 to-indigo-600',
     ringColor: isTraffic ? 'focus:ring-orange-500' : 'focus:ring-purple-500',
@@ -43,7 +44,6 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
   const [inputText, setInputText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
 
-  // Tự động reset và thiết lập lời chào khi chuyển đổi giữa các Chatbot
   useEffect(() => {
     setMessages([
       {
@@ -57,7 +57,6 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
     setIsTyping(false)
   }, [chat.id, chat.type, config.welcomeText])
 
-  // Tự động cuộn mượt mà xuống tin nhắn mới nhất
   const scrollToBottom = () => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
@@ -70,7 +69,7 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
 
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.style.height = '44px' // Chiều cao cơ bản ban đầu
+      inputRef.current.style.height = '44px'
       const scrollHeight = inputRef.current.scrollHeight
       if (scrollHeight > 130) {
         inputRef.current.style.height = '130px'
@@ -102,11 +101,15 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
       let aiResponseText = ''
 
       if (isTraffic) {
-        // Gọi API hệ thống RAG Luật Giao Thông
         const response = await trafficApi.askTrafficAI(userMessage.text)
-        aiResponseText = response.data?.data || 'Xin lỗi, hệ thống không thể xử lý câu hỏi lúc này.'
+        const trafficData = response.data?.data
+
+        if (trafficData && typeof trafficData === 'object') {
+          aiResponseText = JSON.stringify(trafficData)
+        } else {
+          aiResponseText = trafficData || 'Xin lỗi, hệ thống không thể xử lý câu hỏi lúc này.'
+        }
       } else {
-        // Gọi API ChatPulse AI thông thường kèm theo ngữ cảnh lịch sử
         const chatContext = messages
           .filter((m) => m.id !== 'welcome-msg')
           .map((m) => ({ role: m.role, content: m.text }))
@@ -151,14 +154,11 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
   }
 
   return (
-    // THAY THÀNH h-screen ĐỂ KHÓA CHẶT CHIỀU CAO THEO VIEWPORT, CHỐNG TRÔI CỦA HEADER/FOOTER
     <div className='flex flex-col h-screen w-full overflow-hidden bg-background'>
-      {/* Header cố định hoàn toàn */}
       <div className='shrink-0 bg-background z-20 border-b border-border/40'>
         <ChatHeader chat={chat} onToggleInfoPanel={onToggleInfoPanel} isInfoPanelOpen={isInfoPanelOpen} />
       </div>
 
-      {/* Vùng chứa tin nhắn chịu trách nhiệm scroll độc lập */}
       <div ref={containerRef} className='flex-1 overflow-y-auto p-4 scroll-smooth bg-muted/10'>
         <div className='flex flex-col gap-4 min-h-full'>
           {messages.map((msg) => {
@@ -173,23 +173,42 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
                   </Avatar>
                 )}
 
-                <div
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${
-                    isUser
-                      ? `bg-gradient-to-r ${config.themeGradient} text-white rounded-tr-sm`
-                      : 'bg-background border border-border text-foreground rounded-tl-sm'
-                  }`}
-                >
-                  <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>{msg.text}</p>
+                <div className={`${isUser ? 'max-w-[75%]' : 'max-w-[85%] w-full flex flex-col'}`}>
+                  {(() => {
+                    if (isUser) {
+                      return (
+                        <div
+                          className={`px-4 py-2.5 rounded-2xl shadow-sm bg-gradient-to-r ${config.themeGradient} text-white rounded-tr-sm inline-block w-fit ml-auto`}
+                        >
+                          <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>{msg.text}</p>
+                        </div>
+                      )
+                    }
+
+                    if (isTraffic && msg.id !== 'welcome-msg') {
+                      try {
+                        const parsedData = JSON.parse(msg.text)
+                        const cardData: TrafficResponseCard = parsedData.card || parsedData
+
+                        if (cardData && ['violation', 'general', 'not_found'].includes(cardData.type)) {
+                          return <TrafficCard data={cardData} />
+                        }
+                      } catch (e) {
+                        // Bỏ qua lỗi parse, fallback hiển thị text
+                      }
+                    }
+
+                    return (
+                      <div className='px-4 py-2.5 rounded-2xl shadow-sm bg-background border border-border text-foreground rounded-tl-sm inline-block w-fit'>
+                        <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>{msg.text}</p>
+                      </div>
+                    )
+                  })()}
+
                   <span
-                    className={`text-[10px] mt-1 block ${
-                      isUser ? 'text-white/70 text-right' : 'text-muted-foreground text-left'
-                    }`}
+                    className={`text-[10px] mt-1 block ${isUser ? 'text-white/70 text-right' : 'text-muted-foreground text-left ml-1'}`}
                   >
-                    {msg.timestamp.toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>
@@ -203,7 +222,6 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
               >
                 <config.Icon className='w-4 h-4 text-white' />
               </Avatar>
-
               <div className='bg-background border border-border px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5'>
                 <span className={`w-2 h-2 ${config.typingDot} rounded-full animate-bounce`} />
                 <span
@@ -220,7 +238,6 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
         </div>
       </div>
 
-      {/* Footer cố định hoàn toàn ở dưới đáy */}
       <div className='shrink-0 border-t border-border/40 bg-background p-4 shadow-sm z-20 flex items-end gap-2'>
         <div
           className={`relative flex-1 flex items-end bg-muted rounded-[24px] outline-none ring-0 transition-all focus-within:ring-2 ${config.ringColor}`}
@@ -237,7 +254,6 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
             rows={1}
           />
         </div>
-
         <div className='pb-[2px]'>
           <button
             onClick={handleSend}
