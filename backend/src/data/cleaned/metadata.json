@@ -14,7 +14,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T13:59:16.949972",
-    "cleaned_path": "cleaned\\hinh_phat\\32_2023_TT-BCA_532895.txt"
+    "cleaned_path": "cleaned\\hinh_phat\\32_2023_TT-BCA_532895.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Vi-pham-hanh-chinh/Thong-tu-32-2023-TT-BCA-quy-trinh-tuan-tra-kiem-soat-xu-ly-vi-pham-hanh-chinh-giao-thong-duong-bo-532895.aspx"
   },
   {
     "filename": "55_2021_ND-CP_475212.doc",
@@ -31,7 +32,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Vai trò phụ — liên quan đến phương tiện gây ô nhiễm môi trường",
     "cleaned_date": "2026-05-15T13:59:21.504781",
-    "cleaned_path": "cleaned\\hinh_phat\\55_2021_ND-CP_475212.txt"
+    "cleaned_path": "cleaned\\hinh_phat\\55_2021_ND-CP_475212.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Vi-pham-hanh-chinh/Nghi-dinh-55-2021-ND-CP-sua-doi-Nghi-dinh-155-2016-ND-CP-xu-phat-hanh-chinh-bao-ve-moi-truong-475212.aspx"
   },
   {
     "filename": "62_2024_TT-BCA_640193.doc",
@@ -54,7 +56,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Kỹ thuật hệ thống camera — ít liên quan trực tiếp đến câu hỏi người dùng",
     "cleaned_date": "2026-05-15T13:59:24.794998",
-    "cleaned_path": "cleaned\\hinh_phat\\62_2024_TT-BCA_640193.txt"
+    "cleaned_path": "cleaned\\hinh_phat\\62_2024_TT-BCA_640193.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-62-2024-TT-BCA-Quy-chuan-he-thong-giam-sat-bao-dam-an-toan-giao-thong-duong-bo-640193.aspx"
   },
   {
     "filename": "91_2019_ND-CP_379364.doc",
@@ -71,7 +74,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T13:59:27.072175",
-    "cleaned_path": "cleaned\\hinh_phat\\91_2019_ND-CP_379364.txt"
+    "cleaned_path": "cleaned\\hinh_phat\\91_2019_ND-CP_379364.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Bat-dong-san/Nghi-dinh-91-2019-ND-CP-xu-phat-vi-pham-hanh-chinh-trong-linh-vuc-dat-dai-379364.aspx"
   },
   {
     "filename": "15_2012_QH13_142766.doc",
@@ -96,7 +100,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Luật gốc về xử phạt VPHC — quy định nguyên tắc, thẩm quyền, thủ tục mà NĐ 168 áp dụng",
     "cleaned_date": "2026-05-15T13:59:30.267284",
-    "cleaned_path": "cleaned\\luat\\15_2012_QH13_142766.txt"
+    "cleaned_path": "cleaned\\luat\\15_2012_QH13_142766.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Vi-pham-hanh-chinh/Luat-xu-ly-vi-pham-hanh-chinh-2012-142766.aspx"
   },
   {
     "filename": "35_2018_QH14_390511.doc",
@@ -113,7 +118,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Vai trò phụ trong corpus giao thông — chỉ liên quan đến phần quy hoạch",
     "cleaned_date": "2026-05-15T13:59:34.800478",
-    "cleaned_path": "cleaned\\luat\\35_2018_QH14_390511.txt"
+    "cleaned_path": "cleaned\\luat\\35_2018_QH14_390511.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Quy-hoach/Luat-sua-doi-bo-sung-mot-so-dieu-cua-37-luat-co-lien-quan-den-quy-hoach-390511.aspx"
   },
   {
     "filename": "35_2024_QH15_588811.doc",
@@ -139,7 +145,8 @@
     "van_ban_bi_bai_bo": ["Một phần Luật Giao thông đường bộ 23/2008/QH12 (phần hạ tầng, phương tiện, vận tải)"],
     "ghi_chu": "Một trong 2 luật thay thế Luật GTĐB 2008. Tập trung vào hạ tầng và phương tiện.",
     "cleaned_date": "2026-05-15T13:59:37.906702",
-    "cleaned_path": "cleaned\\luat\\35_2024_QH15_588811.txt"
+    "cleaned_path": "cleaned\\luat\\35_2024_QH15_588811.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Luat-Duong-bo-2024-588811.aspx"
   },
   {
     "filename": "36_2024_QH15_444251.doc",
@@ -171,7 +178,8 @@
     "van_ban_bi_bai_bo": ["Phần quy tắc giao thông của Luật GTĐB 23/2008/QH12"],
     "ghi_chu": "Luật cốt lõi nhất cho chatbot giao thông. Chứa toàn bộ quy tắc đường bộ, hệ thống điểm GPLX mới.",
     "cleaned_date": "2026-05-15T13:59:41.047641",
-    "cleaned_path": "cleaned\\luat\\36_2024_QH15_444251.txt"
+    "cleaned_path": "cleaned\\luat\\36_2024_QH15_444251.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Luat-trat-tu-an-toan-giao-thong-duong-bo-2024-so-36-2024-QH15-444251.aspx"
   },
   {
     "filename": "44_2019_QH14_336620.doc",
@@ -188,7 +196,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Điều 5 khoản 6 cấm điều khiển phương tiện khi có nồng độ cồn — căn cứ pháp lý cùng với NĐ 168",
     "cleaned_date": "2026-05-15T13:59:44.142657",
-    "cleaned_path": "cleaned\\luat\\44_2019_QH14_336620.txt"
+    "cleaned_path": "cleaned\\luat\\44_2019_QH14_336620.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/The-thao-Y-te/Luat-Phong-chong-tac-hai-cua-ruou-bia-336620.aspx"
   },
   {
     "filename": "100_2019_ND-CP_426369.doc",
@@ -205,7 +214,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T13:59:47.341781",
-    "cleaned_path": "cleaned\\nghi_dinh\\100_2019_ND-CP_426369.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\100_2019_ND-CP_426369.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-100-2019-ND-CP-xu-phat-vi-pham-hanh-chinh-giao-thong-duong-bo-duong-sat-426369.aspx"
   },
   {
     "filename": "109_2009_ND-CP_98196.doc",
@@ -230,7 +240,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy định về tín hiệu và quyền ưu tiên của xe đặc biệt",
     "cleaned_date": "2026-05-15T13:59:50.433538",
-    "cleaned_path": "cleaned\\nghi_dinh\\109_2009_ND-CP_98196.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\109_2009_ND-CP_98196.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-109-2009-ND-CP-tin-hieu-xe-uu-tien-98196.aspx"
   },
   {
     "filename": "10_2020_ND-CP_315260.doc",
@@ -247,7 +258,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Đã được sửa đổi bởi NĐ 47/2022. Một phần đã được thay thế bởi NĐ 158/2024.",
     "cleaned_date": "2026-05-15T13:59:54.957059",
-    "cleaned_path": "cleaned\\nghi_dinh\\10_2020_ND-CP_315260.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\10_2020_ND-CP_315260.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-10-2020-ND-CP-kinh-doanh-van-tai-xe-o-to-315260.aspx"
   },
   {
     "filename": "117_2021_ND-CP_498263.doc",
@@ -264,7 +276,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Bản sửa đổi NĐ 11/2010",
     "cleaned_date": "2026-05-15T13:59:59.404783",
-    "cleaned_path": "cleaned\\nghi_dinh\\117_2021_ND-CP_498263.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\117_2021_ND-CP_498263.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-117-2021-ND-CP-sua-doi-Nghi-dinh-11-2010-ND-CP-quan-ly-bao-ve-ket-cau-ha-tang-giao-thong-duong-bo-498263.aspx"
   },
   {
     "filename": "11_2010_ND-CP_101495.doc",
@@ -287,7 +300,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Đã được sửa đổi bởi NĐ 117/2021",
     "cleaned_date": "2026-05-15T14:00:02.610630",
-    "cleaned_path": "cleaned\\nghi_dinh\\11_2010_ND-CP_101495.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\11_2010_ND-CP_101495.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-11-2010-ND-CP-quan-ly-bao-ve-ket-cau-ha-tang-giao-thong-duong-bo-101495.aspx"
   },
   {
     "filename": "123_2021_ND-CP_477975.doc",
@@ -304,7 +318,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T14:00:05.846039",
-    "cleaned_path": "cleaned\\nghi_dinh\\123_2021_ND-CP_477975.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\123_2021_ND-CP_477975.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Vi-pham-hanh-chinh/Nghi-dinh-123-2021-ND-CP-sua-doi-xu-phat-VPHC-hang-hai-giao-thong-duong-bo-duong-sat-hang-khong-477975.aspx"
   },
   {
     "filename": "151_2024_ND-CP_619564.doc",
@@ -332,7 +347,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Chứa chi tiết về hệ thống 12 điểm GPLX mới — rất hay được hỏi",
     "cleaned_date": "2026-05-15T14:00:10.681576",
-    "cleaned_path": "cleaned\\nghi_dinh\\151_2024_ND-CP_619564.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\151_2024_ND-CP_619564.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-151-2024-ND-CP-huong-dan-Luat-Trat-tu-an-toan-giao-thong-duong-bo-619564.aspx"
   },
   {
     "filename": "156_2024_ND-CP_635371.doc",
@@ -349,7 +365,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy định mới về đấu giá biển số xe ô tô",
     "cleaned_date": "2026-05-15T14:00:14.230927",
-    "cleaned_path": "cleaned\\nghi_dinh\\156_2024_ND-CP_635371.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\156_2024_ND-CP_635371.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-156-2024-ND-CP-dau-gia-bien-so-xe-635371.aspx"
   },
   {
     "filename": "158_2024_ND-CP_636875.doc",
@@ -379,7 +396,8 @@
     "van_ban_bi_bai_bo": ["86/2014/NĐ-CP"],
     "ghi_chu": "Thay thế NĐ 86/2014. Quy định mới nhất về kinh doanh vận tải và xe công nghệ.",
     "cleaned_date": "2026-05-15T14:00:17.544436",
-    "cleaned_path": "cleaned\\nghi_dinh\\158_2024_ND-CP_636875.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\158_2024_ND-CP_636875.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-158-2024-ND-CP-quy-dinh-hoat-dong-van-tai-duong-bo-636875.aspx"
   },
   {
     "filename": "15_2020_ND-CP_350499.doc",
@@ -396,7 +414,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Ít liên quan trực tiếp đến câu hỏi giao thông thông thường",
     "cleaned_date": "2026-05-15T14:00:22.192506",
-    "cleaned_path": "cleaned\\nghi_dinh\\15_2020_ND-CP_350499.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\15_2020_ND-CP_350499.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Vi-pham-hanh-chinh/Nghi-dinh-15-2020-ND-CP-xu-phat-VPHC-buu-chinh-vien-thong-cong-nghe-thong-tin-350499.aspx"
   },
   {
     "filename": "160_2024_ND-CP_624017.doc",
@@ -428,7 +447,8 @@
     "van_ban_bi_bai_bo": ["65/2016/NĐ-CP"],
     "ghi_chu": "Thay thế NĐ 65/2016. Rất hay được hỏi về điều kiện, quy trình thi bằng lái.",
     "cleaned_date": "2026-05-15T14:00:24.560247",
-    "cleaned_path": "cleaned\\nghi_dinh\\160_2024_ND-CP_624017.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\160_2024_ND-CP_624017.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-160-2024-ND-CP-quy-dinh-ve-hoat-dong-dao-tao-va-sat-hach-lai-xe-624017.aspx"
   },
   {
     "filename": "168_2024_ND-CP_619502.doc",
@@ -463,7 +483,8 @@
     "van_ban_bi_bai_bo": ["100/2019/NĐ-CP", "123/2021/NĐ-CP"],
     "ghi_chu": "Văn bản QUAN TRỌNG NHẤT cho các câu hỏi về mức phạt giao thông. Tăng mạnh mức phạt so với NĐ 100/2019.",
     "cleaned_date": "2026-05-15T14:00:29.154268",
-    "cleaned_path": "cleaned\\nghi_dinh\\168_2024_ND-CP_619502.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\168_2024_ND-CP_619502.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-168-2024-ND-CP-xu-phat-vi-pham-hanh-chinh-an-toan-giao-thong-duong-bo-619502.aspx"
   },
   {
     "filename": "176_2024_ND-CP_637930.doc",
@@ -480,7 +501,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Ít liên quan trực tiếp đến người dùng thông thường",
     "cleaned_date": "2026-05-15T14:00:30.001802",
-    "cleaned_path": "cleaned\\nghi_dinh\\176_2024_ND-CP_637930.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\176_2024_ND-CP_637930.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-176-2024-ND-CP-quan-ly-kinh-phi-xu-phat-VPHC-giao-thong-637930.aspx"
   },
   {
     "filename": "25_2023_ND-CP_566989.doc",
@@ -497,7 +519,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Bản sửa đổi NĐ 32/2014",
     "cleaned_date": "2026-05-15T14:00:35.261325",
-    "cleaned_path": "cleaned\\nghi_dinh\\25_2023_ND-CP_566989.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\25_2023_ND-CP_566989.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-25-2023-ND-CP-sua-doi-Nghi-dinh-32-2014-ND-CP-duong-cao-toc-566989.aspx"
   },
   {
     "filename": "32_2014_ND-CP_227095.doc",
@@ -521,7 +544,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Đã được sửa đổi bởi NĐ 25/2023. Liên quan câu hỏi về quy tắc đường cao tốc.",
     "cleaned_date": "2026-05-15T14:00:39.738619",
-    "cleaned_path": "cleaned\\nghi_dinh\\32_2014_ND-CP_227095.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\32_2014_ND-CP_227095.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-32-2014-ND-CP-quan-ly-khai-thac-bao-tri-duong-cao-toc-227095.aspx"
   },
   {
     "filename": "34_2024_ND-CP_604804.doc",
@@ -538,7 +562,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Đặc thù, ít liên quan đến người dùng thông thường",
     "cleaned_date": "2026-05-15T14:00:44.289742",
-    "cleaned_path": "cleaned\\nghi_dinh\\34_2024_ND-CP_604804.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\34_2024_ND-CP_604804.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-34-2024-ND-CP-hang-hoa-nguy-hiem-van-chuyen-duong-bo-604804.aspx"
   },
   {
     "filename": "47_2022_ND-CP_522482.doc",
@@ -555,7 +580,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Bản sửa đổi NĐ 10/2020",
     "cleaned_date": "2026-05-15T14:00:47.387663",
-    "cleaned_path": "cleaned\\nghi_dinh\\47_2022_ND-CP_522482.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\47_2022_ND-CP_522482.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-47-2022-ND-CP-sua-doi-Nghi-dinh-10-2020-ND-CP-kinh-doanh-van-tai-522482.aspx"
   },
   {
     "filename": "65_2016_ND-CP_315465.doc",
@@ -572,7 +598,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T14:00:50.593614",
-    "cleaned_path": "cleaned\\nghi_dinh\\65_2016_ND-CP_315465.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\65_2016_ND-CP_315465.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-65-2016-ND-CP-dieu-kien-kinh-doanh-dao-tao-lai-xe-315465.aspx"
   },
   {
     "filename": "86_2014_ND-CP_248987.doc",
@@ -589,7 +616,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "",
     "cleaned_date": "2026-05-15T14:00:55.049705",
-    "cleaned_path": "cleaned\\nghi_dinh\\86_2014_ND-CP_248987.txt"
+    "cleaned_path": "cleaned\\nghi_dinh\\86_2014_ND-CP_248987.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Nghi-dinh-86-2014-ND-CP-kinh-doanh-van-tai-xe-o-to-248987.aspx"
   },
   {
     "filename": "12_2020_TT-BGTVT_292769.doc",
@@ -606,7 +634,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quản lý hệ thống vận tải xe khách",
     "cleaned_date": "2026-05-15T14:00:58.459373",
-    "cleaned_path": "cleaned\\thong_tu\\12_2020_TT-BGTVT_292769.txt"
+    "cleaned_path": "cleaned\\thong_tu\\12_2020_TT-BGTVT_292769.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-12-2020-TT-BGTVT-to-chuc-quan-ly-van-tai-xe-o-to-292769.aspx"
   },
   {
     "filename": "35_2024_TT-BGTVT_624356.doc",
@@ -636,7 +665,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Hướng dẫn chi tiết nhất về quy trình thi và cấp GPLX",
     "cleaned_date": "2026-05-15T14:01:03.048074",
-    "cleaned_path": "cleaned\\thong_tu\\35_2024_TT-BGTVT_624356.txt"
+    "cleaned_path": "cleaned\\thong_tu\\35_2024_TT-BGTVT_624356.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-35-2024-TT-BGTVT-dao-tao-sat-hach-cap-GPLX-624356.aspx"
   },
   {
     "filename": "36_2024_TT-BYT_622478.doc",
@@ -653,7 +683,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Yêu cầu y tế bắt buộc khi thi bằng lái xe",
     "cleaned_date": "2026-05-15T14:01:06.169423",
-    "cleaned_path": "cleaned\\thong_tu\\36_2024_TT-BYT_622478.txt"
+    "cleaned_path": "cleaned\\thong_tu\\36_2024_TT-BYT_622478.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/The-thao-Y-te/Thong-tu-36-2024-TT-BYT-tieu-chuan-suc-khoe-lai-xe-622478.aspx"
   },
   {
     "filename": "39_2024_TT-BGTVT_633952.doc",
@@ -678,7 +709,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Liên quan đến xe tải quá tải, tải trọng đường bộ",
     "cleaned_date": "2026-05-15T14:01:07.106177",
-    "cleaned_path": "cleaned\\thong_tu\\39_2024_TT-BGTVT_633952.txt"
+    "cleaned_path": "cleaned\\thong_tu\\39_2024_TT-BGTVT_633952.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-39-2024-TT-BGTVT-tai-trong-kho-gioi-han-duong-bo-633952.aspx"
   },
   {
     "filename": "45_2019_TT-BGTVT_428207.doc",
@@ -695,7 +727,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Kỹ thuật xe điện — ít liên quan đến câu hỏi thông thường",
     "cleaned_date": "2026-05-15T14:01:11.786295",
-    "cleaned_path": "cleaned\\thong_tu\\45_2019_TT-BGTVT_428207.txt"
+    "cleaned_path": "cleaned\\thong_tu\\45_2019_TT-BGTVT_428207.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-45-2019-TT-BGTVT-quy-chuan-ky-thuat-xe-dap-dien-xe-may-dien-428207.aspx"
   },
   {
     "filename": "51_2024_TT-BGTVT_633562.doc",
@@ -725,7 +758,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Thay thế QCVN 41:2019. Rất hữu ích cho câu hỏi về ý nghĩa biển báo, vạch kẻ đường.",
     "cleaned_date": "2026-05-15T14:01:15.090214",
-    "cleaned_path": "cleaned\\thong_tu\\51_2024_TT-BGTVT_633562.txt"
+    "cleaned_path": "cleaned\\thong_tu\\51_2024_TT-BGTVT_633562.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-51-2024-TT-BGTVT-Quy-chuan-ky-thuat-bao-hieu-duong-bo-633562.aspx"
   },
   {
     "filename": "52_2024_TT-BGTVT_622845.doc",
@@ -751,7 +785,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Điều kiện kỹ thuật bắt buộc của phương tiện",
     "cleaned_date": "2026-05-15T14:01:15.941494",
-    "cleaned_path": "cleaned\\thong_tu\\52_2024_TT-BGTVT_622845.txt"
+    "cleaned_path": "cleaned\\thong_tu\\52_2024_TT-BGTVT_622845.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-52-2024-TT-BGTVT-yeu-cau-ky-thuat-xe-co-gioi-622845.aspx"
   },
   {
     "filename": "65_2024_TT-BCA_632409.doc",
@@ -768,7 +803,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Cực kỳ quan trọng cho hệ thống điểm GPLX mới — cách phục hồi điểm",
     "cleaned_date": "2026-05-15T14:01:20.396719",
-    "cleaned_path": "cleaned\\thong_tu\\65_2024_TT-BCA_632409.txt"
+    "cleaned_path": "cleaned\\thong_tu\\65_2024_TT-BCA_632409.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-65-2024-TT-BCA-kiem-tra-phuc-hoi-diem-GPLX-632409.aspx"
   },
   {
     "filename": "69_2024_TT-BCA_632297.doc",
@@ -791,7 +827,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy định chi tiết hiệu lệnh tay và gậy của CSGT",
     "cleaned_date": "2026-05-15T14:01:23.498967",
-    "cleaned_path": "cleaned\\thong_tu\\69_2024_TT-BCA_632297.txt"
+    "cleaned_path": "cleaned\\thong_tu\\69_2024_TT-BCA_632297.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-69-2024-TT-BCA-chi-huy-dieu-khien-giao-thong-CSG-T-632297.aspx"
   },
   {
     "filename": "71_2024_TT-BCA_631648.doc",
@@ -808,7 +845,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy định nội bộ về thiết bị CSGT",
     "cleaned_date": "2026-05-15T14:01:26.679936",
-    "cleaned_path": "cleaned\\thong_tu\\71_2024_TT-BCA_631648.txt"
+    "cleaned_path": "cleaned\\thong_tu\\71_2024_TT-BCA_631648.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-71-2024-TT-BCA-quan-ly-du-lieu-thiet-bi-giam-sat-631648.aspx"
   },
   {
     "filename": "72_2024_TT-BCA_633011.doc",
@@ -825,7 +863,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy trình xử lý hiện trường tai nạn giao thông",
     "cleaned_date": "2026-05-15T14:01:30.031528",
-    "cleaned_path": "cleaned\\thong_tu\\72_2024_TT-BCA_633011.txt"
+    "cleaned_path": "cleaned\\thong_tu\\72_2024_TT-BCA_633011.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-72-2024-TT-BCA-quy-trinh-dieu-tra-giai-quyet-tai-nan-giao-thong-633011.aspx"
   },
   {
     "filename": "73_2024_TT-BCA_633438.doc",
@@ -853,7 +892,8 @@
     "van_ban_bi_bai_bo": ["32/2023/TT-BCA"],
     "ghi_chu": "Quy định rõ quyền của người bị dừng xe, quy trình CSGT xử lý vi phạm",
     "cleaned_date": "2026-05-15T14:01:33.141545",
-    "cleaned_path": "cleaned\\thong_tu\\73_2024_TT-BCA_633438.txt"
+    "cleaned_path": "cleaned\\thong_tu\\73_2024_TT-BCA_633438.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-73-2024-TT-BCA-tuan-tra-kiem-soat-xu-ly-vi-pham-CSG-T-633438.aspx"
   },
   {
     "filename": "79_2024_TT-BCA_634265.doc",
@@ -880,7 +920,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Quy định chi tiết thủ tục đăng ký xe và biển số",
     "cleaned_date": "2026-05-15T14:01:38.115389",
-    "cleaned_path": "cleaned\\thong_tu\\79_2024_TT-BCA_634265.txt"
+    "cleaned_path": "cleaned\\thong_tu\\79_2024_TT-BCA_634265.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-79-2024-TT-BCA-dang-ky-xe-bien-so-xe-634265.aspx"
   },
   {
     "filename": "81_2024_TT-BCA_634495.doc",
@@ -897,7 +938,8 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Tiêu chuẩn kỹ thuật biển số — ít liên quan đến câu hỏi thông thường",
     "cleaned_date": "2026-05-15T14:01:41.250030",
-    "cleaned_path": "cleaned\\thong_tu\\81_2024_TT-BCA_634495.txt"
+    "cleaned_path": "cleaned\\thong_tu\\81_2024_TT-BCA_634495.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-81-2024-TT-BCA-Quy-chuan-ky-thuat-bien-so-xe-634495.aspx"
   },
   {
     "filename": "83_2024_TT-BCA_632255.doc",
@@ -914,6 +956,7 @@
     "van_ban_bi_bai_bo": [],
     "ghi_chu": "Liên quan đến hệ thống dữ liệu giao thông và ứng dụng VNeTraffic",
     "cleaned_date": "2026-05-15T14:01:44.327687",
-    "cleaned_path": "cleaned\\thong_tu\\83_2024_TT-BCA_632255.txt"
+    "cleaned_path": "cleaned\\thong_tu\\83_2024_TT-BCA_632255.txt",
+    "url": "https://thuvienphapluat.vn/van-ban/Giao-thong-Van-tai/Thong-tu-83-2024-TT-BCA-he-thong-giam-sat-an-ninh-trat-tu-ATGT-632255.aspx"
   }
 ]

@@ -26,6 +26,7 @@ interface DocumentMeta {
   ghi_chu: string
   cleaned_date: string
   cleaned_path: string
+  url?: string // Nhận trường url mới được bổ sung từ metadata.json
 }
 
 interface VectorChunk {
@@ -50,40 +51,40 @@ interface VectorChunk {
 }
 
 // ─────────────────────────────────────────────
-// STRUCTURED RESPONSE TYPES — CẬP NHẬT THEO PROMPT MỚI
+// STRUCTURED RESPONSE TYPES — dùng chung ở backend và frontend
 // ─────────────────────────────────────────────
 
 export interface LegalReference {
-  location: string
-  documentId: string
-  documentName: string
-  url?: string
+  location: string // VD: "Điểm e, Khoản 4, Điều 6"
+  documentId: string // VD: "168/2024/NĐ-CP"
+  documentName: string // Tên đầy đủ văn bản
+  url?: string // Đường dẫn trực tiếp từ file cấu hình hệ thống
 }
 
 export interface PenaltyInfo {
-  vehicleType: string
-  fineRange: string
-  additionalPenalties: string[]
-  pointDeduction?: string
+  vehicleType: string // VD: "Xe máy", "Ô tô", "Xe đạp"
+  fineRange: string // VD: "800.000 – 1.000.000 VNĐ"
+  additionalPenalties: string[] // VD: ["Tước GPLX 1–3 tháng", "Tạm giữ xe 7 ngày"]
+  pointDeduction?: string // VD: "2 điểm GPLX"
 }
 
 export interface TrafficViolationCard {
   type: 'violation'
   title: string
-  behavior: string
+  behavior: string // Hành vi vi phạm
   userFriendlyExplanation: string
-  penalties: PenaltyInfo[]
-  legalRefs: LegalReference[]
+  penalties: PenaltyInfo[] // Mức phạt theo từng loại phương tiện
+  legalRefs: LegalReference[] // Căn cứ pháp lý
   practicalAdvice: string
-  note?: string
+  note?: string // Lưu ý đặc biệt
 }
 
 export interface GeneralInfoCard {
   type: 'general'
   title: string
-  summary: string
+  summary: string // Câu trả lời trực tiếp 1–2 câu
   userFriendlyExplanation: string
-  details: string[]
+  details: string[] // Các điểm giải thích thêm
   legalRefs: LegalReference[]
   practicalAdvice: string
   note?: string
@@ -98,7 +99,7 @@ export type TrafficResponseCard = TrafficViolationCard | GeneralInfoCard | NotFo
 
 export interface TrafficResponse {
   card: TrafficResponseCard
-  rawText: string
+  rawText: string // Giữ text gốc để fallback nếu cần
 }
 
 // ─────────────────────────────────────────────
@@ -403,6 +404,13 @@ Mục tiêu là:
 7. Nếu có nhiều điều khoản liên quan, hãy tóm tắt chung vào phần "behavior" và liệt kê chi tiết trong "penalties" theo từng loại phương tiện.
 8. Câu trả lời phải ngắn gọn, súc tích, ưu tiên thông tin trực tiếp, tránh giải thích dài dòng.
 9. Luôn cung cấp CĂN CỨ PHÁP LÝ rõ ràng cho mỗi điểm nếu có trong ngữ cảnh.
+10. QUAN TRỌNG: NGUYÊN TẮC LOẠI TRỪ VI PHẠM
+TRƯỚC KHI kết luận một hành vi là vi phạm và áp dụng mức phạt, BẮT BUỘC phải phân tích kỹ câu hỏi xem có chứa các yếu tố MIỄN TRỪ TRÁCH NHIỆM hay không. 
+Các trường hợp miễn trừ phổ biến:
+- Tình thế cấp thiết (chở người đi cấp cứu, tránh tai nạn...).
+- Nhường đường cho xe ưu tiên đang phát tín hiệu (xe cứu thương, cứu hỏa...).
+- Tuân thủ hiệu lệnh của người điều khiển giao thông (CSGT) trái với biển báo/đèn tín hiệu.
+👉 Nếu thuộc trường hợp miễn trừ: Vẫn dùng schema "violation" nhưng tại "userFriendlyExplanation" phải khẳng định rõ là KHÔNG BỊ XỬ PHẠT và giải thích lý do. Tại mảng "penalties", trường "fineRange" ghi "Không bị xử phạt", các hình phạt khác để trống.
 
 ━━━ SCHEMA JSON ━━━
 
@@ -424,8 +432,7 @@ Nếu là câu hỏi về VI PHẠM / XỬ PHẠT:
     {{
       "location": "<Điều/Khoản/Điểm>",
       "documentId": "<Số hiệu>",
-      "documentName": "<Tên đầy đủ văn bản>",
-      "url": "https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=<so-hieu>"
+      "documentName": "<Tên đầy đủ văn bản>"
     }}
   ],
   "practicalAdvice": "<Lời khuyên thực tế cho người dân>",
@@ -447,8 +454,7 @@ Nếu là câu hỏi THÔNG TIN CHUNG:
     {{
       "location": "<Điều/Khoản>",
       "documentId": "<Số hiệu>",
-      "documentName": "<Tên đầy đủ>",
-      "url": "https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=<so-hieu>"
+      "documentName": "<Tên đầy đủ>"
     }}
   ],
   "practicalAdvice": "<Khuyến nghị thực tế>",
@@ -476,6 +482,18 @@ Nếu là câu hỏi THÔNG TIN CHUNG:
       const parsed = JSON.parse(jsonMatch[0])
       if (!['violation', 'general', 'not_found'].includes(parsed.type)) {
         throw new Error('Unknown type')
+      }
+
+      // Khớp số hiệu văn bản (documentId) với metaMap để tự động chèn url gốc chính xác
+      if (parsed.legalRefs && Array.isArray(parsed.legalRefs)) {
+        for (const ref of parsed.legalRefs) {
+          if (ref.documentId) {
+            const meta = this.metaMap.get(ref.documentId)
+            if (meta && meta.url) {
+              ref.url = meta.url
+            }
+          }
+        }
       }
 
       return parsed as TrafficResponseCard
