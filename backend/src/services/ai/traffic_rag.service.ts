@@ -6,28 +6,139 @@ import { Document } from '@langchain/core/documents'
 import path from 'path'
 import fs from 'fs'
 
-interface VectorDoc {
+// ─────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────
+
+interface DocumentMeta {
+  filename: string
+  ten_van_ban: string
+  so_hieu: string
+  loai: string
+  ngay_ban_hanh: string
+  the_hieu_luc: string
+  hieu_luc: string
+  pham_vi: string
+  tu_khoa: string[]
+  chu_the_ap_dung: string
+  lien_quan_den: string[]
+  van_ban_bi_bai_bo: string[]
+  ghi_chu: string
+  cleaned_date: string
+  cleaned_path: string
+}
+
+interface VectorChunk {
   pageContent: string
   metadata: {
     source: string
+    soHieu: string
+    tenVanBan: string
+    loai: string
+    ngayBanHanh: string
+    theHieuLuc: string
+    hieuLuc: string
+    phamVi: string
+    tuKhoa: string[]
+    chuThe: string
+    lienQuanDen: string[]
+    ghiChu: string
     article?: string
     clause?: string
   }
   embedding: number[]
 }
 
+// ─────────────────────────────────────────────
+// STRUCTURED RESPONSE TYPES — CẬP NHẬT THEO PROMPT MỚI
+// ─────────────────────────────────────────────
+
+export interface LegalReference {
+  location: string
+  documentId: string
+  documentName: string
+  url?: string
+}
+
+export interface PenaltyInfo {
+  vehicleType: string
+  fineRange: string
+  additionalPenalties: string[]
+  pointDeduction?: string
+}
+
+export interface TrafficViolationCard {
+  type: 'violation'
+  title: string
+  behavior: string
+  userFriendlyExplanation: string
+  penalties: PenaltyInfo[]
+  legalRefs: LegalReference[]
+  practicalAdvice: string
+  note?: string
+}
+
+export interface GeneralInfoCard {
+  type: 'general'
+  title: string
+  summary: string
+  userFriendlyExplanation: string
+  details: string[]
+  legalRefs: LegalReference[]
+  practicalAdvice: string
+  note?: string
+}
+
+export interface NotFoundCard {
+  type: 'not_found'
+  message: string
+}
+
+export type TrafficResponseCard = TrafficViolationCard | GeneralInfoCard | NotFoundCard
+
+export interface TrafficResponse {
+  card: TrafficResponseCard
+  rawText: string
+}
+
+// ─────────────────────────────────────────────
+// CACHE VERSION
+// ─────────────────────────────────────────────
+const CACHE_VERSION = '3'
+
 class TrafficRagService {
-  private vectorStore: VectorDoc[] = []
+  private vectorStore: VectorChunk[] = []
+  private metaMap: Map<string, DocumentMeta> = new Map()
   private llm: ChatGroq
   private embeddings: HuggingFaceInferenceEmbeddings
   private isInitialized = false
+
+  private readonly synonymMap: Record<string, string[]> = {
+    'xe máy': ['xe mô tô', 'xe gắn máy', 'xe máy'],
+    'bằng lái': ['giấy phép lái xe', 'GPLX'],
+    'đèn đỏ': ['tín hiệu đèn màu đỏ', 'đèn đỏ giao thông'],
+    'nồng độ cồn': ['nồng độ cồn trong máu', 'nồng độ cồn trong hơi thở', 'say rượu'],
+    'phạt nguội': ['xử phạt qua hình ảnh', 'camera phạt nguội'],
+    'quá tốc độ': ['vượt quá tốc độ', 'chạy quá tốc độ quy định'],
+    'vượt đèn đỏ': ['không chấp hành tín hiệu đèn đỏ'],
+    'điểm bằng lái': ['điểm GPLX', 'trừ điểm giấy phép lái xe', 'hệ thống điểm'],
+    'sang tên xe': ['chuyển quyền sở hữu xe', 'đổi tên chủ xe'],
+    'đăng kiểm': ['kiểm định an toàn kỹ thuật', 'kiểm định xe'],
+    csgt: ['cảnh sát giao thông', 'CSGT'],
+    oto: ['ô tô', 'xe ô tô', 'xe hơi'],
+    'xe tải': ['xe vận tải', 'xe chở hàng'],
+    'cao tốc': ['đường cao tốc', 'freeway'],
+    'mũ bảo hiểm': ['nón bảo hiểm', 'helmet'],
+    'rẽ phải đèn đỏ': ['rẽ phải khi đèn đỏ', 'quẹo phải đèn đỏ'],
+    'xe công nghệ': ['grab', 'be', 'gojek', 'taxi công nghệ']
+  }
 
   constructor() {
     this.llm = new ChatGroq({
       apiKey: process.env.GROQ_API_KEY,
       model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-      temperature: 0.2,
-      maxTokens: 700
+      temperature: 0.05,
+      maxTokens: 1200
     })
 
     this.embeddings = new HuggingFaceInferenceEmbeddings({
@@ -36,207 +147,394 @@ class TrafficRagService {
     })
   }
 
-  private synonymMap: Record<string, string[]> = {
-    'xe máy': ['xe mô tô', 'xe gắn máy'],
-    'vỉa hè': ['hè phố'],
-    'kẹt xe': ['ùn tắc giao thông'],
-    'đèn đỏ': ['tín hiệu đèn màu đỏ'],
-    'bằng lái': ['giấy phép lái xe'],
-    'nồng độ cồn': ['nồng độ cồn trong máu', 'nồng độ cồn trong hơi thở'],
-    'phạt nguội': ['xử phạt qua hình ảnh'],
-    'quá tốc độ': ['vượt quá tốc độ quy định']
-  }
-
   private expandQuery(query: string): string {
-    let expanded = query.toLowerCase()
+    const q = query.toLowerCase()
+    const extras: string[] = []
 
     for (const [term, synonyms] of Object.entries(this.synonymMap)) {
-      if (expanded.includes(term)) {
-        expanded += ' ' + synonyms.join(' ')
+      if (q.includes(term.toLowerCase())) extras.push(...synonyms)
+    }
+
+    for (const meta of this.metaMap.values()) {
+      for (const kw of meta.tu_khoa) {
+        if (q.includes(kw.toLowerCase()) && !extras.includes(kw)) {
+          extras.push(kw)
+        }
       }
     }
 
-    return expanded
+    return extras.length > 0 ? `${query} ${extras.join(' ')}` : query
   }
 
-  private getAllFiles(dirPath: string, files: string[] = []): string[] {
-    for (const file of fs.readdirSync(dirPath)) {
-      const fullPath = path.join(dirPath, file)
-      if (fs.statSync(fullPath).isDirectory()) {
-        this.getAllFiles(fullPath, files)
-      } else {
-        files.push(fullPath)
-      }
-    }
-    return files
+  private buildChunkHeader(meta: DocumentMeta): string {
+    const lines: string[] = [
+      `[VĂN BẢN: ${meta.so_hieu} — ${meta.ten_van_ban}]`,
+      `[LOẠI: ${meta.loai} | HIỆU LỰC TỪ: ${meta.the_hieu_luc} | TRẠNG THÁI: ${meta.hieu_luc}]`,
+      `[PHẠM VI: ${meta.pham_vi}]`
+    ]
+    if (meta.ghi_chu) lines.push(`[GHI CHÚ: ${meta.ghi_chu}]`)
+    if (meta.van_ban_bi_bai_bo.length > 0) lines.push(`[THAY THẾ/BÃI BỎ: ${meta.van_ban_bi_bai_bo.join(', ')}]`)
+    if (meta.lien_quan_den.length > 0) lines.push(`[VĂN BẢN LIÊN QUAN: ${meta.lien_quan_den.join(', ')}]`)
+    return lines.join('\n')
   }
 
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dot = 0
-    let normA = 0
-    let normB = 0
-
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i]
-      normA += a[i] * a[i]
-      normB += b[i] * b[i]
-    }
-
-    if (!normA || !normB) return 0
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB))
-  }
-
-  private structuralChunking(content: string, sourceName: string, maxLen = 600): Document[] {
+  private structuralChunking(content: string, meta: DocumentMeta, maxLen = 700): Document[] {
     const chunks: Document[] = []
-    const parts = content.split(/(?=\n?Điều\s+\d+|\n?Khoản\s+\d+)/g)
+    const header = this.buildChunkHeader(meta)
+    const parts = content.split(/(?=\n?(?:Điều|ĐIỀU)\s+\d+|\n?(?:Khoản|KHOẢN)\s+\d+)/g)
+    let buffer = ''
 
-    let current = ''
+    const flush = () => {
+      if (!buffer.trim()) return
+      const articleMatch = buffer.match(/(?:Điều|ĐIỀU)\s+(\d+[A-Za-z]*)/i)
+      const clauseMatch = buffer.match(/(?:Khoản|KHOẢN)\s+(\d+[A-Za-z]*)/i)
+
+      chunks.push(
+        new Document({
+          pageContent: `${header}\n\n${buffer.trim()}`,
+          metadata: {
+            source: path.basename(meta.cleaned_path),
+            soHieu: meta.so_hieu,
+            tenVanBan: meta.ten_van_ban,
+            loai: meta.loai,
+            ngayBanHanh: meta.ngay_ban_hanh,
+            theHieuLuc: meta.the_hieu_luc,
+            hieuLuc: meta.hieu_luc,
+            phamVi: meta.pham_vi,
+            tuKhoa: meta.tu_khoa,
+            chuThe: meta.chu_the_ap_dung,
+            lienQuanDen: meta.lien_quan_den,
+            ghiChu: meta.ghi_chu,
+            article: articleMatch ? `Điều ${articleMatch[1]}` : '',
+            clause: clauseMatch ? `Khoản ${clauseMatch[1]}` : ''
+          }
+        })
+      )
+      buffer = ''
+    }
 
     for (const part of parts) {
-      if (current.length + part.length > maxLen && current.trim()) {
-        chunks.push(this.buildChunk(current, sourceName))
-        current = ''
-      }
-      current += part + '\n'
+      if (buffer.length + part.length > maxLen && buffer.trim()) flush()
+      buffer += part + '\n'
     }
-
-    if (current.trim()) {
-      chunks.push(this.buildChunk(current, sourceName))
-    }
+    flush()
 
     return chunks
   }
 
-  private buildChunk(content: string, sourceName: string): Document {
-    const articleMatch = content.match(/Điều\s+(\d+[A-Za-z]*)/i)
-    const clauseMatch = content.match(/Khoản\s+(\d+[A-Za-z]*)/i)
-
-    return new Document({
-      pageContent: content.trim(),
-      metadata: {
-        source: sourceName,
-        article: articleMatch ? `Điều ${articleMatch[1]}` : 'Không xác định',
-        clause: clauseMatch ? `Khoản ${clauseMatch[1]}` : 'Không xác định'
-      }
-    })
+  private getCacheKey(activeMeta: DocumentMeta[]): string {
+    const signature = activeMeta
+      .map((m) => `${m.so_hieu}|${m.the_hieu_luc}|${m.hieu_luc}|${m.tu_khoa.join(',')}`)
+      .sort()
+      .join('::')
+    const hash = Buffer.from(signature).toString('base64').slice(0, 48)
+    return `v${CACHE_VERSION}_${hash}`
   }
 
-  async initializeVectorStore() {
+  private cosineSimilarity(a: number[], b: number[]): number {
+    let dot = 0,
+      na = 0,
+      nb = 0
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i]
+      na += a[i] * a[i]
+      nb += b[i] * b[i]
+    }
+    if (!na || !nb) return 0
+    return dot / (Math.sqrt(na) * Math.sqrt(nb))
+  }
+
+  async initializeVectorStore(): Promise<void> {
     if (this.isInitialized) return
 
     const basePath = path.join(__dirname, '../../data')
     const cleanedPath = path.join(basePath, 'cleaned')
+    const metaPath = path.join(cleanedPath, 'metadata.json')
     const dbPath = path.join(basePath, 'vector_db.json')
 
+    const allMeta: DocumentMeta[] = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+
+    const seenPaths = new Set<string>()
+    const activeMeta = allMeta.filter((m) => {
+      if (m.hieu_luc !== 'Còn hiệu lực') return false
+      const normPath = m.cleaned_path.replace(/\\/g, '/')
+      if (seenPaths.has(normPath)) return false
+      seenPaths.add(normPath)
+      return true
+    })
+
+    for (const m of activeMeta) this.metaMap.set(m.so_hieu, m)
+
+    const cacheKey = this.getCacheKey(activeMeta)
     if (fs.existsSync(dbPath)) {
-      this.vectorStore = JSON.parse(fs.readFileSync(dbPath, 'utf-8'))
-      this.isInitialized = true
-      return
+      try {
+        const raw = fs.readFileSync(dbPath, 'utf-8')
+        const cached = JSON.parse(raw)
+        if (cached.cacheKey === cacheKey && Array.isArray(cached.docs) && cached.docs.length > 0) {
+          this.vectorStore = cached.docs
+          this.isInitialized = true
+          return
+        }
+      } catch {
+        console.log('[RAG] Cache lỗi → Re-index')
+      }
     }
 
-    const files = this.getAllFiles(cleanedPath)
-    const rawChunks: Document[] = []
+    const allChunks: Document[] = []
+    for (const meta of activeMeta) {
+      const relPath = meta.cleaned_path.replace(/\\/g, '/')
+      const filePath = path.join(cleanedPath, relPath.replace(/^cleaned\//i, ''))
+      if (!fs.existsSync(filePath)) continue
 
-    for (const filePath of files) {
-      if (!filePath.endsWith('.txt')) continue
       const content = fs.readFileSync(filePath, 'utf-8')
-      const source = path.basename(filePath)
-      rawChunks.push(...this.structuralChunking(content, source))
+      allChunks.push(...this.structuralChunking(content, meta))
     }
 
-    const batchSize = 10
-
-    for (let i = 0; i < rawChunks.length; i += batchSize) {
-      const batch = rawChunks.slice(i, i + batchSize)
+    const BATCH = 8
+    for (let i = 0; i < allChunks.length; i += BATCH) {
+      const batch = allChunks.slice(i, i + BATCH)
       const vectors = await this.embeddings.embedDocuments(batch.map((d) => d.pageContent))
 
       for (let j = 0; j < batch.length; j++) {
         this.vectorStore.push({
           pageContent: batch[j].pageContent,
-          metadata: batch[j].metadata as any,
+          metadata: batch[j].metadata as VectorChunk['metadata'],
           embedding: vectors[j]
         })
       }
-
-      await new Promise((r) => setTimeout(r, 500))
+      if (i % 40 === 0 && i > 0) await new Promise((r) => setTimeout(r, 800))
+      else await new Promise((r) => setTimeout(r, 200))
     }
 
-    fs.writeFileSync(dbPath, JSON.stringify(this.vectorStore))
+    fs.writeFileSync(dbPath, JSON.stringify({ cacheKey, docs: this.vectorStore }))
     this.isInitialized = true
   }
 
-  async askTrafficQuestion(query: string) {
-    await this.initializeVectorStore()
-
+  private async retrieve(query: string, topK = 5): Promise<VectorChunk[]> {
     const expandedQuery = this.expandQuery(query)
-    const [queryEmbedding] = await this.embeddings.embedDocuments([expandedQuery])
+    const [queryVec] = await this.embeddings.embedDocuments([expandedQuery])
 
-    const numbersInQuery = query.match(/\d+([.,]\d+)?/g) || []
-    const queryWords = expandedQuery.split(/\s+/).filter((w) => w.length > 2)
+    const queryLower = expandedQuery.toLowerCase()
+    const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 2)
+    const queryNumbers = query.match(/\d+([.,]\d+)?/g) || []
 
-    const scoredDocs = this.vectorStore.map((doc) => {
-      const vecScore = this.cosineSimilarity(queryEmbedding, doc.embedding)
-      const content = doc.pageContent.toLowerCase()
-      let keywordBoost = 0
+    const scored = this.vectorStore.map((chunk) => {
+      let score = this.cosineSimilarity(queryVec, chunk.embedding)
 
-      for (const num of numbersInQuery) {
+      for (const num of queryNumbers) {
         const alt = num.replace('.', ',')
-        if (content.includes(num) || content.includes(alt)) keywordBoost += 0.06
+        if (chunk.pageContent.includes(num) || chunk.pageContent.includes(alt)) score += 0.06
+      }
+
+      for (const kw of chunk.metadata.tuKhoa) {
+        if (queryLower.includes(kw.toLowerCase())) score += 0.08
       }
 
       for (const word of queryWords) {
-        if (content.includes(word)) keywordBoost += 0.004
+        if (word.length > 3 && chunk.pageContent.toLowerCase().includes(word)) score += 0.003
       }
 
-      return { ...doc, score: vecScore + keywordBoost }
+      const year = parseInt(chunk.metadata.ngayBanHanh.split('/').pop() || '2000')
+      if (year >= 2024) score += 0.02
+      else if (year >= 2022) score += 0.01
+
+      return { ...chunk, _score: score }
     })
 
-    let topDocs = scoredDocs
-      .filter((d) => d.score > 0.2)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
+    const threshold = 0.15
+    let topDocs = scored
+      .filter((d) => d._score > threshold)
+      .sort((a, b) => b._score - a._score)
+      .slice(0, topK)
+    if (topDocs.length < 2) topDocs = scored.sort((a, b) => b._score - a._score).slice(0, 3)
 
-    if (!topDocs.length) {
-      topDocs = scoredDocs.sort((a, b) => b.score - a.score).slice(0, 2)
+    const countPerDoc: Record<string, number> = {}
+    const diversified: VectorChunk[] = []
+    for (const chunk of topDocs) {
+      const key = chunk.metadata.soHieu
+      if (!countPerDoc[key]) countPerDoc[key] = 0
+      if (countPerDoc[key] < 2) {
+        diversified.push(chunk)
+        countPerDoc[key]++
+      }
     }
 
-    const context = topDocs
-      .map(
-        (doc) =>
-          `\n[Nguồn: ${doc.metadata.source}]\n[Vị trí: ${doc.metadata.article}, ${doc.metadata.clause}]\n${doc.pageContent}`
-      )
-      .join('\n\n---\n\n')
-      .slice(0, 12000)
+    return diversified.length < 2 ? topDocs.slice(0, topK) : diversified
+  }
 
-    const prompt = PromptTemplate.fromTemplate(`
-Bạn là AI tư vấn luật giao thông Việt Nam.
-Chỉ trả lời dựa trên ngữ cảnh.
-Nếu có nhiều văn bản liên quan, ưu tiên văn bản mới nhất.
-Không đủ dữ liệu thì trả lời đúng câu:
-"Không tìm thấy căn cứ pháp lý rõ ràng trong dữ liệu hiện có."
+  private buildContext(chunks: VectorChunk[]): string {
+    return chunks
+      .map((chunk, i) => {
+        const m = chunk.metadata
+        return [
+          `━━━ ĐOẠN ${i + 1} ━━━`,
+          chunk.pageContent,
+          m.article ? `📍 Vị trí: ${m.article}${m.clause ? `, ${m.clause}` : ''}` : ''
+        ]
+          .filter(Boolean)
+          .join('\n')
+      })
+      .join('\n\n')
+      .slice(0, 14000)
+  }
 
-Trả lời theo mẫu:
+  promptTemplate = PromptTemplate.fromTemplate(`
+Bạn là AI tư vấn luật giao thông đường bộ Việt Nam, phiên bản 2025.
 
-Trả lời nhanh:
-...
+NHIỆM VỤ:
+Dựa hoàn toàn vào NGỮ CẢNH PHÁP LUẬT được cung cấp để trả lời câu hỏi người dùng.
+Mục tiêu là:
+- Trả lời chính xác theo văn bản pháp luật
+- Giải thích dễ hiểu cho người dân bình thường
+- Trả về JSON để frontend hiển thị dạng thẻ (card)
 
-Giải thích:
-...
+━━━ QUY TẮC BẮT BUỘC ━━━
+1. CHỈ sử dụng thông tin từ NGỮ CẢNH. Không tự suy diễn.
+2. Nếu không đủ thông tin → trả về:
+{{"type":"not_found","message":"Không tìm thấy thông tin trong cơ sở dữ liệu pháp luật hiện có."}}
+3. Không được trích dẫn văn bản đã hết hiệu lực hoặc bị thay thế.
+4. Chỉ trả về JSON hợp lệ. Không markdown. Không backtick. Không giải thích ngoài JSON.
+5. Ngôn ngữ trả lời phải:
+   - Ngắn gọn
+   - Rõ ràng
+   - Dễ hiểu với người không học luật
+   - Không dùng văn phong quá pháp lý
+6. Chỉ dùng các văn bản CÒN HIỆU LỰC. Nếu văn bản có ghi chú "Bãi bỏ" hoặc "Hết hiệu lực", KHÔNG được trích dẫn.
+7. Nếu có nhiều điều khoản liên quan, hãy tóm tắt chung vào phần "behavior" và liệt kê chi tiết trong "penalties" theo từng loại phương tiện.
+8. Câu trả lời phải ngắn gọn, súc tích, ưu tiên thông tin trực tiếp, tránh giải thích dài dòng.
+9. Luôn cung cấp CĂN CỨ PHÁP LÝ rõ ràng cho mỗi điểm nếu có trong ngữ cảnh.
 
-Căn cứ pháp lý: (Viết liền mạch thành 1 câu chuẩn pháp lý. Ví dụ: Khoản ..., Điều ..., [Tên văn bản hoặc File nguồn].)
+━━━ SCHEMA JSON ━━━
 
-Ngữ cảnh:
+Nếu là câu hỏi về VI PHẠM / XỬ PHẠT:
+{{
+  "type": "violation",
+  "title": "<Tiêu đề ngắn gọn>",
+  "behavior": "<Hành vi vi phạm>",
+  "userFriendlyExplanation": "<Giải thích đơn giản, dễ hiểu cho người dân>",
+  "penalties": [
+    {{
+      "vehicleType": "<Loại phương tiện>",
+      "fineRange": "<Mức phạt tiền>",
+      "additionalPenalties": ["<Hình phạt bổ sung>"],
+      "pointDeduction": "<Số điểm GPLX bị trừ hoặc null>"
+    }}
+  ],
+  "legalRefs": [
+    {{
+      "location": "<Điều/Khoản/Điểm>",
+      "documentId": "<Số hiệu>",
+      "documentName": "<Tên đầy đủ văn bản>",
+      "url": "https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=<so-hieu>"
+    }}
+  ],
+  "practicalAdvice": "<Lời khuyên thực tế cho người dân>",
+  "note": "<Lưu ý thêm hoặc null>"
+}}
+
+Nếu là câu hỏi THÔNG TIN CHUNG:
+{{
+  "type": "general",
+  "title": "<Tiêu đề ngắn>",
+  "summary": "<Trả lời trực tiếp dễ hiểu>",
+  "userFriendlyExplanation": "<Giải thích đơn giản, như đang giải thích cho người dân>",
+  "details": [
+    "<Ý chính 1>",
+    "<Ý chính 2>",
+    "<Ý chính 3>"
+  ],
+  "legalRefs": [
+    {{
+      "location": "<Điều/Khoản>",
+      "documentId": "<Số hiệu>",
+      "documentName": "<Tên đầy đủ>",
+      "url": "https://thuvienphapluat.vn/page/tim-kiem-van-ban.aspx?keyword=<so-hieu>"
+    }}
+  ],
+  "practicalAdvice": "<Khuyến nghị thực tế>",
+  "note": "<Lưu ý hoặc null>"
+}}
+
+━━━ NGỮ CẢNH PHÁP LUẬT ━━━
 {context}
 
-Câu hỏi:
+━━━ CÂU HỎI NGƯỜI DÙNG ━━━
 {query}
 
-Trả lời:
+━━━ JSON RESPONSE ━━━
 `)
 
-    const chain = prompt.pipe(this.llm).pipe(new StringOutputParser())
+  private parseStructuredResponse(raw: string): TrafficResponseCard {
+    try {
+      const cleaned = raw
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim()
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('No JSON found')
 
-    return await chain.invoke({ context, query })
+      const parsed = JSON.parse(jsonMatch[0])
+      if (!['violation', 'general', 'not_found'].includes(parsed.type)) {
+        throw new Error('Unknown type')
+      }
+
+      return parsed as TrafficResponseCard
+    } catch (err) {
+      console.warn('[RAG] JSON parse thất bại, dùng fallback general card:', err)
+      return {
+        type: 'general',
+        title: 'Thông tin tra cứu',
+        summary: 'Hệ thống đã tìm thấy thông tin liên quan.',
+        userFriendlyExplanation: 'Dưới đây là các điểm chính được trích xuất từ dữ liệu pháp luật.',
+        details: raw
+          .split('\n')
+          .filter((l) => l.trim().length > 0)
+          .slice(0, 8),
+        legalRefs: [],
+        practicalAdvice: 'Luôn tuân thủ luật giao thông để đảm bảo an toàn cho bạn và người khác.',
+        note: undefined
+      } as GeneralInfoCard
+    }
+  }
+
+  async askTrafficQuestion(query: string): Promise<TrafficResponse> {
+    await this.initializeVectorStore()
+    const topChunks = await this.retrieve(query, 5)
+    const context = this.buildContext(topChunks)
+    const chain = this.promptTemplate.pipe(this.llm).pipe(new StringOutputParser())
+
+    try {
+      const rawText = await chain.invoke({ context, query })
+      const card = this.parseStructuredResponse(rawText)
+      return { card, rawText }
+    } catch (err: any) {
+      console.error('[RAG] LLM error:', err?.message)
+      throw new Error('Không thể xử lý câu hỏi lúc này. Vui lòng thử lại.')
+    }
+  }
+
+  async forceReindex(): Promise<void> {
+    const basePath = path.join(__dirname, '../../data')
+    const dbPath = path.join(basePath, 'vector_db.json')
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
+    this.vectorStore = []
+    this.metaMap.clear()
+    this.isInitialized = false
+    console.log('[RAG] Cache xóa. Sẽ re-index lần gọi tiếp theo.')
+  }
+
+  getStats() {
+    return {
+      initialized: this.isInitialized,
+      totalChunks: this.vectorStore.length,
+      totalDocs: this.metaMap.size,
+      docList: Array.from(this.metaMap.values()).map((m) => ({
+        soHieu: m.so_hieu,
+        loai: m.loai,
+        hieuLuc: m.hieu_luc,
+        tuKhoaCount: m.tu_khoa.length
+      }))
+    }
   }
 }
 
