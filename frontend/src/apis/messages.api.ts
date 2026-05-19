@@ -9,6 +9,13 @@ export interface ConversationSummary {
   actionItems: { task: string; assignee: string; messageId: string }[]
 }
 
+export interface SummarizeResult {
+  summary: string
+  sourceType: 'text' | 'image' | 'document' | 'spreadsheet' | 'chat' | 'unsupported'
+  keyPoints?: string[]
+  extra?: any
+}
+
 interface GetMessagesParams {
   convId: string
   cursor?: string
@@ -37,21 +44,34 @@ export const messagesApi = {
   },
 
   reactMessage: (messageId: string, emoji: string) => {
-    return http.post<{ message: string; result: any }>(`/messages/${messageId}/react`, { emoji })
+    return http.post<{ message: string; result: Message }>(`/messages/${messageId}/react`, { emoji })
   },
 
   revokeMessage: (messageId: string) => {
-    return http.post<{ message: string; result: any }>(`/messages/${messageId}/revoke`, {})
+    return http.post<{ message: string; result: Message }>(`/messages/${messageId}/revoke`)
   },
 
-  deleteMessageForMe: (messageId: string) => {
+  deleteMessage: (messageId: string) => {
     return http.delete<{ message: string; result: any }>(`/messages/${messageId}`)
   },
 
-  summarizeConversation: (convId: string, limit?: number, unreadCount?: number) => {
+  summarizeConversation: (convId: string, limit: number = 30, unreadCount: number = 0) => {
     return http.get<{ message: string; result: ConversationSummary }>(`/messages/${convId}/summary`, {
-      params: { limit, unreadCount },
-      timeout: 60000
+      params: { limit, unreadCount }
+    })
+  },
+
+  deleteMessageForMe: (messageId: string) => {
+    return http.delete<{ message: string; result: any }>(`/messages/${messageId}/delete-for-me`)
+  },
+
+  searchMessages: (convId: string, keyword: string, page: number = 1, limit: number = 20) => {
+    return http.get<{ message: string; result: any }>(`/messages/${convId}/search`, {
+      params: {
+        q: keyword,
+        page,
+        limit
+      }
     })
   },
 
@@ -81,5 +101,16 @@ export const messagesApi = {
 
   pinMessage: (messageId: string, action: 'pin' | 'unpin') => {
     return http.post<{ message: string; result: any }>(`/messages/${messageId}/pin`, { action })
+  },
+
+  /**
+   * Tóm tắt nội dung một tin nhắn cụ thể
+   * Hỗ trợ: text thuần, ảnh (OCR), pdf, docx, doc, txt, xlsx
+   */
+  summarizeMessage: (messageId: string) => {
+    return http.post<{
+      message: string
+      result: SummarizeResult
+    }>(`/messages/${messageId}/summarize`)
   }
 }

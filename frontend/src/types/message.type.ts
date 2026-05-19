@@ -26,7 +26,7 @@ export interface ReplyInfo {
 export interface Message {
   _id: string
   conversationId: string
-  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked' | 'image' | 'video'
+  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked' | 'image' | 'video' | 'file'
   content: string
   replyToId?: string
   replyToMessage?: ReplyInfo

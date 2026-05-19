@@ -6,6 +6,8 @@ import Message from '~/models/schemas/message.schema'
 import socketService from './socket.services'
 import aiService from './ai/ai.service'
 import { ContextManager } from './ai/context.manager'
+import { extractTextFromUrl, extractPlainTextFromUrl } from '~/utils/fileExtractor'
+import summarizeService from './ai/summarize.service'
 
 const replyToLookupStages = [
   {
@@ -105,6 +107,29 @@ class MessageService {
     return messages
   }
 
+  // Tiện ích chạy ngầm để tránh Timeout khi gửi File
+  private async backgroundExtractMediaText(messageId: ObjectId, content: string) {
+    try {
+      let fileUrl = ''
+      try {
+        const parsedContent = JSON.parse(content)
+        fileUrl = Array.isArray(parsedContent) ? parsedContent[0]?.url : parsedContent.url
+      } catch {
+        fileUrl = content
+      }
+
+      if (fileUrl && fileUrl.startsWith('http')) {
+        const result = await extractTextFromUrl(fileUrl)
+        if (result.text) {
+          // Cập nhật ngầm text vào Database sau khi đọc xong
+          await databaseService.messages.updateOne({ _id: messageId }, { $set: { extractedText: result.text } })
+        }
+      }
+    } catch (error) {
+      console.error(`[Background Task] Lỗi trích xuất chữ từ tin nhắn ${messageId}:`, error)
+    }
+  }
+
   async sendMessage(
     userId: string,
     convId: string,
@@ -118,79 +143,65 @@ class MessageService {
     const conversation = await databaseService.conversations.findOne({ _id: convObjectId })
     if (!conversation) throw new ErrorWithStatus({ message: 'Không tìm thấy', status: httpStatus.NOT_FOUND })
 
-    // CHẶN HOÀN TOÀN VIỆC GỬI TIN NHẮN (TRỪ TIN NHẮN HỆ THỐNG)
     if (conversation.is_disbanded && type !== 'system') {
-      throw new ErrorWithStatus({
-        message: 'Không thể gửi tin nhắn. Nhóm này đã bị giải tán.',
-        status: httpStatus.FORBIDDEN
-      })
+      throw new ErrorWithStatus({ message: 'Nhóm này đã bị giải tán.', status: httpStatus.FORBIDDEN })
     }
 
     if (conversation.type === 'direct' && conversation.participants) {
       const otherUserId = conversation.participants.find((p: ObjectId) => p.toString() !== userId)
-
       if (otherUserId) {
         const isBlockedByReceiver = await databaseService.user_blocks.findOne({
           user_id: new ObjectId(otherUserId),
           blocked_user_id: userObjectId
         })
-
         const isFriend = await databaseService.friends.findOne({
           $or: [
             { user_id: userObjectId, friend_id: new ObjectId(otherUserId) },
             { user_id: new ObjectId(otherUserId), friend_id: userObjectId }
           ]
         })
-
-        if (!isFriend) {
-          throw new ErrorWithStatus({
-            message: 'Không thể thực hiện. Hai bạn hiện không còn là bạn bè.',
-            status: httpStatus.FORBIDDEN
-          })
-        }
-
-        if (isBlockedByReceiver) {
-          throw new ErrorWithStatus({
-            message: 'Xin lỗi! Hiện tại tôi không muốn nhận tin nhắn.',
-            status: httpStatus.FORBIDDEN
-          })
-        }
+        if (!isFriend)
+          throw new ErrorWithStatus({ message: 'Hai bạn hiện không còn là bạn bè.', status: httpStatus.FORBIDDEN })
+        if (isBlockedByReceiver)
+          throw new ErrorWithStatus({ message: 'Người dùng không nhận tin nhắn.', status: httpStatus.FORBIDDEN })
 
         const isBlockedBySender = await databaseService.user_blocks.findOne({
           user_id: userObjectId,
           blocked_user_id: new ObjectId(otherUserId)
         })
-
-        if (isBlockedBySender) {
-          throw new ErrorWithStatus({
-            message: 'Tin nhắn chưa được gửi. Bạn cần bỏ chặn người này để tiếp tục trò chuyện.',
-            status: httpStatus.FORBIDDEN
-          })
-        }
+        if (isBlockedBySender)
+          throw new ErrorWithStatus({ message: 'Bạn cần bỏ chặn để trò chuyện.', status: httpStatus.FORBIDDEN })
       }
     }
 
+    // FIX LỖI: Xử lý an toàn cho trường hợp replyToId bị truyền lên chuỗi "null" hoặc rỗng
+    let safeReplyToId: ObjectId | undefined = undefined
+    if (replyToId && replyToId !== 'null' && replyToId !== 'undefined' && replyToId.trim() !== '') {
+      safeReplyToId = new ObjectId(replyToId)
+    }
+
+    // LƯU TIN NHẮN NGAY LẬP TỨC ĐỂ TRẢ VỀ FRONTEND MÀ KHÔNG BỊ TREO/TIMEOUT
     const newMessage = new Message({
       conversationId: convObjectId,
       senderId: userObjectId,
       type,
       content: content,
-      replyToId: replyToId ? new ObjectId(replyToId) : undefined,
+      replyToId: safeReplyToId,
       status: 'SENT'
     })
 
     const insertResult = await databaseService.messages.insertOne(newMessage)
     const messageId = insertResult.insertedId
 
+    // KÍCH HOẠT TIẾN TRÌNH CHẠY NGẦM ĐỌC FILE (Fire & Forget - Không await)
+    const mediaTypes = ['media', 'file', 'image']
+    if (mediaTypes.includes(type as string)) {
+      this.backgroundExtractMediaText(messageId, content).catch(console.error)
+    }
+
     await databaseService.conversations.updateOne(
       { _id: convObjectId },
-      {
-        $set: {
-          last_message_id: messageId,
-          updated_at: new Date(),
-          deletedByUsers: []
-        }
-      }
+      { $set: { last_message_id: messageId, updated_at: new Date(), deletedByUsers: [] } }
     )
 
     await databaseService.conversations.updateOne(
@@ -224,7 +235,6 @@ class MessageService {
 
     return populatedMessage
   }
-
   async editMessage(messageId: string, userId: string, newContent: string) {
     const result = await databaseService.messages.findOneAndUpdate(
       { _id: new ObjectId(messageId), senderId: new ObjectId(userId) },
@@ -571,7 +581,31 @@ class MessageService {
     return forwardedMessages
   }
 
-  // Thêm hàm này vào class MessageService
+  // ──────────────────────────────────────────────────────────────
+  // TÓM TẮT MỘT TIN NHẮN CỤ THỂ (đa định dạng)
+  // ──────────────────────────────────────────────────────────────
+  async summarizeMessage(messageId: string, userId: string) {
+    const message = await databaseService.messages.findOne({ _id: new ObjectId(messageId) })
+    if (!message) throw new ErrorWithStatus({ message: 'Tin nhắn không tồn tại', status: httpStatus.NOT_FOUND })
+
+    // Kiểm tra quyền truy cập
+    const conversation = await databaseService.conversations.findOne({ _id: message.conversationId })
+    if (!conversation)
+      throw new ErrorWithStatus({ message: 'Cuộc hội thoại không tồn tại', status: httpStatus.NOT_FOUND })
+
+    const isMember =
+      (conversation.participants || []).some((p: ObjectId) => p.toString() === userId) ||
+      (conversation.members || []).some((m: any) => m.userId?.toString() === userId || m.user_id?.toString() === userId)
+    if (!isMember) throw new ErrorWithStatus({ message: 'Bạn không có quyền truy cập', status: httpStatus.FORBIDDEN })
+
+    // Gọi SummarizeService với thông tin đầy đủ
+    return await summarizeService.summarizeAuto({
+      type: message.type,
+      content: message.content,
+      fileUrl: undefined // URL sẽ được parse từ content bên trong service
+    })
+  }
+
   async pinMessage(messageId: string, userId: string, action: 'pin' | 'unpin') {
     const messageObjId = new ObjectId(messageId)
     const userObjId = new ObjectId(userId)

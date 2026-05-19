@@ -2,11 +2,53 @@ export class ContextManager {
   static formatChatLog(messages: any[]): string {
     if (!messages || messages.length === 0) return ''
     const chronologicalMessages = [...messages].reverse()
+
     return chronologicalMessages
       .map((msg) => {
         const userName = msg.sender?.userName || msg.senderInfo?.userName || 'Unknown'
-        // FIX: Xóa [ID: ${msg._id}] đi để AI không bị lộ ID tin nhắn
-        return `[${userName}]: ${msg.content}`
+        let contentToAI = msg.content
+
+        switch (msg.type) {
+          case 'image':
+            if (msg.extractedText) {
+              const truncated =
+                msg.extractedText.length > 800
+                  ? msg.extractedText.substring(0, 800) + '... [Ảnh còn nội dung]'
+                  : msg.extractedText
+              contentToAI = `[Đã gửi một hình ảnh]. NỘI DUNG BÊN TRONG ẢNH LÀ:\n"""\n${truncated}\n"""`
+            } else {
+              contentToAI = '[Đã gửi một hình ảnh]'
+            }
+            break
+
+          case 'media':
+          case 'file':
+            // CẬP NHẬT: Tạo ranh giới rõ ràng cho nội dung file để chống AI bị ảo giác
+            if (msg.extractedText) {
+              const truncatedText =
+                msg.extractedText.length > 2500
+                  ? msg.extractedText.substring(0, 2500) + '... [Tài liệu còn tiếp]'
+                  : msg.extractedText
+              contentToAI = `[Đã gửi một tài liệu đính kèm]. NỘI DUNG TÀI LIỆU NHƯ SAU:\n"""\n${truncatedText}\n"""\n[HẾT NỘI DUNG TÀI LIỆU]`
+            } else {
+              contentToAI = '[Đã gửi một tệp đính kèm]'
+            }
+            break
+
+          case 'sticker':
+            contentToAI = '[Đã gửi một nhãn dán]'
+            break
+          case 'system':
+            contentToAI = `[Thông báo hệ thống: ${msg.content}]`
+            break
+          case 'revoked':
+            contentToAI = '[Đã thu hồi một tin nhắn]'
+            break
+          default:
+            break
+        }
+
+        return `[${userName}]: ${contentToAI}`
       })
       .join('\n')
   }

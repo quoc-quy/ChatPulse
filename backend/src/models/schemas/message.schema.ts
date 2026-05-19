@@ -4,7 +4,7 @@ interface MessageType {
   _id?: ObjectId
   conversationId: ObjectId
   senderId: ObjectId
-  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
+  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked' | 'file'
   content: string
   replyToId?: ObjectId
   reactions?: any[]
@@ -16,6 +16,7 @@ interface MessageType {
   status?: 'SENDING' | 'SENT' | 'DELIVERED' | 'SEEN' | 'FAILED'
   deliveredTo?: ObjectId[]
   seenBy?: ObjectId[]
+  extractedText?: string
   createdAt?: Date
   updatedAt?: Date
 }
@@ -36,7 +37,7 @@ export default class Message {
   status: string
   deliveredTo: ObjectId[]
   seenBy: ObjectId[]
-
+  extractedText?: string
   createdAt: Date
   updatedAt: Date
 
@@ -57,6 +58,7 @@ export default class Message {
     this.status = message.status || 'SENT'
     this.deliveredTo = message.deliveredTo || []
     this.seenBy = message.seenBy || []
+    this.extractedText = message.extractedText
 
     this.createdAt = message.createdAt || new Date()
     this.updatedAt = message.updatedAt || new Date()
