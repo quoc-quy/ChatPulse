@@ -12,36 +12,50 @@ class AiService {
     this.modelName = process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
   }
 
-  async summarizeChat(formattedChatLog: string) {
+  // ──────────────────────────────────────────────────────────────
+  // HÀM TIỆN ÍCH: Gọi AI và parse kết quả JSON
+  // Dùng chung cho tất cả các summarize prompts
+  // ──────────────────────────────────────────────────────────────
+  async callWithJsonResponse(prompt: string, temperature = 0.2): Promise<Record<string, any>> {
     try {
-      const prompt = PromptBuilder.buildSummaryPrompt(formattedChatLog)
-
       const completion = await this.groq.chat.completions.create({
         model: this.modelName,
         messages: [{ role: 'user', content: prompt }],
-        // Ép model trả về định dạng JSON (Groq yêu cầu trong prompt phải có chữ "JSON")
         response_format: { type: 'json_object' },
-        temperature: 0.2 // Giảm độ sáng tạo để tóm tắt chính xác hơn
+        temperature
       })
 
       const resultText = completion.choices[0]?.message?.content || '{}'
       return JSON.parse(resultText)
+    } catch (error) {
+      console.error('Lỗi AiService.callWithJsonResponse:', error)
+      throw new ErrorWithStatus({ message: 'Lỗi server khi phân tích AI', status: 500 })
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // TÓM TẮT CUỘC HỘI THOẠI (chat log)
+  // ──────────────────────────────────────────────────────────────
+  async summarizeChat(formattedChatLog: string) {
+    try {
+      const prompt = PromptBuilder.buildSummaryPrompt(formattedChatLog)
+      return await this.callWithJsonResponse(prompt)
     } catch (error) {
       console.error('Lỗi AiService.summarizeChat:', error)
       throw new ErrorWithStatus({ message: 'Lỗi server khi phân tích AI', status: 500 })
     }
   }
 
+  // ──────────────────────────────────────────────────────────────
+  // TRẢ LỜI CÂU HỎI (AI Chat Assistant)
+  // ──────────────────────────────────────────────────────────────
   async answerQuestion(globalContextString: string, userMetadataString: string, chatHistory: any[], question: string) {
     try {
       const systemInstruction = PromptBuilder.buildSystemInstruction(globalContextString, userMetadataString)
 
-      // Xử lý chatHistory đang lưu trong DB (định dạng cũ của Gemini) sang định dạng Groq
       const formattedHistory = (chatHistory || [])
         .map((item: any) => {
           let contentString = ''
-
-          // Trích xuất nội dung text (phòng trường hợp DB đang lưu parts là mảng)
           if (Array.isArray(item.parts)) {
             contentString = item.parts.map((p: any) => p.text || '').join('\n')
           } else if (typeof item.parts === 'string') {
@@ -49,16 +63,13 @@ class AiService {
           } else {
             contentString = String(item.content || item.parts || '')
           }
-
           return {
-            // Ánh xạ role: 'model' của Google sang 'assistant' của Llama/OpenAI
             role: item.role === 'model' ? 'assistant' : 'user',
             content: contentString
           }
         })
-        .filter((msg: any) => msg.content.trim() !== '') // Xóa các tin nhắn rỗng để tránh lỗi API
+        .filter((msg: any) => msg.content.trim() !== '')
 
-      // Cấu trúc mảng messages chuẩn của Llama
       const messages: any[] = [
         { role: 'system', content: systemInstruction },
         ...formattedHistory,

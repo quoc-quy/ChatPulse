@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { ReactionModal } from './ReactionModal'
 import { ReactionBadge } from './ReactionBadge'
 import { MessageActions } from './MessageActions'
+import FileSummaryModal from './FileSummaryModal'
 import {
   Check,
   CheckCheck,
@@ -22,7 +23,8 @@ import {
   Music,
   File as GenericFileIcon,
   FileCode,
-  Image as ImageIcon
+  Image as ImageIcon,
+  BotMessageSquare
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────
@@ -52,38 +54,20 @@ export interface FilePayload {
 // ─────────────────────────────────────────────
 // Helpers: parse content
 // ─────────────────────────────────────────────
-
-/**
- * Parse `message.content` của tin nhắn media.
- * Hỗ trợ 3 dạng:
- *   1. JSON object { url, originalName, size, mimeType }  ← format mới (1 file)
- *   2. JSON array  [{ url, ... }, ...]                    ← format mới (nhiều file)
- *   3. JSON array  ["https://..."]                        ← legacy (mảng URL string)
- *   4. URL string thuần                                   ← legacy (1 URL)
- */
 function parseMediaContent(content: string): FilePayload[] {
   try {
     const parsed = JSON.parse(content)
-
-    // Array
     if (Array.isArray(parsed)) {
       if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].url) {
-        // New format: array of FilePayload
         return parsed as FilePayload[]
       }
-      // Legacy: array of URL strings
       return (parsed as string[]).map(legacyUrlToPayload)
     }
-
-    // Single object
     if (typeof parsed === 'object' && parsed !== null && parsed.url) {
       return [parsed as FilePayload]
     }
-
-    // Fallback: treat entire content as URL
     return [legacyUrlToPayload(content)]
   } catch {
-    // Not JSON → plain URL
     return [legacyUrlToPayload(content)]
   }
 }
@@ -153,9 +137,6 @@ function classify(p: FilePayload) {
   return { isImage, isVideo, isAudio, isPdf, isDoc }
 }
 
-// ─────────────────────────────────────────────
-// Helpers: formatting
-// ─────────────────────────────────────────────
 function formatBytes(bytes: number): string {
   if (!bytes) return ''
   const k = 1024
@@ -164,9 +145,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
-// ─────────────────────────────────────────────
-// FileTypeIcon: icon theo loại file
-// ─────────────────────────────────────────────
 function FileTypeIcon({ payload, size = 22 }: { payload: FilePayload; size?: number }) {
   const ext = getExt(payload)
   const mime = payload.mimeType || ''
@@ -200,9 +178,6 @@ function getBadgeColor(payload: FilePayload): string {
   return 'bg-slate-500'
 }
 
-// ─────────────────────────────────────────────
-// PDF first-page preview (dùng PDF.js từ CDN)
-// ─────────────────────────────────────────────
 function PdfPreview({ url }: { url: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [ready, setReady] = useState(false)
@@ -264,10 +239,7 @@ function PdfPreview({ url }: { url: string }) {
   )
 }
 
-// ─────────────────────────────────────────────
-// FileCard: card hiển thị 1 file document
-// ─────────────────────────────────────────────
-function FileCard({ payload, isMe }: { payload: FilePayload; isMe: boolean }) {
+function FileCard({ payload, isMe, onSummarize }: { payload: FilePayload; isMe: boolean; onSummarize: () => void }) {
   const { isPdf } = classify(payload)
   const ext = getExt(payload)
   const badgeLabel = ext.toUpperCase() || 'FILE'
@@ -277,10 +249,8 @@ function FileCard({ payload, isMe }: { payload: FilePayload; isMe: boolean }) {
     <div
       className={`w-[260px] sm:w-[300px] rounded-xl border shadow-sm overflow-hidden ${isMe ? 'bg-white/10 border-white/20' : 'bg-background border-border'}`}
     >
-      {/* PDF → xem trước trang đầu tiên */}
       {isPdf && <PdfPreview url={payload.url} />}
 
-      {/* Info row */}
       <div className='flex items-center gap-3 p-3'>
         <div
           className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-white/15' : 'bg-muted'}`}
@@ -289,32 +259,38 @@ function FileCard({ payload, isMe }: { payload: FilePayload; isMe: boolean }) {
         </div>
 
         <div className='flex-1 min-w-0'>
-          {/* Tên file gốc */}
           <p className='text-[13px] font-semibold truncate leading-snug' title={payload.originalName}>
             {payload.originalName}
           </p>
           <div className='flex items-center gap-1.5 mt-0.5'>
-            {/* Badge loại file */}
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold text-white ${getBadgeColor(payload)}`}>
               {badgeLabel}
             </span>
-            {/* Dung lượng */}
             {sizeLabel && <span className='text-[11px] opacity-60'>{sizeLabel}</span>}
           </div>
         </div>
 
-        {/* Nút tải xuống */}
-        <a
-          href={payload.url}
-          download={payload.originalName}
-          target='_blank'
-          rel='noreferrer'
-          onClick={(e) => e.stopPropagation()}
-          className={`p-2 rounded-full transition-colors shrink-0 ${isMe ? 'hover:bg-white/20' : 'hover:bg-muted'}`}
-          title='Tải xuống'
-        >
-          <Download className='w-4 h-4' />
-        </a>
+        <div className='flex items-center gap-1 shrink-0'>
+          {/* Nút tóm tắt tích hợp */}
+          <button
+            onClick={onSummarize}
+            className={`p-2 rounded-full hover:bg-black/10 transition-colors`}
+            title='Tóm tắt tài liệu'
+          >
+            ✨
+          </button>
+          <a
+            href={payload.url}
+            download={payload.originalName}
+            target='_blank'
+            rel='noreferrer'
+            onClick={(e) => e.stopPropagation()}
+            className={`p-2 rounded-full transition-colors ${isMe ? 'hover:bg-white/20' : 'hover:bg-muted'}`}
+            title='Tải xuống'
+          >
+            <Download className='w-4 h-4' />
+          </a>
+        </div>
       </div>
     </div>
   )
@@ -340,18 +316,19 @@ export function MessageItem({
   const currentUserId = profile?._id || ''
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false)
 
   const isCall = message.type === 'call'
   const isRevoked = message.type === 'revoked'
   const reactions = message.reactions || []
   const hasReactions = reactions.length > 0 && !isRevoked
 
+  // CHẶN BẤM TÓM TẮT KHI TIN NHẮN CHƯA GỬI XONG
+  const isTempMessage =
+    String(message._id).startsWith('temp') || message.status === 'SENDING' || message.status === 'FAILED'
+
   const isMedia = message.type === 'media' || message.type === 'image' || message.type === 'video'
-
-  // Parse tất cả file trong message
   const payloads: FilePayload[] = isMedia ? parseMediaContent(message.content) : []
-
-  // Classify từng item
   const clss = payloads.map(classify)
   const allVisual = clss.length > 0 && clss.every((c) => c.isImage || c.isVideo)
 
@@ -367,7 +344,6 @@ export function MessageItem({
 
   const getInitials = (name?: string) => (name?.trim() ? name.trim().charAt(0).toUpperCase() : 'U')
 
-  // ── Status icon ──────────────────────────────
   const renderMessageStatus = () => {
     if (!isMe || isCall || isRevoked) return null
     const status = message.status || 'SENT'
@@ -397,9 +373,7 @@ export function MessageItem({
     )
   }
 
-  // ── Content renderer ─────────────────────────
   const renderMessageContent = () => {
-    // Text thuần
     if (!isMedia) {
       return (
         <p className='text-[15px] leading-relaxed whitespace-pre-wrap break-words [word-break:break-word] [overflow-wrap:anywhere]'>
@@ -410,12 +384,10 @@ export function MessageItem({
 
     if (payloads.length === 0) return null
 
-    // Audio
     if (clss.some((c) => c.isAudio)) {
       return <audio src={payloads[0].url} controls className='max-w-[240px]' />
     }
 
-    // Tất cả ảnh/video → grid
     if (allVisual) {
       const urls = payloads.map((p) => p.url)
       return (
@@ -424,12 +396,26 @@ export function MessageItem({
             clss[0].isVideo ? (
               <video src={urls[0]} controls className='max-w-[260px] max-h-[320px] rounded-xl bg-black shadow-sm' />
             ) : (
-              <img
-                src={urls[0]}
-                alt='media'
-                onClick={() => setSelectedMediaUrl(urls[0])}
-                className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
-              />
+              <div className='relative group inline-block'>
+                <img
+                  src={urls[0]}
+                  alt='media'
+                  onClick={() => setSelectedMediaUrl(urls[0])}
+                  className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm border border-border/20'
+                />
+                {!isTempMessage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsSummaryOpen(true)
+                    }}
+                    className='absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-indigo-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-md backdrop-blur-sm'
+                    title='AI Tóm tắt hình ảnh này'
+                  >
+                    ✨
+                  </button>
+                )}
+              </div>
             )
           ) : (
             <div
@@ -442,13 +428,35 @@ export function MessageItem({
                 return (
                   <div
                     key={idx}
-                    className='relative w-full bg-muted cursor-pointer hover:opacity-90 transition aspect-square'
-                    onClick={() => setSelectedMediaUrl(url)}
+                    className='relative w-full bg-muted cursor-pointer hover:opacity-90 transition aspect-square group'
                   >
                     {isVid ? (
-                      <video src={url} className='w-full h-full object-cover' />
+                      <video
+                        src={url}
+                        className='w-full h-full object-cover'
+                        onClick={() => setSelectedMediaUrl(url)}
+                      />
                     ) : (
-                      <img src={url} alt='media' className='w-full h-full object-cover' />
+                      <>
+                        <img
+                          src={url}
+                          alt='media'
+                          className='w-full h-full object-cover'
+                          onClick={() => setSelectedMediaUrl(url)}
+                        />
+                        {!isTempMessage && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setIsSummaryOpen(true)
+                            }}
+                            className='absolute top-1 right-1 p-1 bg-black/50 hover:bg-indigo-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-md backdrop-blur-sm scale-75'
+                            title='AI Tóm tắt'
+                          >
+                            ✨
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )
@@ -456,7 +464,6 @@ export function MessageItem({
             </div>
           )}
 
-          {/* Lightbox */}
           {selectedMediaUrl &&
             createPortal(
               <div
@@ -495,7 +502,6 @@ export function MessageItem({
       )
     }
 
-    // Mixed hoặc toàn file document → FileCard cho mỗi item
     return (
       <div className='flex flex-col gap-2'>
         {payloads.map((p, idx) => {
@@ -511,21 +517,39 @@ export function MessageItem({
             )
           if (c.isImage)
             return (
-              <img
-                key={idx}
-                src={p.url}
-                alt='media'
-                onClick={() => setSelectedMediaUrl(p.url)}
-                className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm'
-              />
+              <div key={idx} className='relative group inline-block'>
+                <img
+                  src={p.url}
+                  alt='media'
+                  onClick={() => setSelectedMediaUrl(p.url)}
+                  className='max-w-[260px] max-h-[320px] object-cover rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm'
+                />
+                {!isTempMessage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsSummaryOpen(true)
+                    }}
+                    className='absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-indigo-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-md backdrop-blur-sm'
+                    title='AI Tóm tắt hình ảnh này'
+                  >
+                    ✨
+                  </button>
+                )}
+              </div>
             )
-          return <FileCard key={idx} payload={p} isMe={isMe} />
+          return (
+            <div className='flex flex-col gap-2'>
+              {payloads.map((p, idx) => (
+                <FileCard key={idx} payload={p} isMe={isMe} onSummarize={() => setIsSummaryOpen(true)} />
+              ))}
+            </div>
+          )
         })}
       </div>
     )
   }
 
-  // ── System message ───────────────────────────
   if (message.type === 'system') {
     const isWarning = (message as any).isWarning
     return (
@@ -552,7 +576,6 @@ export function MessageItem({
 
   const getBubbleStyles = () => {
     if (allVisual && isMedia) return 'bg-transparent'
-    // File document (không phải ảnh/video) → không dùng bubble có màu nền
     const allDocs = clss.length > 0 && clss.every((c) => !c.isImage && !c.isVideo && !c.isAudio)
     if (allDocs && isMedia) return 'bg-transparent'
     if (isMe) return 'bg-gradient-to-r from-[#6b45e9] to-[#a139e4] text-white rounded-tr-sm px-4 py-2.5 shadow-sm'
@@ -607,12 +630,10 @@ export function MessageItem({
               <CallMessage message={message} isMe={isMe} />
             ) : (
               <div className={`flex flex-col rounded-2xl relative ${getBubbleStyles()}`}>
-                {/* Sender name (nhóm chat, không phải ảnh) */}
                 {!isMe && isFirstInGroup && !(allVisual && isMedia) && (
                   <span className='text-xs font-semibold text-muted-foreground mb-1'>{senderName}</span>
                 )}
 
-                {/* Reply preview */}
                 {message.replyToMessage && (
                   <div
                     className='mb-2 p-2 rounded-lg border-l-4 border-white/50 bg-black/10 flex flex-col text-sm cursor-pointer opacity-80 hover:opacity-100 transition'
@@ -667,6 +688,11 @@ export function MessageItem({
       </div>
 
       <ReactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} reactions={reactions} />
+      <FileSummaryModal
+        isOpen={isSummaryOpen}
+        onClose={() => setIsSummaryOpen(false)}
+        messageId={message._id || null}
+      />
     </div>
   )
 }

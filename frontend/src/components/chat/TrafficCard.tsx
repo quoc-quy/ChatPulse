@@ -129,7 +129,7 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
   if (data.type === 'general') {
     return (
       <Card className='w-full max-w-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-blue-200 dark:border-blue-900/50 shadow-sm'>
-        <CardHeader className='pb-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-t-xl border-b border-blue-100 dark:border-blue-900/30'>
+        <CardHeader className='p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-t-xl border-b border-blue-100 dark:border-blue-900/30'>
           <CardTitle className='text-[16px] flex items-start gap-2 text-blue-700 dark:text-blue-400 leading-snug'>
             <Info className='w-5 h-5 shrink-0 mt-0.5 text-blue-500' />
             <span>{data.title || 'Thông tin tra cứu'}</span>
@@ -182,7 +182,7 @@ export function TrafficCard({ data }: { data: TrafficResponseCard }) {
   if (data.type === 'violation') {
     return (
       <Card className='w-full max-w-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden'>
-        <CardHeader className='pb-3 bg-red-50/50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/30'>
+        <CardHeader className='p-3 bg-red-50/50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/30'>
           <CardTitle className='text-[16px] flex items-start gap-2 text-red-700 dark:text-red-400'>
             <ShieldAlert className='w-5 h-5 shrink-0 mt-0.5' />
             <div className='flex flex-col gap-1'>
