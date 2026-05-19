@@ -23,8 +23,7 @@ import {
   Music,
   File as GenericFileIcon,
   FileCode,
-  Image as ImageIcon,
-  BotMessageSquare
+  Image as ImageIcon
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────
@@ -245,6 +244,24 @@ function FileCard({ payload, isMe, onSummarize }: { payload: FilePayload; isMe: 
   const badgeLabel = ext.toUpperCase() || 'FILE'
   const sizeLabel = formatBytes(payload.size)
 
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(payload.url)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = payload.originalName || 'download' //
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Download failed', error)
+      window.open(payload.url, '_blank')
+    }
+  }
+
   return (
     <div
       className={`w-[260px] sm:w-[300px] rounded-xl border shadow-sm overflow-hidden ${isMe ? 'bg-white/10 border-white/20' : 'bg-background border-border'}`}
@@ -280,11 +297,7 @@ function FileCard({ payload, isMe, onSummarize }: { payload: FilePayload; isMe: 
             ✨
           </button>
           <a
-            href={payload.url}
-            download={payload.originalName}
-            target='_blank'
-            rel='noreferrer'
-            onClick={(e) => e.stopPropagation()}
+            onClick={handleDownload}
             className={`p-2 rounded-full transition-colors ${isMe ? 'hover:bg-white/20' : 'hover:bg-muted'}`}
             title='Tải xuống'
           >

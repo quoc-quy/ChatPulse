@@ -54,44 +54,64 @@ export function MediaCollapsible({
   const medias: { url: string; isVideo: boolean }[] = []
   const files: { url: string; name: string }[] = []
   const links: { url: string }[] = []
-  const urlRegex = /(https?:\/\/[^\s]+)/g
+  // const urlRegex = /(https?:\/\/[^\s]+)/g
+
+  const getFileNameFromUrl = (url: string) => {
+    try {
+      const cleanUrl = url.split('?')[0].split('#')[0]
+      const pathSegments = cleanUrl.split('/')
+      const fileName = pathSegments[pathSegments.length - 1]
+      return decodeURIComponent(fileName) || 'Tài liệu không tên'
+    } catch {
+      return 'Tài liệu không tên'
+    }
+  }
+
+  const handleDownload = async (url: string, fileName: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = fileName // Ép buộc tên file tại đây
+      document.body.appendChild(a)
+      a.click()
+
+      // Cleanup
+      window.URL.revokeObjectURL(blobUrl)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Download failed:', error)
+      // Fallback: Nếu fetch bị chặn bởi CORS, mở tab mới như cũ
+      window.open(url, '_blank')
+    }
+  }
 
   messages.forEach((msg) => {
     if (msg.type === 'revoked') return
 
-    // XỬ LÝ LINK (Trong tin nhắn text)
-    if (msg.type === 'text') {
-      const foundLinks = msg.content.match(urlRegex)
-      if (foundLinks) {
-        foundLinks.forEach((link: string) => links.push({ url: link }))
-      }
-      return // Dừng xử lý các loại khác nếu đã là text
-    }
-
-    // XỬ LÝ MEDIA / FILE / IMAGE / VIDEO
-    if (['media', 'image', 'video', 'file', 'audio'].includes(msg.type)) {
-      let urls: string[] = []
-
-      // Parse JSON (nếu là album gửi nhiều file cùng lúc)
+    // Chỉ xử lý các loại tin nhắn có chứa file/media
+    if (['media', 'image', 'video', 'file'].includes(msg.type)) {
+      let payloads: any[] = []
       try {
         const parsed = JSON.parse(msg.content)
-        urls = Array.isArray(parsed) ? parsed : [msg.content]
+        payloads = Array.isArray(parsed) ? parsed : [parsed]
       } catch {
-        urls = [msg.content] // Tin nhắn cũ chỉ có 1 URL
+        // Trường hợp content là URL đơn
+        payloads = [{ url: msg.content }]
       }
 
-      // Phân loại từng URL vào đúng mảng
-      urls.forEach((url: string) => {
-        const fileType = getFileType(url)
+      payloads.forEach((p) => {
+        const url = typeof p === 'string' ? p : p.url
+        const name = typeof p === 'string' ? getFileNameFromUrl(url) : p.originalName || getFileNameFromUrl(url)
 
+        const fileType = getFileType(url)
         if (fileType === 'image' || fileType === 'video') {
           medias.push({ url, isVideo: fileType === 'video' })
         } else {
-          // Tất cả những thứ không phải Ảnh/Video thì nhét vào mục File
-          files.push({
-            url,
-            name: url.split('/').pop()?.split('?')[0] || 'Tài liệu không tên'
-          })
+          files.push({ url, name })
         }
       })
     }
@@ -152,13 +172,10 @@ export function MediaCollapsible({
 
               {type === 'file' &&
                 files.map((item, idx) => {
-                  const ext = item.name.split('.').pop() || 'FILE'
+                  const ext = item.name.split('.').pop()?.toUpperCase() || 'FILE'
                   return (
-                    <a
+                    <div
                       key={idx}
-                      href={item.url}
-                      target='_blank'
-                      rel='noopener noreferrer'
                       className='flex items-center gap-3 p-2.5 rounded-lg border border-border/50 hover:bg-muted transition-colors'
                     >
                       <div className='w-10 h-10 rounded bg-blue-500/10 flex flex-shrink-0 items-center justify-center'>
@@ -168,8 +185,15 @@ export function MediaCollapsible({
                         <p className='text-[13px] font-medium truncate'>{item.name}</p>
                         <p className='text-[11px] text-muted-foreground uppercase mt-0.5'>{ext}</p>
                       </div>
-                      <Download className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                    </a>
+
+                      {/* Nút download được fix ở đây */}
+                      <button
+                        onClick={() => handleDownload(item.url, item.name)}
+                        className='p-2 hover:bg-muted-foreground/10 rounded-full transition-colors'
+                      >
+                        <Download className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                      </button>
+                    </div>
                   )
                 })}
 
