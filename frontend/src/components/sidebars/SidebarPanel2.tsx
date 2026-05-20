@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { UserPlus, Bot, Users, MoreHorizontal, Trash2, CarFront } from 'lucide-react'
+import { UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -317,23 +317,37 @@ export function SidebarPanel2({
               <div
                 id='chat-item-traffic-ai'
                 onClick={() => handleChatSelect('traffic-ai')}
-                className={`flex items-center gap-3 min-h-16 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
-                  activeChat?.id === 'traffic-ai' ? 'bg-muted/80' : 'hover:bg-muted/30'
+                className={`relative flex items-center gap-3 min-h-16 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
+                  activeChat?.id === 'traffic-ai'
+                    ? 'bg-[#0f1e38] dark:bg-[#0f1e38] border border-[#1e3a5f]'
+                    : 'hover:bg-muted/30'
                 }`}
               >
-                <div className='shrink-0'>
-                  <div className='flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 shadow-sm border border-border'>
-                    <CarFront className='h-6 w-6 text-white' />
+                {/* PIN indicator — đồng bộ mobile */}
+                <span className='absolute top-1.5 right-9 text-[10px]'>📌</span>
+
+                {/* Avatar — đồng bộ mobile: 🚦 + online dot */}
+                <div className='shrink-0 relative'>
+                  <div className='flex h-12 w-12 items-center justify-center rounded-full bg-[#1e3a5f] border-2 border-blue-500 shadow-sm text-2xl'>
+                    🚦
                   </div>
+                  <span className='absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-background' />
                 </div>
+
                 <div className='flex-1 overflow-hidden'>
-                  <div className='flex justify-between items-center mb-0.5 gap-2'>
-                    <div className='font-bold text-sm truncate text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600'>
-                      ChatPulse Giao Thông
-                    </div>
+                  <div className='flex items-center gap-2 mb-0.5'>
+                    <span className='font-bold text-sm truncate text-foreground'>ChatPulse Giao Thông</span>
+                    {/* AI badge — đồng bộ mobile */}
+                    <span className='shrink-0 text-[9px] font-extrabold tracking-wide text-blue-400 border border-blue-500 bg-[#1e3a5f] rounded px-1.5 py-0.5'>
+                      AI
+                    </span>
                   </div>
-                  <div className='text-sm truncate text-muted-foreground'>Trợ lý Luật GTĐB (RAG)</div>
+                  <div className='text-sm truncate text-muted-foreground'>
+                    Hỏi về luật giao thông, mức phạt, quy định...
+                  </div>
                 </div>
+
+                <span className='text-muted-foreground/40 text-xl font-light'>›</span>
               </div>
 
               {isLoading ? (
