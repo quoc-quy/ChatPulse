@@ -31,7 +31,7 @@ import { useTranslation } from '../hooks/useTranslation'
 import { useTheme } from '../contexts/ThemeContext'
 
 // 👇 1. Import bộ màu gốc từ colors.ts
-import { lightColors as globalLight, darkColors as globalDark } from "../theme/colors";
+import { lightColors as globalLight, darkColors as globalDark } from '../theme/colors'
 
 // 👇 2. Mở rộng (extend) các màu bị thiếu và ép sang màu Tím
 const localLightColors = {
@@ -43,8 +43,8 @@ const localLightColors = {
   surface: globalLight.card,
   text: globalLight.foreground,
   success: 'hsl(142, 76%, 36%)',
-  surfaceSoft: 'hsl(240, 15%, 95%)',
-};
+  surfaceSoft: 'hsl(240, 15%, 95%)'
+}
 
 const localDarkColors = {
   ...globalDark,
@@ -55,8 +55,8 @@ const localDarkColors = {
   surface: globalDark.card,
   text: globalDark.foreground,
   success: 'hsl(142, 69%, 58%)',
-  surfaceSoft: 'hsl(240, 20%, 14%)',
-};
+  surfaceSoft: 'hsl(240, 20%, 14%)'
+}
 
 const Tab = createBottomTabNavigator()
 
@@ -70,17 +70,14 @@ const DummyScreen = () => <View style={{ flex: 1, backgroundColor: '#111111' }} 
 
 // Màn hình Coming Soon cho Tab Gọi điện
 const ComingSoonScreen = () => {
-  const { t } = useTranslation();
-  const { isDarkMode } = useTheme();
+  const { t } = useTranslation()
+  const { isDarkMode } = useTheme()
 
-  const COLORS = useMemo(
-    () => (isDarkMode ? localDarkColors : localLightColors),
-    [isDarkMode]
-  );
+  const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode])
 
   // Khởi tạo các giá trị Animation
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current
+  const floatAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
     // Hiệu ứng 1: Tỏa sáng (Pulse) liên tục ra xung quanh
@@ -89,9 +86,9 @@ const ComingSoonScreen = () => {
         toValue: 1,
         duration: 2500,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
+        useNativeDriver: false
       })
-    ).start();
+    ).start()
 
     // Hiệu ứng 2: Icon lơ lửng (Bouncing/Floating) lên xuống
     Animated.loop(
@@ -100,35 +97,47 @@ const ComingSoonScreen = () => {
           toValue: -12,
           duration: 1500,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
+          useNativeDriver: false
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
           duration: 1500,
           easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
+          useNativeDriver: false
+        })
       ])
-    ).start();
-  }, []);
+    ).start()
+  }, [])
 
   // Map giá trị anim sang độ lớn (scale) và độ mờ (opacity)
   const pulseScale = pulseAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 2], // Tỏa to gấp đôi
-  });
+    outputRange: [1, 2] // Tỏa to gấp đôi
+  })
 
   const pulseOpacity = pulseAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.6, 0], // Mờ dần khi tỏa ra
-  });
+    outputRange: [0.6, 0] // Mờ dần khi tỏa ra
+  })
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
-
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.background,
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}
+    >
       {/* VÙNG CHỨA ICON & ANIMATION */}
-      <View style={{ position: 'relative', justifyContent: 'center', alignItems: 'center', height: 160 }}>
-
+      <View
+        style={{
+          position: 'relative',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: 160
+        }}
+      >
         {/* Lớp màu nền tỏa ra (Pulse Effect) */}
         <Animated.View
           style={{
@@ -138,7 +147,7 @@ const ComingSoonScreen = () => {
             borderRadius: 45,
             backgroundColor: COLORS.primary,
             opacity: pulseOpacity,
-            transform: [{ scale: pulseScale }],
+            transform: [{ scale: pulseScale }]
           }}
         />
 
@@ -158,24 +167,40 @@ const ComingSoonScreen = () => {
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.25,
             shadowRadius: 20,
-            elevation: 10,
+            elevation: 10
           }}
         >
           <Phone size={44} color={COLORS.primary} />
         </Animated.View>
       </View>
 
-      <Text style={{ color: COLORS.text, fontSize: 24, fontWeight: '800', marginBottom: 10, marginTop: 10 }}>
+      <Text
+        style={{
+          color: COLORS.text,
+          fontSize: 24,
+          fontWeight: '800',
+          marginBottom: 10,
+          marginTop: 10
+        }}
+      >
         Tính năng đang phát triển
       </Text>
 
-      <Text style={{ color: COLORS.textLight, fontSize: 15, textAlign: 'center', paddingHorizontal: 40, lineHeight: 24 }}>
-        {t.featureComingSoon || "Tính năng gọi điện đang được đội ngũ ChatPulse khẩn trương phát triển và sẽ sớm ra mắt!"}
+      <Text
+        style={{
+          color: COLORS.textLight,
+          fontSize: 15,
+          textAlign: 'center',
+          paddingHorizontal: 40,
+          lineHeight: 24
+        }}
+      >
+        {t.featureComingSoon ||
+          'Tính năng gọi điện đang được đội ngũ ChatPulse khẩn trương phát triển và sẽ sớm ra mắt!'}
       </Text>
-
     </View>
-  );
-};
+  )
+}
 
 const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
   const { t } = useTranslation()
@@ -183,10 +208,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
   const { isDarkMode } = useTheme()
 
   // Gán COLORS bằng bộ màu local đã được ép sang Tím
-  const COLORS = useMemo(
-    () => (isDarkMode ? localDarkColors : localLightColors),
-    [isDarkMode]
-  );
+  const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode])
 
   const [isAiVisible, setIsAiVisible] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -360,7 +382,9 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
+                <Text
+                  style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}
+                >
                   {t.tabChats}
                 </Text>
               </View>
@@ -375,7 +399,9 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <Users size={24} color={focused ? COLORS.primary : COLORS.textLight} />
-                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
+                <Text
+                  style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}
+                >
                   {t.tabContacts}
                 </Text>
               </View>
@@ -390,9 +416,11 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <View style={styles.aiIconCircle}>
-                  <Sparkles size={24} color={focused ? COLORS.primary : "#D1D5DB"} />
+                  <Sparkles size={24} color={focused ? COLORS.primary : '#D1D5DB'} />
                 </View>
-                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
+                <Text
+                  style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}
+                >
                   {t.tabAiPulse}
                 </Text>
               </View>
@@ -414,7 +442,9 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <Phone size={24} color={focused ? COLORS.primary : COLORS.textLight} />
-                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
+                <Text
+                  style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}
+                >
                   {t.tabCalls}
                 </Text>
               </View>
@@ -428,7 +458,9 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             tabBarIcon: ({ focused }) => (
               <View style={styles.tabItemContainer}>
                 <User size={24} color={focused ? COLORS.primary : COLORS.textLight} />
-                <Text style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}>
+                <Text
+                  style={[styles.tabLabel, { color: focused ? COLORS.primary : COLORS.textLight }]}
+                >
                   {t.tabProfile}
                 </Text>
               </View>
@@ -556,7 +588,7 @@ const styles = StyleSheet.create({
     fontSize: 10, // 👈 Giảm font size xuống một xíu (từ 11 xuống 10) để chữ không bị tràn
     fontWeight: '600',
     marginTop: 4,
-    textAlign: 'center', // 👈 Đảm bảo chữ luôn canh giữa
+    textAlign: 'center' // 👈 Đảm bảo chữ luôn canh giữa
   },
   activeLine: {
     height: 3,
@@ -572,18 +604,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B5CF6', // Dùng luôn màu tím chủ đạo thay vì màu đen (#161618)
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5, 
-    
+    marginBottom: 5,
+
     // Đổ bóng phát sáng (Glow effect)
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 8,
-    
+
     // Viền bao quanh bảo vệ màu
     borderWidth: 0,
-    borderColor: '#FFFFFF',
+    borderColor: '#FFFFFF'
   },
   badgeContainer: {
     position: 'absolute',

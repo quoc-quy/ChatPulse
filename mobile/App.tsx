@@ -24,6 +24,8 @@ import { ChatProvider } from './src/contexts/ChatContext'
 import MessageSearchScreen from './src/screens/MessageSearchScreen'
 import CreateGroupScreen from './src/screens/CreateGroupScreen'
 import ForwardMessageScreen from './src/screens/ForwardMessageScreen'
+// ── THÊM MỚI ──────────────────────────────────────────────────────────────
+import TrafficBotScreen from './src/screens/TrafficBotScreen'
 
 const Stack = createNativeStackNavigator()
 
@@ -70,7 +72,6 @@ export default function App() {
   }
 
   return (
-    // Bọc ThemeProvider ra ngoài cùng để mọi màn hình đều có thể gọi useTheme()
     <ThemeProvider>
       <ChatProvider>
         <SafeAreaProvider>
@@ -130,7 +131,6 @@ export default function App() {
                       animation: 'slide_from_right'
                     }}
                   />
-
                   <Stack.Screen
                     name="MessageScreen"
                     component={MessageScreen}
@@ -163,8 +163,16 @@ export default function App() {
                   <Stack.Screen
                     name="ForwardMessageScreen"
                     component={ForwardMessageScreen}
-                    // options={{ headerShown: false }}
                     options={{ title: 'Chuyển tiếp tin nhắn' }}
+                  />
+                  {/* ── THÊM MỚI: ChatPulse Giao Thông ──────────────────── */}
+                  <Stack.Screen
+                    name="TrafficBot"
+                    component={TrafficBotScreen}
+                    options={{
+                      headerShown: false,
+                      animation: 'slide_from_right'
+                    }}
                   />
                 </>
               ) : (
