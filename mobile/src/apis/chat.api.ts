@@ -20,7 +20,6 @@ export const getMessages = (conversationId: string, cursor: string | null = null
   return api.get(`/messages/${conversationId}`, { params })
 }
 
-// Cập nhật hàm sendMessage để hỗ trợ E2E
 export const sendMessage = (conversationId: string, content: string, type = 'text') => {
   return api.post(`/messages`, {
     convId: conversationId,
@@ -29,7 +28,6 @@ export const sendMessage = (conversationId: string, content: string, type = 'tex
   })
 }
 
-// Thêm hàm này ngay dưới sendMessage
 export const sendMediaMessage = (
   conversationId: string,
   files: any[],
@@ -54,26 +52,22 @@ export const sendMediaMessage = (
   })
 }
 
-// API Thả hoặc Gỡ cảm xúc (React)
 export const reactMessage = (messageId: string, emoji: string) => {
   return api.post(`/messages/${messageId}/react`, { emoji })
 }
 
-// API Thu hồi tin nhắn (Recall)
 export const recallMessage = (messageId: string) => {
   return api.post(`/messages/${messageId}/revoke`)
 }
 
-// API Xóa tin nhắn phía tôi
 export const deleteMessageForMe = (messageId: string) => {
   return api.delete(`/messages/${messageId}/delete-for-me`)
 }
-// Lấy chi tiết hội thoại + danh sách thành viên
+
 export const getConversationDetail = (conversationId: string) => {
   return api.get(`/conversations/${conversationId}`)
 }
 
-// Cập nhật tên/avatar nhóm
 export const updateGroup = (
   conversationId: string,
   data: { name?: string; avatarUrl?: string }
@@ -81,89 +75,76 @@ export const updateGroup = (
   return api.patch(`/conversations/${conversationId}`, data)
 }
 
-// Thêm thành viên vào nhóm
 export const addMembers = (conversationId: string, members: string[]) => {
   return api.post(`/conversations/${conversationId}/members`, {
     member_ids: members
   })
 }
 
-// Kick thành viên khỏi nhóm (admin)
 export const kickMember = (conversationId: string, memberId: string) => {
   return api.delete(`/conversations/${conversationId}/members`, {
     data: { memberId }
   })
 }
 
-// Tự rời nhóm
 export const leaveGroup = (conversationId: string) => {
   return api.delete(`/conversations/${conversationId}/leave`)
 }
 
-// Thăng cấp thành viên lên admin
 export const promoteAdmin = (conversationId: string, memberId: string) => {
   return api.patch(`/conversations/${conversationId}/admin`, { memberId })
 }
 
-// API đánh dấu đã xem toàn bộ tin nhắn trong một cuộc hội thoại
 export const markConversationAsSeen = (conversationId: string) => {
   return api.patch(`/conversations/${conversationId}/seen`)
 }
 
-// Gửi mảng tin nhắn lên Backend thật để xử lý qua Groq AI
-export const summarizeChatApi = (messages: any[]) => {
-  // Thay đổi đường dẫn '/conversations/summarize' cho khớp với route bạn đã khai báo bên backend
-  return api.post(`/conversations/summarize`, {
-    messages: messages
+/**
+ * [FIX] Tóm tắt cuộc trò chuyện bằng AI
+ * Gọi đúng endpoint: GET /messages/:convId/summary
+ * Khớp với messagesApi.summarizeConversation ở frontend web
+ */
+export const summarizeChatApi = (convId: string, limit: number = 30, unreadCount: number = 0) => {
+  return api.get(`/messages/${convId}/summary`, {
+    params: { limit, unreadCount }
   })
 }
 
-// Sửa lại URL ở đây nhé
+/**
+ * [MỚI] Tóm tắt nội dung một tin nhắn cụ thể (file, ảnh, text)
+ * Khớp với messagesApi.summarizeMessage ở frontend web
+ * POST /messages/:messageId/summarize
+ */
+export const summarizeMessageApi = (messageId: string) => {
+  return api.post(`/messages/${messageId}/summarize`)
+}
+
 export const askChatPulseAIApi = (context: any[], question: string) => {
   return api.post('/conversations/ask-ai', {
     context: context,
     question: question
   })
 }
-// Tạo hoặc lấy conversation 1-1 với một user (idempotent)
+
 export const createDirectConversation = (userId: string) => {
   return api.post('/conversations', {
     type: 'direct',
     members: [userId]
   })
 }
-/**
- * Tắt/bật thông báo cho một hội thoại
- * PATCH /groups/:id/mute
- */
+
 export const muteConversation = (conversationId: string, mute: boolean) =>
   api.patch(`/groups/${conversationId}/mute`, { mute })
 
-/**
- * Lấy ảnh, video, file đã gửi trong nhóm
- * GET /groups/:id/media?page=1&limit=20
- */
 export const getMediaFiles = (conversationId: string, page: number = 1, limit: number = 20) =>
   api.get(`/groups/${conversationId}/media`, { params: { page, limit } })
 
-/**
- * Lấy danh sách link đã chia sẻ trong nhóm
- * GET /groups/:id/links?page=1&limit=20
- */
 export const getSharedLinks = (conversationId: string, page: number = 1, limit: number = 20) =>
   api.get(`/groups/${conversationId}/links`, { params: { page, limit } })
 
-/**
- * Đổi tên nhóm
- * PATCH /groups/:id/name
- */
 export const renameGroup = (conversationId: string, name: string) =>
   api.patch(`/groups/${conversationId}/name`, { name })
 
-/**
- * Tìm kiếm tin nhắn trong hội thoại
- * GET /messages/:convId/search?q=keyword&page=1&limit=20
- */
 export const searchMessages = (
   conversationId: string,
   keyword: string,
@@ -178,26 +159,21 @@ export const suggestReplyApi = (messages: any[]) => {
   return api.post('/conversations/suggest-reply', { messages })
 }
 
-// Thêm vào cuối file mobile/src/apis/chat.api.ts
-
-/**
- * Ghim hoặc bỏ ghim một tin nhắn
- * POST /messages/:id/pin
- */
 export const pinMessageApi = (messageId: string, action: 'pin' | 'unpin') => {
-  return api.post(`/messages/${messageId}/pin`, { action });
-};
+  return api.post(`/messages/${messageId}/pin`, { action })
+}
 
-// ✅ Ghim / bỏ ghim hội thoại
 export const pinConversation = (conversationId: string, is_pin: boolean) =>
   api.patch(`/conversations/${conversationId}/pin`, { is_pin })
 
 export const joinGroupByLink = (conversationId: string) => {
   return api.post('/groups/join', { conversationId })
 }
+
 export const updateGroupAvatar = (conversationId: string, avatarUrl: string) => {
   return api.patch(`/groups/${conversationId}/avatar`, { avatarUrl })
 }
+
 export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
   const filename = uri.split('/').pop() || 'avatar.jpg'
   const match = /\.(\w+)$/.exec(filename)
@@ -210,12 +186,15 @@ export const uploadGroupAvatarApi = (conversationId: string, uri: string) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
+
 export const createGroup = (data: CreateGroupParams) => {
   return api.post('/groups', data)
 }
+
 export const disbandGroup = (conversationId: string) => {
   return api.delete(`/groups/${conversationId}/disband`)
 }
+
 export const deleteConversationForMe = (conversationId: string) =>
   api.delete(`/conversations/${conversationId}`)
 
