@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { ChatAvatar } from '../ui/ChatAvatar';
+import React from 'react'
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
+import { ChatAvatar } from '../ui/ChatAvatar'
 
 export const MessageHeader = ({
   navigation,
@@ -11,7 +11,7 @@ export const MessageHeader = ({
   chatAvatarUrl,
   isGroup,
   isOnline,
-  statusText, 
+  statusText,
   isMutedState,
   isGroupDisbanded,
   membersData,
@@ -19,12 +19,15 @@ export const MessageHeader = ({
   handleSummarizeChat,
   isNotFriendState, // 🌟 NHẬN THÊM BIẾN NÀY ĐỂ XỬ LÝ LÀM MỜ
   COLORS,
-  styles,
+  styles
 }: any) => {
-
   const goToDetail = () => {
-    navigation.navigate('ConversationDetail', { id: conversationId, name: currentChatName, isGroup: isGroup });
-  };
+    navigation.navigate('ConversationDetail', {
+      id: conversationId,
+      name: currentChatName,
+      isGroup: isGroup
+    })
+  }
 
   return (
     <LinearGradient colors={['#8B5CF6', '#6D28D9']} style={styles.header}>
@@ -34,12 +37,18 @@ export const MessageHeader = ({
         </TouchableOpacity>
 
         {/* 🌟 LÀM MỜ KHỐI AVATAR VÀ TÊN NẾU KHÔNG PHẢI BẠN BÈ */}
-        <TouchableOpacity 
-          style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, opacity: (!isGroup && isNotFriendState) ? 0.5 : 1 }}
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            flex: 1,
+            minWidth: 0,
+            opacity: !isGroup && isNotFriendState ? 0.5 : 1
+          }}
           activeOpacity={0.7}
           onPress={goToDetail}
         >
-          <ChatAvatar 
+          <ChatAvatar
             chatName={currentChatName}
             chatAvatarUrl={chatAvatarUrl}
             isGroup={isGroup}
@@ -59,8 +68,18 @@ export const MessageHeader = ({
             </View>
 
             {!isGroupDisbanded && (
-              <Text style={[styles.headerStatus, isOnline && !isGroup && !isNotFriendState ? { color: '#A7F3D0' } : {}]}>
-                {statusText || (isGroup ? `${membersData.length} thành viên` : (isOnline ? 'Đang hoạt động' : 'Không hoạt động'))}
+              <Text
+                style={[
+                  styles.headerStatus,
+                  isOnline && !isGroup && !isNotFriendState ? { color: '#A7F3D0' } : {}
+                ]}
+              >
+                {statusText ||
+                  (isGroup
+                    ? `${membersData.length} thành viên`
+                    : isOnline
+                      ? 'Đang hoạt động'
+                      : 'Không hoạt động')}
               </Text>
             )}
           </View>
@@ -70,8 +89,16 @@ export const MessageHeader = ({
       <View style={styles.headerRight}>
         {!isGroupDisbanded && (
           <>
-            <TouchableOpacity style={styles.iconBtn} onPress={handleSummarizeChat} disabled={isSummarizing}>
-              {isSummarizing ? <ActivityIndicator size="small" color="#FFD700" /> : <Ionicons name="sparkles" size={24} color="#FFD700" />}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={handleSummarizeChat}
+              disabled={isSummarizing}
+            >
+              {isSummarizing ? (
+                <ActivityIndicator size="small" color="#FFD700" />
+              ) : (
+                <Ionicons name="sparkles" size={24} color="#FFD700" />
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn}>
               <Ionicons name="call-outline" size={24} color="white" />
@@ -86,5 +113,5 @@ export const MessageHeader = ({
         )}
       </View>
     </LinearGradient>
-  );
-};
+  )
+}

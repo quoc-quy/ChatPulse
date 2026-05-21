@@ -1,23 +1,29 @@
-/**
- * MessageBubble.tsx  [UPDATED]
- *
- * Thay đổi chính:
- * 1. Nhận thêm prop `onSummarizeFile(messageId)` từ MessageScreen
- * 2. File card: thêm nút ✨ AI tóm tắt bên cạnh nút download (giống frontend web)
- * 3. Ảnh đơn: thêm nút ✨ AI tóm tắt overlay góc phải trên (giống frontend web)
- * 4. Không thay đổi bất kỳ logic nào khác
- */
 import React from 'react'
 import { View, Text, TouchableOpacity, Image, StyleSheet, Linking } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
+
+// ─── Format giờ: "6:35" / "18:35" ─────────────────────────────────────────
+const fmt = (d: string) => {
+  if (!d) return ''
+  const dt = new Date(d)
+  return `${dt.getHours()}:${dt.getMinutes().toString().padStart(2, '0')}`
+}
+
+const shouldShowTime = (item: any, newerMsg: any): boolean => {
+  if (!newerMsg || newerMsg.isGroup) return true
+  if (newerMsg.type === 'system' || newerMsg.type === 'system_error') return true
+  const sameSender =
+    (newerMsg.sender?._id || newerMsg.senderId) === (item.sender?._id || item.senderId)
+  if (!sameSender) return true
+  const diff = new Date(newerMsg.createdAt).getTime() - new Date(item.createdAt).getTime()
+  return diff > 5 * 60 * 1000
+}
 
 export const MessageBubble = ({
   item,
   index,
   groupedMessages,
   isMe,
-  messages,
   highlightedMsgId,
   formatMessageDate,
   formatTime,
@@ -32,33 +38,35 @@ export const MessageBubble = ({
   openReactionDetails,
   VideoThumbnail,
   VideoViewer,
-  onSummarizeFile, // 🌟 MỚI: callback(messageId) => mở FileSummaryModal
+  onSummarizeFile,
   COLORS,
   styles,
   t,
   isDarkMode,
   SCREEN_WIDTH,
-  SCREEN_HEIGHT
+  SCREEN_HEIGHT,
+  messages
 }: any) => {
   if (item.isGroup) {
     return (
       <View
         style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperOther]}
-      ></View>
+      />
     )
   }
 
-  const isRevoked = item.type === 'revoked'
-  const olderItem = index < groupedMessages.length - 1 ? groupedMessages[index + 1] : null
-  const newerItem = index > 0 ? groupedMessages[index - 1] : null
+  const olderMsg = index < groupedMessages.length - 1 ? groupedMessages[index + 1] : null
+  const newerMsg = index > 0 ? groupedMessages[index - 1] : null
 
+  // ── System message ───────────────────────────────────────────────────────
   if (item.type === 'system' || item.type === 'system_error') {
-    const currentDate = new Date(item.createdAt).toDateString()
-    const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null
-    const showDateDivider = currentDate !== olderDate && item.type !== 'system_error'
+    const showDateDiv =
+      new Date(item.createdAt).toDateString() !==
+        (olderMsg ? new Date(olderMsg.createdAt).toDateString() : null) &&
+      item.type !== 'system_error'
     return (
       <View>
-        {showDateDivider && (
+        {showDateDiv && (
           <View style={styles.dateDivider}>
             <Text style={styles.dateDividerText}>{formatMessageDate(item.createdAt)}</Text>
           </View>
@@ -77,19 +85,23 @@ export const MessageBubble = ({
     )
   }
 
-  const currentDate = new Date(item.createdAt).toDateString()
-  const olderDate = olderItem ? new Date(olderItem.createdAt).toDateString() : null
-  const showDateDivider = currentDate !== olderDate
+  // ── Computed values ──────────────────────────────────────────────────────
+  const showDateDivider =
+    new Date(item.createdAt).toDateString() !==
+    (olderMsg ? new Date(olderMsg.createdAt).toDateString() : null)
 
-  const olderSenderId = olderItem ? olderItem.sender?._id || olderItem.senderId : null
   const currentSenderId = item.sender?._id || item.senderId
+  const olderSenderId = olderMsg ? olderMsg.sender?._id || olderMsg.senderId : null
   const isFirstInGroup = currentSenderId !== olderSenderId || showDateDivider
+
+  const showTime = shouldShowTime(item, newerMsg)
+  const timeStr = fmt(item.createdAt) + (item.isSending ? ' ···' : '')
 
   const isHighlighted = item._id === highlightedMsgId
   const displayContent = item.content || ''
   const isAiGenerated = typeof displayContent === 'string' && displayContent.startsWith('@PulseAI ')
-
   const isTempMessage = String(item._id).startsWith('temp_') || item.isSending
+  const isRevoked = item.type === 'revoked'
 
   const mediaPayloads = parseMediaContent(displayContent)
   const firstPayload = mediaPayloads[0] || { url: '', originalName: '', size: 0, mimeType: '' }
@@ -118,16 +130,151 @@ export const MessageBubble = ({
       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(firstExt) ||
       !!urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i))
 
-  const isBubbleContent = !isDocument
-
   const reactions = item.reactions || []
   const reactionGroups = buildReactionGroups(reactions)
 
+  // ── Call message ─────────────────────────────────────────────────────────
+  if (item.type === 'call') {
+    const ci = item.callInfo || {}
+    const isVid = ci.type === 'video'
+    const fmtDur = (s: number) => {
+      if (!s) return '0 giây'
+      const h = Math.floor(s / 3600),
+        m = Math.floor((s % 3600) / 60),
+        sec = s % 60
+      if (h > 0) return `${h} giờ ${m} phút`
+      if (m > 0) return `${m} phút ${sec} giây`
+      return `${sec} giây`
+    }
+    type Cfg = { title: string; subtitle: string; icon: string; iconColor: string; iconBg: string }
+    const cfgMap: Record<string, Cfg> = {
+      completed: {
+        title: isMe ? 'Cuộc gọi đi' : 'Cuộc gọi đến',
+        subtitle: fmtDur(ci.duration || 0),
+        icon: isVid ? 'videocam' : 'call',
+        iconColor: isMe ? '#3B82F6' : '#10B981',
+        iconBg: isMe ? (isDarkMode ? '#1E3A5F' : '#DBEAFE') : isDarkMode ? '#064E3B' : '#D1FAE5'
+      },
+      rejected: {
+        title: isMe ? 'Người nhận từ chối' : 'Bạn đã hủy',
+        subtitle: isVid ? 'Cuộc gọi Video' : 'Cuộc gọi thoại',
+        icon: 'call',
+        iconColor: '#EF4444',
+        iconBg: isDarkMode ? '#450A0A' : '#FEE2E2'
+      },
+      cancelled: {
+        title: isMe ? 'Bạn đã hủy' : 'Bạn bị nhỡ',
+        subtitle: isVid ? 'Cuộc gọi Video' : 'Cuộc gọi thoại',
+        icon: 'call',
+        iconColor: isMe ? '#6B7280' : '#EF4444',
+        iconBg: isMe ? (isDarkMode ? '#1F2937' : '#F3F4F6') : isDarkMode ? '#450A0A' : '#FEE2E2'
+      },
+      missed: {
+        title: isMe ? 'Người nhận bận' : 'Bạn bị nhỡ',
+        subtitle: isVid ? 'Cuộc gọi Video' : 'Cuộc gọi thoại',
+        icon: 'call',
+        iconColor: '#EF4444',
+        iconBg: isDarkMode ? '#450A0A' : '#FEE2E2'
+      }
+    }
+    const cfg = cfgMap[ci.status] || {
+      title: 'Cuộc gọi',
+      subtitle: isVid ? 'Cuộc gọi Video' : 'Cuộc gọi thoại',
+      icon: isVid ? 'videocam' : 'call',
+      iconColor: '#6B7280',
+      iconBg: isDarkMode ? '#374151' : '#F3F4F6'
+    }
+
+    return (
+      <View>
+        {showDateDivider && (
+          <View style={styles.dateDivider}>
+            <Text style={styles.dateDividerText}>{formatMessageDate(item.createdAt)}</Text>
+          </View>
+        )}
+        <View
+          style={[
+            B.row,
+            isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
+            isHighlighted && { backgroundColor: 'rgba(253,224,71,0.12)', borderRadius: 12 },
+            { marginBottom: 4 }
+          ]}
+        >
+          {!isMe && (
+            <View style={B.avatarCol}>
+              {isFirstInGroup ? (
+                <View style={[styles.avatarSmall, { marginTop: 18 }]}>
+                  <Text style={styles.avatarText}>
+                    {(item.sender?.userName || item.sender?.displayName || 'U')
+                      .charAt(0)
+                      .toUpperCase()}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ width: 32 }} />
+              )}
+            </View>
+          )}
+          <View style={[styles.messageContent, isMe && { alignItems: 'flex-end' }]}>
+            {!isMe && isFirstInGroup && (
+              <Text style={B.senderName}>
+                {item.sender?.userName || item.sender?.displayName || 'Người dùng'}
+              </Text>
+            )}
+            <View
+              style={[
+                B.callCard,
+                {
+                  backgroundColor: isMe
+                    ? isDarkMode
+                      ? 'rgba(139,92,246,0.15)'
+                      : 'rgba(139,92,246,0.07)'
+                    : isDarkMode
+                      ? COLORS.surface
+                      : '#FFFFFF',
+                  borderColor: isMe
+                    ? isDarkMode
+                      ? 'rgba(139,92,246,0.3)'
+                      : 'rgba(139,92,246,0.2)'
+                    : isDarkMode
+                      ? COLORS.border
+                      : '#E5E7EB',
+                  borderBottomRightRadius: isMe ? 4 : 16,
+                  borderBottomLeftRadius: isMe ? 16 : 4
+                }
+              ]}
+            >
+              <View style={B.callRow}>
+                <View style={[B.callIcon, { backgroundColor: cfg.iconBg }]}>
+                  <Ionicons name={cfg.icon as any} size={20} color={cfg.iconColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[B.callTitle, { color: isDarkMode ? '#F1F5F9' : '#1F2937' }]}
+                    numberOfLines={1}
+                  >
+                    {cfg.title}
+                  </Text>
+                  <Text style={[B.callSub, { color: COLORS.textLight }]} numberOfLines={1}>
+                    {cfg.subtitle}
+                  </Text>
+                </View>
+                {showTime && (
+                  <Text style={[B.callTime, { color: COLORS.textLight }]}>{timeStr}</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    )
+  }
+
   const handleMediaPress = () => {
     if (isImage || isVideo) {
-      const parsedUrls = mediaPayloads.map((p: any) => p.url)
+      const urls = mediaPayloads.map((p: any) => p.url)
       setPreviewMedia({
-        items: parsedUrls.map((u: string) => ({ id: item._id, url: u, isVideo: isVideo })),
+        items: urls.map((u: string) => ({ id: item._id, url: u, isVideo })),
         initialIndex: 0
       })
     }
@@ -143,30 +290,31 @@ export const MessageBubble = ({
 
       <View
         style={[
-          styles.messageWrapper,
-          isMe ? styles.messageWrapperMe : styles.messageWrapperOther,
-          isHighlighted && { backgroundColor: 'rgba(253,224,71,0.15)', borderRadius: 12 }
+          B.row,
+          isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
+          isHighlighted && { backgroundColor: 'rgba(253,224,71,0.12)', borderRadius: 12 },
+          { marginBottom: 4 }
         ]}
       >
-        {/* Avatar */}
         {!isMe && (
-          <View style={styles.avatarPlaceholder}>
+          <View style={B.avatarCol}>
             {isFirstInGroup ? (
-              <View style={styles.avatarSmall}>
+              <View style={[styles.avatarSmall, { marginTop: 18 }]}>
                 <Text style={styles.avatarText}>
                   {(item.sender?.userName || item.sender?.displayName || 'U')
                     .charAt(0)
                     .toUpperCase()}
                 </Text>
               </View>
-            ) : null}
+            ) : (
+              <View style={{ width: 32 }} />
+            )}
           </View>
         )}
 
-        <View style={styles.messageContent}>
-          {/* Sender name */}
+        <View style={[styles.messageContent, isMe && { alignItems: 'flex-end' }]}>
           {!isMe && isFirstInGroup && (
-            <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 2, marginLeft: 4 }}>
+            <Text style={B.senderName}>
               {item.sender?.userName || item.sender?.displayName || 'Người dùng'}
             </Text>
           )}
@@ -176,36 +324,105 @@ export const MessageBubble = ({
             onLongPress={(e) => handleLongPress(e, item)}
             activeOpacity={0.9}
           >
-            <View
-              style={[
-                isBubbleContent && styles.bubble,
-                isBubbleContent && (isMe ? styles.bubbleMe : styles.bubbleOther),
-                isRevoked && { backgroundColor: isDarkMode ? '#1E2946' : '#E2E8F0', opacity: 0.6 },
-                item.isSending && { opacity: 0.6 },
-                item.type === 'file' && {
-                  backgroundColor: 'transparent',
-                  borderWidth: 0,
-                  paddingHorizontal: 0,
-                  paddingVertical: 0
-                }
-              ]}
-            >
-              {isRevoked ? (
-                <Text
-                  style={[
-                    styles.messageText,
-                    { fontStyle: 'italic', color: COLORS.textLight, paddingRight: 5 }
-                  ]}
-                >
-                  {t.messageRevoked}
-                </Text>
-              ) : (
-                (() => {
+            {/* ══ CASE 1: FILE / DOCUMENT ══════════════════════════════════════ */}
+            {isDocument ? (
+              <View style={{ gap: 8 }}>
+                {parseMediaContent(displayContent).map((payload: any, pidx: number) => {
+                  const { color: fc, label: fl } = getFileIconInfo(payload)
+                  const sz = payload.size ? formatBytes(payload.size) : ''
+                  return (
+                    <View
+                      key={pidx}
+                      style={[
+                        B.fileCard,
+                        {
+                          backgroundColor: isDarkMode ? '#1E1B4B' : '#F5F3FF',
+                          borderColor: isDarkMode ? '#4C1D95' : '#DDD6FE'
+                        }
+                      ]}
+                    >
+                      <View
+                        style={[
+                          B.fileMainRow,
+                          { backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF' }
+                        ]}
+                      >
+                        <View style={[B.fileBadge, { backgroundColor: fc }]}>
+                          <Text style={B.fileBadgeText}>{fl}</Text>
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
+                          <Text style={[B.fileName, { color: COLORS.text }]} numberOfLines={1}>
+                            {payload.originalName}
+                          </Text>
+                          <View
+                            style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+                          >
+                            {!!sz && (
+                              <Text style={[B.fileMeta, { color: COLORS.textLight }]}>{sz} • </Text>
+                            )}
+                            <Ionicons
+                              name="cloud-done-outline"
+                              size={11}
+                              color={COLORS.textLight}
+                            />
+                            <Text style={[B.fileMeta, { color: COLORS.textLight, marginLeft: 2 }]}>
+                              Đã có trên Cloud
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            B.downloadBtn,
+                            {
+                              backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+                              borderColor: isDarkMode ? '#334155' : '#E2E8F0'
+                            }
+                          ]}
+                          onPress={() => Linking.openURL(payload.url)}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                        >
+                          <Ionicons name="download-outline" size={18} color={COLORS.text} />
+                        </TouchableOpacity>
+                      </View>
+                      <View
+                        style={[
+                          B.fileFooter,
+                          { borderTopColor: isDarkMode ? '#2D1B69' : '#EDE9FE' }
+                        ]}
+                      >
+                        {!isTempMessage && onSummarizeFile ? (
+                          <TouchableOpacity
+                            style={B.aiBtn}
+                            onPress={() => onSummarizeFile(item._id)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 13 }}>✨</Text>
+                            <Text
+                              style={[B.aiBtnText, { color: isDarkMode ? '#A78BFA' : '#7C3AED' }]}
+                            >
+                              Tóm tắt bằng AI
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={{ flex: 1 }} />
+                        )}
+                        {showTime && (
+                          <Text style={[B.fileTime, { color: COLORS.textLight }]}>{timeStr}</Text>
+                        )}
+                      </View>
+                    </View>
+                  )
+                })}
+              </View>
+            ) : isVideo || isImage ? (
+              /* ══ CASE 2: HÌNH ẢNH / VIDEO (ĐÃ LOẠI BỎ KHUNG BONG BÓNG CHAT) ══ */
+              <View style={[item.isSending && { opacity: 0.6 }]}>
+                {(() => {
                   const parsedUrls: string[] = mediaPayloads.map((p: any) => p.url)
-                  const GRID_WIDTH = 240
-                  const GAP = 4
+                  const GW = 240,
+                    GAP = 4
 
-                  const renderGridItem = (
+                  const renderGrid = (
                     url: string,
                     w: number,
                     h: number,
@@ -216,7 +433,11 @@ export const MessageBubble = ({
                       key={idx}
                       onPress={() =>
                         setPreviewMedia({
-                          items: parsedUrls.map((u) => ({ id: item._id, url: u, isVideo: false })),
+                          items: parsedUrls.map((u) => ({
+                            id: item._id,
+                            url: u,
+                            isVideo: false
+                          })),
                           initialIndex: idx
                         })
                       }
@@ -229,7 +450,7 @@ export const MessageBubble = ({
                         style={{
                           width: w,
                           height: h,
-                          borderRadius: 8,
+                          borderRadius: 14,
                           backgroundColor: COLORS.surfaceSoft
                         }}
                         resizeMode="cover"
@@ -239,7 +460,7 @@ export const MessageBubble = ({
                           style={{
                             ...StyleSheet.absoluteFillObject,
                             backgroundColor: 'rgba(0,0,0,0.5)',
-                            borderRadius: 8,
+                            borderRadius: 14,
                             justifyContent: 'center',
                             alignItems: 'center'
                           }}
@@ -252,162 +473,89 @@ export const MessageBubble = ({
                     </TouchableOpacity>
                   )
 
-                  // ─── IMAGE / VIDEO ───────────────────────────────
-                  if (isVideo || isImage) {
-                    const count = parsedUrls.length
-                    return (
-                      <View style={{ position: 'relative', marginBottom: 5 }}>
-                        {count === 1 ? (
-                          isVideo ? (
-                            <VideoThumbnail url={parsedUrls[0]} />
-                          ) : (
-                            // 🌟 Single image: nút ✨ overlay góc phải trên
-                            <View style={{ position: 'relative' }}>
-                              <Image
-                                source={{ uri: parsedUrls[0] }}
-                                style={styles.mediaImage}
-                                resizeMode="cover"
-                              />
-                              {!isTempMessage && onSummarizeFile && (
-                                <TouchableOpacity
-                                  onPress={() => onSummarizeFile(item._id)}
-                                  style={bubbleStyles.imageAiBtn}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                  <Text style={{ fontSize: 14 }}>✨</Text>
-                                </TouchableOpacity>
-                              )}
-                            </View>
-                          )
+                  const cnt = parsedUrls.length
+                  return (
+                    <View style={{ position: 'relative' }}>
+                      {cnt === 1 ? (
+                        isVideo ? (
+                          <VideoThumbnail url={parsedUrls[0]} />
                         ) : (
-                          <View style={{ gap: GAP }}>
-                            {count === 2 && (
-                              <View style={{ flexDirection: 'row', gap: GAP }}>
-                                {renderGridItem(parsedUrls[0], (GRID_WIDTH - GAP) / 2, 160, 0)}
-                                {renderGridItem(parsedUrls[1], (GRID_WIDTH - GAP) / 2, 160, 1)}
-                              </View>
-                            )}
-                            {count >= 3 && (
-                              <View
-                                style={{
-                                  flexDirection: 'row',
-                                  gap: GAP,
-                                  flexWrap: 'wrap',
-                                  width: GRID_WIDTH
-                                }}
+                          <View>
+                            <Image
+                              source={{ uri: parsedUrls[0] }}
+                              style={[styles.mediaImage, { borderRadius: 14 }]}
+                              resizeMode="cover"
+                            />
+                            {!isTempMessage && onSummarizeFile && (
+                              <TouchableOpacity
+                                onPress={() => onSummarizeFile(item._id)}
+                                style={B.imgAiBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
-                                {parsedUrls
-                                  .slice(0, 4)
-                                  .map((u, i) =>
-                                    renderGridItem(u, (GRID_WIDTH - GAP) / 2, 120, i, false)
-                                  )}
-                                {count > 4 &&
-                                  renderGridItem(parsedUrls[4], GRID_WIDTH, 120, 4, true)}
-                              </View>
+                                <Text style={{ fontSize: 13 }}>✨</Text>
+                              </TouchableOpacity>
                             )}
                           </View>
-                        )}
-                      </View>
-                    )
-                  }
-
-                  // ─── FILE / DOCUMENT ─────────────────────────────
-                  if (isDocument) {
-                    const docPayloads = parseMediaContent(displayContent)
-                    return (
-                      <View style={{ gap: 8 }}>
-                        {docPayloads.map((payload: any, pidx: number) => {
-                          const { color: fileColor, label: fileLabel } = getFileIconInfo(payload)
-                          const sizeLabel = payload.size ? formatBytes(payload.size) : ''
-                          return (
-                            <View
-                              key={pidx}
-                              style={[
-                                styles.fileCard,
-                                { backgroundColor: COLORS.fileBg, borderColor: COLORS.border }
-                              ]}
-                            >
-                              <View
-                                style={[styles.fileCardInfo, { backgroundColor: COLORS.surface }]}
-                              >
-                                <View
-                                  style={[styles.fileTypeBadge, { backgroundColor: fileColor }]}
-                                >
-                                  <Text style={styles.fileTypeBadgeText}>{fileLabel}</Text>
-                                </View>
-                                <View style={{ flex: 1, paddingRight: 8 }}>
-                                  <Text
-                                    style={[styles.fileNameCardText, { color: COLORS.text }]}
-                                    numberOfLines={1}
-                                  >
-                                    {payload.originalName}
-                                  </Text>
-                                  <View style={styles.fileMetaRow}>
-                                    {sizeLabel ? (
-                                      <Text
-                                        style={[styles.fileMetaText, { color: COLORS.textLight }]}
-                                      >
-                                        {sizeLabel}
-                                      </Text>
-                                    ) : null}
-                                    {sizeLabel ? (
-                                      <Text
-                                        style={[
-                                          styles.fileMetaText,
-                                          { color: COLORS.textLight, marginHorizontal: 4 }
-                                        ]}
-                                      >
-                                        •
-                                      </Text>
-                                    ) : null}
-                                    <Ionicons
-                                      name="cloud-done-outline"
-                                      size={12}
-                                      color={COLORS.textLight}
-                                    />
-                                    <Text
-                                      style={[
-                                        styles.fileMetaText,
-                                        { color: COLORS.textLight, marginLeft: 2 }
-                                      ]}
-                                    >
-                                      Đã có trên Cloud
-                                    </Text>
-                                  </View>
-                                </View>
-
-                                {/* 🌟 Nút AI tóm tắt file */}
-                                {!isTempMessage && onSummarizeFile && (
-                                  <TouchableOpacity
-                                    style={[bubbleStyles.fileAiBtn, { borderColor: COLORS.border }]}
-                                    onPress={() => onSummarizeFile(item._id)}
-                                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                                  >
-                                    <Text style={{ fontSize: 16 }}>✨</Text>
-                                  </TouchableOpacity>
-                                )}
-
-                                {/* Nút download */}
-                                <TouchableOpacity
-                                  style={styles.downloadIconBtn}
-                                  onPress={() => Linking.openURL(payload.url)}
-                                >
-                                  <Ionicons name="download-outline" size={20} color={COLORS.text} />
-                                </TouchableOpacity>
-                              </View>
+                        )
+                      ) : (
+                        <View style={{ gap: GAP }}>
+                          {cnt === 2 && (
+                            <View style={{ flexDirection: 'row', gap: GAP }}>
+                              {renderGrid(parsedUrls[0], (GW - GAP) / 2, 160, 0)}
+                              {renderGrid(parsedUrls[1], (GW - GAP) / 2, 160, 1)}
                             </View>
-                          )
-                        })}
-                      </View>
-                    )
-                  }
-
-                  // ─── TEXT ────────────────────────────────────────
-                  return (
+                          )}
+                          {cnt >= 3 && (
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                gap: GAP,
+                                flexWrap: 'wrap',
+                                width: GW
+                              }}
+                            >
+                              {parsedUrls
+                                .slice(0, 4)
+                                .map((u, i) => renderGrid(u, (GW - GAP) / 2, 120, i))}
+                              {cnt > 4 && renderGrid(parsedUrls[4], GW, 120, 4, true)}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      {showTime && (
+                        <View style={B.mediaTimeWrap}>
+                          <Text style={B.mediaTimeText}>{timeStr}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )
+                })()}
+              </View>
+            ) : (
+              /* ══ CASE 3: TIN NHẮN VĂN BẢN (GIỮ NGUYÊN BONG BÓNG CHAT CHUẨN) ══ */
+              <View
+                style={[
+                  styles.bubble,
+                  isMe ? styles.bubbleMe : styles.bubbleOther,
+                  isRevoked && {
+                    backgroundColor: isDarkMode ? '#1E2946' : '#E2E8F0',
+                    opacity: 0.6
+                  },
+                  item.isSending && { opacity: 0.6 }
+                ]}
+              >
+                {isRevoked ? (
+                  <Text
+                    style={[styles.messageText, { fontStyle: 'italic', color: COLORS.textLight }]}
+                  >
+                    {t.messageRevoked}
+                  </Text>
+                ) : (
+                  <View>
                     <Text
                       style={[
                         styles.messageText,
-                        { color: isMe ? COLORS.headerText : COLORS.text, paddingRight: 5 }
+                        { color: isMe ? COLORS.headerText : COLORS.text }
                       ]}
                     >
                       {isAiGenerated && (
@@ -417,22 +565,22 @@ export const MessageBubble = ({
                       )}
                       {isAiGenerated ? displayContent.substring(9) : displayContent}
                     </Text>
-                  )
-                })()
-              )}
-            </View>
+                    {showTime && (
+                      <Text
+                        style={[
+                          B.textTime,
+                          { alignSelf: isMe ? 'flex-end' : 'flex-start' },
+                          { color: isMe ? 'rgba(255,255,255,0.6)' : COLORS.textLight }
+                        ]}
+                      >
+                        {timeStr}
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
           </TouchableOpacity>
-
-          {/* Time */}
-          <Text
-            style={[
-              styles.messageTime,
-              { alignSelf: isMe ? 'flex-end' : 'flex-start', marginTop: 2 }
-            ]}
-          >
-            {formatTime(item.createdAt)}
-            {item.isSending && ' ···'}
-          </Text>
 
           {/* Reactions */}
           {reactionGroups.length > 0 && (
@@ -457,31 +605,152 @@ export const MessageBubble = ({
   )
 }
 
-// ────────────────────────────────────────────
-// Extra styles chỉ dùng trong MessageBubble
-// ────────────────────────────────────────────
-const bubbleStyles = StyleSheet.create({
-  // Nút ✨ overlay góc trên phải của ảnh đơn
-  imageAiBtn: {
+// ── Styles ────────────────────────────────────────────────────────────────────
+const B = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 12
+  },
+  avatarCol: {
+    width: 40,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginRight: 4
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 3,
+    marginLeft: 2
+  },
+  textTime: {
+    fontSize: 10,
+    marginTop: 3
+  },
+  mediaTimeWrap: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 7,
+    right: 7,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  mediaTimeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '500'
+  },
+  imgAiBtn: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center'
   },
-  // Nút ✨ trong file card (giữa badge và download)
-  fileAiBtn: {
+  fileCard: {
+    width: 252,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 2
+  },
+  fileMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  fileBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    flexShrink: 0
+  },
+  fileBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.3
+  },
+  fileName: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18
+  },
+  fileMeta: {
+    fontSize: 11,
+    lineHeight: 16
+  },
+  downloadBtn: {
     width: 34,
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
-    backgroundColor: 'rgba(99,102,241,0.08)'
+    flexShrink: 0
+  },
+  fileFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderTopWidth: StyleSheet.hairlineWidth
+  },
+  aiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5
+  },
+  aiBtnText: {
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  fileTime: {
+    fontSize: 10
+  },
+  callCard: {
+    minWidth: 210,
+    maxWidth: 270,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden'
+  },
+  callRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12
+  },
+  callIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0
+  },
+  callTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2
+  },
+  callSub: { fontSize: 12 },
+  callTime: {
+    fontSize: 10,
+    alignSelf: 'flex-end',
+    flexShrink: 0
   }
 })
