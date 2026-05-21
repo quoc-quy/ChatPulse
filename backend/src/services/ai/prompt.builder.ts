@@ -4,28 +4,29 @@ export class PromptBuilder {
   // ──────────────────────────────────────────────────────────────
   static buildSummaryPrompt(formattedChatLog: string): string {
     return `
-      Bạn là một trợ lý AI phân tích đoạn chat. Dưới đây là lịch sử tin nhắn mới.
-      
-      NHIỆM VỤ CỦA BẠN:
-      1. Tóm tắt nội dung chính của cuộc trò chuyện.
-      2. Nếu tin nhắn chủ yếu là chia sẻ TÀI LIỆU (nội dung nằm giữa cặp dấu """), hãy tóm tắt nội dung tài liệu đó vào phần 'topic'.
-      
-      QUY TẮC CHỐNG ẢO GIÁC (RẤT QUAN TRỌNG):
-      - Hãy phân biệt rõ giữa "Nội dung của một tài liệu báo cáo" và "Tin nhắn giao việc của con người".
-      - NẾU KHÔNG CÓ ai trực tiếp nhắn tin yêu cầu/giao việc cho nhau, các mục 'decisions' và 'actionItems' PHẢI LÀ MẢNG RỖNG []. 
-      - Tuyệt đối không tự biến tên người trong danh sách nhóm của báo cáo thành người được phân công nhiệm vụ.
-      
-      Trả về định dạng JSON chính xác: 
-      {
-        "topic": "Tóm tắt ngắn gọn nội dung chat hoặc nội dung tài liệu...", 
-        "decisions": ["..."], 
-        "openQuestions": ["..."], 
-        "actionItems": [{"task": "...","assignee": "..."}]
-      }
-      
-      Dữ liệu chat:
-      ${formattedChatLog}
-    `
+    Bạn là một trợ lý AI phân tích đoạn chat. Dưới đây là lịch sử tin nhắn mới.
+    
+    NHIỆM VỤ CỦA BẠN:
+    1. Tóm tắt nội dung chính của cuộc trò chuyện.
+    2. Nếu tin nhắn chủ yếu là chia sẻ TÀI LIỆU (nội dung nằm giữa cặp dấu """), hãy tóm tắt nội dung tài liệu đó vào phần 'topic'.
+    
+    QUY TẮC CHỐNG ẢO GIÁC (RẤT QUAN TRỌNG):
+    - Hãy phân biệt rõ giữa "Nội dung của một tài liệu báo cáo" và "Tin nhắn giao việc của con người".
+    - NẾU KHÔNG CÓ ai trực tiếp nhắn tin yêu cầu/giao việc cho nhau, các mục 'decisions' và 'actionItems' PHẢI LÀ MẢNG RỖNG []. 
+    - Tuyệt đối không tự biến tên người trong danh sách nhóm của báo cáo thành người được phân công nhiệm vụ.
+    - Trong mảng 'actionItems', trường 'assignee' BẮT BUỘC phải điền chính xác 'userName' xuất hiện trong cặp dấu ngoặc vuông \`[userName]\` từ dữ liệu chat thực tế (ví dụ: nếu dòng chat ghi \`[quoc_quy]: làm việc đi\`, thì 'assignee' phải là "quoc_quy"). Tuyệt đối KHÔNG sử dụng các từ xưng hô hay đại từ chung chung như "Cậu", "Bạn", "Tôi", "Trưởng nhóm", "nhóm trưởng" hoặc tự đoán tên.
+    
+    Trả về định dạng JSON chính xác: 
+    {
+      "topic": "Tóm tắt ngắn gọn nội dung chat hoặc nội dung tài liệu...", 
+      "decisions": ["..."], 
+      "openQuestions": ["..."], 
+      "actionItems": [{"task": "...","assignee": "..."}]
+    }
+    
+    Dữ liệu chat:
+    ${formattedChatLog}
+  `
   }
 
   // ──────────────────────────────────────────────────────────────

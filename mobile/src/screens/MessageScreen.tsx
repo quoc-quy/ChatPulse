@@ -230,6 +230,11 @@ const MessageScreen = () => {
   const [chatAvatarUrl, setChatAvatarUrl] = useState<string>(avatar)
   const [membersData, setMembersData] = useState<any[]>(members)
 
+  // Số lượng tin nhắn chưa đọc / tin nhắn mới động để phục vụ tóm tắt AI
+  const [currentUnreadCount, setCurrentUnreadCount] = useState<number>(
+    route.params?.unreadCount || 0
+  )
+
   // Lấy dữ liệu Partner từ Params khởi tạo để có ngay lập tức
   const partnerInit = members.find((m: any) => m._id === partnerId || m.id === partnerId) || {}
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -472,6 +477,10 @@ const MessageScreen = () => {
           if (prev.some((msg) => msg._id === newMessage._id)) return prev
           return [newMessage, ...prev]
         })
+
+        // Tăng số lượng tin nhắn mới động để phục vụ tóm tắt hội thoại
+        setCurrentUnreadCount((prev) => prev + 1)
+
         if (currentUserId) {
           socket.emit('message_seen', { messageId: newMessage._id, conversationId })
           clearLocalUnread(conversationId)
@@ -793,23 +802,23 @@ const MessageScreen = () => {
       if (rawData.length < 20) setHasMore(false)
     } catch (error: any) {
       console.log('Lỗi tải thêm tin nhắn:', error.message)
+      Platform.OS === 'android' ? null : null
     } finally {
       setIsFetchingMore(false)
     }
   }
 
-  // [FIX] Tóm tắt hội thoại — gọi đúng endpoint GET /messages/:convId/summary
+  // [FIX] Tóm tắt hội thoại — gọi đúng endpoint GET /messages/:convId/summary kèm bộ đếm động chuẩn xác
   const handleSummarizeChat = async () => {
     if (!messages || messages.length === 0) {
       Alert.alert(t.error || 'Lỗi', 'Chưa có tin nhắn nào.')
       return
     }
 
-    const unreadCountFromParams = route.params?.unreadCount || 0
-    const limitToFetch = unreadCountFromParams > 0 ? unreadCountFromParams : 30
+    const limitToFetch = currentUnreadCount > 0 ? Math.max(currentUnreadCount, 30) : 30
 
-    // Nếu không có tin nhắn chưa đọc → hiện thông báo nhẹ thay vì gọi API
-    if (unreadCountFromParams === 0) {
+    // Nếu không có tin nhắn chưa đọc ban đầu và không có thêm tin nhắn mới trong phiên hiện tại -> hiện thông báo rỗng
+    if (currentUnreadCount === 0) {
       setShowAiModal(true)
       setSummaryData({
         topic: 'Không có tin nhắn mới nào cần tóm tắt',
@@ -826,9 +835,12 @@ const MessageScreen = () => {
     setSummaryData(null)
 
     try {
-      // GET /messages/:convId/summary?limit=&unreadCount= (khớp với frontend web)
-      const res = await summarizeChatApi(conversationId, limitToFetch, unreadCountFromParams)
+      // GET /messages/:convId/summary?limit=&unreadCount= (khớp chuẩn với frontend web)
+      const res = await summarizeChatApi(conversationId, limitToFetch, currentUnreadCount)
       setSummaryData(res.data?.result ?? null)
+
+      // Reset bộ đếm động sau khi tóm tắt thành công
+      setCurrentUnreadCount(0)
     } catch (error: any) {
       console.log('Lỗi gọi AI Pulse:', error)
       setSummaryData({
@@ -968,6 +980,7 @@ const MessageScreen = () => {
 
     return reactionDetailMessage.reactions.filter((r: any) => r.emoji === reactionFilter)
   }, [reactionFilter, reactionDetailMessage])
+
   // 🌟 LOGIC THU HỒI
   const handleRevoke = async () => {
     if (!selectedMsg || selectedMsg.type === 'revoked') return
@@ -989,9 +1002,7 @@ const MessageScreen = () => {
 
     try {
       await deleteMessageForMeApi(selectedMsg._id)
-
       setMessages((prev) => prev.filter((msg) => msg._id !== selectedMsg._id))
-
       setShowMenu(false)
     } catch (error) {
       Alert.alert('Lỗi', 'Không thể xóa tin nhắn')
@@ -1155,12 +1166,11 @@ const MessageScreen = () => {
         membersData={membersData}
         isSummarizing={isSummarizing}
         handleSummarizeChat={handleSummarizeChat}
-        isNotFriendState={isNotFriendState} // 🌟 TRUYỀN BIẾN NÀY SANG HEADER
+        isNotFriendState={isNotFriendState}
         COLORS={COLORS}
         styles={styles}
       />
 
-      {/* 🌟 BANNER CẢNH BÁO NẾU KHÔNG PHẢI BẠN BÈ */}
       {!isGroup && isNotFriendState && (
         <View
           style={{
@@ -1186,8 +1196,6 @@ const MessageScreen = () => {
           </Text>
         </View>
       )}
-
-      {/* ... GIỮ NGUYÊN PHẦN BÊN DƯỚI (pinnedMessages...) */}
 
       {pinnedMessages.length > 0 && (
         <View style={styles.pinnedBannerContainer}>

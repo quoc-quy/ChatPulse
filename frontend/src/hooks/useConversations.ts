@@ -78,8 +78,20 @@ export function useConversations() {
           if (conv.lastMessage.type === 'revoked') {
             content = 'Tin nhắn đã được thu hồi'
             prefix = ''
-          } else if (conv.lastMessage.type === 'image' || conv.lastMessage.type === 'media') {
-            content = '[Hình ảnh/Video]'
+          } else if (
+            conv.lastMessage.type === 'image' ||
+            conv.lastMessage.type === 'media' ||
+            conv.lastMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+          ) {
+            content = '[Hình ảnh]'
+          } else if (conv.lastMessage.type === 'video' || conv.lastMessage.content?.match(/\.(mp4|mov)(\?.*)?$/i)) {
+            content = '[Video]'
+          } else if (conv.lastMessage.type === 'file') {
+            content = '[Tệp đính kèm]'
+          } else if (conv.lastMessage.type === 'call') {
+            content = '[Cuộc gọi]'
+          } else if (conv.lastMessage.type === 'sticker') {
+            content = '[Nhãn dán]'
           } else if (conv.lastMessage.type === 'system') {
             prefix = ''
           } else if (!content) {
@@ -131,7 +143,7 @@ export function useConversations() {
           senderPrefix: prefix,
           isE2E: conv.lastMessage?.isE2E || false,
           encryptedKeys: conv.lastMessage?.encryptedKeys || {},
-          // [FIX] Map trạng thái giải tán từ server
+          // Map trạng thái giải tán từ server
           is_disbanded: conv.is_disbanded === true,
           isDisbanded: conv.is_disbanded === true
         }
@@ -199,8 +211,27 @@ export function useConversations() {
         }
 
         let previewContent = newMessage.content
-        if (newMessage.type === 'image' || newMessage.type === 'media') previewContent = '[Hình ảnh]'
-        // const newPreview = `${prefix}${previewContent}`
+        if (newMessage.type === 'revoked') {
+          previewContent = 'Tin nhắn đã được thu hồi'
+          prefix = ''
+        } else if (
+          newMessage.type === 'image' ||
+          newMessage.type === 'media' ||
+          newMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+        ) {
+          previewContent = '[Hình ảnh]'
+        } else if (newMessage.type === 'video' || newMessage.content?.match(/\.(mp4|mov)(\?.*)?$/i)) {
+          previewContent = '[Video]'
+        } else if (newMessage.type === 'file') {
+          previewContent = '[Tệp đính kèm]'
+        } else if (newMessage.type === 'call') {
+          previewContent = '[Cuộc gọi]'
+        } else if (newMessage.type === 'sticker') {
+          previewContent = '[Nhãn dán]'
+        } else if (newMessage.type === 'system') {
+          prefix = ''
+        }
+
         const newTime = new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
         if (existingChatIndex !== -1) {
@@ -210,7 +241,6 @@ export function useConversations() {
           chatToUpdate.isE2E = newMessage.isE2E || false // Cập nhật E2E state
           chatToUpdate.encryptedKeys = newMessage.encryptedKeys || {} // Cập nhật keys
           chatToUpdate.time = newTime
-
           chatToUpdate.timestamp = new Date(newMessage.createdAt).getTime()
 
           const isCurrentlyViewing = String(activeChatRef.current?.id) === convIdStr
@@ -236,7 +266,7 @@ export function useConversations() {
       setChatList((prevChats) => {
         return prevChats.map((chat) => {
           if (String(chat.id) === String(conversationId) && String(chat.lastMessageId) === String(messageId)) {
-            return { ...chat, message: 'Tin nhắn đã được thu hồi' }
+            return { ...chat, message: 'Tin nhắn đã được thu hồi', senderPrefix: '' }
           }
           return chat
         })
@@ -283,19 +313,16 @@ export function useConversations() {
     }
 
     const handleUnfriended = (data: { conversationId: string; unfrienderId: string }) => {
-      // Nếu mình là User2 (người BỊ hủy kết bạn)
       if (String(data.unfrienderId) !== String(profile._id)) {
         toast.warning('Cập nhật trạng thái bạn bè', {
           description: 'Người này đã hủy kết bạn với bạn. Tính năng nhắn tin & gọi điện đã bị khóa.'
         })
       }
 
-      // Vô hiệu hóa cuộc trò chuyện trong list
       setChatList((prev) =>
         prev.map((chat) => (String(chat.id) === String(data.conversationId) ? { ...chat, isFriend: false } : chat))
       )
 
-      // Nếu đang mở đúng box chat đó, cập nhật luôn
       setActiveChat((prev: any) =>
         prev && String(prev.id) === String(data.conversationId) ? { ...prev, isFriend: false } : prev
       )
@@ -306,38 +333,32 @@ export function useConversations() {
         description: data.message || 'Nhóm trưởng đã giải tán nhóm này.'
       })
 
-      // Đánh dấu nhóm là đã giải tán trong danh sách chat
       setChatList((prev) =>
         prev.map((chat) =>
           String(chat.id) === String(data.conversationId) ? { ...chat, is_disbanded: true, isDisbanded: true } : chat
         )
       )
 
-      // Nếu đang mở đúng box chat đó, cập nhật luôn để UI disable ngay lập tức
       setActiveChat((prev: any) =>
         prev && String(prev.id) === String(data.conversationId) ? { ...prev, isDisbanded: true } : prev
       )
     }
 
     const handleFriendAdded = (data: { conversationId: string }) => {
-      // Mở khóa cuộc trò chuyện trong list (SidebarPanel2)
       setChatList((prev) =>
         prev.map((chat) => (String(chat.id) === String(data.conversationId) ? { ...chat, isFriend: true } : chat))
       )
 
-      // Nếu người dùng đang mở đúng box chat đó, cập nhật luôn để mở khóa ChatFooter ngay lập tức
       setActiveChat((prev: any) =>
         prev && String(prev.id) === String(data.conversationId) ? { ...prev, isFriend: true } : prev
       )
     }
 
     const handleNewConversation = (newConv: any) => {
-      // Khi nhận được hội thoại mới (hoặc hội thoại cũ được khôi phục)
       setChatList((prev) => {
         const exists = prev.find((c) => String(c.id) === String(newConv._id))
-        if (exists) return prev // Nếu đã có rồi thì không thêm trùng
+        if (exists) return prev
 
-        // Fetch lại toàn bộ list hoặc chèn manual một item mới vào đầu mảng
         fetchChats()
         return prev
       })
@@ -403,11 +424,24 @@ export function useConversations() {
             }
 
             let previewContent = newLastMessage.content
-            if (newLastMessage.type === 'image' || newLastMessage.type === 'media') {
-              previewContent = '[Hình ảnh/Video]'
-            }
             if (newLastMessage.type === 'revoked') {
               previewContent = 'Tin nhắn đã được thu hồi'
+              prefix = ''
+            } else if (
+              newLastMessage.type === 'image' ||
+              newLastMessage.type === 'media' ||
+              newLastMessage.content?.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+            ) {
+              previewContent = '[Hình ảnh]'
+            } else if (newLastMessage.type === 'video' || newLastMessage.content?.match(/\.(mp4|mov)(\?.*)?$/i)) {
+              previewContent = '[Video]'
+            } else if (newLastMessage.type === 'file') {
+              previewContent = '[Tệp đính kèm]'
+            } else if (newLastMessage.type === 'call') {
+              previewContent = '[Cuộc gọi]'
+            } else if (newLastMessage.type === 'sticker') {
+              previewContent = '[Nhãn dán]'
+            } else if (newLastMessage.type === 'system') {
               prefix = ''
             }
 
