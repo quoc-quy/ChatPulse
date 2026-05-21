@@ -1053,10 +1053,10 @@ const MessageScreen = () => {
 
   const formatTime = (dateString: string) => {
     if (!dateString) return ''
-    return new Date(dateString).toLocaleTimeString(language === 'vi' ? 'vi-VN' : 'en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const d = new Date(dateString)
+    const h = d.getHours()
+    const m = d.getMinutes().toString().padStart(2, '0')
+    return `${h}:${m}`
   }
 
   const handleTogglePinMessage = async (message: any) => {
@@ -1411,7 +1411,7 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     iconBtn: { marginLeft: 16 },
     chatArea: { flex: 1, backgroundColor: COLORS.background },
     listContent: { paddingHorizontal: 16, paddingVertical: 20 },
-    messageWrapper: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 10 },
+    messageWrapper: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 6 },
     aiOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.85)',
@@ -1470,11 +1470,11 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
     bubble: {
       paddingHorizontal: 12,
       paddingTop: 8,
-      paddingBottom: 15,
+      paddingBottom: 6,
       borderRadius: 18,
       position: 'relative',
       minWidth: 60,
-      marginBottom: 5
+      marginBottom: 4
     },
     bubbleMe: { backgroundColor: COLORS.primary, borderBottomRightRadius: 2, elevation: 1 },
     bubbleOther: {
