@@ -219,6 +219,8 @@ const MessageScreen = () => {
   const [partnerId, setPartnerId] = useState<string>(targetUserId || '')
   const [currentChatName, setCurrentChatName] = useState(chatName || 'Chat')
   const [messages, setMessages] = useState<any[]>([])
+  // 🔧 FIX: ref luôn giữ messages mới nhất để handleLongPress đọc live data
+  const messagesRef = useRef<any[]>([])
   const [inputText, setInputText] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -268,10 +270,18 @@ const MessageScreen = () => {
   } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
+  // 🔧 FIX: giữ messagesRef đồng bộ với messages state
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
   const [selectedMsg, setSelectedMsg] = useState<any>(null)
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const [hoveredReaction, setHoveredReaction] = useState<string | null>(null)
+  // 🔧 FIX: useRef để tránh stale closure trong PanResponder callbacks
+  const hoveredReactionRef = useRef<string | null>(null)
+  const selectedMsgRef = useRef<any>(null)
   const [emojiStripWidth, setEmojiStripWidth] = useState(0)
   const [showReactionDetails, setShowReactionDetails] = useState(false)
   const [reactionDetailMessage, setReactionDetailMessage] = useState<any>(null)
@@ -514,11 +524,27 @@ const MessageScreen = () => {
         )
     }
     const handleMessageReacted = (data: any) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg._id === data.messageId ? { ...msg, reactions: data.reactions } : msg
-        )
-      )
+      setMessages((prev) => {
+        return prev.map((msg) => {
+          if (msg._id !== data.messageId) {
+            return msg
+          }
+
+          const normalized = normalizeReactions(data.reactions || [])
+
+          const updated = {
+            ...msg,
+            reactions: normalized
+          }
+
+          // sync selected message realtime
+          if (selectedMsgRef.current?._id === updated._id) {
+            selectedMsgRef.current = updated
+          }
+
+          return updated
+        })
+      })
     }
     const handleConversationUpdated = (data: any) => {
       if (data.conversationId === conversationId && data.name) setCurrentChatName(data.name)
@@ -861,103 +887,200 @@ const MessageScreen = () => {
     setShowFileSummaryModal(true)
   }
 
-  // 🌟 1. SỬA HÀM THẢ/THU HỒI CẢM XÚC
-  const handleToggleReact = async (message: any, emoji: string) => {
-    try {
-      // Gọi API lên Backend (Backend sẽ tự toggle: thêm hoặc xóa)
-      await reactMessageApi(message._id, emoji)
+  // 🔧 FIX: wrap bằng useCallback để handleToggleReact stable reference cho PanResponder deps
+  const reactingRef = useRef<Record<string, boolean>>({})
 
-      // Cập nhật giao diện ngay lập tức
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg._id !== message._id) return msg
+  const normalizeReactions = (reactions: any[] = []) => {
+    const map = new Map()
 
-          const reactions = msg.reactions || []
+    reactions.forEach((r) => {
+      const uid = r.userId || r.user?._id || r.id
+      if (!uid) return
 
-          // 🌟 TÌM CHÍNH XÁC ID NGƯỜI DÙNG (Bao phủ mọi trường hợp của Backend)
-          const existingIndex = reactions.findIndex((r: any) => {
-            const uid = r.userId || r.user?._id || r.id
-            return uid === currentUserId
-          })
+      map.set(uid, {
+        ...r,
+        userId: uid
+      })
+    })
 
-          let updatedReactions = [...reactions]
-
-          if (existingIndex !== -1 && updatedReactions[existingIndex].emoji === emoji) {
-            // 🌟 NẾU BẤM LẠI ĐÚNG EMOJI CŨ -> XÓA (THU HỒI)
-            updatedReactions.splice(existingIndex, 1)
-          } else if (existingIndex !== -1) {
-            // NẾU BẤM SANG EMOJI KHÁC -> CẬP NHẬT
-            updatedReactions[existingIndex] = {
-              ...updatedReactions[existingIndex],
-              emoji
-            }
-          } else {
-            // THÊM MỚI
-            updatedReactions.push({
-              userId: currentUserId,
-              user: { _id: currentUserId, userName: 'Tôi' }, // Mock data để hiển thị mượt
-              emoji
-            })
-          }
-
-          return {
-            ...msg,
-            reactions: updatedReactions
-          }
-        })
-      )
-
-      setShowMenu(false)
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể thả cảm xúc lúc này')
-    }
+    return Array.from(map.values())
   }
 
-  // 🌟 2. BỔ SUNG HÀM GỠ BỎ HOÀN TOÀN CẢM XÚC (Khi bấm nút X trên Menu)
+  const handleToggleReact = useCallback(
+    async (message: any, emoji: string) => {
+      if (!message?._id) return
+
+      // 🚫 chống spam reaction liên tục
+      if (reactingRef.current[message._id]) return
+
+      reactingRef.current[message._id] = true
+
+      try {
+        // ⚡ Optimistic UI
+        setMessages((prev) => {
+          const next = prev.map((msg) => {
+            if (msg._id !== message._id) return msg
+
+            const reactions = normalizeReactions(msg.reactions || [])
+
+            const existingIndex = reactions.findIndex((r: any) => {
+              const uid = r.userId || r.user?._id || r.id
+              return uid === currentUserId
+            })
+
+            let updatedReactions = [...reactions]
+
+            // remove reaction
+            if (existingIndex !== -1 && updatedReactions[existingIndex].emoji === emoji) {
+              updatedReactions.splice(existingIndex, 1)
+            }
+
+            // update reaction
+            else if (existingIndex !== -1) {
+              updatedReactions[existingIndex] = {
+                ...updatedReactions[existingIndex],
+                emoji
+              }
+            }
+
+            // add new
+            else {
+              updatedReactions.push({
+                userId: currentUserId,
+                user: {
+                  _id: currentUserId,
+                  userName: 'Tôi'
+                },
+                emoji
+              })
+            }
+
+            return {
+              ...msg,
+              reactions: normalizeReactions(updatedReactions)
+            }
+          })
+
+          const updatedMsg = next.find((m) => m._id === message._id)
+
+          if (updatedMsg) {
+            selectedMsgRef.current = updatedMsg
+          }
+
+          return next
+        })
+
+        // 🌐 API — đồng bộ logic với frontend web:
+        // Nếu bấm cùng emoji đang có → gọi REMOVE_ALL để xóa
+        // Nếu đổi emoji hoặc thêm mới → backend tự upsert (xóa cũ + thêm mới)
+        const liveMsg = messagesRef.current.find((m: any) => m._id === message._id) || message
+        const existingReactionForApi = normalizeReactions(liveMsg.reactions || []).find(
+          (r: any) => {
+            const uid = r.userId || r.user?._id || r.id
+            return uid === currentUserId
+          }
+        )
+        if (existingReactionForApi && existingReactionForApi.emoji === emoji) {
+          await reactMessageApi(message._id, 'REMOVE_ALL')
+        } else {
+          await reactMessageApi(message._id, emoji)
+        }
+      } catch (error) {
+        console.log('React message failed:', error)
+
+        Alert.alert('Lỗi', 'Không thể thả cảm xúc lúc này')
+      } finally {
+        reactingRef.current[message._id] = false
+      }
+    },
+    [currentUserId]
+  )
+
   const handleRemoveAllReactions = async (message: any) => {
-    if (!message) return
+    if (!message?._id) return
+
+    if (reactingRef.current[message._id]) return
+
+    reactingRef.current[message._id] = true
+
     try {
-      // Tìm xem mình đang thả cảm xúc gì
-      const myReaction = message.reactions?.find((r: any) => {
+      const liveMsg = selectedMsgRef.current || message
+
+      const myReaction = liveMsg?.reactions?.find((r: any) => {
         const uid = r.userId || r.user?._id || r.id
+
         return uid === currentUserId
       })
 
-      if (myReaction) {
-        // Gửi lại đúng emoji đó để Backend gỡ bỏ
-        await reactMessageApi(message._id, myReaction.emoji)
+      if (!myReaction) return
 
-        // Lọc bỏ cảm xúc của mình khỏi giao diện
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg._id !== message._id) return msg
-            return {
-              ...msg,
-              reactions:
-                msg.reactions?.filter((r: any) => {
-                  const uid = r.userId || r.user?._id || r.id
-                  return uid !== currentUserId
-                }) || []
-            }
-          })
-        )
-      }
-      setShowMenu(false)
+      // ⚡ optimistic remove
+      setMessages((prev) => {
+        const next = prev.map((msg) => {
+          if (msg._id !== liveMsg._id) {
+            return msg
+          }
+
+          const filtered =
+            msg.reactions?.filter((r: any) => {
+              const uid = r.userId || r.user?._id || r.id
+
+              return uid !== currentUserId
+            }) || []
+
+          const updated = {
+            ...msg,
+            reactions: normalizeReactions(filtered)
+          }
+
+          selectedMsgRef.current = updated
+
+          return updated
+        })
+
+        return next
+      })
+
+      // backend remove all — gọi REMOVE_ALL để xóa đúng khi ấn nút xóa reaction
+      await reactMessageApi(liveMsg._id, 'REMOVE_ALL')
     } catch (error) {
       Alert.alert('Lỗi', 'Không thể thu hồi cảm xúc')
+    } finally {
+      reactingRef.current[message._id] = false
     }
   }
 
   const buildReactionGroups = (reactions: any[] = []) => {
-    const groupMap = new Map<string, { emoji: string; count: number; users: any[] }>()
-    reactions.forEach((reaction: any) => {
+    const normalized = normalizeReactions(reactions)
+
+    const groupMap = new Map<
+      string,
+      {
+        emoji: string
+        count: number
+        users: any[]
+      }
+    >()
+
+    normalized.forEach((reaction: any) => {
       const emoji = reaction?.emoji
+
       if (!emoji) return
-      if (!groupMap.has(emoji)) groupMap.set(emoji, { emoji, count: 0, users: [] })
+
+      if (!groupMap.has(emoji)) {
+        groupMap.set(emoji, {
+          emoji,
+          count: 0,
+          users: []
+        })
+      }
+
       const group = groupMap.get(emoji)!
+
       group.count += 1
       group.users.push(reaction)
     })
+
     return Array.from(groupMap.values()).sort((a, b) => b.count - a.count)
   }
 
@@ -1011,13 +1134,52 @@ const MessageScreen = () => {
   const handleDoubleTap = (message: any) => {}
 
   const handleLongPress = (event: any, message: any) => {
-    if (message.type === 'revoked') return // 🌟 KHÔNG THAO TÁC NẾU ĐÃ THU HỒI
+    if (!message || message.type === 'revoked') {
+      return
+    }
+
     const { pageY } = event.nativeEvent
-    setMenuPos({ x: 0, y: Math.max(100, pageY - 130) })
-    setSelectedMsg(message)
+
+    const menuEstimatedHeight = message?.sender?._id === currentUserId ? 320 : 260
+
+    let calculatedY = pageY - 120
+
+    if (calculatedY < 90) {
+      calculatedY = 90
+    }
+
+    if (calculatedY + menuEstimatedHeight > SCREEN_HEIGHT - 100) {
+      calculatedY = SCREEN_HEIGHT - menuEstimatedHeight - 100
+    }
+
+    // 🔥 luôn lấy live message mới nhất
+    const liveMessage = messagesRef.current.find((m) => m._id === message._id) || message
+
+    selectedMsgRef.current = liveMessage
+
+    setSelectedMsg(liveMessage)
+
+    setMenuPos({
+      x: 0,
+      y: calculatedY
+    })
+
     setShowMenu(true)
   }
 
+  // 🔧 FIX: thay PanResponder bằng handleEmojiPress đơn giản và chính xác
+  // Loại bỏ hoàn toàn lỗi offset toạ độ do PanResponder + flex layout gây ra
+  const handleEmojiPress = useCallback(
+    (emoji: string) => {
+      const currentMsg = selectedMsgRef.current
+      if (!currentMsg) return
+      handleToggleReact(currentMsg, emoji)
+      setShowMenu(false)
+    },
+    [handleToggleReact]
+  )
+
+  // Giữ lại cho tương thích với MessageMenuModal props (không dùng nữa nhưng giữ interface ổn định)
   const getReactionFromX = useCallback(
     (x: number) => {
       if (emojiStripWidth <= 0) return null
@@ -1033,22 +1195,10 @@ const MessageScreen = () => {
   const emojiPanResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => {
-          setHoveredReaction(getReactionFromX(e.nativeEvent.locationX))
-        },
-        onPanResponderMove: (e) => {
-          setHoveredReaction(getReactionFromX(e.nativeEvent.locationX))
-        },
-        onPanResponderRelease: () => {
-          if (hoveredReaction && selectedMsg) handleToggleReact(selectedMsg, hoveredReaction)
-          else setShowMenu(false)
-          setHoveredReaction(null)
-        },
-        onPanResponderTerminate: () => setHoveredReaction(null)
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: () => false
       }),
-    [getReactionFromX, hoveredReaction, selectedMsg]
+    []
   )
 
   const formatTime = (dateString: string) => {
@@ -1258,6 +1408,11 @@ const MessageScreen = () => {
                 SCREEN_WIDTH={SCREEN_WIDTH}
                 SCREEN_HEIGHT={SCREEN_HEIGHT}
                 onSummarizeFile={handleSummarizeFile}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                initialNumToRender={12}
+                updateCellsBatchingPeriod={50}
               />
             )}
             contentContainerStyle={styles.listContent}
@@ -1372,6 +1527,7 @@ const MessageScreen = () => {
         COLORS={COLORS}
         styles={styles}
         t={t}
+        handleEmojiPress={handleEmojiPress}
       />
 
       <MediaPreviewModal
@@ -1668,28 +1824,28 @@ const getStyles = (COLORS: any, isDarkMode: boolean) =>
       marginRight: 6
     },
     reactionEmojiWrap: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: 'center',
       justifyContent: 'center'
     },
     reactionEmojiWrapHovered: {
       backgroundColor: COLORS.surfaceSoft,
-      transform: [{ translateY: -6 }]
+      transform: [{ translateY: -5 }]
     },
-    reactionEmojiText: { fontSize: 33 },
-    reactionEmojiTextHovered: { fontSize: 40 },
+    reactionEmojiText: { fontSize: 26 },
+    reactionEmojiTextHovered: { fontSize: 32 },
     removeAllReactionBtn: {
-      width: 54,
-      height: 54,
-      borderRadius: 27,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: COLORS.background,
       borderWidth: 1,
       borderColor: COLORS.border,
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 4
+      marginLeft: 2
     },
     actionRow: { paddingVertical: 5 },
     menuItem: { flexDirection: 'row', alignItems: 'center', padding: 15 },
