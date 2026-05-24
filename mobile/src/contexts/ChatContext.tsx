@@ -16,6 +16,8 @@ interface ChatContextType {
   socket: Socket | null
   connectSocket: () => void
   disconnectSocket: () => void
+  currentUserId: string
+  currentUserName: string
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -30,7 +32,9 @@ const ChatContext = createContext<ChatContextType>({
   updateDraft: () => {},
   socket: null,
   connectSocket: () => {},
-  disconnectSocket: () => {}
+  disconnectSocket: () => {},
+  currentUserId: '',
+  currentUserName: ''
 })
 
 export const useChatContext = () => useContext(ChatContext)
@@ -40,6 +44,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [localUnreadMap, setLocalUnreadMap] = useState<Record<string, number>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [currentUserId, setCurrentUserId] = useState('')
+  const [currentUserName, setCurrentUserName] = useState('')
 
   const setLocalUnread = useCallback((conversationId: string, count: number) => {
     setLocalUnreadMap((prev) => ({ ...prev, [conversationId]: count }))
@@ -60,48 +66,57 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   const disconnectSocket = useCallback(() => {
     if (socket) {
-      socket.removeAllListeners() // 🔥 Tránh văng lỗi log đỏ khi ngắt
+      socket.removeAllListeners()
       socket.disconnect()
       setSocket(null)
-      console.log('❌ Đã ngắt kết nối Socket')
+      console.log('Đã ngắt kết nối Socket')
     }
   }, [socket])
 
   const connectSocket = useCallback(async () => {
-    if (socket) return // Nếu đã có kết nối rồi thì không tạo mới
+    // ✅ FIX 1: Chỉ skip nếu đang connected thật sự — cho phép reconnect sau khi đổi IP
+    if (socket?.connected) return
 
     try {
       const token = await AsyncStorage.getItem('access_token')
       if (!token) return
 
-      // Giải mã token để lấy user_id
       let decodedUserId = ''
+      let decodedUserName = ''
       try {
         const decoded: any = jwtDecode(token)
-        decodedUserId = decoded.user_id || decoded._id || decoded.id
+        decodedUserId = decoded.user_id || decoded._id || decoded.id || ''
+        decodedUserName = decoded.userName || decoded.name || decoded.username || 'User'
       } catch (decodeError) {
         console.error('Lỗi giải mã token trong ChatContext:', decodeError)
         return
       }
 
-      // ⚠️ CHÚ Ý: Đổi dòng dưới đây thành Địa chỉ IP/Domain Backend của bạn (VD: http://192.168.1.5:4000)
-      const SOCKET_URL = `${process.env.EXPO_PUBLIC_API_URL}:4001`
+      setCurrentUserId(decodedUserId)
+      setCurrentUserName(decodedUserName)
+
+      // ✅ FIX 2: Đọc custom_ip để kết nối đúng server khi dev/test local
+      const customIp = await AsyncStorage.getItem('custom_ip')
+      const SOCKET_URL =
+        customIp && customIp.trim().length > 0
+          ? `http://${customIp.trim()}:4001`
+          : `${process.env.EXPO_PUBLIC_API_URL}:4001`
 
       const newSocket = io(SOCKET_URL, {
         auth: {
           token: `Bearer ${token}`,
-          user_id: decodedUserId // 🔥 THÊM DÒNG NÀY: Gửi kèm user_id cho Backend
+          user_id: decodedUserId
         },
         transports: ['websocket']
       })
 
       newSocket.on('connect', () => {
-        console.log('✅ Đã kết nối Socket thành công với ID:', newSocket.id)
+        console.log('Đã kết nối Socket thành công với ID:', newSocket.id)
       })
 
       newSocket.on('connect_error', (err) => {
         if (newSocket.active) {
-          console.error('⚠️ Lỗi kết nối Socket:', err.message)
+          console.error('Lỗi kết nối Socket:', err.message)
         }
       })
 
@@ -115,6 +130,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     setTotalUnreadCount(0)
     setLocalUnreadMap({})
     setDrafts({})
+    setCurrentUserId('')
+    setCurrentUserName('')
     disconnectSocket()
   }, [disconnectSocket])
 
@@ -139,7 +156,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         updateDraft,
         socket,
         connectSocket,
-        disconnectSocket
+        disconnectSocket,
+        currentUserId,
+        currentUserName
       }}
     >
       {children}

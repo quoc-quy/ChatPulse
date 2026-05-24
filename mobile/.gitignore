@@ -43,6 +43,7 @@ yarn-error.*
 # --- MOBILE SPECIFIC ---
 ios/build/
 android/app/build/
+android/build/
 android/.gradle/
 *.ipa
 *.apk.env

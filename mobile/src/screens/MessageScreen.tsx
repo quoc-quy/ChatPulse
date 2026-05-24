@@ -799,6 +799,36 @@ const MessageScreen = () => {
     if (docFiles.length > 0) await uploadMultipleAttachments(docFiles, 'file')
   }
 
+  // 🔧 FIX: Hàm khởi tạo cuộc gọi — emit call:initiate qua socket rồi navigate đến CallScreen
+  const initiateCall = (type: 'video' | 'audio') => {
+    if (!socket) {
+      Alert.alert('Lỗi', 'Chưa kết nối server. Vui lòng thử lại.')
+      return
+    }
+    if (isNotFriendState) {
+      Alert.alert('Thông báo', 'Bạn chỉ có thể gọi khi đã kết bạn.')
+      return
+    }
+    socket.emit('call:initiate', { conversationId, type }, (response: { callId: string }) => {
+      if (!response?.callId) {
+        Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi.')
+        return
+      }
+      navigation.navigate('Call', {
+        roomName: conversationId,
+        userName: currentUserId, // dùng userId làm identity (backend cũng dùng user_id)
+        isVideoCall: type === 'video',
+        callId: response.callId,
+        conversationId,
+        callerName: currentChatName,
+        callerAvatar: chatAvatarUrl
+      })
+    })
+  }
+
+  const handleVoiceCall = () => initiateCall('audio')
+  const handleVideoCall = () => initiateCall('video')
+
   const handleDeleteDisbandedChat = () => {
     Alert.alert('Xóa trò chuyện', 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử?', [
       { text: 'Hủy', style: 'cancel' },
@@ -1316,6 +1346,8 @@ const MessageScreen = () => {
         membersData={membersData}
         isSummarizing={isSummarizing}
         handleSummarizeChat={handleSummarizeChat}
+        handleVoiceCall={handleVoiceCall}
+        handleVideoCall={handleVideoCall}
         isNotFriendState={isNotFriendState}
         COLORS={COLORS}
         styles={styles}

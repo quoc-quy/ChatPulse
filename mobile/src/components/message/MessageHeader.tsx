@@ -17,6 +17,8 @@ export const MessageHeader = ({
   membersData,
   isSummarizing,
   handleSummarizeChat,
+  handleVoiceCall, // 🔧 FIX: nhận handler gọi thoại
+  handleVideoCall, // 🔧 FIX: nhận handler gọi video
   isNotFriendState, // 🌟 NHẬN THÊM BIẾN NÀY ĐỂ XỬ LÝ LÀM MỜ
   COLORS,
   styles
@@ -100,10 +102,11 @@ export const MessageHeader = ({
                 <Ionicons name="sparkles" size={24} color="#FFD700" />
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
+            {/* 🔧 FIX: Thêm onPress để nút gọi hoạt động */}
+            <TouchableOpacity style={styles.iconBtn} onPress={handleVoiceCall}>
               <Ionicons name="call-outline" size={24} color="white" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
+            <TouchableOpacity style={styles.iconBtn} onPress={handleVideoCall}>
               <Ionicons name="videocam-outline" size={26} color="white" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={goToDetail}>

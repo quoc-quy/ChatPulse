@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
@@ -24,8 +23,11 @@ import { ChatProvider } from './src/contexts/ChatContext'
 import MessageSearchScreen from './src/screens/MessageSearchScreen'
 import CreateGroupScreen from './src/screens/CreateGroupScreen'
 import ForwardMessageScreen from './src/screens/ForwardMessageScreen'
-// ── THÊM MỚI ──────────────────────────────────────────────────────────────
 import TrafficBotScreen from './src/screens/TrafficBotScreen'
+
+// ✅ FIX BUG NGHIÊM TRỌNG: Import CallScreen và GlobalCallUI
+import CallScreen from './src/screens/CallScreen'
+import { GlobalCallUI } from './src/components/chat/GlobalCallUI'
 
 const Stack = createNativeStackNavigator()
 
@@ -86,74 +88,47 @@ export default function App() {
                   <Stack.Screen
                     name="FriendRequests"
                     component={FriendRequestsScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="SentRequest"
                     component={SentRequestsScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="ConversationDetail"
                     component={ConversationDetailScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="UserProfile"
                     component={UserProfileScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="MembersScreen"
                     component={MembersScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="AddMemberScreen"
                     component={AddMemberScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="MessageScreen"
                     component={MessageScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="MessageSearchScreen"
                     component={MessageSearchScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="BlockedUsers"
                     component={BlockedUsersScreen}
-                    options={{
-                      headerShown: false,
-                      animation: 'slide_from_right'
-                    }}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
                   />
                   <Stack.Screen
                     name="CreateGroupScreen"
@@ -165,13 +140,19 @@ export default function App() {
                     component={ForwardMessageScreen}
                     options={{ title: 'Chuyển tiếp tin nhắn' }}
                   />
-                  {/* ── THÊM MỚI: ChatPulse Giao Thông ──────────────────── */}
                   <Stack.Screen
                     name="TrafficBot"
                     component={TrafficBotScreen}
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
+                  />
+
+                  <Stack.Screen
+                    name="Call"
+                    component={CallScreen}
                     options={{
                       headerShown: false,
-                      animation: 'slide_from_right'
+                      animation: 'fade',
+                      gestureEnabled: false
                     }}
                   />
                 </>
@@ -190,6 +171,7 @@ export default function App() {
                 </>
               )}
             </Stack.Navigator>
+            {isLoggedIn && <GlobalCallUI />}
           </NavigationContainer>
         </SafeAreaProvider>
       </ChatProvider>

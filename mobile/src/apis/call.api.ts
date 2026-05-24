@@ -2,7 +2,7 @@ import { api } from './api'
 
 export const getLiveKitToken = async (roomName: string, userName: string) => {
   try {
-    const response = await api.get('/call/token', {
+    const response = await api.get('/calls/token', {
       params: { roomName, userName }
     })
     return response.data.result.token
