@@ -1,17 +1,17 @@
-const { withProjectBuildGradle } = require('@expo/config-plugins');
+const { withProjectBuildGradle, withSettingsGradle } = require('@expo/config-plugins');
 
 /**
- * Expo Config Plugin to pin the Android Gradle Plugin (AGP) version.
+ * Expo Config Plugin to pin the Android Gradle Plugin (AGP) version
+ * in both build.gradle and the settings.gradle version catalog.
  */
 const withCustomAGP = (config, version = '8.7.3') => {
-  return withProjectBuildGradle(config, (config) => {
+  // 1. Modify project-level build.gradle
+  config = withProjectBuildGradle(config, (config) => {
     if (config.modResults.language === 'groovy') {
-      // Replace classpath('com.android.tools.build:gradle') with the pinned version
       config.modResults.contents = config.modResults.contents.replace(
         /classpath\(['"]com\.android\.tools\.build:gradle['"]\)/g,
         `classpath('com.android.tools.build:gradle:${version}')`
       );
-      // Also handle cases where a version might already be specified
       config.modResults.contents = config.modResults.contents.replace(
         /classpath\(['"]com\.android\.tools\.build:gradle:[\d\.]+['"]\)/g,
         `classpath('com.android.tools.build:gradle:${version}')`
@@ -19,6 +19,19 @@ const withCustomAGP = (config, version = '8.7.3') => {
     }
     return config;
   });
+
+  // 2. Modify settings.gradle to override the version catalog
+  config = withSettingsGradle(config, (config) => {
+    if (config.modResults.language === 'groovy') {
+      config.modResults.contents = config.modResults.contents.replace(
+        /expoAutolinking\.useExpoVersionCatalog\(\)/g,
+        `expoAutolinking.useExpoVersionCatalog {\n  version("agp", "${version}")\n}`
+      );
+    }
+    return config;
+  });
+
+  return config;
 };
 
 module.exports = withCustomAGP;
