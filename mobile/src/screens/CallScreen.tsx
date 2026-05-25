@@ -16,7 +16,12 @@ import { getLiveKitToken } from '../apis/call.api'
 import { useChatContext } from '../contexts/ChatContext'
 import Constants from 'expo-constants'
 
-const LIVEKIT_URL = process.env.EXPO_PUBLIC_LIVEKIT_URL || 'wss://your-project-url.livekit.cloud'
+// FIX: Đọc từ Constants.expoConfig.extra trước (luôn có trong APK bundle),
+// fallback về process.env (hoạt động khi dev local)
+const LIVEKIT_URL =
+  (Constants.expoConfig?.extra?.EXPO_PUBLIC_LIVEKIT_URL as string) ||
+  process.env.EXPO_PUBLIC_LIVEKIT_URL ||
+  'wss://chatpulse-oxy534tp.livekit.cloud'
 
 // ✅ Detect Expo Go để ngăn chặn việc import native dependencies trực tiếp gây crash
 const isExpoGo = Constants.appOwnership === 'expo'
@@ -40,8 +45,9 @@ if (!isExpoGo) {
     VideoTrack = lkRN.VideoTrack
     AudioSession = lkRN.AudioSession
     Track = lkClient.Track
+    console.log('[CallScreen] LiveKit libraries loaded successfully')
   } catch (error) {
-    console.error('Failed to load LiveKit libraries:', error)
+    console.error('[CallScreen] Failed to load LiveKit libraries:', error)
   }
 }
 
@@ -51,11 +57,15 @@ async function requestAndroidPermissions(isVideoCall: boolean): Promise<boolean>
   try {
     const perms: string[] = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]
     if (isVideoCall) perms.push(PermissionsAndroid.PERMISSIONS.CAMERA)
+    console.log('[CallScreen] Requesting permissions:', perms)
     const results = await PermissionsAndroid.requestMultiple(perms as any)
-    return perms.every(
+    const granted = perms.every(
       (p) => results[p as keyof typeof results] === PermissionsAndroid.RESULTS.GRANTED
     )
-  } catch {
+    console.log('[CallScreen] Permissions granted:', granted, results)
+    return granted
+  } catch (e) {
+    console.error('[CallScreen] Permission request error:', e)
     return false
   }
 }
@@ -65,6 +75,15 @@ export default function CallScreen({ route, navigation }: any) {
     route.params as any
 
   const { socket } = useChatContext() as any
+
+  console.log(
+    '[CallScreen] Mounted — isExpoGo:',
+    isExpoGo,
+    '| roomName:',
+    roomName,
+    '| callId:',
+    callId
+  )
 
   // Nếu đang chạy Expo Go -> sử dụng UI Mock cuộc gọi để tránh crash native WebRTC
   if (isExpoGo) {
@@ -141,14 +160,6 @@ function MockCallScreen({
     navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
   }
 
-  const toggleMic = () => {
-    setIsMicOn(!isMicOn)
-  }
-
-  const toggleVideo = () => {
-    setIsVideoOn(!isVideoOn)
-  }
-
   const displayName = callerName || 'Người dùng'
 
   return (
@@ -190,7 +201,6 @@ function MockCallScreen({
           </View>
         )}
 
-        {/* Khung camera nhỏ của chính mình (chỉ hiện khi bật camera) */}
         {isVideoOn && !isConnecting && (
           <View style={styles.localContainer}>
             <View style={styles.localMockCamera}>
@@ -210,7 +220,7 @@ function MockCallScreen({
       <View style={styles.controlsContainer}>
         <TouchableOpacity
           style={[styles.controlButton, !isMicOn && styles.controlButtonOff]}
-          onPress={toggleMic}
+          onPress={() => setIsMicOn(!isMicOn)}
         >
           <Ionicons name={isMicOn ? 'mic' : 'mic-off'} size={26} color="#fff" />
           <Text style={styles.controlLabel}>{isMicOn ? 'Micro' : 'Tắt mic'}</Text>
@@ -227,7 +237,7 @@ function MockCallScreen({
 
         <TouchableOpacity
           style={[styles.controlButton, !isVideoOn && styles.controlButtonOff]}
-          onPress={toggleVideo}
+          onPress={() => setIsVideoOn(!isVideoOn)}
         >
           <Ionicons name={isVideoOn ? 'videocam' : 'videocam-off'} size={26} color="#fff" />
           <Text style={styles.controlLabel}>{isVideoOn ? 'Camera' : 'Tắt cam'}</Text>
@@ -253,10 +263,12 @@ function RealCallScreen({
   const [error, setError] = useState<string | null>(null)
   const [permissionsGranted, setPermissionsGranted] = useState(false)
 
-  // Bật/tắt AudioSession
+  // Bật AudioSession ngay khi vào màn hình cuộc gọi
   useEffect(() => {
+    console.log('[RealCallScreen] Mounted — starting AudioSession')
     AudioSession?.startAudioSession()
     return () => {
+      console.log('[RealCallScreen] Unmounted — stopping AudioSession')
       AudioSession?.stopAudioSession()
     }
   }, [])
@@ -264,41 +276,67 @@ function RealCallScreen({
   // Xin quyền hệ thống
   useEffect(() => {
     const setup = async () => {
+      console.log('[RealCallScreen] Requesting Android permissions, isVideoCall:', isVideoCall)
       const granted = await requestAndroidPermissions(isVideoCall)
       if (!granted) {
+        console.warn('[RealCallScreen] Permissions DENIED')
         setError(
           'Ứng dụng cần quyền Camera/Microphone.\nVào Cài đặt → Ứng dụng → ChatPulse → Quyền để cấp quyền.'
         )
         return
       }
+      console.log('[RealCallScreen] Permissions GRANTED')
       setPermissionsGranted(true)
     }
     setup()
   }, [isVideoCall])
 
-  // Lấy LiveKit Token từ Backend
+  // FIX: Emit call:join TRƯỚC khi fetch token để server notify cho caller/web
+  // biết mobile đã sẵn sàng join LiveKit Room, tránh timing race condition.
+  // Sau đó mới fetch token và connect LiveKit.
   useEffect(() => {
     if (!permissionsGranted) return
+
     const fetchToken = async () => {
       try {
-        const fetchedToken = await getLiveKitToken(roomName, userName)
-        setToken(fetchedToken)
+        // Bước 1: Báo server biết mobile đã vào phòng (TRƯỚC khi connect LiveKit)
         if (socket && callId && conversationId) {
+          console.log('[CallScreen] Emitting call:join', { callId, conversationId })
           socket.emit('call:join', { callId, conversationId })
+        } else {
+          console.warn('[RealCallScreen] socket/callId/conversationId missing:', {
+            socket: !!socket,
+            callId,
+            conversationId
+          })
         }
+
+        // Bước 2: Lấy token LiveKit từ backend
+        console.log(
+          '[RealCallScreen] Fetching LiveKit token — roomName:',
+          roomName,
+          'userName:',
+          userName
+        )
+        const fetchedToken = await getLiveKitToken(roomName, userName)
+        console.log('[CallScreen] Token fetched successfully')
+        setToken(fetchedToken)
       } catch (err) {
-        console.error('Lỗi lấy token:', err)
+        console.error('[CallScreen] Token fetch error:', err)
         setError('Không thể kết nối cuộc gọi. Vui lòng thử lại.')
       }
     }
+
     fetchToken()
   }, [permissionsGranted, roomName, userName, callId, conversationId, socket])
 
   // Lắng nghe sự kiện ngắt kết nối từ đối phương
   useEffect(() => {
     if (!socket) return
-    const goBack = () =>
+    const goBack = () => {
+      console.log('[RealCallScreen] call:ended or call:rejected — navigating back')
       navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+    }
     socket.on('call:ended', goBack)
     socket.on('call:rejected', goBack)
     return () => {
@@ -308,6 +346,7 @@ function RealCallScreen({
   }, [socket, navigation])
 
   const handleLeave = useCallback(() => {
+    console.log('[RealCallScreen] User leaving call', { callId, conversationId })
     if (socket && callId && conversationId) {
       socket.emit('call:leave', { callId, conversationId })
     }
@@ -337,6 +376,8 @@ function RealCallScreen({
       </View>
     )
   }
+
+  console.log('[RealCallScreen] Rendering LiveKitRoom — serverUrl:', LIVEKIT_URL)
 
   return (
     <>
@@ -374,41 +415,120 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
   const room = useRoomContext()
   const [isMicOn, setIsMicOn] = useState(true)
   const [isVideoOn, setIsVideoOn] = useState(isVideoCall)
+  // FIX: Dùng state để force re-render khi remote participant thay đổi
+  const [remoteCount, setRemoteCount] = useState(0)
 
-  const cameraTracks = useTracks([Track.Source.Camera])
+  // FIX #3: Subscribe cả Camera + Microphone để detect audio-only call và avoid missing tracks
+  const allTracks = useTracks([Track.Source.Camera, Track.Source.Microphone])
 
-  const isTrackRef = (t: any): boolean =>
-    t && 'publication' in t && t.publication !== undefined
+  const isTrackRef = (t: any): boolean => t && 'publication' in t && t.publication !== undefined
 
-  const localVideoTrack = cameraTracks.find(
-    (t: any): boolean => t.participant.isLocal && isTrackRef(t)
+  // FIX #3: Lọc theo source tránh nhầm audio track với video track
+  const localVideoTrack = allTracks.find(
+    (t: any): boolean =>
+      t.participant?.isLocal &&
+      isTrackRef(t) &&
+      t.publication?.source === Track.Source.Camera
   )
-  const remoteVideoTracks = cameraTracks.filter(
-    (t: any): boolean => !t.participant.isLocal && isTrackRef(t)
+  const remoteVideoTracks = allTracks.filter(
+    (t: any): boolean =>
+      !t.participant?.isLocal &&
+      isTrackRef(t) &&
+      t.publication?.source === Track.Source.Camera
   )
 
   const remoteParticipants = Array.from(room.remoteParticipants.values())
-  const isWaiting = remoteParticipants.length === 0
+  const isWaiting = remoteParticipants.length === 0 && remoteCount === 0
   const displayName = callerName || (remoteParticipants[0] as any)?.name || 'Người dùng'
+
+  // FIX #2: Lắng nghe sự kiện LiveKit để cập nhật remoteCount
+  // BUG TRƯỚC: Nếu web đã join LiveKit Room TRƯỚC khi mobile mount RoomView,
+  // event 'participantConnected' đã fire trước khi listener được đăng ký
+  // → remoteCount mãi = 0 → isWaiting = true mãi → màn hình "Đang chờ kết nối" không tắt
+  // FIX: Thêm listener 'connected' (RoomEvent.Connected) để check lại ngay sau khi room connect xong
+  useEffect(() => {
+    if (!room) return
+
+    // Hàm chung để cập nhật số lượng remote participants
+    const updateRemoteCount = () => {
+      const count = room.remoteParticipants.size
+      console.log(
+        '[RoomView] updateRemoteCount — room.state:',
+        room.state,
+        '| remoteParticipants:',
+        count
+      )
+      setRemoteCount(count)
+    }
+
+    // Lắng nghe khi có người join/leave
+    room.on('participantConnected', updateRemoteCount)
+    room.on('participantDisconnected', updateRemoteCount)
+
+    // FIX RACE CONDITION: Khi LiveKit Room connect thành công, check ngay participants
+    // Bắt trường hợp web đã join TRƯỚC khi mobile mount RoomView (và event đã fire rồi)
+    room.on('connected', updateRemoteCount)
+
+    // Kiểm tra ngay khi mount (nếu room đã connected sẵn và web đã trong phòng)
+    console.log(
+      '[RoomView] Mounted — room.state:',
+      room.state,
+      '| initial remoteParticipants:',
+      room.remoteParticipants.size
+    )
+    updateRemoteCount()
+
+    return () => {
+      room.off('participantConnected', updateRemoteCount)
+      room.off('participantDisconnected', updateRemoteCount)
+      room.off('connected', updateRemoteCount)
+    }
+  }, [room])
+
+  // Log khi track thay đổi để debug
+  useEffect(() => {
+    console.log(
+      '[RoomView] allTracks changed — local video:',
+      !!localVideoTrack,
+      '| remote video count:',
+      remoteVideoTracks.length,
+      '| total tracks:',
+      allTracks.length
+    )
+  }, [allTracks.length])
 
   const toggleMic = async () => {
     if (room?.localParticipant) {
-      await room.localParticipant.setMicrophoneEnabled(!isMicOn)
-      setIsMicOn(!isMicOn)
+      const newState = !isMicOn
+      console.log('[RoomView] Toggle mic:', newState)
+      await room.localParticipant.setMicrophoneEnabled(newState)
+      setIsMicOn(newState)
     }
   }
 
   const toggleVideo = async () => {
     if (room?.localParticipant) {
-      await room.localParticipant.setCameraEnabled(!isVideoOn)
-      setIsVideoOn(!isVideoOn)
+      const newState = !isVideoOn
+      console.log('[RoomView] Toggle camera:', newState)
+      await room.localParticipant.setCameraEnabled(newState)
+      setIsVideoOn(newState)
     }
   }
+
+  console.log(
+    '[RoomView] Render — isWaiting:',
+    isWaiting,
+    '| remoteCount:',
+    remoteCount,
+    '| remoteVideoTracks:',
+    remoteVideoTracks.length
+  )
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.videoArea}>
         {isWaiting ? (
+          // Chưa có ai join vào LiveKit Room
           <View style={styles.waitingContainer}>
             {callerAvatar ? (
               <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
@@ -422,8 +542,10 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
             <ActivityIndicator color="#C084FC" style={{ marginTop: 12 }} />
           </View>
         ) : remoteVideoTracks.length > 0 ? (
+          // Hiển thị video của đối phương
           <VideoTrack trackRef={remoteVideoTracks[0]} style={styles.fullScreenVideo} />
         ) : (
+          // Đã kết nối nhưng đối phương tắt camera (audio-only hoặc camera off)
           <View style={styles.waitingContainer}>
             {callerAvatar ? (
               <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
@@ -439,12 +561,14 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
           </View>
         )}
 
+        {/* Camera nhỏ của chính mình (góc trên phải) */}
         {isVideoOn && localVideoTrack && (
           <View style={styles.localContainer}>
             <VideoTrack trackRef={localVideoTrack} style={styles.localVideo} />
           </View>
         )}
 
+        {/* Badge tắt mic */}
         {!isMicOn && (
           <View style={styles.micOffBadge}>
             <Ionicons name="mic-off" size={16} color="#fff" />

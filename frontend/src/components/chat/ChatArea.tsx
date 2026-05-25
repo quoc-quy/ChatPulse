@@ -152,7 +152,9 @@ export function ChatArea({ chat }: ChatAreaProps) {
           callId: response.callId,
           conversationId: chat.id,
           type,
-          isReceiving: false
+          isReceiving: false,
+          isCalling: true  // ← FIX: Hiển thị màn hình "Đang gọi..." và KHÔNG join LiveKit ngay
+          // VideoCallRoom chỉ mount sau khi nhận 'call:accepted' từ callee
         })
       }
     })

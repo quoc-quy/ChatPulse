@@ -24,7 +24,7 @@ interface IncomingCall {
 }
 
 export function GlobalCallUI() {
-  const { socket, currentUserName } = useChatContext() as any
+  const { socket, currentUserId, currentUserName } = useChatContext() as any
   const navigation = useNavigation<any>()
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null)
 
@@ -113,11 +113,13 @@ export function GlobalCallUI() {
       conversationId: call.conversationId
     })
 
-    const myName = currentUserName || 'User'
+    // FIX: Dùng currentUserId thống nhất với MessageScreen (caller dùng currentUserId)
+    // Đảm bảo LiveKit identity nhất quán giữa caller và callee
+    const myIdentity = currentUserId || currentUserName || 'User'
 
     navigation.navigate('Call', {
       roomName: call.conversationId,
-      userName: myName,
+      userName: myIdentity,
       isVideoCall: call.type === 'video',
       callId: call.callId,
       conversationId: call.conversationId,

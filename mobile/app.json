@@ -7,7 +7,7 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/20df8b10-0b0d-491b-8335-10a6b2eae922"
+      "url": "https://u.expo.dev/c390e651-74d3-4e18-9f4b-7144614885f2"
     },
     "orientation": "portrait",
     "icon": "./assets/logo-chatpulse-icon.png",
@@ -46,6 +46,20 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT"
       ]
     },
@@ -69,7 +83,9 @@
     "extra": {
       "eas": {
         "projectId": "c390e651-74d3-4e18-9f4b-7144614885f2"
-      }
+      },
+      "EXPO_PUBLIC_LIVEKIT_URL": "wss://chatpulse-oxy534tp.livekit.cloud",
+      "EXPO_PUBLIC_API_URL": "http://192.168.1.228"
     },
     "owner": "trannguyenquocquy"
   }
