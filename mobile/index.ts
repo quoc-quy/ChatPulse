@@ -17,8 +17,16 @@ if (typeof globalThis.DOMException === 'undefined') {
 // Bước 2: Sau khi polyfill xong mới require các module cần DOMException
 require('react-native-get-random-values')
 
+// ✅ BƯỚC 2.5: registerGlobals() PHẢI được gọi TRƯỚC KHI load bất kỳ module LiveKit nào
+// Đây là bước khởi tạo WebRTC native bridge cho @livekit/react-native-webrtc
+// Nếu thiếu bước này → "WebRTC isn't detected" → LiveKit Room không thể kết nối
+// → remoteParticipants mãi = 0 → màn hình "Đang chờ kết nối" không bao giờ tắt
+const { registerGlobals } = require('@livekit/react-native-webrtc')
+registerGlobals()
+
 // Bước 3: Load App và đăng ký
 const { registerRootComponent } = require('expo')
 const { default: App } = require('./App')
 
 registerRootComponent(App)
+
