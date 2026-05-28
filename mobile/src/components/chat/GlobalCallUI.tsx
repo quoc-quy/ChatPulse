@@ -119,7 +119,7 @@ export function GlobalCallUI() {
 
     navigation.navigate('Call', {
       roomName: call.conversationId,
-      userName: myIdentity,
+      userName: currentUserName || 'User',
       isVideoCall: call.type === 'video',
       callId: call.callId,
       conversationId: call.conversationId,

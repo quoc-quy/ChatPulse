@@ -89,6 +89,25 @@ export const useLiveKit = (
           return
         }
 
+        // ✅ FIX RACE CONDITION: Load existing remote participants ngay sau khi connect
+        // Nếu đối phương đã join LiveKit trước mình, event TrackSubscribed đã fire rồi
+        // → Cần manually load tracks của các participant đã có sẵn trong phòng
+        room.remoteParticipants.forEach((participant) => {
+          updatePeerInfo(participant)
+          participant.trackPublications.forEach((publication) => {
+            if (publication.isSubscribed && publication.track) {
+              const track = publication.track as RemoteTrack
+              setRemoteTracks((prev) => {
+                const tracks = prev[participant.identity] || []
+                if (!tracks.find((t) => t.sid === track.sid)) {
+                  return { ...prev, [participant.identity]: [...tracks, track] }
+                }
+                return prev
+              })
+            }
+          })
+        })
+
         if (localStreamRef.current) {
           const tracks = localStreamRef.current.getTracks()
           for (const track of tracks) {

@@ -8,6 +8,7 @@ export interface ActiveCall {
   conversationId: string
   type: 'video' | 'audio'
   isReceiving: boolean
+  isCalling?: boolean // true khi web là caller và đang CHỜ mobile chấp nhận
   callerName?: string
   callerAvatar?: string
 }

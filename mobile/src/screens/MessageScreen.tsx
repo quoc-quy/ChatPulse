@@ -204,7 +204,7 @@ const MessageScreen = () => {
   const { language, t } = useTranslation()
   const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode])
   const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS])
-  const { clearLocalUnread, drafts, updateDraft, socket } = useChatContext() as any
+  const { clearLocalUnread, drafts, updateDraft, socket, currentUserName } = useChatContext() as any
 
   const {
     id: conversationId,
@@ -816,7 +816,7 @@ const MessageScreen = () => {
       }
       navigation.navigate('Call', {
         roomName: conversationId,
-        userName: currentUserId, // dùng userId làm identity (backend cũng dùng user_id)
+        userName: currentUserName || 'User',
         isVideoCall: type === 'video',
         callId: response.callId,
         conversationId,

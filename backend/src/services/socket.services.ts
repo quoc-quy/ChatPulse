@@ -5,6 +5,7 @@ import Message from '~/models/schemas/message.schema'
 import { ObjectId } from 'mongodb'
 import databaseService from './database.services'
 import messageService from './message.services'
+import { CallStatus } from '~/constants/callStataus'
 
 class SocketService {
   public io!: Server
@@ -36,8 +37,8 @@ class SocketService {
           const newCall = new Call({
             conversationId: new ObjectId(conversationId),
             callerId: new ObjectId(userId),
-            type: type,
-            status: 'INITIATED',
+            type: type as any,
+            status: CallStatus.INITIATED,
             participants: [new ObjectId(userId)],
             startedAt: new Date()
           })
@@ -48,10 +49,10 @@ class SocketService {
           const timeoutId = setTimeout(async () => {
             const checkCall = await databaseService.calls.findOne({ _id: new ObjectId(realCallId) })
             // Sau 60s nếu vẫn chưa ai nghe máy (vẫn là INITIATED)
-            if (checkCall && checkCall.status === 'INITIATED') {
+            if (checkCall && checkCall.status.toLowerCase() === 'initiated') {
               await databaseService.calls.updateOne(
                 { _id: checkCall._id },
-                { $set: { status: 'MISSED', endedAt: new Date() } }
+                { $set: { status: CallStatus.MISSED, endedAt: new Date() } }
               )
               // Bắn tin nhắn bị nhỡ
               await this.createAndEmitCallMessage(realCallId, 'missed')
@@ -105,7 +106,7 @@ class SocketService {
             const isCaller = call.callerId.toString() === userId
 
             // CHỈ KHI NGƯỜI NGHE JOIN VÀO THÌ CUỘC GỌI MỚI CHUYỂN SANG ONGOING (Đang diễn ra)
-            if (!isCaller && call.status === 'INITIATED') {
+            if (!isCaller && call.status.toLowerCase() === 'initiated') {
               // Hủy bỏ đếm ngược 60s vì đã có người bắt máy
               const timeoutId = this.callTimeouts.get(callId)
               if (timeoutId) {
@@ -117,7 +118,7 @@ class SocketService {
                 { _id: new ObjectId(callId) },
                 {
                   $addToSet: { participants: new ObjectId(userId) },
-                  $set: { status: 'ONGOING', startedAt: new Date() }
+                  $set: { status: CallStatus.ONGOING, startedAt: new Date() }
                 }
               )
             } else {
@@ -167,6 +168,58 @@ class SocketService {
         }
       })
 
+      // 3b. Callee chấp nhận cuộc gọi (mobile emit event này sau khi nhấn "Nghe máy")
+      // Backend relay lại cho caller (web) biết để cả hai bên cùng sẵn sàng vào LiveKit Room
+      socket.on('call:accepted', async (data: { callId: string; conversationId: string }) => {
+        try {
+          const { callId, conversationId } = data
+          console.log(`[Socket] call:accepted received on backend. Caller/Callee socket userId: ${userId}, callId: ${callId}, conversationId: ${conversationId}`)
+
+          // Hủy đếm ngược 60s vì đã có người bắt máy
+          const timeoutId = this.callTimeouts.get(callId)
+          if (timeoutId) {
+            console.log(`[Socket] Cleared timeout for call: ${callId}`)
+            clearTimeout(timeoutId)
+            this.callTimeouts.delete(callId)
+          }
+
+          // Cập nhật status sang ONGOING nếu chưa
+          const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
+          if (call && call.status.toLowerCase() === 'initiated') {
+            console.log(`[Socket] Updating call ${callId} status from INITIATED to ONGOING`)
+            await databaseService.calls.updateOne(
+              { _id: new ObjectId(callId) },
+              {
+                $addToSet: { participants: new ObjectId(userId) },
+                $set: { status: CallStatus.ONGOING, startedAt: new Date() }
+              }
+            )
+          }
+
+          // Relay sự kiện call:accepted tới tất cả participant còn lại (caller/web)
+          // để web biết mobile đã chấp nhận và cả hai bên cùng join LiveKit Room
+          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+          if (conversation && conversation.participants) {
+            console.log(`[Socket] Found conversation with participants: ${conversation.participants.map(p => p.toString()).join(', ')}`)
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                console.log(`[Socket] Relaying call:accepted to participant: ${pId.toString()}`)
+                this.emitToUser(pId.toString(), 'call:accepted', {
+                  callId,
+                  conversationId,
+                  acceptedBy: userId
+                })
+              }
+            })
+          } else {
+            console.log(`[Socket] Conversation or participants not found for conversationId: ${conversationId}`)
+          }
+        } catch (error) {
+          console.error('Lỗi xử lý call:accepted:', error)
+        }
+      })
+
+
       // 4. Từ chối cuộc gọi
       socket.on('call:reject', async (data: { callId: string; conversationId: string }) => {
         try {
@@ -178,10 +231,10 @@ class SocketService {
           }
 
           const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
-          if (call && !['ENDED', 'REJECTED', 'CANCELLED', 'MISSED'].includes(call.status)) {
+          if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
             await databaseService.calls.updateOne(
               { _id: new ObjectId(data.callId) },
-              { $set: { status: 'REJECTED', endedAt: new Date() } }
+              { $set: { status: CallStatus.REJECTED, endedAt: new Date() } }
             )
             await this.createAndEmitCallMessage(data.callId, 'rejected')
           }
@@ -209,15 +262,15 @@ class SocketService {
 
           const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
 
-          if (call && !['ENDED', 'REJECTED', 'CANCELLED', 'MISSED'].includes(call.status)) {
+          if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
             let newStatus = ''
             let messageType: 'completed' | 'cancelled' | 'missed' = 'completed'
 
-            if (call.status === 'INITIATED') {
-              newStatus = 'CANCELLED' // Người gọi tắt trước khi có người nghe
+            if (call.status.toLowerCase() === 'initiated') {
+              newStatus = 'cancelled' // Người gọi tắt trước khi có người nghe
               messageType = 'cancelled'
-            } else if (call.status === 'ONGOING') {
-              newStatus = 'ENDED'
+            } else if (call.status.toLowerCase() === 'ongoing') {
+              newStatus = CallStatus.ENDED
               messageType = 'completed'
             }
 

@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useCallback, useEffect } fr
 import { io, Socket } from 'socket.io-client'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { jwtDecode } from 'jwt-decode'
+import { getMeApi } from '../apis/user.api'
+
 
 interface ChatContextType {
   totalUnreadCount: number
@@ -94,6 +96,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
       setCurrentUserId(decodedUserId)
       setCurrentUserName(decodedUserName)
+
+      // Fetch user profile to get the actual username
+      getMeApi()
+        .then((res) => {
+          const user = res.data?.user
+          if (user?.userName) {
+            setCurrentUserName(user.userName)
+          }
+        })
+        .catch((err) => {
+          console.warn('[ChatContext] Error fetching profile:', err)
+        })
 
       // ✅ FIX 2: Đọc custom_ip để kết nối đúng server khi dev/test local
       const customIp = await AsyncStorage.getItem('custom_ip')

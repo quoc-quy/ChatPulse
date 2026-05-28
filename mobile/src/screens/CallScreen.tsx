@@ -9,7 +9,9 @@ import {
   StatusBar,
   Platform,
   PermissionsAndroid,
-  Image
+  Image,
+  ScrollView,
+  Dimensions
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getLiveKitToken } from '../apis/call.api'
@@ -25,6 +27,8 @@ const LIVEKIT_URL =
 
 // ✅ Detect Expo Go để ngăn chặn việc import native dependencies trực tiếp gây crash
 const isExpoGo = Constants.appOwnership === 'expo'
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 // Khai báo các biến lazy load động cho LiveKit
 let LiveKitRoom: any = null
@@ -441,6 +445,36 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
   const isWaiting = remoteParticipants.length === 0 && remoteCount === 0
   const displayName = callerName || (remoteParticipants[0] as any)?.name || 'Người dùng'
 
+  // ✅ BƯỚC THÊM: Kích hoạt camera và micro thủ công khi phòng đã kết nối
+  // Đảm bảo thiết bị di động publish camera track của mình lên LiveKit Room
+  useEffect(() => {
+    if (!room || !room.localParticipant) return
+
+    const initLocalTracks = async () => {
+      try {
+        console.log('[RoomView] Auto-enabling local tracks. Mic:', isMicOn, 'Camera:', isVideoCall)
+        await room.localParticipant.setMicrophoneEnabled(isMicOn)
+        await room.localParticipant.setCameraEnabled(isVideoCall)
+      } catch (err) {
+        console.error('[RoomView] Error auto-enabling local tracks:', err)
+      }
+    }
+
+    if (room.state === 'connected') {
+      initLocalTracks()
+    } else {
+      const onStateChanged = (state: string) => {
+        if (state === 'connected') {
+          initLocalTracks()
+        }
+      }
+      room.on('stateChanged', onStateChanged)
+      return () => {
+        room.off('stateChanged', onStateChanged)
+      }
+    }
+  }, [room, isVideoCall])
+
   // FIX #2: Lắng nghe sự kiện LiveKit để cập nhật remoteCount
   // BUG TRƯỚC: Nếu web đã join LiveKit Room TRƯỚC khi mobile mount RoomView,
   // event 'participantConnected' đã fire trước khi listener được đăng ký
@@ -524,55 +558,130 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
     remoteVideoTracks.length
   )
 
+  const isGroupCall = remoteCount > 1
+  const gridParticipants = [room.localParticipant, ...Array.from(room.remoteParticipants.values())].filter(Boolean)
+  const totalParticipants = gridParticipants.length
+
+  // Calculate card dimensions dynamically based on participant count to utilize screen height.
+  const availableHeight = SCREEN_HEIGHT - 200
+  let cardWidth = (SCREEN_WIDTH - 24) / 2
+  let cardHeight = 180
+
+  if (totalParticipants <= 2) {
+    cardHeight = Math.max(220, availableHeight - 16)
+    cardWidth = SCREEN_WIDTH - 16
+  } else if (totalParticipants === 3 || totalParticipants === 4) {
+    // 3 or 4 participants: divide the vertical space into 2 rows
+    cardHeight = Math.max(180, (availableHeight - 16) / 2)
+  } else {
+    // 5+ participants: show 3 rows on screen (scrollable)
+    cardHeight = Math.max(160, (availableHeight - 24) / 3)
+  }
+
+  const getParticipantTrack = (identity: string) => {
+    return allTracks.find(
+      (t: any) =>
+        t.participant?.identity === identity &&
+        isTrackRef(t) &&
+        t.publication?.source === Track.Source.Camera
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.videoArea}>
-        {isWaiting ? (
-          // Chưa có ai join vào LiveKit Room
-          <View style={styles.waitingContainer}>
-            {callerAvatar ? (
-              <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-            <Text style={styles.callerNameText}>{displayName}</Text>
-            <Text style={styles.waitingText}>Đang chờ kết nối...</Text>
-            <ActivityIndicator color="#C084FC" style={{ marginTop: 12 }} />
-          </View>
-        ) : remoteVideoTracks.length > 0 ? (
-          // Hiển thị video của đối phương
-          <VideoTrack trackRef={remoteVideoTracks[0]} style={styles.fullScreenVideo} />
+        {isGroupCall ? (
+          <ScrollView contentContainerStyle={styles.gridContainer} style={{ width: '100%', height: '100%' }}>
+            {gridParticipants.map((participant, index) => {
+              const trackRef = getParticipantTrack(participant.identity)
+              const hasVideo = participant.isCameraEnabled && trackRef
+
+              // If number of participants is odd and this is the last participant, take full width
+              const isLastOdd = (totalParticipants % 2 !== 0) && (index === totalParticipants - 1)
+              const itemWidth = isLastOdd ? (SCREEN_WIDTH - 16) : cardWidth
+
+              return (
+                <View key={participant.identity} style={[styles.gridCard, { width: itemWidth, height: cardHeight }]}>
+                  {hasVideo ? (
+                    <VideoTrack trackRef={trackRef} style={styles.gridVideo} />
+                  ) : (
+                    <View style={styles.gridAvatarContainer}>
+                      <View style={styles.gridAvatarCircle}>
+                        <Text style={styles.gridAvatarText}>
+                          {(participant.name || 'User').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.gridCameraOffText}>Camera đang tắt</Text>
+                    </View>
+                  )}
+
+                  {/* Tên người tham gia */}
+                  <View style={styles.gridNameTag}>
+                    <Text style={styles.gridNameText} numberOfLines={1}>
+                      {participant.isLocal ? 'Bạn' : (participant.name || 'User')}
+                    </Text>
+                  </View>
+
+                  {/* Badge tắt micro */}
+                  {!participant.isMicrophoneEnabled && (
+                    <View style={styles.gridMicOffBadge}>
+                      <Ionicons name="mic-off" size={12} color="#fff" />
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+          </ScrollView>
         ) : (
-          // Đã kết nối nhưng đối phương tắt camera (audio-only hoặc camera off)
-          <View style={styles.waitingContainer}>
-            {callerAvatar ? (
-              <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
+          <>
+            {isWaiting ? (
+              // Chưa có ai join vào LiveKit Room
+              <View style={styles.waitingContainer}>
+                {callerAvatar ? (
+                  <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <Text style={styles.callerNameText}>{displayName}</Text>
+                <Text style={styles.waitingText}>Đang chờ kết nối...</Text>
+                <ActivityIndicator color="#C084FC" style={{ marginTop: 12 }} />
+              </View>
+            ) : remoteVideoTracks.length > 0 ? (
+              // Hiển thị video của đối phương
+              <VideoTrack trackRef={remoteVideoTracks[0]} style={styles.fullScreenVideo} />
             ) : (
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+              // Đã kết nối nhưng đối phương tắt camera (audio-only hoặc camera off)
+              <View style={styles.waitingContainer}>
+                {callerAvatar ? (
+                  <Image source={{ uri: callerAvatar }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <Text style={styles.callerNameText}>{displayName}</Text>
+                <Text style={styles.waitingText}>
+                  {isVideoCall ? 'Camera đang tắt' : 'Cuộc gọi thoại đang diễn ra'}
+                </Text>
               </View>
             )}
-            <Text style={styles.callerNameText}>{displayName}</Text>
-            <Text style={styles.waitingText}>
-              {isVideoCall ? 'Camera đang tắt' : 'Cuộc gọi thoại đang diễn ra'}
-            </Text>
-          </View>
-        )}
 
-        {/* Camera nhỏ của chính mình (góc trên phải) */}
-        {isVideoOn && localVideoTrack && (
-          <View style={styles.localContainer}>
-            <VideoTrack trackRef={localVideoTrack} style={styles.localVideo} />
-          </View>
-        )}
+            {/* Camera nhỏ của chính mình (góc trên phải) */}
+            {isVideoOn && localVideoTrack && (
+              <View style={styles.localContainer}>
+                <VideoTrack trackRef={localVideoTrack} style={styles.localVideo} />
+              </View>
+            )}
 
-        {/* Badge tắt mic */}
-        {!isMicOn && (
-          <View style={styles.micOffBadge}>
-            <Ionicons name="mic-off" size={16} color="#fff" />
-          </View>
+            {/* Badge tắt mic */}
+            {!isMicOn && (
+              <View style={styles.micOffBadge}>
+                <Ionicons name="mic-off" size={16} color="#fff" />
+              </View>
+            )}
+          </>
         )}
       </View>
 
@@ -767,5 +876,71 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontSize: 13,
     fontWeight: '500'
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 8,
+    gap: 8
+  },
+  gridCard: {
+    height: 180,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#333'
+  },
+  gridVideo: {
+    width: '100%',
+    height: '100%'
+  },
+  gridAvatarContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#151515',
+    gap: 8
+  },
+  gridAvatarCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#7C3AED',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  gridAvatarText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold'
+  },
+  gridCameraOffText: {
+    color: '#9CA3AF',
+    fontSize: 12
+  },
+  gridNameTag: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    maxWidth: '80%'
+  },
+  gridNameText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500'
+  },
+  gridMicOffBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    borderRadius: 10,
+    padding: 4
   }
 })
