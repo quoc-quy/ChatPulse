@@ -45,6 +45,7 @@ import {
   markConversationAsSeen
 } from '../apis/chat.api'
 import { friendApi } from '../apis/friends.api'
+import { getActiveCall } from '../apis/call.api'
 
 // Import Contexts & Hooks
 import { useTheme } from '../contexts/ThemeContext'
@@ -204,7 +205,7 @@ const MessageScreen = () => {
   const { language, t } = useTranslation()
   const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode])
   const styles = useMemo(() => getStyles(COLORS, isDarkMode), [isDarkMode, COLORS])
-  const { clearLocalUnread, drafts, updateDraft, socket } = useChatContext() as any
+  const { clearLocalUnread, drafts, updateDraft, socket, currentUserName, activeCall, setActiveCall } = useChatContext() as any
 
   const {
     id: conversationId,
@@ -228,6 +229,7 @@ const MessageScreen = () => {
   const [hasMore, setHasMore] = useState<boolean>(true)
   const [isAiProcessing, setIsAiProcessing] = useState(false)
   const [isMutedState, setIsMutedState] = useState<boolean>(isMuted)
+  const [activeCallStatus, setActiveCallStatus] = useState<any | null>(null)
 
   const [chatAvatarUrl, setChatAvatarUrl] = useState<string>(avatar)
   const [membersData, setMembersData] = useState<any[]>(members)
@@ -561,12 +563,49 @@ const MessageScreen = () => {
       }
     }
 
+    getActiveCall(conversationId)
+      .then((call) => {
+        if (call) {
+          setActiveCallStatus(call)
+        }
+      })
+      .catch((err) => console.log('Lỗi fetch active call:', err))
+
+    const handleCallIncoming = (data: any) => {
+      if (String(data.conversationId) === String(conversationId)) {
+        setActiveCallStatus({
+          callId: data.callId,
+          conversationId: data.conversationId,
+          type: data.type,
+          status: 'initiated'
+        })
+      }
+    }
+
+    const handleCallAccepted = (data: any) => {
+      if (String(data.conversationId) === String(conversationId)) {
+        setActiveCallStatus((prev: any) => (prev ? { ...prev, status: 'ongoing' } : null))
+      }
+    }
+
+    const handleCallEnded = (data: any) => {
+      setActiveCallStatus((prev: any) => {
+        if (prev && String(prev.callId) === String(data.callId)) {
+          return null
+        }
+        return prev
+      })
+    }
+
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
     socket.on('message_reacted', handleMessageReacted)
     socket.on('group_disbanded', handleGroupDisbanded)
     socket.on('conversation_updated', handleConversationUpdated)
-    socket.on('user_status_change', handleUserStatusChange) // <-- Duy nhất sự kiện này hoạt động cho Status
+    socket.on('user_status_change', handleUserStatusChange)
+    socket.on('call:incoming', handleCallIncoming)
+    socket.on('call:accepted', handleCallAccepted)
+    socket.on('call:ended', handleCallEnded)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
@@ -575,6 +614,9 @@ const MessageScreen = () => {
       socket.off('group_disbanded', handleGroupDisbanded)
       socket.off('conversation_updated', handleConversationUpdated)
       socket.off('user_status_change', handleUserStatusChange)
+      socket.off('call:incoming', handleCallIncoming)
+      socket.off('call:accepted', handleCallAccepted)
+      socket.off('call:ended', handleCallEnded)
     }
   }, [socket, conversationId, currentUserId, partnerId, isGroup, clearLocalUnread])
 
@@ -798,6 +840,39 @@ const MessageScreen = () => {
     if (mediaFiles.length > 0) await uploadMultipleAttachments(mediaFiles, 'media')
     if (docFiles.length > 0) await uploadMultipleAttachments(docFiles, 'file')
   }
+
+  // 🔧 FIX: Hàm khởi tạo cuộc gọi — emit call:initiate qua socket rồi đặt activeCall trong context
+  const initiateCall = (type: 'video' | 'audio') => {
+    if (!socket) {
+      Alert.alert('Lỗi', 'Chưa kết nối server. Vui lòng thử lại.')
+      return
+    }
+    if (isNotFriendState) {
+      Alert.alert('Thông báo', 'Bạn chỉ có thể gọi khi đã kết bạn.')
+      return
+    }
+    socket.emit('call:initiate', { conversationId, type }, (response: { callId: string }) => {
+      if (!response?.callId) {
+        Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi.')
+        return
+      }
+      setActiveCall({
+        roomName: conversationId,
+        userName: currentUserName || 'User',
+        isVideoCall: type === 'video',
+        callId: response.callId,
+        conversationId,
+        callerName: currentChatName,
+        callerAvatar: chatAvatarUrl,
+        isCalling: true,
+        isReceiving: false,
+        isMinimized: false
+      })
+    })
+  }
+
+  const handleVoiceCall = () => initiateCall('audio')
+  const handleVideoCall = () => initiateCall('video')
 
   const handleDeleteDisbandedChat = () => {
     Alert.alert('Xóa trò chuyện', 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử?', [
@@ -1316,7 +1391,10 @@ const MessageScreen = () => {
         membersData={membersData}
         isSummarizing={isSummarizing}
         handleSummarizeChat={handleSummarizeChat}
+        handleVoiceCall={handleVoiceCall}
+        handleVideoCall={handleVideoCall}
         isNotFriendState={isNotFriendState}
+        activeCallStatus={activeCallStatus}
         COLORS={COLORS}
         styles={styles}
       />

@@ -116,9 +116,14 @@ export const ConversationItem = ({
 
           <View style={styles.chatContent}>
             <View style={styles.chatHeader}>
-              <Text style={styles.name} numberOfLines={1}>
-                {chatName}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {chatName}
+                </Text>
+                {item.activeCall && (
+                  <Ionicons name="call" size={14} color="#10B981" />
+                )}
+              </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {isMutedForItem(item) && (
                   <Ionicons name="notifications-off-outline" size={13} color={COLORS.textLight} />

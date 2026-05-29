@@ -187,6 +187,7 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
 
         const response = await aiApi.askChatPulseAI(chatContext, query)
         const aiResponseText =
+          response.data?.result ||
           response.data?.data ||
           (response.data as any)?.text ||
           (response.data as any)?.message ||

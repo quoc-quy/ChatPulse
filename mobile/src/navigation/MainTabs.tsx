@@ -259,12 +259,18 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
       }))
 
       const response = await askChatPulseAIApi(formattedContext, userQuestion)
+      const resData = response.data
+      const aiText =
+        resData?.result ||
+        resData?.data ||
+        resData?.message ||
+        'Đường truyền thần giao cách cảm đang bị nhiễu. Vui lòng thử lại sau nhé!'
 
-      if (response.data && response.data.result) {
+      if (resData) {
         const aiResponse = {
           id: (Date.now() + 1).toString(),
           role: 'ai',
-          text: response.data.result
+          text: aiText
         }
         setAiMessages((prev) => [...prev, aiResponse])
       }
@@ -478,7 +484,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <LinearGradient colors={['#1A1A1D', '#000000']} style={styles.modalGradient}>
-              <View style={styles.modalHeader}>
+              <View style={[styles.modalHeader, { paddingTop: insets.top > 0 ? insets.top + 10 : 30 }]}>
                 <View style={{ width: 30 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Sparkles size={20} color="#C084FC" style={{ marginRight: 6 }} />
@@ -512,7 +518,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                     </View>
                   )}
 
-                  <View style={styles.inputArea}>
+                  <View style={[styles.inputArea, { paddingBottom: insets.bottom > 0 ? insets.bottom + 12 : 16 }]}>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}

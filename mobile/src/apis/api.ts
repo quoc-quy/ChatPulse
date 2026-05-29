@@ -16,6 +16,14 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
+    // ✅ FIX 3: Đọc custom_ip cho HTTP API — giống logic socket trong ChatContext
+    const customIp = await AsyncStorage.getItem('custom_ip')
+    if (customIp && customIp.trim().length > 0) {
+      config.baseURL = `http://${customIp.trim()}:4000`
+    } else {
+      config.baseURL = BASE_URL
+    }
+
     const token = await AsyncStorage.getItem('access_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { ChatAvatar } from '../ui/ChatAvatar'
+import { useChatContext } from '../../contexts/ChatContext'
 
 export const MessageHeader = ({
   navigation,
@@ -17,10 +18,35 @@ export const MessageHeader = ({
   membersData,
   isSummarizing,
   handleSummarizeChat,
-  isNotFriendState, // 🌟 NHẬN THÊM BIẾN NÀY ĐỂ XỬ LÝ LÀM MỜ
+  handleVoiceCall, // 🔧 FIX: nhận handler gọi thoại
+  handleVideoCall, // 🔧 FIX: nhận handler gọi video
+  isNotFriendState,
+  activeCallStatus,
   COLORS,
   styles
 }: any) => {
+  const { activeCall, setActiveCall, currentUserName } = useChatContext() as any
+  const isUserInThisCall = activeCall && String(activeCall.conversationId) === String(conversationId)
+  const hasActiveCallNotJoined = !activeCall && activeCallStatus
+
+  const handleJoinOrRejoinCall = () => {
+    if (isUserInThisCall) {
+      setActiveCall({ ...activeCall, isMinimized: false })
+    } else if (hasActiveCallNotJoined) {
+      setActiveCall({
+        roomName: conversationId,
+        userName: currentUserName || 'User',
+        isVideoCall: activeCallStatus.type === 'video',
+        callId: activeCallStatus.callId,
+        conversationId,
+        callerName: currentChatName,
+        callerAvatar: chatAvatarUrl,
+        isReceiving: false,
+        isMinimized: false
+      })
+    }
+  }
+
   const goToDetail = () => {
     navigation.navigate('ConversationDetail', {
       id: conversationId,
@@ -100,12 +126,36 @@ export const MessageHeader = ({
                 <Ionicons name="sparkles" size={24} color="#FFD700" />
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="call-outline" size={24} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="videocam-outline" size={26} color="white" />
-            </TouchableOpacity>
+            {isUserInThisCall || hasActiveCallNotJoined ? (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 16,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  marginHorizontal: 4
+                }}
+                onPress={handleJoinOrRejoinCall}
+              >
+                <Ionicons name="call" size={14} color="white" />
+                <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                  {isUserInThisCall ? 'Quay lại' : 'Tham gia'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                {/* 🔧 FIX: Thêm onPress để nút gọi hoạt động */}
+                <TouchableOpacity style={styles.iconBtn} onPress={handleVoiceCall}>
+                  <Ionicons name="call-outline" size={24} color="white" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconBtn} onPress={handleVideoCall}>
+                  <Ionicons name="videocam-outline" size={26} color="white" />
+                </TouchableOpacity>
+              </>
+            )}
             <TouchableOpacity style={styles.iconBtn} onPress={goToDetail}>
               <Ionicons name="menu" size={28} color="white" />
             </TouchableOpacity>

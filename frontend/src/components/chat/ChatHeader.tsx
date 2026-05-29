@@ -18,9 +18,26 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, isInfoPanelOpen }: ChatHeaderProps) {
   const { toggleSidebar } = useSidebar()
-  const { profile } = useContext(AppContext)
+  const { profile, activeCall, setActiveCall, setIsCallMinimized } = useContext(AppContext)
   const [openUserModal, setOpenUserModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
+
+  const isUserInThisCall = activeCall && String(activeCall.conversationId) === String(chat.id)
+  const hasActiveCallNotJoined = !activeCall && chat.activeCall
+
+  const handleJoinOrRejoinCall = () => {
+    if (isUserInThisCall) {
+      setIsCallMinimized(false)
+    } else if (hasActiveCallNotJoined) {
+      setActiveCall({
+        callId: chat.activeCall.callId,
+        conversationId: chat.id,
+        type: chat.activeCall.type || 'video',
+        isReceiving: false
+      })
+      setIsCallMinimized(false)
+    }
+  }
 
   const isAI = chat.type === 'ai' || chat.type === 'traffic-ai'
   const isUnfriended = chat.isFriend === false // Kiểm tra trạng thái bạn bè
@@ -116,19 +133,31 @@ export function ChatHeader({ chat, onStartCall, onSummarize, onToggleInfoPanel, 
 
           {/* Ẩn nút Gọi điện và Gọi video nếu đã hủy kết bạn */}
           {!isUnfriended && (
-            <div className='flex items-center gap-1'>
-              <button
-                onClick={() => onStartCall && onStartCall('audio')}
-                className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
-              >
-                <Phone className='h-5 w-5' />
-              </button>
-              <button
-                onClick={() => onStartCall && onStartCall('video')}
-                className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
-              >
-                <Video className='h-5 w-5' />
-              </button>
+            <div className='flex items-center gap-1.5'>
+              {isUserInThisCall || hasActiveCallNotJoined ? (
+                <button
+                  onClick={handleJoinOrRejoinCall}
+                  className='flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-full font-semibold text-xs transition-all shadow-md animate-pulse shadow-green-500/20 border border-green-400'
+                >
+                  <Phone className='h-3.5 w-3.5 fill-white' />
+                  <span>{isUserInThisCall ? 'Quay lại' : 'Tham gia cuộc gọi'}</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onStartCall && onStartCall('audio')}
+                    className='p-2 hover:bg-muted hover:text-foreground hover:text-green-500 rounded-full transition-colors'
+                  >
+                    <Phone className='h-5 w-5' />
+                  </button>
+                  <button
+                    onClick={() => onStartCall && onStartCall('video')}
+                    className='p-2 hover:bg-muted hover:text-foreground hover:text-blue-500 rounded-full transition-colors'
+                  >
+                    <Video className='h-5 w-5' />
+                  </button>
+                </>
+              )}
             </div>
           )}
 

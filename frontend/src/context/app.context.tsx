@@ -8,6 +8,7 @@ export interface ActiveCall {
   conversationId: string
   type: 'video' | 'audio'
   isReceiving: boolean
+  isCalling?: boolean // true khi web là caller và đang CHỜ mobile chấp nhận
   callerName?: string
   callerAvatar?: string
 }
@@ -24,6 +25,7 @@ export interface ChatItem {
   admin_id?: string
   isDisbanded?: boolean
   isFriend?: boolean
+  activeCall?: any
 }
 
 interface AppContextInterface {
@@ -35,6 +37,8 @@ interface AppContextInterface {
   setActiveChat: Dispatch<SetStateAction<ChatItem | null>>
   activeCall: ActiveCall | null
   setActiveCall: Dispatch<SetStateAction<ActiveCall | null>>
+  isCallMinimized: boolean
+  setIsCallMinimized: Dispatch<SetStateAction<boolean>>
 }
 
 const initialAppContext: AppContextInterface = {
@@ -45,7 +49,9 @@ const initialAppContext: AppContextInterface = {
   activeChat: null,
   setActiveChat: () => null,
   activeCall: null,
-  setActiveCall: () => null
+  setActiveCall: () => null,
+  isCallMinimized: false,
+  setIsCallMinimized: () => null
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -56,6 +62,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<User | null>(initialAppContext.profile)
   const [activeChat, setActiveChat] = useState<ChatItem | null>(null)
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null)
+  const [isCallMinimized, setIsCallMinimized] = useState<boolean>(false)
 
   return (
     <AppContext.Provider
@@ -67,7 +74,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         activeChat,
         setActiveChat,
         activeCall,
-        setActiveCall
+        setActiveCall,
+        isCallMinimized,
+        setIsCallMinimized
       }}
     >
       {children}

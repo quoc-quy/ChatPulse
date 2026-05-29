@@ -145,7 +145,8 @@ export function useConversations() {
           encryptedKeys: conv.lastMessage?.encryptedKeys || {},
           // Map trạng thái giải tán từ server
           is_disbanded: conv.is_disbanded === true,
-          isDisbanded: conv.is_disbanded === true
+          isDisbanded: conv.is_disbanded === true,
+          activeCall: conv.activeCall
         }
       })
 
@@ -364,6 +365,74 @@ export function useConversations() {
       })
     }
 
+    const handleCallIncoming = (data: { callId: string; conversationId: string; callerId: string; type: string }) => {
+      const activeCallData = {
+        callId: data.callId,
+        conversationId: data.conversationId,
+        type: data.type,
+        status: 'initiated',
+        callerId: data.callerId
+      }
+      setChatList((prevChats) =>
+        prevChats.map((chat) => {
+          if (String(chat.id) === String(data.conversationId)) {
+            return { ...chat, activeCall: activeCallData }
+          }
+          return chat
+        })
+      )
+      setActiveChat((prev: any) => {
+        if (prev && String(prev.id) === String(data.conversationId)) {
+          return { ...prev, activeCall: activeCallData }
+        }
+        return prev
+      })
+    }
+
+    const handleCallEnded = (data: { callId: string }) => {
+      setChatList((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.activeCall && String(chat.activeCall.callId) === String(data.callId)) {
+            return { ...chat, activeCall: null }
+          }
+          return chat
+        })
+      )
+      setActiveChat((prev: any) => {
+        if (prev && prev.activeCall && String(prev.activeCall.callId) === String(data.callId)) {
+          return { ...prev, activeCall: null }
+        }
+        return prev
+      })
+    }
+
+    const handleCallAccepted = (data: { callId: string; conversationId: string }) => {
+      setChatList((prevChats) =>
+        prevChats.map((chat) => {
+          if (String(chat.id) === String(data.conversationId)) {
+            const currentCall = chat.activeCall || {
+              callId: data.callId,
+              conversationId: data.conversationId,
+              status: 'ongoing'
+            }
+            return { ...chat, activeCall: { ...currentCall, status: 'ongoing' } }
+          }
+          return chat
+        })
+      )
+      setActiveChat((prev: any) => {
+        if (prev && String(prev.id) === String(data.conversationId)) {
+          const currentCall = prev.activeCall || {
+            callId: data.callId,
+            conversationId: data.conversationId,
+            status: 'ongoing'
+          }
+          return { ...prev, activeCall: { ...currentCall, status: 'ongoing' } }
+        }
+        return prev
+      })
+    }
+
     socket.on('conversation_updated', handleConvUpdated)
     socket.on('receive_message', handleReceiveMessage)
     socket.on('message_revoked', handleMessageRevoked)
@@ -372,6 +441,9 @@ export function useConversations() {
     socket.on('group_disbanded', handleGroupDisbanded)
     socket.on('friend_added', handleFriendAdded)
     socket.on('new_conversation', handleNewConversation)
+    socket.on('call:incoming', handleCallIncoming)
+    socket.on('call:ended', handleCallEnded)
+    socket.on('call:accepted', handleCallAccepted)
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('message_revoked', handleMessageRevoked)
@@ -381,6 +453,9 @@ export function useConversations() {
       socket.off('group_disbanded', handleGroupDisbanded)
       socket.off('friend_added', handleFriendAdded)
       socket.off('new_conversation', handleNewConversation)
+      socket.off('call:incoming', handleCallIncoming)
+      socket.off('call:ended', handleCallEnded)
+      socket.off('call:accepted', handleCallAccepted)
     }
   }, [profile, socket, sortChats])
 

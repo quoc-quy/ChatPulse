@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/refs */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect, useContext, useRef } from 'react'
@@ -8,18 +10,14 @@ import { Phone, PhoneOff, Video, Maximize2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function GlobalCallUI() {
-  const { activeCall, setActiveCall, profile } = useContext(AppContext)
+  const { activeCall, setActiveCall, profile, isCallMinimized: isMinimized, setIsCallMinimized: setIsMinimized } = useContext(AppContext)
   const { socket } = useSocket()
-
-  const [isMinimized, setIsMinimized] = useState(false)
   const [position, setPosition] = useState({ x: 20, y: 20 })
   const [isDragging, setIsDragging] = useState(false)
   const dragOffset = useRef({ x: 0, y: 0 })
 
   const activeCallRef = useRef(activeCall)
-  useEffect(() => {
-    activeCallRef.current = activeCall
-  }, [activeCall])
+  activeCallRef.current = activeCall
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -49,10 +47,19 @@ export function GlobalCallUI() {
   }
 
   useEffect(() => {
+    console.log(
+      '>>> [GlobalCallUI] Socket listener useEffect triggered. socket exists:',
+      !!socket,
+      'socket connected:',
+      socket?.connected
+    )
     if (!socket) return
 
     const handleIncoming = (data: any) => {
+      console.log('>>> [GlobalCallUI] Received call:incoming:', data)
+      console.log('>>> [GlobalCallUI] activeCallRef.current:', activeCallRef.current)
       if (activeCallRef.current) {
+        console.log('>>> [GlobalCallUI] Already in active call, rejecting new incoming call')
         socket.emit('call:reject', { callId: data.callId, conversationId: data.conversationId })
         return
       }
@@ -61,42 +68,118 @@ export function GlobalCallUI() {
     }
 
     const handleEnded = () => {
+      console.log('>>> [GlobalCallUI] Received call:ended')
       setActiveCall(null)
       setIsMinimized(false)
     }
     const handleRejected = () => {
+      console.log('>>> [GlobalCallUI] Received call:rejected')
       toast.error('Người dùng đang bận hoặc đã từ chối cuộc gọi.')
       setActiveCall(null)
       setIsMinimized(false)
     }
     // FIX: Nhận sự kiện hết 60s không trả lời
     const handleMissed = () => {
+      console.log('>>> [GlobalCallUI] Received call:missed')
       toast.info('Người nhận không trả lời.')
       setActiveCall(null)
       setIsMinimized(false)
+    }
+    // FIX: Khi mobile/web callee chấp nhận cuộc gọi → web caller tự động chuyển sang VideoCallRoom
+    // và emit call:join để server ghi nhận caller đã vào phòng
+    const handleAccepted = (data: any) => {
+      console.log('>>> [GlobalCallUI] Received call:accepted event from server:', data)
+      console.log('>>> [GlobalCallUI] activeCallRef.current:', activeCallRef.current)
+      if (!activeCallRef.current) {
+        console.log('>>> [GlobalCallUI] activeCallRef.current is null, ignoring accept')
+        return
+      }
+      console.log('>>> [GlobalCallUI] activeCallRef.current.isCalling:', activeCallRef.current.isCalling)
+      // Nếu web đang là caller ở trạng thái isCalling → chuyển sang VideoCallRoom
+      if (activeCallRef.current.isCalling) {
+        console.log('>>> [GlobalCallUI] Caller is active and waiting. Emitting call:join and transitioning to room.')
+        // Emit call:join để server ghi nhận caller join (nếu chưa emit)
+        socket?.emit('call:join', {
+          callId: activeCallRef.current.callId,
+          conversationId: activeCallRef.current.conversationId
+        })
+        setActiveCall({ ...activeCallRef.current, isCalling: false, isReceiving: false })
+      } else {
+        console.log('>>> [GlobalCallUI] activeCall.isCalling is not true, no transition needed')
+      }
     }
 
     socket.on('call:incoming', handleIncoming)
     socket.on('call:ended', handleEnded)
     socket.on('call:rejected', handleRejected)
     socket.on('call:missed', handleMissed)
+    socket.on('call:accepted', handleAccepted)
 
     return () => {
+      console.log('>>> [GlobalCallUI] Cleaning up socket listeners')
       socket.off('call:incoming', handleIncoming)
       socket.off('call:ended', handleEnded)
       socket.off('call:rejected', handleRejected)
       socket.off('call:missed', handleMissed)
+      socket.off('call:accepted', handleAccepted)
     }
   }, [socket, setActiveCall])
 
   if (!activeCall) return null
 
-  const handleAcceptCall = () => setActiveCall({ ...activeCall, isReceiving: false })
+  const handleAcceptCall = () => {
+    // ✅ FIX: Emit call:accepted để server relay cho caller biết callee đã nghe
+    // Thiếu bước này → caller không nhận event → mãi ở màn hình "Đang gọi..."
+    // → status DB vẫn INITIATED → khi leave tạo CANCELLED thay vì completed message
+    if (socket) {
+      socket.emit('call:accepted', {
+        callId: activeCall.callId,
+        conversationId: activeCall.conversationId
+      })
+      // Emit call:join để server cập nhật status sang ONGOING và thêm callee vào participants
+      socket.emit('call:join', {
+        callId: activeCall.callId,
+        conversationId: activeCall.conversationId
+      })
+    }
+    setActiveCall({ ...activeCall, isReceiving: false })
+  }
   const handleRejectCall = () => {
     if (socket) socket.emit('call:reject', { callId: activeCall.callId, conversationId: activeCall.conversationId })
     setActiveCall(null)
   }
+  const handleCancelCall = () => {
+    if (socket) socket.emit('call:leave', { callId: activeCall.callId, conversationId: activeCall.conversationId })
+    setActiveCall(null)
+  }
 
+  // Web là caller đang chờ callee chấp nhận
+  if (activeCall.isCalling) {
+    return (
+      <div className='fixed inset-0 bg-background/80 backdrop-blur-sm z-[9999] flex items-center justify-center pointer-events-auto'>
+        <div className='bg-card border shadow-2xl rounded-3xl p-8 w-[340px] text-center animate-in fade-in zoom-in duration-300'>
+          <div className='w-24 h-24 bg-muted rounded-full mx-auto mb-4 animate-pulse flex items-center justify-center border-4 border-primary overflow-hidden shadow-lg'>
+            <Phone size={40} className='text-primary' />
+          </div>
+          <h3 className='text-2xl font-bold mb-1 text-foreground'>Đang gọi...</h3>
+          <p className='text-muted-foreground mb-8 text-sm font-medium'>
+            Đang chờ người nhận bắt máy {activeCall.type === 'video' ? '(Video)' : '(Thoại)'}
+          </p>
+          <div className='flex justify-center'>
+            <button
+              onClick={handleCancelCall}
+              className='bg-destructive text-white p-4 rounded-full shadow-lg hover:scale-110 transition'
+              title='Hủy cuộc gọi'
+            >
+              <PhoneOff size={28} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Web là callee đang nhận cuộc gọi đến
   if (activeCall.isReceiving) {
     return (
       <div className='fixed inset-0 bg-background/80 backdrop-blur-sm z-[9999] flex items-center justify-center pointer-events-auto'>

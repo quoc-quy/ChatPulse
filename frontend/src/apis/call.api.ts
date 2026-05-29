@@ -5,5 +5,8 @@ export const callApi = {
     return http.get<{ message: string; result: { token: string } }>('/calls/token', {
       params: { roomName, userName }
     })
+  },
+  getActiveCall: (conversationId: string) => {
+    return http.get<{ message: string; result: any }>(`/calls/active/${conversationId}`)
   }
 }
