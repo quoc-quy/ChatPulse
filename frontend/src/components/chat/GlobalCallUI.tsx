@@ -10,10 +10,8 @@ import { Phone, PhoneOff, Video, Maximize2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function GlobalCallUI() {
-  const { activeCall, setActiveCall, profile } = useContext(AppContext)
+  const { activeCall, setActiveCall, profile, isCallMinimized: isMinimized, setIsCallMinimized: setIsMinimized } = useContext(AppContext)
   const { socket } = useSocket()
-
-  const [isMinimized, setIsMinimized] = useState(false)
   const [position, setPosition] = useState({ x: 20, y: 20 })
   const [isDragging, setIsDragging] = useState(false)
   const dragOffset = useRef({ x: 0, y: 0 })

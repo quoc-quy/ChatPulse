@@ -8,37 +8,29 @@ import {
   Image,
   Animated,
   Vibration,
-  Platform
+  Platform,
+  PanResponder,
+  Dimensions,
+  SafeAreaView
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useChatContext } from '../../contexts/ChatContext'
-import { useNavigation } from '@react-navigation/native'
+import CallScreen from '../../screens/CallScreen'
 
-interface IncomingCall {
-  callId: string
-  conversationId: string
-  callerId: string
-  callerName: string
-  callerAvatar?: string
-  type: 'audio' | 'video'
-}
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 export function GlobalCallUI() {
-  const { socket, currentUserId, currentUserName } = useChatContext() as any
-  const navigation = useNavigation<any>()
-  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null)
-
-  // ✅ FIX 4: Dùng ref để tránh stale closure trong socket event handler
-  // Nếu chỉ dùng state, handleIncoming sẽ "thấy" giá trị cũ của incomingCall
-  const incomingCallRef = useRef<IncomingCall | null>(null)
-  useEffect(() => {
-    incomingCallRef.current = incomingCall
-  }, [incomingCall])
+  const { activeCall, setActiveCall, socket, currentUserId, currentUserName } = useChatContext() as any
 
   const pulseAnim = useRef(new Animated.Value(1)).current
+  const activeCallRef = useRef(activeCall)
 
   useEffect(() => {
-    if (!incomingCall) return
+    activeCallRef.current = activeCall
+  }, [activeCall])
+
+  useEffect(() => {
+    if (!activeCall || !activeCall.isReceiving) return
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
@@ -54,150 +46,316 @@ export function GlobalCallUI() {
       pulse.stop()
       Vibration.cancel()
     }
-  }, [incomingCall])
+  }, [activeCall?.isReceiving, activeCall?.callId])
 
   useEffect(() => {
     if (!socket) return
 
-    const handleIncoming = (data: IncomingCall) => {
-      // ✅ FIX 4: Đọc từ ref (luôn là giá trị mới nhất) thay vì state (có thể stale)
-      if (incomingCallRef.current) {
+    const handleIncoming = (data: any) => {
+      console.log('>>> [Mobile GlobalCallUI] call:incoming received:', data)
+      if (activeCallRef.current) {
+        console.log('>>> [Mobile GlobalCallUI] Already in call, rejecting')
         socket.emit('call:reject', {
           callId: data.callId,
           conversationId: data.conversationId
         })
         return
       }
-      setIncomingCall(data)
+      setActiveCall({ ...data, isReceiving: true, isMinimized: false })
     }
 
     const handleEnded = () => {
-      setIncomingCall(null)
+      console.log('>>> [Mobile GlobalCallUI] call:ended received')
+      setActiveCall(null)
       Vibration.cancel()
     }
 
     const handleRejected = () => {
-      setIncomingCall(null)
+      console.log('>>> [Mobile GlobalCallUI] call:rejected received')
+      setActiveCall(null)
       Vibration.cancel()
     }
 
     const handleMissed = () => {
-      setIncomingCall(null)
+      console.log('>>> [Mobile GlobalCallUI] call:missed received')
+      setActiveCall(null)
       Vibration.cancel()
+    }
+
+    const handleAccepted = (data: any) => {
+      console.log('>>> [Mobile GlobalCallUI] call:accepted received:', data)
+      if (activeCallRef.current && activeCallRef.current.isCalling) {
+        socket.emit('call:join', {
+          callId: activeCallRef.current.callId,
+          conversationId: activeCallRef.current.conversationId
+        })
+        setActiveCall({ ...activeCallRef.current, isCalling: false, isReceiving: false, isMinimized: false })
+      }
     }
 
     socket.on('call:incoming', handleIncoming)
     socket.on('call:ended', handleEnded)
     socket.on('call:rejected', handleRejected)
     socket.on('call:missed', handleMissed)
+    socket.on('call:accepted', handleAccepted)
 
     return () => {
       socket.off('call:incoming', handleIncoming)
       socket.off('call:ended', handleEnded)
       socket.off('call:rejected', handleRejected)
       socket.off('call:missed', handleMissed)
+      socket.off('call:accepted', handleAccepted)
     }
-    // ✅ FIX 4: Bỏ incomingCall khỏi deps — dùng ref thay thế để tránh re-register listener liên tục
   }, [socket])
 
   const acceptCall = () => {
-    if (!incomingCall) return
-    const call = incomingCall
-    setIncomingCall(null)
+    if (!activeCall) return
     Vibration.cancel()
 
-    // ✅ FIX 5: Emit call:accepted để server/web biết mobile đã chấp nhận và join LiveKit
-    // Thiếu event này → web không biết → hai bên chờ nhau mãi
     socket?.emit('call:accepted', {
-      callId: call.callId,
-      conversationId: call.conversationId
+      callId: activeCall.callId,
+      conversationId: activeCall.conversationId
     })
 
-    // FIX: Dùng currentUserId thống nhất với MessageScreen (caller dùng currentUserId)
-    // Đảm bảo LiveKit identity nhất quán giữa caller và callee
-    const myIdentity = currentUserId || currentUserName || 'User'
-
-    navigation.navigate('Call', {
-      roomName: call.conversationId,
+    setActiveCall({
+      ...activeCall,
+      isReceiving: false,
+      isMinimized: false,
       userName: currentUserName || 'User',
-      isVideoCall: call.type === 'video',
-      callId: call.callId,
-      conversationId: call.conversationId,
-      // Truyền thêm để CallScreen hiển thị đúng tên/avatar người gọi
-      callerName: call.callerName,
-      callerAvatar: call.callerAvatar ?? null
+      roomName: activeCall.conversationId,
+      isVideoCall: activeCall.type === 'video'
     })
   }
 
   const rejectCall = () => {
-    if (!incomingCall) return
+    if (!activeCall) return
     socket?.emit('call:reject', {
-      callId: incomingCall.callId,
-      conversationId: incomingCall.conversationId
+      callId: activeCall.callId,
+      conversationId: activeCall.conversationId
     })
-    setIncomingCall(null)
+    setActiveCall(null)
     Vibration.cancel()
   }
 
-  if (!incomingCall) return null
+  const cancelCall = () => {
+    if (!activeCall) return
+    socket?.emit('call:leave', {
+      callId: activeCall.callId,
+      conversationId: activeCall.conversationId
+    })
+    setActiveCall(null)
+  }
 
-  return (
-    <Modal visible={true} transparent animationType="slide" statusBarTranslucent>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <View style={styles.avatarWrapper}>
-            {incomingCall.callerAvatar ? (
-              <Image source={{ uri: incomingCall.callerAvatar }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarText}>
-                  {(incomingCall.callerName || 'U').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <Animated.View
-              style={[styles.avatarPulseRing, { transform: [{ scale: pulseAnim }] }]}
-            />
+  // PanResponder for Draggable floating widget
+  const pan = useRef(new Animated.ValueXY({ x: SCREEN_WIDTH - 80, y: SCREEN_HEIGHT - 180 })).current
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value
+        })
+        pan.setValue({ x: 0, y: 0 })
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false
+      }),
+      onPanResponderRelease: (e, gestureState) => {
+        pan.flattenOffset()
+        // Check if it's a click/tap
+        if (Math.abs(gestureState.dx) < 8 && Math.abs(gestureState.dy) < 8) {
+          setActiveCall((prev: any) => ({ ...prev, isMinimized: false }))
+        } else {
+          // Keep on screen bounds
+          let finalX = (pan.x as any)._value
+          let finalY = (pan.y as any)._value
+
+          if (finalX < 10) finalX = 10
+          if (finalX > SCREEN_WIDTH - 70) finalX = SCREEN_WIDTH - 70
+          if (finalY < 40) finalY = 40
+          if (finalY > SCREEN_HEIGHT - 120) finalY = SCREEN_HEIGHT - 120
+
+          Animated.spring(pan, {
+            toValue: { x: finalX, y: finalY },
+            useNativeDriver: false
+          }).start()
+        }
+      }
+    })
+  ).current
+
+  if (!activeCall) return null
+
+  // Outgoing waiting call
+  if (activeCall.isCalling) {
+    return (
+      <View style={styles.overlayContainer}>
+        <SafeAreaView style={styles.overlay}>
+          <View style={styles.card}>
+            <View style={styles.avatarWrapper}>
+              {activeCall.callerAvatar ? (
+                <Image source={{ uri: activeCall.callerAvatar }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>
+                    {(activeCall.callerName || 'U').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Animated.View
+                style={[styles.avatarPulseRing, { transform: [{ scale: pulseAnim }] }]}
+              />
+            </View>
+            <Text style={styles.callerName}>{activeCall.callerName || 'Đang gọi...'}</Text>
+            <Text style={styles.callType}>
+              Đang kết nối {activeCall.type === 'video' ? 'Video' : 'Thoại'}...
+            </Text>
+            <TouchableOpacity style={[styles.btn, styles.btnReject, { marginTop: 20 }]} onPress={cancelCall}>
+              <Ionicons name="close" size={30} color="#fff" />
+            </TouchableOpacity>
           </View>
+        </SafeAreaView>
+      </View>
+    )
+  }
 
-          <Text style={styles.callerName}>{incomingCall.callerName || 'Ai đó'}</Text>
-          <Text style={styles.callType}>
-            Đang gọi {incomingCall.type === 'video' ? 'Video' : 'Thoại'}...
-          </Text>
-
-          <View style={styles.actions}>
-            <View style={styles.actionItem}>
-              <TouchableOpacity style={[styles.btn, styles.btnReject]} onPress={rejectCall}>
-                <Ionicons
-                  name="call"
-                  size={30}
-                  color="#fff"
-                  style={{ transform: [{ rotate: '135deg' }] }}
-                />
-              </TouchableOpacity>
-              <Text style={styles.actionLabel}>Từ chối</Text>
+  // Incoming ring call
+  if (activeCall.isReceiving) {
+    return (
+      <Modal visible={true} transparent animationType="slide" statusBarTranslucent>
+        <View style={styles.overlay}>
+          <View style={styles.card}>
+            <View style={styles.avatarWrapper}>
+              {activeCall.callerAvatar ? (
+                <Image source={{ uri: activeCall.callerAvatar }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>
+                    {(activeCall.callerName || 'U').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Animated.View
+                style={[styles.avatarPulseRing, { transform: [{ scale: pulseAnim }] }]}
+              />
             </View>
 
-            <View style={styles.actionItem}>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <TouchableOpacity style={[styles.btn, styles.btnAccept]} onPress={acceptCall}>
+            <Text style={styles.callerName}>{activeCall.callerName || 'Ai đó'}</Text>
+            <Text style={styles.callType}>
+              Đang gọi {activeCall.type === 'video' ? 'Video' : 'Thoại'}...
+            </Text>
+
+            <View style={styles.actions}>
+              <View style={styles.actionItem}>
+                <TouchableOpacity style={[styles.btn, styles.btnReject]} onPress={rejectCall}>
                   <Ionicons
-                    name={incomingCall.type === 'video' ? 'videocam' : 'call'}
+                    name="call"
                     size={30}
                     color="#fff"
+                    style={{ transform: [{ rotate: '135deg' }] }}
                   />
                 </TouchableOpacity>
-              </Animated.View>
-              <Text style={styles.actionLabel}>Nghe máy</Text>
+                <Text style={styles.actionLabel}>Từ chối</Text>
+              </View>
+
+              <View style={styles.actionItem}>
+                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                  <TouchableOpacity style={[styles.btn, styles.btnAccept]} onPress={acceptCall}>
+                    <Ionicons
+                      name={activeCall.type === 'video' ? 'videocam' : 'call'}
+                      size={30}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                </Animated.View>
+                <Text style={styles.actionLabel}>Nghe máy</Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+    )
+  }
+
+  // Minimized call widget
+  if (activeCall.isMinimized) {
+    return (
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          styles.floatingWidget,
+          {
+            transform: pan.getTranslateTransform()
+          }
+        ]}
+      >
+        <TouchableOpacity style={styles.floatingButton} activeOpacity={0.8}>
+          <Ionicons name="call" size={24} color="#fff" />
+          <View style={styles.floatingPulse} />
+        </TouchableOpacity>
+      </Animated.View>
+    )
+  }
+
+  // Full screen active call room
+  return (
+    <View style={styles.overlayContainer}>
+      <CallScreen
+        {...activeCall}
+        onMinimize={() => {
+          console.log('[GlobalCallUI] Minimizing call screen')
+          setActiveCall({ ...activeCall, isMinimized: true })
+        }}
+        onLeave={() => {
+          console.log('[GlobalCallUI] Leaving call screen')
+          setActiveCall(null)
+        }}
+      />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#111111',
+    zIndex: 99999
+  },
+  floatingWidget: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    zIndex: 100000,
+    elevation: 10
+  },
+  floatingButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#22C55E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6
+  },
+  floatingPulse: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(34,197,94,0.5)',
+    transform: [{ scale: 1.1 }]
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',

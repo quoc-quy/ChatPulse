@@ -1,10 +1,14 @@
+import dotenv from 'dotenv'
+import path from 'path'
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+
 import { ChatGroq } from '@langchain/groq'
 import { HuggingFaceInferenceEmbeddings } from '@langchain/community/embeddings/hf'
 import { PromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
 import { Document } from '@langchain/core/documents'
-import path from 'path'
 import fs from 'fs'
+import { BM25 } from './bm25'
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -113,6 +117,7 @@ class TrafficRagService {
   private llm: ChatGroq
   private embeddings: HuggingFaceInferenceEmbeddings
   private isInitialized = false
+  private bm25Instance: BM25 | null = null
 
   private readonly synonymMap: Record<string, string[]> = {
     'xe máy': ['xe mô tô', 'xe gắn máy', 'xe máy'],
@@ -181,45 +186,64 @@ class TrafficRagService {
 
   private structuralChunking(content: string, meta: DocumentMeta, maxLen = 700): Document[] {
     const chunks: Document[] = []
-    const header = this.buildChunkHeader(meta)
-    const parts = content.split(/(?=\n?(?:Điều|ĐIỀU)\s+\d+|\n?(?:Khoản|KHOẢN)\s+\d+)/g)
-    let buffer = ''
+    const docHeader = this.buildChunkHeader(meta)
+    
+    // Tách thành các Điều
+    const articles = content.split(/(?=\n\s*(?:Điều|ĐIỀU)\s+\d+\.\s+)/g)
+    
+    for (const article of articles) {
+      if (!article.trim()) continue
+      
+      const lines = article.trim().split('\n')
+      const articleTitle = lines[0].trim()
+      
+      // Tách tiếp thành các Khoản (bằng từ khóa Khoản hoặc số đầu dòng như "1. ", "2. ")
+      const clauses = article.split(/(?=\n?(?:Khoản|KHOẢN)\s+\d+|\n\s*\d+\.\s+)/g)
+      
+      let currentClauseBuffer = ''
+      const flush = (clauseText: string) => {
+        if (!clauseText.trim()) return
+        
+        const articleMatch = articleTitle.match(/(?:Điều|ĐIỀU)\s+(\d+[A-Za-z]*)/i)
+        const clauseMatch = clauseText.match(/(?:(?:Khoản|KHOẢN)\s+(\d+[A-Za-z]*)|^\s*(\d+)\.\s+)/i)
+        const clauseNum = clauseMatch ? (clauseMatch[1] || clauseMatch[2]) : ''
+        const clauseLabel = clauseNum ? `Khoản ${clauseNum}` : ''
+        
+        const chunkHeader = `${docHeader}\n[MỤC/ĐIỀU: ${articleTitle}]`
+        
+        chunks.push(
+          new Document({
+            pageContent: `${chunkHeader}\n\n${clauseText.trim()}`,
+            metadata: {
+              source: path.basename(meta.cleaned_path),
+              soHieu: meta.so_hieu,
+              tenVanBan: meta.ten_van_ban,
+              loai: meta.loai,
+              ngayBanHanh: meta.ngay_ban_hanh,
+              theHieuLuc: meta.the_hieu_luc,
+              hieuLuc: meta.hieu_luc,
+              phamVi: meta.pham_vi,
+              tuKhoa: meta.tu_khoa,
+              chuThe: meta.chu_the_ap_dung,
+              lienQuanDen: meta.lien_quan_den,
+              ghiChu: meta.ghi_chu,
+              article: articleMatch ? `Điều ${articleMatch[1]}` : '',
+              clause: clauseLabel
+            }
+          })
+        )
+      }
 
-    const flush = () => {
-      if (!buffer.trim()) return
-      const articleMatch = buffer.match(/(?:Điều|ĐIỀU)\s+(\d+[A-Za-z]*)/i)
-      const clauseMatch = buffer.match(/(?:Khoản|KHOẢN)\s+(\d+[A-Za-z]*)/i)
-
-      chunks.push(
-        new Document({
-          pageContent: `${header}\n\n${buffer.trim()}`,
-          metadata: {
-            source: path.basename(meta.cleaned_path),
-            soHieu: meta.so_hieu,
-            tenVanBan: meta.ten_van_ban,
-            loai: meta.loai,
-            ngayBanHanh: meta.ngay_ban_hanh,
-            theHieuLuc: meta.the_hieu_luc,
-            hieuLuc: meta.hieu_luc,
-            phamVi: meta.pham_vi,
-            tuKhoa: meta.tu_khoa,
-            chuThe: meta.chu_the_ap_dung,
-            lienQuanDen: meta.lien_quan_den,
-            ghiChu: meta.ghi_chu,
-            article: articleMatch ? `Điều ${articleMatch[1]}` : '',
-            clause: clauseMatch ? `Khoản ${clauseMatch[1]}` : ''
-          }
-        })
-      )
-      buffer = ''
+      for (const clause of clauses) {
+        if (currentClauseBuffer.length + clause.length > maxLen && currentClauseBuffer.trim()) {
+          flush(currentClauseBuffer)
+          currentClauseBuffer = ''
+        }
+        currentClauseBuffer += clause + '\n'
+      }
+      flush(currentClauseBuffer)
     }
-
-    for (const part of parts) {
-      if (buffer.length + part.length > maxLen && buffer.trim()) flush()
-      buffer += part + '\n'
-    }
-    flush()
-
+    
     return chunks
   }
 
@@ -273,6 +297,7 @@ class TrafficRagService {
         const cached = JSON.parse(raw)
         if (cached.cacheKey === cacheKey && Array.isArray(cached.docs) && cached.docs.length > 0) {
           this.vectorStore = cached.docs
+          this.initBM25()
           this.isInitialized = true
           return
         }
@@ -308,18 +333,30 @@ class TrafficRagService {
     }
 
     fs.writeFileSync(dbPath, JSON.stringify({ cacheKey, docs: this.vectorStore }))
+    this.initBM25()
     this.isInitialized = true
+  }
+
+  private initBM25(): void {
+    if (this.vectorStore.length > 0) {
+      const bm25Docs = this.vectorStore.map((chunk, index) => ({
+        id: String(index),
+        text: chunk.pageContent
+      }))
+      this.bm25Instance = new BM25(bm25Docs)
+    }
   }
 
   private async retrieve(query: string, topK = 5): Promise<VectorChunk[]> {
     const expandedQuery = this.expandQuery(query)
+    
+    // 1. Tìm kiếm tương đồng vector (Cosine Similarity)
     const [queryVec] = await this.embeddings.embedDocuments([expandedQuery])
-
     const queryLower = expandedQuery.toLowerCase()
     const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 2)
     const queryNumbers = query.match(/\d+([.,]\d+)?/g) || []
 
-    const scored = this.vectorStore.map((chunk) => {
+    const vectorScored = this.vectorStore.map((chunk) => {
       let score = this.cosineSimilarity(queryVec, chunk.embedding)
 
       for (const num of queryNumbers) {
@@ -339,28 +376,151 @@ class TrafficRagService {
       if (year >= 2024) score += 0.02
       else if (year >= 2022) score += 0.01
 
-      return { ...chunk, _score: score }
+      // Tăng điểm cho các điều khoản trừ điểm/tước bằng lái xe nếu câu hỏi hỏi về điểm GPLX
+      if (queryLower.includes('điểm') || queryLower.includes('gplx') || queryLower.includes('bằng lái') || queryLower.includes('tước')) {
+        const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
+        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause.includes('12') || chunk.metadata.clause.includes('13') || chunk.metadata.clause.includes('15') || chunk.metadata.clause.includes('16')) {
+          score += 0.20
+        }
+      }
+
+      // Tăng điểm định hướng theo loại phương tiện trong câu hỏi
+      const hasOto = queryLower.includes('ô tô') || queryLower.includes('oto') || queryLower.includes('xe hơi')
+      const hasXeMay = (queryLower.includes('xe máy') || queryLower.includes('mô tô') || queryLower.includes('xe gắn máy') || queryLower.includes('gắn máy')) && !queryLower.includes('chuyên dùng') && !queryLower.includes('đại') && !queryLower.includes('đạp')
+      const hasXeDap = queryLower.includes('xe đạp')
+      const hasChuyenDung = queryLower.includes('chuyên dùng')
+
+      if (chunk.metadata.soHieu === '168/2024/NĐ-CP') {
+        if (hasXeMay) {
+          if (chunk.metadata.article === 'Điều 7') {
+            score += 0.35 // Boost mạnh cho xe máy
+          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+            score -= 0.40 // Phạt nặng nếu hỏi xe máy nhưng trích ô tô/chuyên dùng/xe đạp
+          }
+        } else if (hasOto) {
+          if (chunk.metadata.article === 'Điều 6') {
+            score += 0.35 // Boost mạnh cho ô tô
+          } else if (chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+            score -= 0.40 // Phạt nặng nếu hỏi ô tô nhưng trích xe máy/chuyên dùng/xe đạp
+          }
+        } else if (hasXeDap) {
+          if (chunk.metadata.article === 'Điều 9') {
+            score += 0.35 // Boost xe đạp
+          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8') {
+            score -= 0.40 // Phạt
+          }
+        } else if (hasChuyenDung) {
+          if (chunk.metadata.article === 'Điều 8') {
+            score += 0.35 // Boost xe chuyên dùng
+          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 9') {
+            score -= 0.40 // Phạt
+          }
+        }
+      }
+
+      return { chunk, score }
     })
 
-    const threshold = 0.15
-    let topDocs = scored
-      .filter((d) => d._score > threshold)
-      .sort((a, b) => b._score - a._score)
-      .slice(0, topK)
-    if (topDocs.length < 2) topDocs = scored.sort((a, b) => b._score - a._score).slice(0, 3)
+    // Sắp xếp các đoạn theo độ tương đồng vector (giảm dần)
+    const vectorSorted = [...vectorScored].sort((a, b) => b.score - a.score).slice(0, 15)
 
+    // 2. Tìm kiếm từ khóa BM25
+    const bm25Sorted = this.bm25Instance ? this.bm25Instance.search(expandedQuery, 15) : []
+
+    // 3. Trộn kết quả bằng Reciprocal Rank Fusion (RRF)
+    const rrfScores = new Map<number, number>()
+    const k = 60 // Hằng số làm mượt RRF chuẩn
+
+    vectorSorted.forEach((item, index) => {
+      const chunkIndex = this.vectorStore.indexOf(item.chunk)
+      if (chunkIndex !== -1) {
+        const rrfContribution = 1 / (k + index + 1)
+        rrfScores.set(chunkIndex, (rrfScores.get(chunkIndex) || 0) + rrfContribution)
+      }
+    })
+
+    bm25Sorted.forEach((match, index) => {
+      const chunkIndex = match.index
+      const rrfContribution = 1 / (k + index + 1)
+      rrfScores.set(chunkIndex, (rrfScores.get(chunkIndex) || 0) + rrfContribution)
+    })
+
+    // Phạt điểm RRF cho các điều khoản không đúng loại phương tiện và boost RRF cho các điều khoản đúng loại phương tiện
+    const hasOto = queryLower.includes('ô tô') || queryLower.includes('oto') || queryLower.includes('xe hơi')
+    const hasXeMay = (queryLower.includes('xe máy') || queryLower.includes('mô tô') || queryLower.includes('xe gắn máy') || queryLower.includes('gắn máy')) && !queryLower.includes('chuyên dùng') && !queryLower.includes('đại') && !queryLower.includes('đạp')
+    const hasXeDap = queryLower.includes('xe đạp')
+    const hasChuyenDung = queryLower.includes('chuyên dùng')
+
+    for (const [chunkIndex, rrfScore] of rrfScores.entries()) {
+      const chunk = this.vectorStore[chunkIndex]
+      if (chunk.metadata.soHieu === '168/2024/NĐ-CP') {
+        if (hasXeMay) {
+          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+            rrfScores.set(chunkIndex, rrfScore - 0.2) // Phạt nặng RRF
+          } else if (chunk.metadata.article === 'Điều 7') {
+            rrfScores.set(chunkIndex, rrfScore + 0.05) // Thêm điểm cộng RRF
+          }
+        } else if (hasOto) {
+          if (chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+            rrfScores.set(chunkIndex, rrfScore - 0.2)
+          } else if (chunk.metadata.article === 'Điều 6') {
+            rrfScores.set(chunkIndex, rrfScore + 0.05)
+          }
+        } else if (hasXeDap) {
+          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8') {
+            rrfScores.set(chunkIndex, rrfScore - 0.2)
+          } else if (chunk.metadata.article === 'Điều 9') {
+            rrfScores.set(chunkIndex, rrfScore + 0.05)
+          }
+        } else if (hasChuyenDung) {
+          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 9') {
+            rrfScores.set(chunkIndex, rrfScore - 0.2)
+          } else if (chunk.metadata.article === 'Điều 8') {
+            rrfScores.set(chunkIndex, rrfScore + 0.05)
+          }
+        }
+      }
+    }
+
+    // Tăng điểm RRF trực tiếp cho các điều khoản trừ điểm / GPLX nếu câu hỏi hỏi về điểm GPLX
+    if (queryLower.includes('điểm') || queryLower.includes('gplx') || queryLower.includes('bằng lái') || queryLower.includes('tước')) {
+      for (const [chunkIndex, rrfScore] of rrfScores.entries()) {
+        const chunk = this.vectorStore[chunkIndex]
+        const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
+        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause.includes('12') || chunk.metadata.clause.includes('13') || chunk.metadata.clause.includes('15') || chunk.metadata.clause.includes('16')) {
+          rrfScores.set(chunkIndex, rrfScore + 0.05)
+        }
+      }
+    }
+
+    // Chọn ra các tài liệu có điểm RRF cao nhất
+    const finalRanked = Array.from(rrfScores.entries())
+      .map(([chunkIndex, rrfScore]) => ({
+        chunk: this.vectorStore[chunkIndex],
+        rrfScore
+      }))
+      .sort((a, b) => b.rrfScore - a.rrfScore)
+      .map((item) => item.chunk)
+
+    // Lấy top K tài liệu có RRF tốt nhất
+    let topDocs = finalRanked.slice(0, Math.max(topK, 5))
+    if (topDocs.length === 0) {
+      topDocs = this.vectorStore.slice(0, 3)
+    }
+
+    // Đa dạng hóa nguồn tài liệu (tránh chỉ hiển thị duy nhất 1 văn bản)
     const countPerDoc: Record<string, number> = {}
     const diversified: VectorChunk[] = []
     for (const chunk of topDocs) {
       const key = chunk.metadata.soHieu
       if (!countPerDoc[key]) countPerDoc[key] = 0
-      if (countPerDoc[key] < 2) {
+      if (countPerDoc[key] < 4) {
         diversified.push(chunk)
         countPerDoc[key]++
       }
     }
 
-    return diversified.length < 2 ? topDocs.slice(0, topK) : diversified
+    return diversified.length < 2 ? topDocs.slice(0, topK) : diversified.slice(0, topK)
   }
 
   private buildContext(chunks: VectorChunk[]): string {
@@ -517,7 +677,7 @@ Nếu là câu hỏi THÔNG TIN CHUNG:
 
   async askTrafficQuestion(query: string): Promise<TrafficResponse> {
     await this.initializeVectorStore()
-    const topChunks = await this.retrieve(query, 5)
+    const topChunks = await this.retrieve(query, 8)
     const context = this.buildContext(topChunks)
     const chain = this.promptTemplate.pipe(this.llm).pipe(new StringOutputParser())
 

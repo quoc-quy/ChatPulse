@@ -20,6 +20,8 @@ interface ChatContextType {
   disconnectSocket: () => void
   currentUserId: string
   currentUserName: string
+  activeCall: any | null
+  setActiveCall: React.Dispatch<React.SetStateAction<any | null>>
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -36,13 +38,16 @@ const ChatContext = createContext<ChatContextType>({
   connectSocket: () => {},
   disconnectSocket: () => {},
   currentUserId: '',
-  currentUserName: ''
+  currentUserName: '',
+  activeCall: null,
+  setActiveCall: () => {}
 })
 
 export const useChatContext = () => useContext(ChatContext)
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [totalUnreadCount, setTotalUnreadCount] = useState(0)
+  const [activeCall, setActiveCall] = useState<any | null>(null)
   const [localUnreadMap, setLocalUnreadMap] = useState<Record<string, number>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -172,7 +177,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         connectSocket,
         disconnectSocket,
         currentUserId,
-        currentUserName
+        currentUserName,
+        activeCall,
+        setActiveCall
       }}
     >
       {children}

@@ -146,6 +146,34 @@ class ChatService {
           }))
         }
 
+        const activeCall = await databaseService.calls.findOne({
+          conversationId: conv._id,
+          status: { $in: ['initiated', 'ongoing'] }
+        })
+
+        let actualActiveCall = null
+        if (activeCall) {
+          const isActive = socketService.isCallIdActive(activeCall._id.toString(), activeCall.status)
+          if (isActive) {
+            actualActiveCall = {
+              callId: activeCall._id.toString(),
+              conversationId: activeCall.conversationId.toString(),
+              type: activeCall.type,
+              status: activeCall.status,
+              callerId: activeCall.callerId.toString(),
+              startedAt: activeCall.startedAt
+            }
+          } else {
+            // Dọn dẹp DB: chuyển sang status thích hợp
+            const newStatus = activeCall.status.toLowerCase() === 'initiated' ? 'missed' : 'ended'
+            await databaseService.calls.updateOne(
+              { _id: activeCall._id },
+              { $set: { status: newStatus, endedAt: new Date() } }
+            )
+          }
+        }
+        conv.activeCall = actualActiveCall
+
         if (conv.type === 'direct') {
           const otherUser = conv.participants.find((p: any) => p._id.toString() !== userObjectId.toString())
 

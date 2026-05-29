@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from 'react'
-import { UserPlus, Bot, Users, MoreHorizontal, Trash2 } from 'lucide-react'
+import { UserPlus, Bot, Users, MoreHorizontal, Trash2, Phone } from 'lucide-react'
 import { Sidebar, SidebarHeader, SidebarInput, SidebarContent } from '@/components/ui/sidebar'
 import { ChatAvatar } from '../chat-avatar'
 import PhoneBook from '../phonebook/PhoneBook'
@@ -120,7 +120,8 @@ export function SidebarPanel2({
       participants: targetChat.participants,
       admin_id: targetChat.admin_id,
       isFriend: targetChat.isFriend,
-      isDisbanded: targetChat.is_disbanded
+      isDisbanded: targetChat.is_disbanded,
+      activeCall: targetChat.activeCall
     })
 
     setChatList((currentChatList) =>
@@ -390,9 +391,12 @@ export function SidebarPanel2({
                       <div className='flex-1 overflow-hidden'>
                         <div className='flex justify-between items-center mb-0.5 gap-2'>
                           <div
-                            className={`font-semibold text-sm truncate ${chat.unreadCount > 0 && !isActive ? 'text-foreground font-bold' : ''}`}
+                            className={`font-semibold text-sm truncate flex items-center gap-1.5 ${chat.unreadCount > 0 && !isActive ? 'text-foreground font-bold' : ''}`}
                           >
-                            {chat.name}
+                            <span className='truncate'>{chat.name}</span>
+                            {chat.activeCall && (
+                              <Phone className='h-3.5 w-3.5 text-green-500 animate-pulse shrink-0 fill-green-500' />
+                            )}
                           </div>
                           <div
                             className={`text-xs shrink-0 ${chat.unreadCount > 0 && !isActive ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}

@@ -279,12 +279,65 @@ const ChatScreen = ({ route }: any) => {
       setConversations((prev) => prev.filter((c) => c._id !== conversationId))
     }
 
+    const handleCallIncoming = (data: any) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (String(c._id) === String(data.conversationId)) {
+            return {
+              ...c,
+              activeCall: {
+                callId: data.callId,
+                conversationId: data.conversationId,
+                type: data.type,
+                status: 'initiated',
+                callerId: data.callerId
+              }
+            }
+          }
+          return c
+        })
+      )
+    }
+
+    const handleCallAccepted = (data: any) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (String(c._id) === String(data.conversationId)) {
+            const currentCall = c.activeCall || {
+              callId: data.callId,
+              conversationId: data.conversationId,
+              status: 'ongoing'
+            }
+            return { ...c, activeCall: { ...currentCall, status: 'ongoing' } }
+          }
+          return c
+        })
+      )
+    }
+
+    const handleCallEnded = (data: any) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.activeCall && String(c.activeCall.callId) === String(data.callId)) {
+            return { ...c, activeCall: null }
+          }
+          return c
+        })
+      )
+    }
+
     socket.on('receive_message', handleReceiveMessage)
     socket.on('group_disbanded', handleGroupDisbanded)
+    socket.on('call:incoming', handleCallIncoming)
+    socket.on('call:accepted', handleCallAccepted)
+    socket.on('call:ended', handleCallEnded)
 
     return () => {
       socket.off('receive_message', handleReceiveMessage)
       socket.off('group_disbanded', handleGroupDisbanded)
+      socket.off('call:incoming', handleCallIncoming)
+      socket.off('call:accepted', handleCallAccepted)
+      socket.off('call:ended', handleCallEnded)
     }
   }, [socket, currentUserId, getLocalUnread, setLocalUnread])
 

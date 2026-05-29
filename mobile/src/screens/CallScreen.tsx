@@ -74,9 +74,9 @@ async function requestAndroidPermissions(isVideoCall: boolean): Promise<boolean>
   }
 }
 
-export default function CallScreen({ route, navigation }: any) {
-  const { roomName, userName, isVideoCall, callId, conversationId, callerName, callerAvatar } =
-    route.params as any
+export default function CallScreen({ route, navigation, onMinimize, onLeave, ...directProps }: any) {
+  const params = route?.params || directProps || {}
+  const { roomName, userName, isVideoCall, callId, conversationId, callerName, callerAvatar } = params
 
   const { socket } = useChatContext() as any
 
@@ -100,6 +100,8 @@ export default function CallScreen({ route, navigation }: any) {
         isVideoCall={isVideoCall}
         callerName={callerName || roomName}
         callerAvatar={callerAvatar}
+        onMinimize={onMinimize}
+        onLeave={onLeave}
       />
     )
   }
@@ -116,6 +118,8 @@ export default function CallScreen({ route, navigation }: any) {
       conversationId={conversationId}
       callerName={callerName}
       callerAvatar={callerAvatar}
+      onMinimize={onMinimize}
+      onLeave={onLeave}
     />
   )
 }
@@ -128,7 +132,9 @@ function MockCallScreen({
   conversationId,
   isVideoCall,
   callerName,
-  callerAvatar
+  callerAvatar,
+  onMinimize,
+  onLeave
 }: any) {
   const [isMicOn, setIsMicOn] = useState(true)
   const [isVideoOn, setIsVideoOn] = useState(isVideoCall)
@@ -161,7 +167,11 @@ function MockCallScreen({
     if (socket && callId && conversationId) {
       socket.emit('call:leave', { callId, conversationId })
     }
-    navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+    if (onLeave) {
+      onLeave()
+    } else {
+      navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+    }
   }
 
   const displayName = callerName || 'Người dùng'
@@ -169,6 +179,15 @@ function MockCallScreen({
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#111111" />
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.minimizeButton} onPress={onMinimize}>
+          <Ionicons name="chevron-down" size={28} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>
+          {isVideoOn ? 'Cuộc gọi Video' : 'Cuộc gọi Thoại'}
+        </Text>
+        <View style={{ width: 28 }} />
+      </View>
       <View style={styles.videoArea}>
         {isConnecting ? (
           <View style={styles.waitingContainer}>
@@ -261,7 +280,9 @@ function RealCallScreen({
   callId,
   conversationId,
   callerName,
-  callerAvatar
+  callerAvatar,
+  onMinimize,
+  onLeave
 }: any) {
   const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -339,7 +360,11 @@ function RealCallScreen({
     if (!socket) return
     const goBack = () => {
       console.log('[RealCallScreen] call:ended or call:rejected — navigating back')
-      navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+      if (onLeave) {
+        onLeave()
+      } else {
+        navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+      }
     }
     socket.on('call:ended', goBack)
     socket.on('call:rejected', goBack)
@@ -347,15 +372,19 @@ function RealCallScreen({
       socket.off('call:ended', goBack)
       socket.off('call:rejected', goBack)
     }
-  }, [socket, navigation])
+  }, [socket, navigation, onLeave])
 
   const handleLeave = useCallback(() => {
     console.log('[RealCallScreen] User leaving call', { callId, conversationId })
     if (socket && callId && conversationId) {
       socket.emit('call:leave', { callId, conversationId })
     }
-    navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
-  }, [socket, callId, conversationId, navigation])
+    if (onLeave) {
+      onLeave()
+    } else {
+      navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main')
+    }
+  }, [socket, callId, conversationId, navigation, onLeave])
 
   if (error) {
     return (
@@ -397,6 +426,7 @@ function RealCallScreen({
         <RoomView
           isVideoCall={isVideoCall}
           onLeave={handleLeave}
+          onMinimize={onMinimize}
           userName={userName}
           callerName={callerName}
           callerAvatar={callerAvatar}
@@ -410,12 +440,13 @@ function RealCallScreen({
 interface RoomViewProps {
   isVideoCall: boolean
   onLeave: () => void
+  onMinimize?: () => void
   userName: string
   callerName?: string
   callerAvatar?: string
 }
 
-function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: RoomViewProps) {
+function RoomView({ isVideoCall, onLeave, onMinimize, userName, callerName, callerAvatar }: RoomViewProps) {
   const room = useRoomContext()
   const [isMicOn, setIsMicOn] = useState(true)
   const [isVideoOn, setIsVideoOn] = useState(isVideoCall)
@@ -589,6 +620,15 @@ function RoomView({ isVideoCall, onLeave, userName, callerName, callerAvatar }: 
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.minimizeButton} onPress={onMinimize}>
+          <Ionicons name="chevron-down" size={28} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>
+          {isVideoCall ? 'Cuộc gọi Video' : 'Cuộc gọi Thoại'}
+        </Text>
+        <View style={{ width: 28 }} />
+      </View>
       <View style={styles.videoArea}>
         {isGroupCall ? (
           <ScrollView contentContainerStyle={styles.gridContainer} style={{ width: '100%', height: '100%' }}>
@@ -942,5 +982,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.9)',
     borderRadius: 10,
     padding: 4
+  },
+  topBar: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    backgroundColor: '#111111',
+    borderBottomWidth: 1,
+    borderBottomColor: '#222'
+  },
+  minimizeButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  topBarTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold'
   }
 })

@@ -13,6 +13,20 @@ class SocketService {
 
   // FIX 1: Bộ lưu trữ đếm thời gian chờ cuộc gọi (Timeout 60s)
   private callTimeouts: Map<string, NodeJS.Timeout> = new Map()
+  public activeCallParticipants: Map<string, Set<string>> = new Map()
+  public socketCalls: Map<string, { callId: string; conversationId: string }> = new Map()
+
+  public isCallIdActive(callId: string, status: string): boolean {
+    const statusLower = status.toLowerCase()
+    if (statusLower === 'initiated') {
+      return this.callTimeouts.has(callId)
+    }
+    if (statusLower === 'ongoing') {
+      const activeSet = this.activeCallParticipants.get(callId)
+      return activeSet !== undefined && activeSet.size > 0
+    }
+    return false
+  }
 
   init(httpServer: http.Server) {
     this.io = new Server(httpServer, {
@@ -99,6 +113,17 @@ class SocketService {
       socket.on('call:join', async (data: { callId: string; conversationId: string }) => {
         try {
           const { callId, conversationId } = data
+
+          // Đăng ký socket đàm thoại
+          this.socketCalls.set(socket.id, { callId, conversationId })
+          let activeSet = this.activeCallParticipants.get(callId)
+          if (!activeSet) {
+            activeSet = new Set<string>()
+            this.activeCallParticipants.set(callId, activeSet)
+          }
+          activeSet.add(userId)
+          console.log(`[Socket] User ${userId} joined call ${callId}. Active participants: ${activeSet.size}`)
+
           const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
 
           if (call) {
@@ -252,52 +277,8 @@ class SocketService {
 
       // 5. Rời cuộc gọi / Hủy gọi
       socket.on('call:leave', async (data: { callId: string; conversationId: string }) => {
-        try {
-          // Hủy bỏ đếm ngược 60s
-          const timeoutId = this.callTimeouts.get(data.callId)
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-            this.callTimeouts.delete(data.callId)
-          }
-
-          const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
-
-          if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
-            let newStatus = ''
-            let messageType: 'completed' | 'cancelled' | 'missed' = 'completed'
-
-            if (call.status.toLowerCase() === 'initiated') {
-              newStatus = 'cancelled' // Người gọi tắt trước khi có người nghe
-              messageType = 'cancelled'
-            } else if (call.status.toLowerCase() === 'ongoing') {
-              newStatus = CallStatus.ENDED
-              messageType = 'completed'
-            }
-
-            if (newStatus) {
-              await databaseService.calls.updateOne(
-                { _id: call._id },
-                { $set: { status: newStatus, endedAt: new Date() } }
-              )
-              await this.createAndEmitCallMessage(data.callId, messageType)
-            }
-          }
-
-          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
-          if (conversation && conversation.participants) {
-            const isOneOnOne = conversation.participants.length <= 2
-            conversation.participants.forEach((pId) => {
-              if (pId.toString() !== userId) {
-                this.emitToUser(pId.toString(), 'call:user-left', { userId: userId, socketId: socket.id })
-                if (isOneOnOne) {
-                  this.emitToUser(pId.toString(), 'call:ended', { callId: data.callId })
-                }
-              }
-            })
-          }
-        } catch (error) {
-          console.error(error)
-        }
+        this.socketCalls.delete(socket.id)
+        await this.handleCallLeave(userId, socket.id, data.callId, data.conversationId)
       })
 
       socket.on('call:toggle-media', async (data) => {
@@ -321,6 +302,13 @@ class SocketService {
       })
 
       socket.on('disconnect', async () => {
+        // Tự động rời cuộc gọi nếu ngắt kết nối đột ngột
+        const callInfo = this.socketCalls.get(socket.id)
+        if (callInfo) {
+          this.socketCalls.delete(socket.id)
+          await this.handleCallLeave(userId, socket.id, callInfo.callId, callInfo.conversationId)
+        }
+
         const sockets = await this.io.in(userId).fetchSockets()
         if (sockets.length === 0) {
           this.usersOnline.delete(userId)
@@ -376,6 +364,71 @@ class SocketService {
         }
       })
     })
+  }
+
+  public async handleCallLeave(userId: string, socketId: string, callId: string, conversationId: string) {
+    try {
+      console.log(`[Socket] handleCallLeave called. User: ${userId}, Socket: ${socketId}, Call: ${callId}`)
+      
+      const timeoutId = this.callTimeouts.get(callId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        this.callTimeouts.delete(callId)
+      }
+
+      const activeSet = this.activeCallParticipants.get(callId)
+      if (activeSet) {
+        activeSet.delete(userId)
+        console.log(`[Socket] Active participants remaining for call ${callId}: ${activeSet.size}`)
+      }
+
+      const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
+
+      if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
+        let newStatus = ''
+        let messageType: 'completed' | 'cancelled' | 'missed' = 'completed'
+
+        if (call.status.toLowerCase() === 'initiated') {
+          newStatus = 'cancelled'
+          messageType = 'cancelled'
+        } else if (call.status.toLowerCase() === 'ongoing') {
+          const activeCount = activeSet ? activeSet.size : 0
+          if (activeCount === 0) {
+            newStatus = CallStatus.ENDED
+            messageType = 'completed'
+          }
+        }
+
+        if (newStatus) {
+          await databaseService.calls.updateOne(
+            { _id: call._id },
+            { $set: { status: newStatus, endedAt: new Date() } }
+          )
+          await this.createAndEmitCallMessage(callId, messageType)
+        }
+      }
+
+      const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+      if (conversation && conversation.participants) {
+        const isOneOnOne = conversation.participants.length <= 2
+        conversation.participants.forEach((pId) => {
+          if (pId.toString() !== userId) {
+            this.emitToUser(pId.toString(), 'call:user-left', { userId, socketId })
+          }
+          
+          const activeCount = activeSet ? activeSet.size : 0
+          if (isOneOnOne || activeCount === 0) {
+            this.emitToUser(pId.toString(), 'call:ended', { callId })
+          }
+        })
+      }
+
+      if (activeSet && activeSet.size === 0) {
+        this.activeCallParticipants.delete(callId)
+      }
+    } catch (error) {
+      console.error('[Socket] Lỗi xử lý rời phòng:', error)
+    }
   }
 
   private async createAndEmitCallMessage(

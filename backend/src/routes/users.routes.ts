@@ -45,7 +45,7 @@ const uploadAvatar = multer({
         new ErrorWithStatus({
           message: 'Avatar chỉ hỗ trợ định dạng jpg, png hoặc webp',
           status: httpStatus.BAD_REQUEST
-        })
+        }) as any
       )
     }
     return cb(null, true)

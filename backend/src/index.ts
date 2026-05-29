@@ -1,5 +1,8 @@
-import dotenv, { config } from 'dotenv'
+import dotenv from 'dotenv'
 import path from 'path'
+// Ép NodeJS đọc chính xác file .env nằm ngoài thư mục src trước khi import bất kì service nào
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+
 import express from 'express'
 import { createServer } from 'http'
 import cors from 'cors'
@@ -17,7 +20,7 @@ import groupRouter from './routes/group.routes'
 import callRouter from './routes/call.routes'
 import trafficRouter from './routes/traffic.routes'
 import traffic_ragService from './services/ai/traffic_rag.service'
-config()
+const app = express()
 // Kết nối cơ sở dữ liệu và khởi tạo Index
 databaseService.connect().then(async () => {
   // Khởi tạo index cho bảng lời mời kết bạn
@@ -28,9 +31,6 @@ databaseService.connect().then(async () => {
   await databaseService.cleanupDuplicateFriends()
   await databaseService.indexConversations()
 })
-// Ép NodeJS đọc chính xác file .env nằm ngoài thư mục src
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-const app = express()
 const httpServer = createServer(app)
 const port = process.env.PORT
 
