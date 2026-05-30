@@ -16,7 +16,6 @@ import { createDirectConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 import { useTheme } from "../contexts/ThemeContext";
 
-<<<<<<< HEAD
 // ── Color Palettes ────────────────────────────────────────────────────────────
 const lightColors = {
   background: "hsl(240, 30%, 98%)",
@@ -46,8 +45,6 @@ const darkColors = {
   white: "#FFFFFF",
 };
 
-=======
->>>>>>> 66b1ed1eea7d8483dd41a9199c900663c42518c0
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   name,
