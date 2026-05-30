@@ -269,8 +269,11 @@ export default function FriendsScreen({ navigation }: any) {
     }
   }, [searchText]);
 
-  const fetchData = async (isRefreshing = false) => {
-    if (!isRefreshing) setLoading(true);
+  // 1. Thêm một tham số là isSilent để kiểm soát việc bật loading khi quay lại màn hình
+  const fetchData = async (isRefreshing = false, isSilent = false) => {
+    // Nếu là load ngầm (isSilent) hoặc đang kéo refresh thì KHÔNG hiện loading xoay màn hình
+    if (!isRefreshing && !isSilent) setLoading(true);
+
     try {
       const [friendsRes, requestsRes, sentRes] = await Promise.all([
         api.get("/friends/list"),
@@ -290,12 +293,14 @@ export default function FriendsScreen({ navigation }: any) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData(true);
+    fetchData(true); // Kéo xuống để refresh (hiện hiệu ứng loading của FlatList)
   };
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchData();
+      // Khi quay lại màn hình, gọi fetchData với tham số isSilent = true
+      // Giúp dữ liệu cập nhật ngầm, danh sách cũ vẫn hiển thị bình thường, không bị chớp màn hình
+      fetchData(false, true);
     }, []),
   );
 
