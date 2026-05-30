@@ -336,7 +336,7 @@ export function AIChatArea({ chat, onToggleInfoPanel = () => {}, isInfoPanelOpen
           {isTyping && (
             <div className='flex gap-3 items-end px-4'>
               {isTraffic ? <TrafficAvatar size='sm' /> : <AIAvatar size='sm' />}
-              <div className='bg-[#1e293b] dark:bg-[#1e293b] border border-[#334155] px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5'>
+              <div className='bg-background border border-border px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5'>
                 {[0, 200, 400].map((delay) => (
                   <span
                     key={delay}

@@ -12,6 +12,8 @@ import authApi, { type RegisterBody } from '@/apis/auth.api'
 import { toast } from 'react-toastify'
 import backgroundRegisterImage from '../../public/background-register.png'
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+
 
 type FormData = UserSchema
 export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
@@ -24,6 +26,9 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
     resolver: yupResolver(userRegistrationSchema) as Resolver<UserSchema>
   })
   const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
 
   const registrationMutation = useMutation({
     mutationFn: (body: RegisterBody) => authApi.register(body)
@@ -82,22 +87,42 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                 <Field className='grid grid-cols-2 gap-4'>
                   <Field>
                     <FieldLabel htmlFor='password'>Password</FieldLabel>
-                    <Input
-                      id='password'
-                      {...register('password')}
-                      errorMessage={errors.password?.message}
-                      type='password'
-                    />
+                    <div className='relative'>
+                      <Input
+                        id='password'
+                        {...register('password')}
+                        errorMessage={errors.password?.message}
+                        type={showPassword ? 'text' : 'password'}
+                        className='pr-10'
+                      />
+                      <button
+                        type='button'
+                        onClick={() => setShowPassword(!showPassword)}
+                        className='absolute right-3 top-[calc(50%+4px)] -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-center p-1'
+                      >
+                        {showPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
+                      </button>
+                    </div>
                     {errors.password?.message && <p className='text-red-500 text-sm mt-1'>{errors.password.message}</p>}
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='confirm-password'>Confirm Password</FieldLabel>
-                    <Input
-                      id='confirm-password'
-                      {...register('confirm_password')}
-                      errorMessage={errors.confirm_password?.message}
-                      type='password'
-                    />
+                    <div className='relative'>
+                      <Input
+                        id='confirm-password'
+                        {...register('confirm_password')}
+                        errorMessage={errors.confirm_password?.message}
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        className='pr-10'
+                      />
+                      <button
+                        type='button'
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className='absolute right-3 top-[calc(50%+4px)] -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-center p-1'
+                      >
+                        {showConfirmPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
+                      </button>
+                    </div>
                     {errors.confirm_password?.message && (
                       <p className='text-red-500 text-sm mt-1'>{errors.confirm_password.message}</p>
                     )}

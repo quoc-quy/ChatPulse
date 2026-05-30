@@ -1,7 +1,7 @@
 // screens/TrafficBotScreen.tsx
 // Màn hình chat AI Giao Thông - tương đồng với web frontend
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useRef as useAnimRef } from 'react'
 import {
   View,
   Text,
@@ -13,8 +13,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   StatusBar,
-  SafeAreaView
+  Animated
 } from 'react-native'
+import { useTheme } from '../contexts/ThemeContext'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { TrafficMessage } from '../components/traffic/TrafficMessage'
 import TrafficQuickSuggestion from '../components/traffic/TrafficQuickSuggestion'
 import { useTrafficBot } from '../hooks/useTrafficBot'
@@ -30,6 +32,10 @@ const QUICK_SUGGESTIONS = [
 ]
 
 export default function TrafficBotScreen({ navigation }: any) {
+  const { isDarkMode, colors } = useTheme()
+  const insets = useSafeAreaInsets()
+  const styles = getStyles(colors, isDarkMode, insets)
+
   const [inputText, setInputText] = useState('')
   const flatListRef = useRef<FlatList>(null)
   const { messages, isLoading, sendMessage } = useTrafficBot()
@@ -87,8 +93,11 @@ export default function TrafficBotScreen({ navigation }: any) {
   const renderEmpty = () => (messages.length === 0 ? null : null) // header handles empty state
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+    <View style={styles.safeArea}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={isDarkMode ? '#0f172a' : '#f8fafc'}
+      />
 
       {/* ── TOP NAV BAR ── */}
       <View style={styles.navbar}>
@@ -160,7 +169,7 @@ export default function TrafficBotScreen({ navigation }: any) {
               value={inputText}
               onChangeText={setInputText}
               placeholder="Hỏi về luật giao thông..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={isDarkMode ? '#64748b' : '#94a3b8'}
               multiline
               maxLength={500}
               onSubmitEditing={() => handleSend()}
@@ -181,15 +190,15 @@ export default function TrafficBotScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   )
 }
 
 // ── Typing dots component ────────────────────────────────────────────────────
-import { useEffect, useRef as useAnimRef } from 'react'
-import { Animated } from 'react-native'
 
 function TypingDot({ delay }: { delay: number }) {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode, { top: 0, bottom: 0 })
   const opacity = useAnimRef(new Animated.Value(0.3)).current
   useEffect(() => {
     const anim = Animated.loop(
@@ -206,8 +215,8 @@ function TypingDot({ delay }: { delay: number }) {
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#0f172a' },
+const getStyles = (colors: any, isDarkMode: boolean, insets: any) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' },
   flex: { flex: 1 },
 
   // NAV BAR
@@ -215,18 +224,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#0f172a',
+    paddingTop: insets.top > 0 ? insets.top + 8 : 32, // Tránh đè nút status bar / tai thỏ
+    paddingBottom: 10,
+    backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b'
+    borderBottomColor: isDarkMode ? '#1e293b' : '#e2e8f0'
   },
   navBack: { padding: 8, marginRight: 4 },
-  navBackIcon: { color: '#94a3b8', fontSize: 22, fontWeight: '300' },
+  navBackIcon: { color: isDarkMode ? '#94a3b8' : '#475569', fontSize: 22, fontWeight: '300' },
   navCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  navTitle: { color: '#f1f5f9', fontSize: 15, fontWeight: '700' },
+  navTitle: { color: isDarkMode ? '#f1f5f9' : '#0f172a', fontSize: 15, fontWeight: '700' },
   navSubtitle: { color: '#22c55e', fontSize: 11, fontWeight: '500' },
   navAction: { padding: 8 },
-  navActionIcon: { color: '#64748b', fontSize: 22 },
+  navActionIcon: { color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: 22 },
 
   // HEADER SECTION
   headerContainer: { paddingBottom: 8 },
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#1e3a5f',
+    backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe',
     borderWidth: 3,
     borderColor: '#3b82f6',
     alignItems: 'center',
@@ -253,17 +263,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#22c55e',
     borderWidth: 2,
-    borderColor: '#0f172a'
+    borderColor: isDarkMode ? '#0f172a' : '#f8fafc'
   },
   welcomeTitle: {
-    color: '#f1f5f9',
+    color: isDarkMode ? '#f1f5f9' : '#0f172a',
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 6,
     letterSpacing: -0.3
   },
   welcomeSubtitle: {
-    color: '#94a3b8',
+    color: isDarkMode ? '#94a3b8' : '#475569',
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 12,
@@ -272,18 +282,18 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#e2e8f0',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 5,
     gap: 6
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#3b82f6' },
-  badgeText: { color: '#64748b', fontSize: 11, fontWeight: '500' },
+  badgeText: { color: isDarkMode ? '#64748b' : '#475569', fontSize: 11, fontWeight: '500' },
 
   // SUGGESTIONS
   suggestLabel: {
-    color: '#64748b',
+    color: isDarkMode ? '#64748b' : '#475569',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.8,
@@ -311,7 +321,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   typingBubble: {
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 16,
@@ -326,17 +336,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#0f172a',
+    paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 12, // Tránh đè các nút điều hướng ảo Android / iOS Home Indicator
+    backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
     borderTopWidth: 1,
-    borderTopColor: '#1e293b',
+    borderTopColor: isDarkMode ? '#1e293b' : '#e2e8f0',
     gap: 8
   },
   inputWrapper: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: isDarkMode ? '#334155' : '#cbd5e1',
     paddingHorizontal: 16,
     paddingVertical: 10,
     minHeight: 44,
@@ -344,7 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   input: {
-    color: '#f1f5f9',
+    color: isDarkMode ? '#f1f5f9' : '#0f172a',
     fontSize: 14,
     lineHeight: 20,
     padding: 0
@@ -357,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  sendBtnDisabled: { backgroundColor: '#1e3a5f', opacity: 0.6 },
+  sendBtnDisabled: { backgroundColor: isDarkMode ? '#1e3a5f' : '#bfdbfe', opacity: 0.6 },
   sendIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
 
   // BOT AVATAR SMALL (reused)
@@ -365,7 +376,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1e3a5f',
+    backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe',
     borderWidth: 2,
     borderColor: '#3b82f6',
     alignItems: 'center',
@@ -382,6 +393,6 @@ const styles = StyleSheet.create({
     borderRadius: 4.5,
     backgroundColor: '#22c55e',
     borderWidth: 1.5,
-    borderColor: '#0f172a'
+    borderColor: isDarkMode ? '#0f172a' : '#f8fafc'
   }
 })

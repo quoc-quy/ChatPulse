@@ -320,8 +320,8 @@ export function SidebarPanel2({
                 onClick={() => handleChatSelect('traffic-ai')}
                 className={`relative flex items-center gap-3 min-h-16 rounded-lg p-2 cursor-pointer transition-colors w-full overflow-hidden mb-1 ${
                   activeChat?.id === 'traffic-ai'
-                    ? 'bg-[#0f1e38] dark:bg-[#0f1e38] border border-[#1e3a5f]'
-                    : 'hover:bg-muted/30'
+                    ? 'bg-blue-50/80 border border-blue-200 dark:bg-[#0f1e38] dark:border-[#1e3a5f]'
+                    : 'hover:bg-muted/30 border border-transparent'
                 }`}
               >
                 {/* PIN indicator — đồng bộ mobile */}
@@ -339,7 +339,7 @@ export function SidebarPanel2({
                   <div className='flex items-center gap-2 mb-0.5'>
                     <span className='font-bold text-sm truncate text-foreground'>ChatPulse Giao Thông</span>
                     {/* AI badge — đồng bộ mobile */}
-                    <span className='shrink-0 text-[9px] font-extrabold tracking-wide text-blue-400 border border-blue-500 bg-[#1e3a5f] rounded px-1.5 py-0.5'>
+                    <span className='shrink-0 text-[9px] font-extrabold tracking-wide bg-blue-100 border border-blue-200 text-blue-700 dark:bg-[#1e3a5f] dark:border-blue-500 dark:text-blue-400 rounded px-1.5 py-0.5'>
                       AI
                     </span>
                   </div>

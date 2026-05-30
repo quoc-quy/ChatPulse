@@ -209,6 +209,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
 
   // Gán COLORS bằng bộ màu local đã được ép sang Tím
   const COLORS = useMemo(() => (isDarkMode ? localDarkColors : localLightColors), [isDarkMode])
+  const styles = useMemo(() => getStyles(COLORS, isDarkMode), [COLORS, isDarkMode])
 
   const [isAiVisible, setIsAiVisible] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -483,7 +484,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
             style={styles.modalContent}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <LinearGradient colors={['#1A1A1D', '#000000']} style={styles.modalGradient}>
+            <LinearGradient colors={isDarkMode ? ['#1A1A1D', '#000000'] : ['#FFFFFF', '#F5F3FF']} style={styles.modalGradient}>
               <View style={[styles.modalHeader, { paddingTop: insets.top > 0 ? insets.top + 10 : 30 }]}>
                 <View style={{ width: 30 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -491,7 +492,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                   <Text style={styles.modalTitle}>AI Pulse</Text>
                 </View>
                 <TouchableOpacity onPress={() => setIsAiVisible(false)} style={styles.closeBtn}>
-                  <X size={26} color="#6B7280" />
+                  <X size={26} color={isDarkMode ? '#6B7280' : '#4B5563'} />
                 </TouchableOpacity>
               </View>
 
@@ -540,17 +541,17 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                           key={index}
                           style={{
                             flexShrink: 0,
-                            backgroundColor: 'rgba(192, 132, 252, 0.15)',
+                            backgroundColor: isDarkMode ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.08)',
                             paddingHorizontal: 14,
                             paddingVertical: 6,
                             borderRadius: 16,
                             marginRight: 8,
                             borderWidth: 1,
-                            borderColor: 'rgba(192, 132, 252, 0.3)'
+                            borderColor: isDarkMode ? 'rgba(192, 132, 252, 0.3)' : 'rgba(139, 92, 246, 0.2)'
                           }}
                           onPress={() => setInputText(prompt)}
                         >
-                          <Text style={{ color: '#E5E7EB', fontSize: 13 }}>{prompt}</Text>
+                          <Text style={{ color: isDarkMode ? '#E5E7EB' : '#4C1D95', fontSize: 13 }}>{prompt}</Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -559,7 +560,7 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                       <TextInput
                         style={styles.input}
                         placeholder="Hỏi AI bất cứ điều gì..."
-                        placeholderTextColor="#6B7280"
+                        placeholderTextColor={isDarkMode ? '#6B7280' : '#9CA3AF'}
                         value={inputText}
                         onChangeText={setInputText}
                         onSubmitEditing={handleSendAi}
@@ -569,7 +570,10 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
                         onPress={handleSendAi}
                         disabled={isAiTyping || !inputText.trim()}
                       >
-                        <ArrowUpCircle size={32} color={inputText.trim() ? '#C084FC' : '#4B5563'} />
+                        <ArrowUpCircle
+                          size={32}
+                          color={inputText.trim() ? '#C084FC' : (isDarkMode ? '#4B5563' : '#D1D5DB')}
+                        />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -579,22 +583,23 @@ const MainTabs = ({ onLogout, navigation }: MainTabsProps) => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
     </>
   )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (COLORS: any, isDarkMode: boolean) => StyleSheet.create({
   tabItemContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 10,
-    width: 70 // 👈 Đổi từ flex: 1 thành width: 70 để đảm bảo đủ chỗ cho chữ "Contacts"
+    width: 70
   },
   tabLabel: {
-    fontSize: 10, // 👈 Giảm font size xuống một xíu (từ 11 xuống 10) để chữ không bị tràn
+    fontSize: 10,
     fontWeight: '600',
     marginTop: 4,
-    textAlign: 'center' // 👈 Đảm bảo chữ luôn canh giữa
+    textAlign: 'center'
   },
   activeLine: {
     height: 3,
@@ -607,19 +612,15 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 50,
-    backgroundColor: '#8B5CF6', // Dùng luôn màu tím chủ đạo thay vì màu đen (#161618)
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 5,
-
-    // Đổ bóng phát sáng (Glow effect)
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 8,
-
-    // Viền bao quanh bảo vệ màu
     borderWidth: 0,
     borderColor: '#FFFFFF'
   },
@@ -634,14 +635,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#161618'
+    borderColor: isDarkMode ? '#161618' : '#FFFFFF'
   },
   badgeText: {
     color: '#FFF',
     fontSize: 10,
     fontWeight: 'bold'
   },
-  modalOverlay: { flex: 1, backgroundColor: '#000000' },
+  modalOverlay: { flex: 1, backgroundColor: isDarkMode ? '#000000' : '#FFFFFF' },
   modalContent: { flex: 1 },
   modalGradient: { flex: 1 },
   modalHeader: {
@@ -652,12 +653,12 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 30,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)'
+    borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
   },
-  modalTitle: { color: '#F9FAFB', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
+  modalTitle: { color: isDarkMode ? '#F9FAFB' : '#1F2937', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   closeBtn: { padding: 4 },
   connectingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  connectingText: { color: '#9CA3AF', marginTop: 15, fontSize: 15, fontStyle: 'italic' },
+  connectingText: { color: isDarkMode ? '#9CA3AF' : '#4B5563', marginTop: 15, fontSize: 15, fontStyle: 'italic' },
   chatList: { paddingHorizontal: 16, paddingVertical: 20 },
   aiMsgWrapper: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 20 },
   aiMsgUser: { justifyContent: 'flex-end' },
@@ -666,34 +667,34 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(192, 132, 252, 0.1)',
+    backgroundColor: isDarkMode ? 'rgba(192, 132, 252, 0.1)' : 'rgba(139, 92, 246, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(192, 132, 252, 0.3)',
+    borderColor: isDarkMode ? 'rgba(192, 132, 252, 0.3)' : 'rgba(139, 92, 246, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10
   },
   aiBubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, maxWidth: '85%' },
   aiBubbleUser: {
-    backgroundColor: 'rgba(192, 132, 252, 0.15)',
+    backgroundColor: isDarkMode ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(192, 132, 252, 0.3)',
+    borderColor: isDarkMode ? 'rgba(192, 132, 252, 0.3)' : 'rgba(139, 92, 246, 0.2)',
     borderBottomRightRadius: 4
   },
   aiBubbleBot: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : '#e5e7eb',
     borderBottomLeftRadius: 4
   },
-  aiMsgText: { color: '#E5E7EB', fontSize: 15, lineHeight: 24 },
+  aiMsgText: { color: isDarkMode ? '#E5E7EB' : '#1F2937', fontSize: 15, lineHeight: 24 },
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 10
   },
-  typingText: { color: '#6B7280', fontSize: 12, marginLeft: 10 },
+  typingText: { color: isDarkMode ? '#6B7280' : '#9CA3AF', fontSize: 12, marginLeft: 10 },
   inputArea: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -703,16 +704,16 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
     borderRadius: 30,
     paddingLeft: 20,
     paddingRight: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)'
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : '#e5e7eb'
   },
   input: {
     flex: 1,
-    color: '#F9FAFB',
+    color: isDarkMode ? '#F9FAFB' : '#1F2937',
     fontSize: 15,
     paddingVertical: Platform.OS === 'ios' ? 14 : 10,
     maxHeight: 100
@@ -721,3 +722,4 @@ const styles = StyleSheet.create({
 })
 
 export default MainTabs
+

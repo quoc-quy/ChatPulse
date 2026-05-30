@@ -3,6 +3,7 @@
 
 import React from 'react'
 import { TouchableOpacity, Text, StyleSheet } from 'react-native'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface Props {
   icon: string
@@ -11,6 +12,9 @@ interface Props {
 }
 
 export default function TrafficQuickSuggestion({ icon, label, onPress }: Props) {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
+
   return (
     <TouchableOpacity style={styles.chip} onPress={onPress} activeOpacity={0.7}>
       <Text style={styles.icon}>{icon}</Text>
@@ -21,26 +25,27 @@ export default function TrafficQuickSuggestion({ icon, label, onPress }: Props) 
   )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDarkMode: boolean) => StyleSheet.create({
   chip: {
     // Chia 2 cột: width = ~(screenWidth - padding*2 - gap) / 2
     width: '47%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: isDarkMode ? '#334155' : '#e2e8f0',
     paddingHorizontal: 12,
     paddingVertical: 10
   },
   icon: { fontSize: 18, flexShrink: 0 },
   label: {
     flex: 1,
-    color: '#94a3b8',
+    color: isDarkMode ? '#94a3b8' : '#475569',
     fontSize: 12,
     lineHeight: 17,
     fontWeight: '500'
   }
 })
+
