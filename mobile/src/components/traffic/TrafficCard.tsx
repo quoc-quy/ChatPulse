@@ -5,7 +5,8 @@
  */
 
 import React from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Linking, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native'
+import { useTheme } from '../../contexts/ThemeContext'
 
 // ─────────────────────────────────────────────
 // TYPES — đồng bộ với backend TrafficRagService
@@ -58,10 +59,16 @@ export type TrafficResponseCard = TrafficViolationCard | GeneralInfoCard | NotFo
 // SUB-COMPONENTS
 // ─────────────────────────────────────────────
 
-const Separator = () => <View style={styles.separator} />
+const Separator = () => {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
+  return <View style={styles.separator} />
+}
 
 const LegalReferencesList = ({ refs }: { refs: LegalReference[] }) => {
   if (!refs || refs.length === 0) return null
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
 
   const openUrl = (ref: LegalReference) => {
     const url =
@@ -107,6 +114,9 @@ const LegalReferencesList = ({ refs }: { refs: LegalReference[] }) => {
 // ─────────────────────────────────────────────
 
 export const TrafficCard = ({ data }: { data: TrafficResponseCard }) => {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
+
   if (!data) return null
 
   // ── NOT FOUND ────────────────────────────────────────────────────────────
@@ -268,10 +278,10 @@ export const TrafficCard = ({ data }: { data: TrafficResponseCard }) => {
 }
 
 // ─────────────────────────────────────────────
-// STYLES — dark-mode (TrafficBotScreen background #0f172a)
+// STYLES — dynamic light/dark mode
 // ─────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDarkMode: boolean) => StyleSheet.create({
   // ── Card shell ────────────────────────────────
   card: {
     borderRadius: 14,
@@ -296,12 +306,12 @@ const styles = StyleSheet.create({
 
   // ── Not Found ─────────────────────────────────
   notFoundCard: {
-    backgroundColor: '#422006',
-    borderColor: '#78350f'
+    backgroundColor: isDarkMode ? '#422006' : '#fefce8',
+    borderColor: isDarkMode ? '#78350f' : '#fef08a'
   },
   notFoundText: {
     flex: 1,
-    color: '#fde68a',
+    color: isDarkMode ? '#fde68a' : '#854d0e',
     fontSize: 13,
     lineHeight: 20,
     flexShrink: 1
@@ -309,17 +319,17 @@ const styles = StyleSheet.create({
 
   // ── General ───────────────────────────────────
   generalCard: {
-    backgroundColor: '#0c1a2e',
-    borderColor: '#1e3a5f'
+    backgroundColor: isDarkMode ? '#0c1a2e' : '#ffffff',
+    borderColor: isDarkMode ? '#1e3a5f' : '#bfdbfe'
   },
   generalHeader: {
-    backgroundColor: '#0f2847',
+    backgroundColor: isDarkMode ? '#0f2847' : '#eff6ff',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e3a5f'
+    borderBottomColor: isDarkMode ? '#1e3a5f' : '#bfdbfe'
   },
   generalTitle: {
     flex: 1,
-    color: '#60a5fa',
+    color: isDarkMode ? '#60a5fa' : '#1d4ed8',
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 21,
@@ -328,23 +338,23 @@ const styles = StyleSheet.create({
 
   // ── Violation ─────────────────────────────────
   violationCard: {
-    backgroundColor: '#150a0a',
-    borderColor: '#7f1d1d'
+    backgroundColor: isDarkMode ? '#150a0a' : '#ffffff',
+    borderColor: isDarkMode ? '#7f1d1d' : '#fecaca'
   },
   violationHeader: {
-    backgroundColor: '#1c0a0a',
+    backgroundColor: isDarkMode ? '#1c0a0a' : '#fef2f2',
     borderBottomWidth: 1,
-    borderBottomColor: '#7f1d1d',
+    borderBottomColor: isDarkMode ? '#7f1d1d' : '#fecaca',
     gap: 8
   },
   violationTitle: {
-    color: '#f87171',
+    color: isDarkMode ? '#f87171' : '#b91c1c',
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 21
   },
   behaviorText: {
-    color: '#fca5a5',
+    color: isDarkMode ? '#fca5a5' : '#991b1b',
     fontSize: 12,
     fontWeight: '400',
     marginTop: 2,
@@ -353,7 +363,7 @@ const styles = StyleSheet.create({
 
   // ── Summary / explanation ─────────────────────
   summaryText: {
-    color: '#e2e8f0',
+    color: isDarkMode ? '#e2e8f0' : '#0f172a',
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 22
@@ -362,25 +372,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: isDarkMode ? '#334155' : '#e2e8f0',
     padding: 12
   },
   explanationBoxDark: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#fafafa',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: isDarkMode ? '#333' : '#e5e5e5',
     padding: 12
   },
   explanationText: {
     flex: 1,
-    color: '#cbd5e1',
+    color: isDarkMode ? '#cbd5e1' : '#475569',
     fontSize: 13,
     lineHeight: 20,
     fontStyle: 'italic',
@@ -390,34 +400,34 @@ const styles = StyleSheet.create({
   // ── Details list ─────────────────────────────
   detailsBox: { gap: 6, paddingLeft: 4 },
   detailRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  detailBullet: { color: '#60a5fa', fontSize: 16, lineHeight: 20, marginTop: 1 },
-  detailText: { flex: 1, color: '#cbd5e1', fontSize: 13, lineHeight: 20 },
+  detailBullet: { color: isDarkMode ? '#60a5fa' : '#2563eb', fontSize: 16, lineHeight: 20, marginTop: 1 },
+  detailText: { flex: 1, color: isDarkMode ? '#cbd5e1' : '#334155', fontSize: 13, lineHeight: 20 },
 
   // ── Penalties ────────────────────────────────
   penaltiesWrapper: { gap: 10 },
   penaltyCard: {
-    backgroundColor: '#0f0f0f',
+    backgroundColor: isDarkMode ? '#0f0f0f' : '#ffffff',
     borderWidth: 1,
-    borderColor: '#292929',
+    borderColor: isDarkMode ? '#292929' : '#e2e8f0',
     borderRadius: 12,
     padding: 12,
     gap: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.3,
+    shadowOpacity: isDarkMode ? 0.3 : 0.05,
     shadowRadius: 4,
     elevation: 2
   },
   penaltyTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   penaltyVehicleIcon: { fontSize: 16 },
-  penaltyVehicleType: { color: '#cbd5e1', fontSize: 14, fontWeight: '600' },
+  penaltyVehicleType: { color: isDarkMode ? '#cbd5e1' : '#334155', fontSize: 14, fontWeight: '600' },
   fineBox: {
-    backgroundColor: '#2d0a0a',
+    backgroundColor: isDarkMode ? '#2d0a0a' : '#fef2f2',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8
   },
   fineAmount: {
-    color: '#ef4444',
+    color: isDarkMode ? '#ef4444' : '#dc2626',
     fontSize: 17,
     fontWeight: '800'
   },
@@ -430,18 +440,18 @@ const styles = StyleSheet.create({
   },
   pointRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
   pointIcon: { fontSize: 12 },
-  pointText: { color: '#fb923c', fontSize: 12, fontWeight: '600', flex: 1 },
+  pointText: { color: isDarkMode ? '#fb923c' : '#ea580c', fontSize: 12, fontWeight: '600', flex: 1 },
   addPenaltyRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   addDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#475569',
+    backgroundColor: isDarkMode ? '#475569' : '#cbd5e1',
     marginTop: 7,
     flexShrink: 0
   },
-  addPenaltyText: { flex: 1, color: '#94a3b8', fontSize: 12, lineHeight: 18 },
-  noPenaltyText: { color: '#475569', fontSize: 11, fontStyle: 'italic' },
+  addPenaltyText: { flex: 1, color: isDarkMode ? '#94a3b8' : '#475569', fontSize: 12, lineHeight: 18 },
+  noPenaltyText: { color: isDarkMode ? '#475569' : '#94a3b8', fontSize: 11, fontStyle: 'italic' },
 
   // ── Explain icon ─────────────────────────────
   explainIcon: { fontSize: 14 },
@@ -451,58 +461,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#052e16',
+    backgroundColor: isDarkMode ? '#052e16' : '#f0fdf4',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#14532d',
+    borderColor: isDarkMode ? '#14532d' : '#bbf7d0',
     padding: 12
   },
   adviceIcon: { fontSize: 14 },
-  adviceText: { flex: 1, color: '#86efac', fontSize: 12, lineHeight: 18, fontWeight: '500' },
+  adviceText: { flex: 1, color: isDarkMode ? '#86efac' : '#166534', fontSize: 12, lineHeight: 18, fontWeight: '500' },
 
   // ── Note ─────────────────────────────────────
   noteBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#431407',
+    backgroundColor: isDarkMode ? '#431407' : '#fff7ed',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#7c2d12',
+    borderColor: isDarkMode ? '#7c2d12' : '#ffedd5',
     padding: 12
   },
   noteBoxBlue: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#0c1a3a',
+    backgroundColor: isDarkMode ? '#0c1a3a' : '#f0f9ff',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1e3a5f',
+    borderColor: isDarkMode ? '#1e3a5f' : '#bae6fd',
     padding: 12
   },
   noteIcon: { fontSize: 14 },
-  noteText: { flex: 1, color: '#fdba74', fontSize: 12, lineHeight: 18 },
-  noteTextBlue: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 18 },
+  noteText: { flex: 1, color: isDarkMode ? '#fdba74' : '#c2410c', fontSize: 12, lineHeight: 18 },
+  noteTextBlue: { flex: 1, color: isDarkMode ? '#93c5fd' : '#0369a1', fontSize: 12, lineHeight: 18 },
 
   // ── Legal refs ────────────────────────────────
-  separator: { height: 1, backgroundColor: '#1e293b', marginVertical: 4 },
+  separator: { height: 1, backgroundColor: isDarkMode ? '#1e293b' : '#e2e8f0', marginVertical: 4 },
   legalBox: {
-    backgroundColor: '#0f1a2e',
+    backgroundColor: isDarkMode ? '#0f1a2e' : '#f8fafc',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1e3a5f',
+    borderColor: isDarkMode ? '#1e3a5f' : '#e2e8f0',
     padding: 12,
     gap: 10
   },
-  legalTitle: { color: '#94a3b8', fontSize: 13, fontWeight: '700' },
+  legalTitle: { color: isDarkMode ? '#94a3b8' : '#475569', fontSize: 13, fontWeight: '700' },
   legalIcon: { fontSize: 14 },
   legalItem: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   legalBullet: { fontSize: 12, marginTop: 1 },
   legalContent: { flex: 1, gap: 2 },
-  legalLocation: { color: '#e2e8f0', fontSize: 12, fontWeight: '600', lineHeight: 17 },
-  legalDocName: { color: '#64748b', fontSize: 11, lineHeight: 16 },
-  legalLink: { color: '#3b82f6', fontSize: 11, marginTop: 2 },
+  legalLocation: { color: isDarkMode ? '#e2e8f0' : '#0f172a', fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  legalDocName: { color: isDarkMode ? '#64748b' : '#64748b', fontSize: 11, lineHeight: 16 },
+  legalLink: { color: isDarkMode ? '#3b82f6' : '#2563eb', fontSize: 11, marginTop: 2 },
 
   // ── Shared ───────────────────────────────────
   rowStart: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

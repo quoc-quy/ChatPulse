@@ -11,11 +11,13 @@ import { userRegistrationSchema, type UserSchema } from '@/utils/rules'
 import { useMutation } from '@tanstack/react-query'
 import authApi from '@/apis/auth.api'
 import { toast } from 'react-toastify'
-import { useContext, useEffect } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { AppContext } from '@/context/app.context'
 import backgroundLoginImage from '../../public/background-login.png'
 import userApi from '@/apis/user.api'
 import axios from 'axios'
+import { Eye, EyeOff } from 'lucide-react'
+
 
 const getGoogleAuthUrl = () => {
   const { VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_REDIRECT_URI } = import.meta.env
@@ -39,7 +41,9 @@ const googleOauthUrl = getGoogleAuthUrl()
 type FormData = Pick<UserSchema, 'email' | 'password'>
 const loginSchema = userRegistrationSchema.pick(['email', 'password'])
 export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const [showPassword, setShowPassword] = useState(false)
   const [params] = useSearchParams()
+
   const { setIsAuthenticated, setProfile } = useContext(AppContext)
   const navigate = useNavigate()
   useEffect(() => {
@@ -140,7 +144,21 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
                 <div className='flex items-center'>
                   <FieldLabel htmlFor='password'>Password</FieldLabel>
                 </div>
-                <Input {...register('password')} errorMessage={errors.password?.message} type='password' />
+                <div className='relative'>
+                  <Input
+                    {...register('password')}
+                    errorMessage={errors.password?.message}
+                    type={showPassword ? 'text' : 'password'}
+                    className='pr-10'
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowPassword(!showPassword)}
+                    className='absolute right-3 top-[calc(50%+4px)] -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-center p-1'
+                  >
+                    {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                  </button>
+                </div>
                 {errors.password?.message && <p className='text-red-500 text-sm mt-1'>{errors.password.message}</p>}
               </Field>
               <Field>

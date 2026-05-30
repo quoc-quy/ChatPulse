@@ -382,6 +382,10 @@ class SocketService {
         console.log(`[Socket] Active participants remaining for call ${callId}: ${activeSet.size}`)
       }
 
+      // Lấy cuộc hội thoại để check 1-1 hay nhóm trước
+      const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+      const isOneOnOne = conversation ? conversation.type === 'direct' : false
+
       const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
 
       if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
@@ -393,7 +397,7 @@ class SocketService {
           messageType = 'cancelled'
         } else if (call.status.toLowerCase() === 'ongoing') {
           const activeCount = activeSet ? activeSet.size : 0
-          if (activeCount === 0) {
+          if (isOneOnOne || activeCount === 0) {
             newStatus = CallStatus.ENDED
             messageType = 'completed'
           }
@@ -408,9 +412,7 @@ class SocketService {
         }
       }
 
-      const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
       if (conversation && conversation.participants) {
-        const isOneOnOne = conversation.participants.length <= 2
         conversation.participants.forEach((pId) => {
           if (pId.toString() !== userId) {
             this.emitToUser(pId.toString(), 'call:user-left', { userId, socketId })
@@ -423,7 +425,7 @@ class SocketService {
         })
       }
 
-      if (activeSet && activeSet.size === 0) {
+      if (isOneOnOne || (activeSet && activeSet.size === 0)) {
         this.activeCallParticipants.delete(callId)
       }
     } catch (error) {

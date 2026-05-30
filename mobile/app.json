@@ -22,7 +22,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "ChatPulse cần quyền truy cập Camera để thực hiện cuộc gọi video.",
         "NSMicrophoneUsageDescription": "ChatPulse cần quyền truy cập Microphone để thực hiện cuộc gọi."
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
@@ -40,27 +41,8 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_CONNECT"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
@@ -83,11 +65,11 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "c390e651-74d3-4e18-9f4b-7144614885f2"
+        "projectId": "84b70a82-78ff-4947-920e-549e74fa9178"
       },
       "EXPO_PUBLIC_LIVEKIT_URL": "wss://chatpulse-oxy534tp.livekit.cloud",
       "EXPO_PUBLIC_API_URL": "http://192.168.1.228"
     },
-    "owner": "trannguyenquocquy"
+    "owner": "quocquytnqq"
   }
 }

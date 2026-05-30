@@ -4,12 +4,16 @@
 
 import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface Props {
   onPress: () => void
 }
 
 export default function TrafficConversationItem({ onPress }: Props) {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.75}>
       {/* PIN INDICATOR */}
@@ -46,15 +50,15 @@ export default function TrafficConversationItem({ onPress }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDarkMode: boolean) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 13,
-    backgroundColor: '#0f1e38',
+    backgroundColor: isDarkMode ? '#0f1e38' : '#eff6ff',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e3a5f',
+    borderBottomColor: isDarkMode ? '#1e3a5f' : '#bfdbfe',
     position: 'relative'
   },
   pinBadge: {
@@ -69,7 +73,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#1e3a5f',
+    backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe',
     borderWidth: 2,
     borderColor: '#3b82f6',
     alignItems: 'center',
@@ -85,36 +89,37 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#22c55e',
     borderWidth: 2,
-    borderColor: '#0f172a'
+    borderColor: isDarkMode ? '#0f172a' : '#ffffff'
   },
 
   content: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4 },
   name: {
-    color: '#f1f5f9',
+    color: isDarkMode ? '#f1f5f9' : '#1e3a8a',
     fontSize: 15,
     fontWeight: '700',
     flexShrink: 1
   },
   aiBadge: {
-    backgroundColor: '#1e3a5f',
+    backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe',
     borderRadius: 5,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: '#3b82f6'
+    borderColor: isDarkMode ? '#3b82f6' : '#bfdbfe'
   },
   aiBadgeText: {
-    color: '#60a5fa',
+    color: isDarkMode ? '#60a5fa' : '#1d4ed8',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5
   },
   lastMessage: {
-    color: '#64748b',
+    color: isDarkMode ? '#64748b' : '#4b5563',
     fontSize: 13,
     lineHeight: 18
   },
 
-  arrow: { color: '#334155', fontSize: 22, fontWeight: '300', marginLeft: 4 }
+  arrow: { color: isDarkMode ? '#334155' : '#94a3b8', fontSize: 22, fontWeight: '300', marginLeft: 4 }
 })
+

@@ -15,6 +15,7 @@ import {
   ToastAndroid,
   Platform
 } from 'react-native'
+import { useTheme } from '../../contexts/ThemeContext'
 import { TrafficCard, TrafficResponseCard } from './TrafficCard'
 
 // ─────────────────────────────────────────────
@@ -39,6 +40,8 @@ interface Props {
 // ─────────────────────────────────────────────
 
 export const TrafficMessage = ({ message }: Props) => {
+  const { isDarkMode, colors } = useTheme()
+  const styles = getStyles(colors, isDarkMode)
   const isBot = message.role === 'bot'
 
   const copyToClipboard = () => {
@@ -134,7 +137,7 @@ export const TrafficMessage = ({ message }: Props) => {
 // STYLES
 // ─────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDarkMode: boolean) => StyleSheet.create({
   // ── User ─────────────────────────────────────
   userWrapper: {
     alignItems: 'flex-end',
@@ -163,7 +166,7 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   botLabel: {
-    color: '#64748b',
+    color: isDarkMode ? '#64748b' : '#475569',
     fontSize: 11,
     fontWeight: '600'
   },
@@ -185,35 +188,35 @@ const styles = StyleSheet.create({
     gap: 8
   },
   botBubble: {
-    backgroundColor: '#1e293b',
+    backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
     borderRadius: 18,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: '80%'
   },
-  botText: { color: '#f1f5f9', fontSize: 14, lineHeight: 21 },
+  botText: { color: isDarkMode ? '#f1f5f9' : '#0f172a', fontSize: 14, lineHeight: 21 },
 
   // ── Error bubble ─────────────────────────────
   errorBubble: {
-    backgroundColor: '#2d0a0a',
+    backgroundColor: isDarkMode ? '#2d0a0a' : '#fef2f2',
     borderWidth: 1,
-    borderColor: '#7f1d1d',
+    borderColor: isDarkMode ? '#7f1d1d' : '#fca5a5',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: '80%'
   },
-  errorText: { color: '#fca5a5', fontSize: 13, lineHeight: 20 },
+  errorText: { color: isDarkMode ? '#fca5a5' : '#991b1b', fontSize: 13, lineHeight: 20 },
 
   // ── Bot avatar ───────────────────────────────
   botAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1e3a5f',
+    backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe',
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: isDarkMode ? '#3b82f6' : '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0
@@ -227,7 +230,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6
   },
-  timestamp: { color: '#475569', fontSize: 10 },
+  timestamp: { color: isDarkMode ? '#475569' : '#94a3b8', fontSize: 10 },
   copyBtn: { padding: 2 },
-  copyText: { color: '#475569', fontSize: 10 }
+  copyText: { color: isDarkMode ? '#475569' : '#2563eb', fontSize: 10 }
 })
