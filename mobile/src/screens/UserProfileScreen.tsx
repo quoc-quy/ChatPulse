@@ -16,7 +16,7 @@ import { createDirectConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 import { useTheme } from "../contexts/ThemeContext";
 
-// ── Color Palettes (đồng nhất với ConversationDetail) ─────────────────────────
+// ── Color Palettes ────────────────────────────────────────────────────────────
 const lightColors = {
   background: "hsl(240, 30%, 98%)",
   foreground: "hsl(240, 10%, 15%)",
@@ -82,7 +82,9 @@ const Avatar = ({
         alignItems: "center",
       }}
     >
-      <Text style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}>
+      <Text
+        style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}
+      >
         {(name || "?").charAt(0).toUpperCase()}
       </Text>
     </View>
@@ -143,7 +145,6 @@ export default function UserProfileScreen() {
   const route = useRoute<any>();
   const { isDarkMode } = useTheme();
 
-  // Nhận params được truyền từ ConversationDetail
   const { userId, userName, userPhone, userEmail, userAvatar, userBio } =
     route.params || {};
 
@@ -155,12 +156,12 @@ export default function UserProfileScreen() {
   const displayName = userName || "Người dùng";
   const displayBio = userBio || "";
 
+  // ── Mở chat ──
   const handleOpenChat = async () => {
     if (!userId) {
       navigation.goBack();
       return;
     }
-
     try {
       const res = await createDirectConversation(userId);
       const conversation = res.data.result;
@@ -176,34 +177,64 @@ export default function UserProfileScreen() {
     }
   };
 
+  // ── Gọi điện ──
   const handleCallPhone = () => {
     if (userPhone) {
       Linking.openURL(`tel:${userPhone}`);
     }
   };
 
-  // ── THÊM MỚI: Hàm xử lý hủy kết bạn ──
+  // ── Hủy kết bạn ──
   const handleUnfriend = () => {
     Alert.alert(
       "Hủy kết bạn",
-      `Bạn có chắc chắn muốn hủy kết bạn với ${displayName}? \n\nLưu ý: Sau khi hủy kết bạn, bạn sẽ không thể nhắn tin hay gọi điện cho người này nữa.`,
+      `Bạn có chắc chắn muốn hủy kết bạn với ${displayName}?\n\nLưu ý: Sau khi hủy kết bạn, bạn sẽ không thể nhắn tin hay gọi điện cho người này nữa.`,
       [
         { text: "Hủy", style: "cancel" },
-        { 
-          text: "Đồng ý", 
-          style: "destructive", 
+        {
+          text: "Đồng ý",
+          style: "destructive",
           onPress: async () => {
             try {
-              // Gọi API hủy kết bạn
-              await friendApi.deleteFriend(userId); 
+              await friendApi.deleteFriend(userId);
               Alert.alert("Thành công", `Đã hủy kết bạn với ${displayName}`);
               navigation.goBack();
-            } catch (error) {
-              Alert.alert("Lỗi", "Không thể hủy kết bạn lúc này. Vui lòng thử lại.");
+            } catch {
+              Alert.alert(
+                "Lỗi",
+                "Không thể hủy kết bạn lúc này. Vui lòng thử lại.",
+              );
             }
-          } 
+          },
         },
-      ]
+      ],
+    );
+  };
+
+  // ── Chặn người dùng ──
+  const handleBlock = () => {
+    Alert.alert(
+      "Chặn người dùng",
+      `Bạn có chắc chắn muốn chặn ${displayName}?\n\nSau khi chặn:\n• Họ sẽ không thể gửi lời mời kết bạn cho bạn\n• Các kết nối bạn bè hiện tại sẽ bị xóa`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Chặn",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await friendApi.blockUser(userId);
+              Alert.alert("Thành công", `Đã chặn ${displayName}`);
+              navigation.goBack();
+            } catch {
+              Alert.alert(
+                "Lỗi",
+                "Không thể chặn người dùng lúc này. Vui lòng thử lại.",
+              );
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -256,7 +287,7 @@ export default function UserProfileScreen() {
             </Text>
           )}
           {!!displayBio && (
-            <Text style={[styles.heroSub, { color: COLORS.mutedForeground }]}> 
+            <Text style={[styles.heroSub, { color: COLORS.mutedForeground }]}>
               {displayBio}
             </Text>
           )}
@@ -334,8 +365,7 @@ export default function UserProfileScreen() {
 
         {/* ── Hành động nguy hiểm ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-          
-          {/* THÊM MỚI: NÚT HỦY KẾT BẠN */}
+          {/* Hủy kết bạn */}
           <TouchableOpacity
             style={[styles.actionRow, { borderBottomColor: COLORS.border }]}
             onPress={handleUnfriend}
@@ -347,18 +377,10 @@ export default function UserProfileScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Chặn người dùng */}
           <TouchableOpacity
-            style={[styles.actionRow, { borderBottomWidth: 0 }]} // Bỏ viền dưới cho nút cuối
-            onPress={() =>
-              Alert.alert(
-                "Xác nhận",
-                `Bạn có chắc muốn chặn ${displayName} không?`,
-                [
-                  { text: "Hủy", style: "cancel" },
-                  { text: "Chặn", style: "destructive", onPress: () => {} },
-                ],
-              )
-            }
+            style={[styles.actionRow, { borderBottomWidth: 0 }]}
+            onPress={handleBlock}
             activeOpacity={0.7}
           >
             <Ionicons name="ban-outline" size={20} color={COLORS.destructive} />
