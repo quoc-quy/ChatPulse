@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 
 interface FriendItemProps {
@@ -20,30 +20,6 @@ interface FriendItemProps {
   }) => void;
 }
 
-const lightColors = {
-  primary: "#4F46E5",
-  secondary: "#A855F7",
-  foreground: "#1E293B",
-  muted: "#64748B",
-  white: "#FFFFFF",
-  card: "#FFFFFF",
-  grayBtn: "#F1F5F9",
-  grayBtnText: "#1E293B",
-  onlineBorder: "#FFFFFF",
-};
-
-const darkColors = {
-  primary: "#818CF8",
-  secondary: "#A855F7",
-  foreground: "#F8FAFC",
-  muted: "#94A3B8",
-  white: "#FFFFFF",
-  card: "#11182D",
-  grayBtn: "#1E2946",
-  grayBtnText: "#F8FAFC",
-  onlineBorder: "#11182D",
-};
-
 export const FriendItem = React.memo(
   ({
     item,
@@ -55,8 +31,8 @@ export const FriendItem = React.memo(
     onChat,
     onViewProfile,
   }: FriendItemProps) => {
-    const { isDarkMode } = useTheme();
-    const COLORS = isDarkMode ? darkColors : lightColors;
+    // Dùng colors trực tiếp từ ThemeContext — đồng bộ với toàn app
+    const { colors } = useTheme();
 
     const userData = (() => {
       if (type === "sent") {
@@ -71,8 +47,6 @@ export const FriendItem = React.memo(
     })();
 
     const requestId = item?._id || item?.id;
-
-    // userId của người bạn bè (dùng cho chat 1-1)
     const friendUserId = (userData?._id || userData?.id || "").toString();
 
     const displayName =
@@ -98,7 +72,7 @@ export const FriendItem = React.memo(
 
     return (
       <TouchableOpacity
-        style={[styles.container, { backgroundColor: COLORS.card }]}
+        style={[styles.container, { backgroundColor: colors.card }]}
         activeOpacity={0.7}
         delayLongPress={500}
         onPress={() => {
@@ -122,24 +96,31 @@ export const FriendItem = React.memo(
       >
         {/* AVATAR */}
         <View style={styles.avatarWrapper}>
-          <View style={[styles.avatar, { backgroundColor: COLORS.secondary }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-          <View
-            style={[styles.onlineBadge, { borderColor: COLORS.onlineBorder }]}
-          />
+          {userAvatar ? (
+            <Image
+              source={{ uri: userAvatar }}
+              style={[styles.avatar, { backgroundColor: colors.secondary }]}
+            />
+          ) : (
+            <View
+              style={[styles.avatar, { backgroundColor: colors.secondary }]}
+            >
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+          <View style={[styles.onlineBadge, { borderColor: colors.card }]} />
         </View>
 
         {/* INFO */}
         <View style={styles.info}>
           <Text
-            style={[styles.name, { color: COLORS.foreground }]}
+            style={[styles.name, { color: colors.foreground }]}
             numberOfLines={1}
           >
             {displayName}
           </Text>
           <Text
-            style={[styles.status, { color: COLORS.muted }]}
+            style={[styles.status, { color: colors.mutedForeground }]}
             numberOfLines={1}
           >
             {subText}
@@ -150,16 +131,25 @@ export const FriendItem = React.memo(
         {type === "request" && (
           <View style={styles.actions}>
             <TouchableOpacity
-              style={[styles.btnAccept, { backgroundColor: COLORS.primary }]}
+              style={[styles.btnAccept, { backgroundColor: colors.primary }]}
               onPress={() => onAccept?.(requestId)}
             >
-              <Text style={styles.btnTextWhite}>Đồng ý</Text>
+              <Text
+                style={[
+                  styles.btnTextWhite,
+                  { color: colors.primaryForeground },
+                ]}
+              >
+                Đồng ý
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnDecline, { backgroundColor: COLORS.grayBtn }]}
+              style={[styles.btnDecline, { backgroundColor: colors.muted }]}
               onPress={() => onDecline?.(requestId)}
             >
-              <Text style={[styles.btnTextGray, { color: COLORS.grayBtnText }]}>
+              <Text
+                style={[styles.btnTextGray, { color: colors.mutedForeground }]}
+              >
                 Từ chối
               </Text>
             </TouchableOpacity>
@@ -170,10 +160,12 @@ export const FriendItem = React.memo(
         {type === "sent" && (
           <View style={styles.actions}>
             <TouchableOpacity
-              style={[styles.btnDecline, { backgroundColor: COLORS.grayBtn }]}
+              style={[styles.btnDecline, { backgroundColor: colors.muted }]}
               onPress={() => onCancel?.(requestId)}
             >
-              <Text style={[styles.btnTextGray, { color: COLORS.grayBtnText }]}>
+              <Text
+                style={[styles.btnTextGray, { color: colors.mutedForeground }]}
+              >
                 Thu hồi
               </Text>
             </TouchableOpacity>
@@ -200,6 +192,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
   avatarText: {
     color: "#FFFFFF",
@@ -244,7 +237,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   btnTextWhite: {
-    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "bold",
   },

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -15,35 +15,6 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import { createDirectConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 import { useTheme } from "../contexts/ThemeContext";
-
-// ── Color Palettes ────────────────────────────────────────────────────────────
-const lightColors = {
-  background: "hsl(240, 30%, 98%)",
-  foreground: "hsl(240, 10%, 15%)",
-  card: "hsl(240, 30%, 100%)",
-  primary: "hsl(230, 85%, 60%)",
-  secondary: "hsl(270, 75%, 65%)",
-  muted: "hsl(240, 15%, 90%)",
-  mutedForeground: "hsl(240, 10%, 40%)",
-  destructive: "hsl(0, 84%, 60%)",
-  border: "hsl(240, 15%, 85%)",
-  sectionBg: "hsl(240, 20%, 96%)",
-  white: "#FFFFFF",
-};
-
-const darkColors = {
-  background: "hsl(240, 25%, 7%)",
-  foreground: "hsl(240, 20%, 98%)",
-  card: "hsl(240, 25%, 10%)",
-  primary: "hsl(230, 85%, 65%)",
-  secondary: "hsl(270, 75%, 60%)",
-  muted: "hsl(240, 20%, 18%)",
-  mutedForeground: "hsl(240, 10%, 65%)",
-  destructive: "hsl(0, 62%, 55%)",
-  border: "hsl(240, 20%, 18%)",
-  sectionBg: "hsl(240, 25%, 5%)",
-  white: "#FFFFFF",
-};
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
@@ -70,7 +41,6 @@ const Avatar = ({
       />
     );
   }
-
   return (
     <View
       style={{
@@ -143,15 +113,11 @@ const InfoRow = ({
 export default function UserProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { isDarkMode } = useTheme();
+  // Dùng colors trực tiếp từ ThemeContext — đồng bộ với ConversationDetail
+  const { colors: COLORS } = useTheme();
 
   const { userId, userName, userPhone, userEmail, userAvatar, userBio } =
     route.params || {};
-
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
 
   const displayName = userName || "Người dùng";
   const displayBio = userBio || "";
@@ -179,9 +145,7 @@ export default function UserProfileScreen() {
 
   // ── Gọi điện ──
   const handleCallPhone = () => {
-    if (userPhone) {
-      Linking.openURL(`tel:${userPhone}`);
-    }
+    if (userPhone) Linking.openURL(`tel:${userPhone}`);
   };
 
   // ── Hủy kết bạn ──
@@ -292,7 +256,7 @@ export default function UserProfileScreen() {
             </Text>
           )}
 
-          {/* Quick action buttons */}
+          {/* Quick actions */}
           <View style={styles.heroActions}>
             <TouchableOpacity
               style={[
@@ -331,7 +295,9 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: COLORS.background }]}
+        />
 
         {/* ── Thông tin cá nhân ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
@@ -361,11 +327,12 @@ export default function UserProfileScreen() {
           />
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: COLORS.background }]}
+        />
 
         {/* ── Hành động nguy hiểm ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
-          {/* Hủy kết bạn */}
           <TouchableOpacity
             style={[styles.actionRow, { borderBottomColor: COLORS.border }]}
             onPress={handleUnfriend}
@@ -377,7 +344,6 @@ export default function UserProfileScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Chặn người dùng */}
           <TouchableOpacity
             style={[styles.actionRow, { borderBottomWidth: 0 }]}
             onPress={handleBlock}
@@ -419,11 +385,7 @@ const styles = StyleSheet.create({
   heroName: { fontSize: 22, fontWeight: "700", marginTop: 4 },
   heroSub: { fontSize: 14 },
 
-  heroActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
+  heroActions: { flexDirection: "row", gap: 12, marginTop: 12 },
   heroActionBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -432,11 +394,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
   },
-  heroActionBtnLabel: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  heroActionBtnLabel: { color: "#FFF", fontWeight: "600", fontSize: 14 },
 
   divider: { height: 8 },
 
