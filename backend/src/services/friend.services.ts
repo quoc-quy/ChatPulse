@@ -319,6 +319,23 @@ class FriendService {
       })
     ])
 
+    // Tìm conversation 1-1 giữa 2 người (nếu có) để gửi kèm conversationId
+    const conversation = await databaseService.conversations.findOne({
+      type: 'direct',
+      participants: { $all: [userObjectId, blockedObjectId] }
+    })
+
+    const payload = {
+      blockerId: user_id.toString(),
+      blockedId: blocked_id.toString(),
+      conversationId: conversation?._id?.toString() ?? null
+    }
+
+    // Emit cho người bị chặn: UI khóa chat, xóa khỏi friend list
+    socketService.emitToUser(blocked_id.toString(), 'you_were_blocked', payload)
+    // Emit cho người chặn: đảm bảo UI đồng bộ ngay
+    socketService.emitToUser(user_id.toString(), 'user_blocked', payload)
+
     return { message: 'Đã chặn người dùng thành công' }
   }
 
