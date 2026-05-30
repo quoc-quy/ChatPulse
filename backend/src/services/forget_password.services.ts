@@ -25,9 +25,9 @@ class ForgotPasswordService {
     // Xóa OTP cũ nếu có
     await databaseService.otps.deleteMany({ email })
 
-    // Tạo OTP mới, hết hạn sau 2 phút
+    // Tạo OTP mới, tăng thời gian hết hạn lên 5 phút cho Mobile thoải mái thao tác
     const otp = this.generateOtp()
-    const expires_at = new Date(Date.now() + 2 * 60 * 1000)
+    const expires_at = new Date(Date.now() + 5 * 60 * 1000)
 
     await databaseService.otps.insertOne(new Otp({ email, otp, expires_at }))
     await sendOtpEmail(email, otp)
@@ -41,15 +41,18 @@ class ForgotPasswordService {
    * Bước 2: Nhận email + OTP + password mới → xác thực → đổi mật khẩu
    */
   async resetPassword(email: string, otp: string, password: string) {
-    const otpRecord = await databaseService.otps.findOne({ email, otp })
+    // Chỉ tìm theo email để lấy bản ghi OTP mới nhất của tài khoản này
+    const otpRecord = await databaseService.otps.findOne({ email })
 
-    if (!otpRecord) {
+    // Xác thực: Ép cả 2 về dạng chuỗi .toString() để chống lệch kiểu dữ liệu String/Number
+    if (!otpRecord || otpRecord.otp.toString() !== otp.toString()) {
       throw new ErrorWithStatus({
         message: 'Mã OTP không chính xác',
         status: httpStatus.UNPROCESSABLE_ENTITY
       })
     }
 
+    // Kiểm tra thời gian hết hạn mã số
     if (new Date() > otpRecord.expires_at) {
       await databaseService.otps.deleteOne({ _id: otpRecord._id })
       throw new ErrorWithStatus({
@@ -71,10 +74,10 @@ class ForgotPasswordService {
       })
     }
 
-    // Xóa OTP đã dùng
+    // Xóa OTP đã kích hoạt thành công
     await databaseService.otps.deleteOne({ _id: otpRecord._id })
 
-    // Xóa tất cả refresh token cũ (bắt buộc đăng nhập lại)
+    // Đăng xuất toàn bộ thiết bị cũ (Xóa tất cả refresh token)
     await databaseService.refreshTokens.deleteMany({ user_id: user._id })
 
     return { message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' }
