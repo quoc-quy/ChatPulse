@@ -20,6 +20,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import {
   Search,
@@ -192,11 +193,19 @@ const SearchResultItem = React.memo(
           { backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
-        <View
-          style={[searchStyles.avatar, { backgroundColor: colors.secondary }]}
-        >
-          <Text style={searchStyles.avatarText}>{initials}</Text>
-        </View>
+        {/* Avatar: hiển thị ảnh nếu có, fallback chữ cái */}
+        {user.avatar ? (
+          <Image
+            source={{ uri: user.avatar }}
+            style={[searchStyles.avatar, { backgroundColor: colors.secondary }]}
+          />
+        ) : (
+          <View
+            style={[searchStyles.avatar, { backgroundColor: colors.secondary }]}
+          >
+            <Text style={searchStyles.avatarText}>{initials}</Text>
+          </View>
+        )}
         <View style={searchStyles.info}>
           <Text
             style={[searchStyles.name, { color: colors.foreground }]}
@@ -917,6 +926,7 @@ const searchStyles = StyleSheet.create({
     borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
   avatarText: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
   info: { flex: 1, marginLeft: 14 },

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { createDirectConversation } from "../apis/chat.api";
 import { friendApi } from "../apis/friends.api";
 import { useTheme } from "../contexts/ThemeContext";
 
+<<<<<<< HEAD
 // ── Color Palettes ────────────────────────────────────────────────────────────
 const lightColors = {
   background: "hsl(240, 30%, 98%)",
@@ -45,6 +46,8 @@ const darkColors = {
   white: "#FFFFFF",
 };
 
+=======
+>>>>>>> 66b1ed1eea7d8483dd41a9199c900663c42518c0
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   name,
@@ -70,7 +73,6 @@ const Avatar = ({
       />
     );
   }
-
   return (
     <View
       style={{
@@ -143,15 +145,11 @@ const InfoRow = ({
 export default function UserProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { isDarkMode } = useTheme();
+  // Dùng colors trực tiếp từ ThemeContext — đồng bộ với ConversationDetail
+  const { colors: COLORS } = useTheme();
 
   const { userId, userName, userPhone, userEmail, userAvatar, userBio } =
     route.params || {};
-
-  const COLORS = useMemo(
-    () => (isDarkMode ? darkColors : lightColors),
-    [isDarkMode],
-  );
 
   const displayName = userName || "Người dùng";
   const displayBio = userBio || "";
@@ -179,9 +177,7 @@ export default function UserProfileScreen() {
 
   // ── Gọi điện ──
   const handleCallPhone = () => {
-    if (userPhone) {
-      Linking.openURL(`tel:${userPhone}`);
-    }
+    if (userPhone) Linking.openURL(`tel:${userPhone}`);
   };
 
   // ── Hủy kết bạn ──
@@ -292,7 +288,7 @@ export default function UserProfileScreen() {
             </Text>
           )}
 
-          {/* Quick action buttons */}
+          {/* Quick actions */}
           <View style={styles.heroActions}>
             <TouchableOpacity
               style={[
@@ -331,7 +327,9 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: COLORS.background }]}
+        />
 
         {/* ── Thông tin cá nhân ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
@@ -361,7 +359,9 @@ export default function UserProfileScreen() {
           />
         </View>
 
-        <View style={[styles.divider, { backgroundColor: COLORS.sectionBg }]} />
+        <View
+          style={[styles.divider, { backgroundColor: COLORS.background }]}
+        />
 
         {/* ── Hành động nguy hiểm ── */}
         <View style={[styles.section, { backgroundColor: COLORS.card }]}>
@@ -419,11 +419,7 @@ const styles = StyleSheet.create({
   heroName: { fontSize: 22, fontWeight: "700", marginTop: 4 },
   heroSub: { fontSize: 14 },
 
-  heroActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
+  heroActions: { flexDirection: "row", gap: 12, marginTop: 12 },
   heroActionBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -432,11 +428,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
   },
-  heroActionBtnLabel: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  heroActionBtnLabel: { color: "#FFF", fontWeight: "600", fontSize: 14 },
 
   divider: { height: 8 },
 

@@ -44,28 +44,47 @@ import { friendApi } from "../apis/friends.api";
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const Avatar = ({
   name,
+  uri,
   size = 52,
   bgColor,
 }: {
   name: string;
+  uri?: string;
   size?: number;
   bgColor: string;
-}) => (
-  <View
-    style={{
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-      backgroundColor: bgColor,
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <Text style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}>
-      {(name || "?").charAt(0).toUpperCase()}
-    </Text>
-  </View>
-);
+}) => {
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bgColor,
+        }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: bgColor,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text
+        style={{ color: "#FFF", fontSize: size * 0.36, fontWeight: "bold" }}
+      >
+        {(name || "?").charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+};
 
 // ── MemberItem ────────────────────────────────────────────────────────────────
 const MemberItem = ({
@@ -102,7 +121,12 @@ const MemberItem = ({
       onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
-      <Avatar name={name} size={44} bgColor={colors.secondary} />
+      <Avatar
+        name={name}
+        uri={member.avatar}
+        size={44}
+        bgColor={colors.secondary}
+      />
       <View style={styles.memberInfo}>
         <Text
           style={[styles.memberName, { color: colors.foreground }]}
@@ -587,17 +611,36 @@ export default function ConversationDetailScreen() {
             disabled={avatarUploading}
           >
             <View style={{ position: "relative" }}>
-              {isGroupChat && groupAvatar ? (
-                <Image
-                  source={{ uri: groupAvatar }}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                />
+              {isGroupChat ? (
+                groupAvatar ? (
+                  <Image
+                    source={{ uri: groupAvatar }}
+                    style={{ width: 80, height: 80, borderRadius: 40 }}
+                  />
+                ) : (
+                  <Avatar
+                    name={chatName}
+                    size={80}
+                    bgColor={colors.secondary}
+                  />
+                )
               ) : (
-                <Avatar
-                  name={chatName}
-                  size={80}
-                  bgColor={isGroupChat ? colors.secondary : colors.primary}
-                />
+                // Direct chat: hiển thị avatar của người kia
+                (() => {
+                  const otherUser = members.find(
+                    (m: any) =>
+                      (m._id || m.userId || "").toString() !== currentUserId,
+                  );
+                  const partnerAvatar = otherUser?.avatar || "";
+                  return (
+                    <Avatar
+                      name={chatName}
+                      uri={partnerAvatar || undefined}
+                      size={80}
+                      bgColor={colors.primary}
+                    />
+                  );
+                })()
               )}
               {isGroupChat && (
                 <View
@@ -738,6 +781,8 @@ export default function ConversationDetailScreen() {
                       "Người dùng",
                     userPhone: otherUser.phone || "",
                     userEmail: otherUser.email || "",
+                    userAvatar: otherUser.avatar || "",
+                    userBio: otherUser.bio || "",
                   });
                 }
               }}
