@@ -13,7 +13,7 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const handleReset = async () => {
-    if (!otp || newPassword.length < 6) {
+    if (!otp.trim() || newPassword.length < 6) {
       return Alert.alert(
         "Lỗi",
         "Vui lòng nhập đầy đủ OTP và mật khẩu mới (ít nhất 6 ký tự)",
@@ -23,13 +23,13 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
     setLoading(true);
     try {
       const response = await resetPasswordApi({
-        email,
-        otp,
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(), // Gửi nguyên bản string dán từ giao diện xuống
         password: newPassword,
         confirm_password: newPassword,
       });
 
-      if (response.status === 200) {
+      if (response.status === 200 || response.data) {
         Alert.alert("Thành công", "Mật khẩu của bạn đã được cập nhật.", [
           {
             text: "Đăng nhập ngay",
@@ -83,7 +83,12 @@ export default function ResetPasswordScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 24, flex: 1, justifyContent: "center" },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 8 },
-  subtitle: { marginBottom: 32 },
+  content: { padding: 24, justifyContent: "center", flex: 1, gap: 16 },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  subtitle: { fontSize: 15, marginBottom: 24, textAlign: "center" },
 });

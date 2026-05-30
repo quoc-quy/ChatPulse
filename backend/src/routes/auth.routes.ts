@@ -43,14 +43,13 @@ authRoute.post('/register', registerValidator, wrapRequestHandler(registerContro
 authRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapRequestHandler(logoutController))
 
 /**
- * Forgot Password — Bước 1: Gửi OTP về email
+ * Forgot Password — Bước 1: Gửi OTP về email (Dành cho Web)
  * POST /auth/forgot-password
- * Body: { email: string }
  */
 authRoute.post('/forgot-password', forgotPasswordValidator, wrapRequestHandler(forgotPasswordController))
 
 /**
- * Description: verify link in email to reset password
+ * Description: verify link in email to reset password (Dành cho Web)
  * body: {forgot-password-token: string}
  */
 authRoute.post(
@@ -60,7 +59,7 @@ authRoute.post(
 )
 
 /**
- * Description: reset password
+ * Description: reset password (Dành cho Web)
  * body: {forgot-password-token: string, password: string, confirm_password: string}
  */
 authRoute.post('/reset-password', resetPasswordValidator, wrapRequestHandler(resetPasswordController))
@@ -70,6 +69,12 @@ authRoute.post('/reset-password', resetPasswordValidator, wrapRequestHandler(res
  * POST /auth/forgot-password-mobile
  */
 authRoute.post('/forgot-password-mobile', wrapRequestHandler(forgotPasswordMobileController))
+
+/**
+ * Đặt lại mật khẩu Mobile (Bước 2: Xác thực OTP và đổi pass)
+ * POST /auth/reset-password-mobile
+ */
+authRoute.post('/reset-password-mobile', wrapRequestHandler(resetPasswordMobileController))
 
 /**
  * Description: verify link in email to verify email
