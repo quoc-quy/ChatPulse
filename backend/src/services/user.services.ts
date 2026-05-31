@@ -250,6 +250,20 @@ class UserService {
   }
 
   async updateMe(user_id: string, payload: UpdateMeReqBody) {
+    if (payload.phone) {
+      const existedPhone = await databaseService.users.findOne({
+        phone: payload.phone,
+        _id: { $ne: new ObjectId(user_id) }
+      })
+
+      if (existedPhone) {
+        throw new ErrorWithStatus({
+          message: 'Số điện thoại đã được sử dụng',
+          status: httpStatus.CONFLICT
+        })
+      }
+    }
+
     const _payload = payload.date_of_birth ? { ...payload, date_of_birth: new Date(payload.date_of_birth) } : payload
     const user = await databaseService.users.findOneAndUpdate(
       {

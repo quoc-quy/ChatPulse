@@ -87,7 +87,19 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
               message: errorsFromBE[key].msg
             })
           })
+          return
         }
+
+        // lỗi phone unique
+        if (error?.response?.status === 409) {
+          setError('phone', {
+            type: 'server',
+            message: error.response.data.message
+          })
+          return
+        }
+
+        toast.error(error?.response?.data?.message || 'Có lỗi xảy ra')
       }
     })
   })
