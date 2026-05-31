@@ -436,21 +436,52 @@ class UserService {
     return { users }
   }
 
-  async forgotPassword(user_id: string, email: string) {
-    const forgot_password_token = await this.signForgotPasswordToken(user_id)
+  async forgotPassword(user: User) {
+    const now = new Date()
+
+    if (user.forgot_password_requested_at) {
+      const diff = now.getTime() - user.forgot_password_requested_at.getTime()
+
+      if (diff < 60 * 1000) {
+        const remain = Math.ceil((60 * 1000 - diff) / 1000)
+
+        throw new Error(`Vui lòng đợi ${remain} giây trước khi gửi lại email`)
+      }
+    }
+
+    if (
+      !user.forgot_password_request_window_start ||
+      now.getTime() - user.forgot_password_request_window_start.getTime() > 2 * 60 * 60 * 1000
+    ) {
+      user.forgot_password_request_count = 0
+      user.forgot_password_request_window_start = now
+    }
+
+    if ((user.forgot_password_request_count || 0) >= 2) {
+      throw new Error('Vui lòng thực hiện lại thao tác này sau 2 tiếng nữa')
+    }
+
+    const forgot_password_token = await this.signForgotPasswordToken(user._id!.toString())
 
     await databaseService.users.updateOne(
       {
-        _id: new ObjectId(user_id)
+        _id: user._id
       },
       {
         $set: {
           forgot_password_token,
-          updated_at: new Date()
+          forgot_password_requested_at: now,
+          forgot_password_request_window_start: user.forgot_password_request_window_start,
+          updated_at: now
+        },
+        $inc: {
+          forgot_password_request_count: 1
         }
       }
     )
-    await sendForgotPasswordEmail(email, forgot_password_token)
+
+    await sendForgotPasswordEmail(user.email, forgot_password_token)
+
     return {
       message: 'Kiểm tra hộp thư email để thiết lập lại mật khẩu'
     }

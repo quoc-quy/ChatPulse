@@ -13,6 +13,7 @@ import { useMutation } from '@tanstack/react-query'
 import authApi from '@/apis/auth.api'
 import { toast } from 'react-toastify'
 import backgroundLoginImage from '../../public/background-login.png'
+import { useEffect, useState } from 'react'
 
 type FormData = {
   email: string
@@ -23,6 +24,7 @@ const schema = yup.object({
 })
 
 export function ForgotPasswordForm({ className, ...props }: React.ComponentProps<'div'>) {
+  const [cooldown, setCooldown] = useState(0)
   const {
     handleSubmit,
     register,
@@ -32,6 +34,16 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
     resolver: yupResolver(schema)
   })
 
+  useEffect(() => {
+    if (cooldown <= 0) return
+
+    const timer = setInterval(() => {
+      setCooldown((prev) => prev - 1)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [cooldown])
+
   const forgotPasswordMutation = useMutation({
     mutationFn: (body: FormData) => authApi.forgotPassword(body)
   })
@@ -40,6 +52,7 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
     forgotPasswordMutation.mutate(data, {
       onSuccess: () => {
         toast.success('Đã gửi email khôi phục mật khẩu!')
+        setCooldown(60)
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
@@ -84,8 +97,12 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
                 </Field>
 
                 <Field>
-                  <Button type='submit' className='w-full cursor-pointer'>
-                    Send
+                  <Button
+                    type='submit'
+                    disabled={cooldown > 0 || forgotPasswordMutation.isPending}
+                    className='w-full cursor-pointer'
+                  >
+                    {forgotPasswordMutation.isPending ? 'Sending...' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Send'}
                   </Button>
                 </Field>
 
