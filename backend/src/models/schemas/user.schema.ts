@@ -19,6 +19,9 @@ interface UserType {
   fcm_token?: string
   created_at?: Date
   updated_at?: Date
+  forgot_password_requested_at?: Date
+  forgot_password_request_count?: number
+  forgot_password_request_window_start?: Date
 }
 
 export default class User {
@@ -39,6 +42,9 @@ export default class User {
   fcm_token: string
   created_at: Date
   updated_at: Date
+  forgot_password_requested_at?: Date
+  forgot_password_request_count: number
+  forgot_password_request_window_start?: Date
 
   constructor({
     _id,
@@ -57,7 +63,10 @@ export default class User {
     last_active_at,
     fcm_token,
     created_at,
-    updated_at
+    updated_at,
+    forgot_password_requested_at,
+    forgot_password_request_count,
+    forgot_password_request_window_start
   }: UserType) {
     const date = new Date()
     this._id = _id
@@ -77,5 +86,8 @@ export default class User {
     this.fcm_token = fcm_token || ''
     this.created_at = created_at || date
     this.updated_at = updated_at || date
+    this.forgot_password_requested_at = forgot_password_requested_at
+    this.forgot_password_request_count = forgot_password_request_count || 0
+    this.forgot_password_request_window_start = forgot_password_request_window_start
   }
 }
