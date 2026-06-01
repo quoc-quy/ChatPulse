@@ -21,7 +21,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       const accessToken = getAccessTokenFromLS()
 
       const host = window.location.hostname
-      const newSocket = io(`http://${host}:4001`, {
+      const socketUrl = import.meta.env.VITE_API_URL || `http://${host}:4000`
+      const newSocket = io(socketUrl, {
         auth: {
           token: accessToken,
           user_id: profile._id
