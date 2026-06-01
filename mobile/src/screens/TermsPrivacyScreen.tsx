@@ -7,6 +7,8 @@ import {
   StyleSheet,
   SafeAreaView,
 } from "react-native";
+import { useTheme } from "../contexts/ThemeContext"; // Đảm bảo đường dẫn này đúng với cấu trúc thư mục của bạn
+import { ThemeColors } from "../theme/colors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,11 +125,11 @@ const termsSections: SectionItem[] = [
     content: [
       {
         type: "paragraph",
-        text: "Nếu có bất kỳ thắc mắc hoặc yêu cầu hỗ trợ, người dùng có thể liên hệ với chúng tôi thông qua email hoặc các kênh hỗ trợ chính thức trên website.",
+        text: "Nếu có bất kỳ thắc mắc hoặc yêu cầu hỗ trợ, người dùng có thể liên hệ with chúng tôi thông qua email hoặc các kênh hỗ trợ chính thức trên website.",
       },
       {
         type: "paragraph",
-        text: "Trong trường hợp một phần của Điều khoản này không còn hiệu lực theo quy định pháp luật, các nội dung còn lại vẫn giữ nguyên giá trị áp dụng.",
+        text: "In trường hợp một phần của Điều khoản này không còn hiệu lực theo quy định pháp luật, các nội dung còn lại vẫn giữ nguyên giá trị áp dụng.",
       },
     ],
   },
@@ -276,13 +278,26 @@ const privacySections: SectionItem[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionContent({ nodes }: { nodes: ContentNode[] }) {
+function SectionContent({
+  nodes,
+  colors,
+}: {
+  nodes: ContentNode[];
+  colors: ThemeColors;
+}) {
   return (
     <View style={styles.contentWrapper}>
       {nodes.map((node, i) => {
         if (node.type === "paragraph") {
           return (
-            <Text key={i} style={[styles.bodyText, i > 0 && styles.mt8]}>
+            <Text
+              key={i}
+              style={[
+                styles.bodyText,
+                { color: colors.textLight },
+                i > 0 && styles.mt8,
+              ]}
+            >
               {node.text}
             </Text>
           );
@@ -292,8 +307,12 @@ function SectionContent({ nodes }: { nodes: ContentNode[] }) {
             <View key={i}>
               {node.items.map((item, j) => (
                 <View key={j} style={styles.listItem}>
-                  <Text style={styles.bullet}>•</Text>
-                  <Text style={styles.listText}>{item}</Text>
+                  <Text style={[styles.bullet, { color: colors.textLight }]}>
+                    •
+                  </Text>
+                  <Text style={[styles.listText, { color: colors.textLight }]}>
+                    {item}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -302,11 +321,23 @@ function SectionContent({ nodes }: { nodes: ContentNode[] }) {
         if (node.type === "paragraph+list") {
           return (
             <View key={i}>
-              <Text style={[styles.bodyText, styles.mb8]}>{node.text}</Text>
+              <Text
+                style={[
+                  styles.bodyText,
+                  { color: colors.textLight },
+                  styles.mb8,
+                ]}
+              >
+                {node.text}
+              </Text>
               {node.items.map((item, j) => (
                 <View key={j} style={styles.listItem}>
-                  <Text style={styles.bullet}>•</Text>
-                  <Text style={styles.listText}>{item}</Text>
+                  <Text style={[styles.bullet, { color: colors.textLight }]}>
+                    •
+                  </Text>
+                  <Text style={[styles.listText, { color: colors.textLight }]}>
+                    {item}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -321,19 +352,30 @@ function SectionContent({ nodes }: { nodes: ContentNode[] }) {
 function SectionCard({
   section,
   index,
+  colors,
 }: {
   section: SectionItem;
   index: number;
+  colors: ThemeColors;
 }) {
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
       <View style={styles.cardHeader}>
-        <View style={styles.numBadge}>
-          <Text style={styles.numText}>{index + 1}</Text>
+        <View style={[styles.numBadge, { backgroundColor: colors.accent }]}>
+          <Text style={[styles.numText, { color: colors.primary }]}>
+            {index + 1}
+          </Text>
         </View>
-        <Text style={styles.cardTitle}>{section.title}</Text>
+        <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+          {section.title}
+        </Text>
       </View>
-      <SectionContent nodes={section.content} />
+      <SectionContent nodes={section.content} colors={colors} />
     </View>
   );
 }
@@ -344,6 +386,7 @@ type Tab = "terms" | "privacy";
 
 export default function TermsPrivacyScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("terms");
+  const { colors } = useTheme(); // Đọc đối tượng colors động từ ThemeContext
 
   const isTerms = activeTab === "terms";
   const sections = isTerms ? termsSections : privacySections;
@@ -357,51 +400,99 @@ export default function TermsPrivacyScreen() {
     : `© ${new Date().getFullYear()} ChatPulse. Cam kết bảo vệ dữ liệu và quyền riêng tư của người dùng.`;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
       {/* Tab Bar */}
-      <View style={styles.tabBar}>
+      <View
+        style={[
+          styles.tabBar,
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
+        ]}
+      >
         <TouchableOpacity
-          style={[styles.tab, isTerms && styles.tabActive]}
+          style={[styles.tab, isTerms && { borderBottomColor: colors.primary }]}
           onPress={() => setActiveTab("terms")}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, isTerms && styles.tabTextActive]}>
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textLight },
+              isTerms && { color: colors.primary },
+            ]}
+          >
             Điều khoản
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, !isTerms && styles.tabActive]}
+          style={[
+            styles.tab,
+            !isTerms && { borderBottomColor: colors.primary },
+          ]}
           onPress={() => setActiveTab("privacy")}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, !isTerms && styles.tabTextActive]}>
+          <Text
+            style={[
+              styles.tabText,
+              { color: colors.textLight },
+              !isTerms && { color: colors.primary },
+            ]}
+          >
             Chính sách bảo mật
           </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        style={styles.scroll}
+        style={[styles.scroll, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroBadgeWrap}>
-            <Text style={styles.heroBadgeText}>{heroBadge}</Text>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.heroBadgeWrap,
+              {
+                backgroundColor: colors.surfaceSoft,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.heroBadgeText, { color: colors.textLight }]}>
+              {heroBadge}
+            </Text>
           </View>
-          <Text style={styles.heroTitle}>{heroTitle}</Text>
-          <Text style={styles.heroDesc}>{heroDesc}</Text>
+          <Text style={[styles.heroTitle, { color: colors.foreground }]}>
+            {heroTitle}
+          </Text>
+          <Text style={[styles.heroDesc, { color: colors.textLight }]}>
+            {heroDesc}
+          </Text>
         </View>
 
         {/* Sections */}
         {sections.map((section, index) => (
-          <SectionCard key={index} section={section} index={index} />
+          <SectionCard
+            key={index}
+            section={section}
+            index={index}
+            colors={colors}
+          />
         ))}
 
         {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>{footerText}</Text>
+        <View style={[styles.footer, { borderTopColor: colors.border }]}>
+          <Text style={[styles.footerText, { color: colors.textLight }]}>
+            {footerText}
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -410,25 +501,15 @@ export default function TermsPrivacyScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const PRIMARY = "#7F77DD";
-const PRIMARY_LIGHT = "#EEEDFE";
-const TEXT_PRIMARY = "#1a1a1a";
-const TEXT_SECONDARY = "#6b7280";
-const BORDER = "#e5e7eb";
-const BG = "#f9fafb";
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#ffffff",
   },
 
   // Tab Bar
   tabBar: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    backgroundColor: "#ffffff",
   },
   tab: {
     flex: 1,
@@ -437,22 +518,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  tabActive: {
-    borderBottomColor: PRIMARY,
-  },
   tabText: {
     fontSize: 14,
     fontWeight: "500",
-    color: TEXT_SECONDARY,
-  },
-  tabTextActive: {
-    color: PRIMARY,
   },
 
   // Scroll
   scroll: {
     flex: 1,
-    backgroundColor: BG,
   },
   scrollContent: {
     padding: 16,
@@ -461,47 +534,38 @@ const styles = StyleSheet.create({
 
   // Hero
   hero: {
-    backgroundColor: "#ffffff",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: BORDER,
     padding: 20,
     marginBottom: 16,
   },
   heroBadgeWrap: {
     alignSelf: "flex-start",
     borderWidth: 1,
-    borderColor: BORDER,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 4,
     marginBottom: 12,
-    backgroundColor: "#f3f4f6",
   },
   heroBadgeText: {
     fontSize: 12,
     fontWeight: "500",
-    color: TEXT_SECONDARY,
   },
   heroTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: TEXT_PRIMARY,
     marginBottom: 10,
     lineHeight: 32,
   },
   heroDesc: {
     fontSize: 14,
-    color: TEXT_SECONDARY,
     lineHeight: 22,
   },
 
   // Card
   card: {
-    backgroundColor: "#ffffff",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: BORDER,
     padding: 16,
     marginBottom: 10,
   },
@@ -515,7 +579,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: PRIMARY_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -523,13 +586,11 @@ const styles = StyleSheet.create({
   numText: {
     fontSize: 13,
     fontWeight: "700",
-    color: PRIMARY,
   },
   cardTitle: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: TEXT_PRIMARY,
     lineHeight: 22,
   },
 
@@ -539,7 +600,6 @@ const styles = StyleSheet.create({
   },
   bodyText: {
     fontSize: 14,
-    color: TEXT_SECONDARY,
     lineHeight: 22,
   },
   mt8: {
@@ -555,7 +615,6 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 14,
-    color: TEXT_SECONDARY,
     marginRight: 8,
     marginTop: 1,
     lineHeight: 22,
@@ -563,7 +622,6 @@ const styles = StyleSheet.create({
   listText: {
     flex: 1,
     fontSize: 14,
-    color: TEXT_SECONDARY,
     lineHeight: 22,
   },
 
@@ -572,12 +630,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: BORDER,
     alignItems: "center",
   },
   footerText: {
     fontSize: 12,
-    color: TEXT_SECONDARY,
     textAlign: "center",
   },
 });
