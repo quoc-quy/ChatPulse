@@ -14,7 +14,6 @@ import { toast } from 'react-toastify'
 import { useContext, useEffect, useState } from 'react'
 import { AppContext } from '@/context/app.context'
 import backgroundLoginImage from '../../public/background-login.png'
-import userApi from '@/apis/user.api'
 import axios from 'axios'
 import { Eye, EyeOff } from 'lucide-react'
 

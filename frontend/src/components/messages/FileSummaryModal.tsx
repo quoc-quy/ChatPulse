@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { messagesApi, type SummarizeResult } from '@/apis/messages.api'
 import { Loader2, FileText, ImageIcon, Table, Info } from 'lucide-react'

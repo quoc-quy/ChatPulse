@@ -150,7 +150,7 @@ export function InfoPanelMembers({
               const isMe = memberId === String(currentUserId)
               const isAdmin = memberId === String(adminId)
 
-              const showAddFriend = !isMe && !member.isFriend
+              const showAddFriend = !isMe && !member.isFriend && !sentRequestsLocal[memberId]
 
               return (
                 <div

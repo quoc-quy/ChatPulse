@@ -13,7 +13,7 @@ import { useForm } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getInitials } from '@/utils/common'
 import { toast } from 'react-toastify'
-import { setProfileFromLS, setProfileToLS } from '@/utils/auth'
+import { setProfileToLS } from '@/utils/auth'
 import { AppContext } from '@/context/app.context'
 import { Camera, Loader2 } from 'lucide-react'
 
@@ -159,7 +159,7 @@ export default function ProfilePage({ open, onOpenChange }: Props) {
                 <Avatar className='h-full w-full object-cover overflow-hidden text-foreground rounded-full border-gray-500'>
                   <AvatarImage alt={profile?.userName} />
                   <AvatarFallback className='text-3xl font-semibold bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'>
-                    {getInitials(profile?.userName)}
+                    {getInitials(profile?.userName || '')}
                   </AvatarFallback>
                 </Avatar>
               ) : (

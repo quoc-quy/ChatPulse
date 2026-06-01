@@ -74,7 +74,7 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
   })
 
   return (
-    <div className='min-h-screen flex items-center justify-center bg-muted px-4'>
+    <div className={cn('min-h-screen flex items-center justify-center bg-muted px-4', className)} {...props}>
       <div className='w-full max-w-4xl'>
         <Card className='overflow-hidden shadow-xl rounded-2xl'>
           <CardContent className='grid p-0 md:grid-cols-2'>

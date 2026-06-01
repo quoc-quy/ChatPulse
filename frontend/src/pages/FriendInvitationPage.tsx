@@ -2,7 +2,6 @@
 import friendApi from '@/apis/friend.api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import type { User } from '@/types/user.type'
 import { getInitials } from '@/utils/common'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { UserPlus } from 'lucide-react'

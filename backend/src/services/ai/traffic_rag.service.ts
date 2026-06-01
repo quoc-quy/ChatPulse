@@ -379,7 +379,7 @@ class TrafficRagService {
       // Tăng điểm cho các điều khoản trừ điểm/tước bằng lái xe nếu câu hỏi hỏi về điểm GPLX
       if (queryLower.includes('điểm') || queryLower.includes('gplx') || queryLower.includes('bằng lái') || queryLower.includes('tước')) {
         const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
-        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause.includes('12') || chunk.metadata.clause.includes('13') || chunk.metadata.clause.includes('15') || chunk.metadata.clause.includes('16')) {
+        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause?.includes('12') || chunk.metadata.clause?.includes('13') || chunk.metadata.clause?.includes('15') || chunk.metadata.clause?.includes('16')) {
           score += 0.20
         }
       }
@@ -487,7 +487,7 @@ class TrafficRagService {
       for (const [chunkIndex, rrfScore] of rrfScores.entries()) {
         const chunk = this.vectorStore[chunkIndex]
         const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
-        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause.includes('12') || chunk.metadata.clause.includes('13') || chunk.metadata.clause.includes('15') || chunk.metadata.clause.includes('16')) {
+        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause?.includes('12') || chunk.metadata.clause?.includes('13') || chunk.metadata.clause?.includes('15') || chunk.metadata.clause?.includes('16')) {
           rrfScores.set(chunkIndex, rrfScore + 0.05)
         }
       }

@@ -4,7 +4,7 @@ import { Room, RoomEvent, RemoteParticipant, RemoteTrack, Track } from 'livekit-
 import { callApi } from '@/apis/call.api'
 
 export const useLiveKit = (
-  socket: Socket | null,
+  _socket: Socket | null,
   conversationId: string,
   currentUserId: string,
   currentUserName: string = 'User'
@@ -44,7 +44,7 @@ export const useLiveKit = (
         })
         roomRef.current = room
 
-        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication, participant: RemoteParticipant) => {
+        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _publication, participant: RemoteParticipant) => {
           setRemoteTracks((prev) => {
             const tracks = prev[participant.identity] || []
             if (!tracks.find((t) => t.sid === track.sid)) {
@@ -55,7 +55,7 @@ export const useLiveKit = (
           updatePeerInfo(participant)
         })
 
-        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication, participant: RemoteParticipant) => {
+        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _publication, participant: RemoteParticipant) => {
           setRemoteTracks((prev) => {
             const tracks = prev[participant.identity] || []
             return { ...prev, [participant.identity]: tracks.filter((t) => t.sid !== track.sid) }

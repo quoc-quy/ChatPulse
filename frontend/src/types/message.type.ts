@@ -19,7 +19,7 @@ export interface Reaction {
 export interface ReplyInfo {
   _id: string
   content: string
-  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked'
+  type: 'text' | 'media' | 'sticker' | 'system' | 'call' | 'revoked' | 'image' | 'video' | 'file'
   senderName: string
 }
 

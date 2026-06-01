@@ -3,7 +3,7 @@ import http from '@/utils/http'
 
 const friendApi = {
   getListFriend() {
-    return http.get<User[]>('/friends/list')
+    return http.get<{ message: string; result: User[] }>('/friends/list')
   },
 
   getListFriendRequest() {
