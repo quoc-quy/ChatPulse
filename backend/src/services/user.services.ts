@@ -8,7 +8,8 @@ import { RefreshToken } from '~/models/schemas/refreshToken_schema'
 import { ObjectId } from 'mongodb'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
-import { sendEmailNotification, sendForgotPasswordEmail } from '~/utils/email'
+// Import thêm hàm sendOtpEmail đã dung hòa từ utils/email
+import { sendEmailNotification, sendForgotPasswordEmail, sendMobileRegisterOtpEmail, sendOtpEmail } from '~/utils/email'
 import UserBlocks from '~/models/schemas/userBlocks.schema'
 import axios from 'axios'
 
@@ -101,6 +102,67 @@ class UserService {
     return { access_token, refresh_token, user }
   }
 
+  // ĐÃ CẬP NHẬT: Dành cho Mobile sử dụng cấu hình chung dung hòa
+  async registerMobile(payload: RegisterReqBody) {
+    const user_id = new ObjectId()
+
+    // Sinh mã OTP 6 số ngẫu nhiên
+    const email_verify_otp = Math.floor(100000 + Math.random() * 900000).toString()
+
+    await databaseService.users.insertOne(
+      new User({
+        ...payload,
+        _id: user_id,
+        date_of_birth: new Date(payload.date_of_birth),
+        // Lưu mã số OTP trực tiếp vào trường verify token để đối chiếu lúc verify
+        email_verify_token: email_verify_otp,
+        password: hashPassword(payload.password)
+      })
+    )
+
+    const user = await databaseService.users.findOne(
+      { _id: new ObjectId(user_id) },
+      { projection: { password: 0, created_at: 0, updated_at: 0 } }
+    )
+    const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id.toString())
+    await databaseService.refreshTokens.insertOne(
+      new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
+    )
+
+    // ĐÃ SỬA: Gọi đến hàm gửi OTP chuẩn lấy đúng biến MAIL_USER, MAIL_PASSWORD từ .env của bạn
+    await sendMobileRegisterOtpEmail(payload.email, email_verify_otp)
+
+    console.log('Mobile Register - OTP là:', email_verify_otp)
+    return { access_token, refresh_token, user }
+  }
+
+  // Hàm xác thực OTP kích hoạt tài khoản dành cho Mobile
+  async verifyRegisterOTPMobile(email: string, otp: string) {
+    const user = await databaseService.users.findOne({ email: email.trim().toLowerCase() })
+    if (!user) {
+      throw new ErrorWithStatus({ message: 'Tài khoản không tồn tại', status: httpStatus.NOT_FOUND })
+    }
+    if (user.email_verify_token === '') {
+      return { message: 'Tài khoản đã được xác thực từ trước' }
+    }
+    if (user.email_verify_token !== otp.trim()) {
+      throw new ErrorWithStatus({ message: 'Mã OTP không chính xác', status: httpStatus.BAD_REQUEST })
+    }
+
+    // Xác thực thành công -> Cập nhật trạng thái kích hoạt tài khoản
+    await databaseService.users.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          email_verify_token: '',
+          verify: UserVerifyStatus.Verified,
+          updated_at: new Date()
+        }
+      }
+    )
+    return { message: 'Kích hoạt tài khoản thành công!' }
+  }
+
   async login(user_id: string) {
     const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id)
     const user = await databaseService.users.findOne(
@@ -165,12 +227,12 @@ class UserService {
 
     return data
   }
+
   async oauth(code: string) {
     const { id_token, access_token } = await this.getOauthGoogleToken(code)
     const userInfo = await this.getGoogleUserInfo(access_token, id_token)
 
     const user = await databaseService.users.findOne({ email: userInfo.email })
-    //Tồn tại thì login
     if (user) {
       const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user._id.toString())
 
@@ -183,7 +245,6 @@ class UserService {
         user,
         newUser: false
       }
-      //Không tồn tại tạo mới
     } else {
       const password = Math.random().toString(36).substring(2, 7)
       const data = await this.register({
@@ -330,6 +391,7 @@ class UserService {
       message: 'Bạn đã chặn người dùng này rồi'
     }
   }
+
   async checkUserBlock(user_id: string, blocked_user_id: string) {
     const block = await databaseService.user_blocks.findOne({
       $or: [
@@ -346,6 +408,7 @@ class UserService {
 
     return !!block
   }
+
   async getListBlockUser(user_id: string) {
     const result = await databaseService.user_blocks
       .aggregate([
@@ -406,7 +469,7 @@ class UserService {
       message: 'Bỏ chặn người dùng thất bại'
     }
   }
-  // searchUser: Tìm kiếm người dùng theo userName hoặc displayName, loại bỏ những người đã bị block bởi currentUser hoặc đã block currentUser
+
   async searchUser(keyword: string, currentUserId: string) {
     if (!keyword || keyword.trim() === '') return { users: [] }
 

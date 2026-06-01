@@ -82,4 +82,12 @@ authRoute.post('/reset-password-mobile', wrapRequestHandler(resetPasswordMobileC
  */
 authRoute.post('/verify-email', emailVerifyTokenValidator, wrapRequestHandler(emailVerifyValidator))
 
+import { registerMobileController, verifyRegisterOTPMobileController } from '~/controllers/users.controllers'
+
+// Endpoint Đăng ký riêng cho Mobile (Dùng validator cũ thoải mái vì cấu hình body truyền lên giống hệt nhau)
+authRoute.post('/register-mobile', registerValidator, wrapRequestHandler(registerMobileController))
+
+// Endpoint Xác thực OTP riêng cho Mobile
+authRoute.post('/verify-register-mobile', wrapRequestHandler(verifyRegisterOTPMobileController))
+
 export default authRoute
