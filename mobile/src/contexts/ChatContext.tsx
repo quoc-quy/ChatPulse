@@ -114,12 +114,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           console.warn('[ChatContext] Error fetching profile:', err)
         })
 
-      // ✅ FIX 2: Đọc custom_ip để kết nối đúng server khi dev/test local
       const customIp = await AsyncStorage.getItem('custom_ip')
+      const rawApiUrl = (process.env.EXPO_PUBLIC_API_URL || '').trim()
       const SOCKET_URL =
         customIp && customIp.trim().length > 0
-          ? `http://${customIp.trim()}:4001`
-          : `${process.env.EXPO_PUBLIC_API_URL}:4001`
+          ? `http://${customIp.trim()}:4000`
+          : rawApiUrl.includes('https://')
+            ? rawApiUrl
+            : `${rawApiUrl}:4000`
 
       const newSocket = io(SOCKET_URL, {
         auth: {

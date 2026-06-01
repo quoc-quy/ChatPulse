@@ -65,10 +65,6 @@ app.use('/traffic-ai', trafficRouter)
 app.use(defaultErrorHandler)
 
 traffic_ragService.initializeVectorStore().catch(console.error)
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
-
-httpServer.listen(socket, () => {
-  console.log(`Server đang chạy tại http://localhost:${socket}`)
+httpServer.listen(port, () => {
+  console.log(`Server đang chạy tại cổng ${port}`)
 })
