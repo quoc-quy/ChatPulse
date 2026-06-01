@@ -6,7 +6,6 @@ import {
   getAccessTokenFromLS,
   getRefreshTokenFromLS,
   setAccessTokenToLS,
-  setProfileFromLS,
   setProfileToLS,
   setRefreshTokenToLS
 } from './auth'

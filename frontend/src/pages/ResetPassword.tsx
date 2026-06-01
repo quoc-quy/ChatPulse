@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
@@ -28,7 +27,6 @@ const schema = yup.object({
 
 export default function ResetPassword() {
   const navigate = useNavigate()
-  const [params] = useSearchParams()
   const location = useLocation()
   const query = new URLSearchParams(location.search)
   const token = query.get('token')
@@ -36,8 +34,7 @@ export default function ResetPassword() {
   const {
     handleSubmit,
     register,
-    formState: { errors },
-    setError
+    formState: { errors }
   } = useForm<FormData>({
     resolver: yupResolver(schema)
   })

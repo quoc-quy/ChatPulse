@@ -14,11 +14,11 @@ export interface ChangePasswordBody {
 
 const userApi = {
   getMe() {
-    return http.get<User>('/users/me')
+    return http.get<{ message: string; user: User }>('/users/me')
   },
 
   getListBlockedUser() {
-    return http.get<User[]>('/users/block')
+    return http.get<{ message: string; result: { _id: string; user_id: string; blocked_user_id: string; user: User }[] }>('/users/block')
   },
 
   unBlockUser(user_id: string) {
