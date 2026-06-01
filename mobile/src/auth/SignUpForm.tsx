@@ -33,16 +33,23 @@ export function SignUpForm({ navigation }: any) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<any>({});
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const handleSignUp = async () => {
+    // Validate tất cả fields
     const userError = validateUserName(userName);
     const phoneError = validatePhone(phone);
     const emailError = validateEmail(email);
     const passwordError = validatePassword(password);
     let confirmError = null;
+    let termsError = null;
 
     if (password !== confirmPassword) {
       confirmError = "Mật khẩu xác nhận không khớp";
+    }
+
+    if (!agreedToTerms) {
+      termsError = "Bạn cần đồng ý với Điều khoản & Chính sách bảo mật";
     }
 
     if (
@@ -50,7 +57,8 @@ export function SignUpForm({ navigation }: any) {
       phoneError ||
       emailError ||
       passwordError ||
-      confirmError
+      confirmError ||
+      termsError
     ) {
       setErrors({
         userName: userError,
@@ -58,6 +66,7 @@ export function SignUpForm({ navigation }: any) {
         email: emailError,
         password: passwordError,
         confirmPassword: confirmError,
+        terms: termsError,
       });
       return;
     }
@@ -74,19 +83,46 @@ export function SignUpForm({ navigation }: any) {
         confirm_password: confirmPassword,
       });
 
-      if (response.status === 200 || response.status === 201) {
-        Alert.alert("Thành công", "Đăng ký tài khoản thành công!", [
-          {
-            text: "Đăng nhập ngay",
-            onPress: () => navigation.navigate("Login"),
-          },
-        ]);
+      // Xử lý khi Backend tạo tài khoản thành công và gửi OTP về email
+      if (response.status >= 200 && response.status < 300) {
+        Alert.alert(
+          "Thành công",
+          "Mã xác thực đăng ký đã được gửi tới email của bạn.",
+          [
+            {
+              text: "Tiếp tục",
+              onPress: () =>
+                navigation.navigate("VerifyRegister", { email: email.trim() }),
+              // Chuyển sang màn hình nhập OTP kèm theo email
+            },
+          ],
+        );
       }
     } catch (error: any) {
-      Alert.alert(
-        "Đăng ký thất bại",
-        error.response?.data?.message || "Đã có lỗi xảy ra.",
+      // Log chi tiết để debug
+      console.log("[SignUp] ERROR status:", error.response?.status);
+      console.log(
+        "[SignUp] ERROR data:",
+        JSON.stringify(error.response?.data, null, 2),
       );
+      console.log("[SignUp] ERROR message:", error.message);
+
+      // Lấy message lỗi từ nhiều dạng response khác nhau
+      const serverData = error.response?.data;
+      const errorMessage =
+        serverData?.message ||
+        serverData?.error ||
+        serverData?.msg ||
+        (typeof serverData === "string" ? serverData : null) ||
+        error.message ||
+        "Đã có lỗi xảy ra.";
+
+      // Nếu lỗi là mảng (validation errors từ server)
+      const finalMessage = Array.isArray(errorMessage)
+        ? errorMessage.join("\n")
+        : errorMessage;
+
+      Alert.alert("Đăng ký thất bại", finalMessage);
     } finally {
       setLoading(false);
     }
@@ -173,6 +209,51 @@ export function SignUpForm({ navigation }: any) {
                 }}
               />
             </View>
+
+            {/* Checkbox đồng ý điều khoản */}
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => {
+                setAgreedToTerms(!agreedToTerms);
+                if (errors.terms) setErrors({ ...errors, terms: null });
+              }}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  {
+                    backgroundColor: agreedToTerms
+                      ? colors.primary
+                      : "transparent",
+                    borderColor: errors.terms ? "#ef4444" : colors.primary,
+                  },
+                ]}
+              >
+                {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text
+                style={[styles.termsText, { color: colors.mutedForeground }]}
+              >
+                Tôi đã đọc và đồng ý với{" "}
+                <Text
+                  style={[styles.termsLink, { color: colors.primary }]}
+                  onPress={() => navigation.navigate("TermsPrivacy")}
+                >
+                  Điều khoản & Điều kiện
+                </Text>{" "}
+                cùng{" "}
+                <Text
+                  style={[styles.termsLink, { color: colors.primary }]}
+                  onPress={() => navigation.navigate("TermsPrivacy")}
+                >
+                  Chính sách bảo mật
+                </Text>
+              </Text>
+            </TouchableOpacity>
+            {errors.terms && (
+              <Text style={styles.termsError}>{errors.terms}</Text>
+            )}
 
             <TouchableOpacity
               style={[
@@ -268,4 +349,42 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
   footerGray: {},
   boldLink: { fontWeight: "bold" },
+
+  // Terms checkbox
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+    gap: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  checkmark: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+    lineHeight: 16,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  termsLink: {
+    fontWeight: "600",
+  },
+  termsError: {
+    fontSize: 12,
+    color: "#ef4444",
+    marginBottom: 8,
+    marginLeft: 32,
+  },
 });

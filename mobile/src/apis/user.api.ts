@@ -1,10 +1,25 @@
 import { api } from "./api";
 
 /**
- * Đăng ký tài khoản
+ * Đăng ký tài khoản (ĐÃ ĐỔI RUỘT: Ép tự động gọi sang API Mobile để nhận OTP số)
  */
 export const registerApi = (data: any) => {
-  return api.post("/auth/register", data);
+  return api.post("/auth/register-mobile", data);
+};
+
+/**
+ * Đăng ký tài khoản dành riêng cho Mobile (Nhận OTP qua Nodemailer)
+ */
+export const registerMobileApi = (data: any) => {
+  return api.post("/auth/register-mobile", data);
+};
+
+/**
+ * API xác thực mã OTP số để kích hoạt tài khoản đăng ký mới trên Mobile
+ * POST /auth/verify-register-mobile
+ */
+export const verifyRegisterApi = (data: { email: string; otp: string }) => {
+  return api.post("/auth/verify-register-mobile", data);
 };
 
 /**
