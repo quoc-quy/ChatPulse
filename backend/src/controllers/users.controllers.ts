@@ -18,8 +18,9 @@ import { uploadAvatarToS3 } from '~/utils/s3'
 import { ErrorWithStatus } from '~/models/errors'
 import httpStatus from '~/constants/httpStatus'
 import { config } from 'dotenv'
-import forgotPasswordService from '~/services/forget_password.services' // Đảm bảo đúng tên file .ts của bạn
+import forgotPasswordService from '~/services/forget_password.services'
 import databaseService from '~/services/database.services'
+import { sendOtpEmail } from '~/utils/email' // Đảm bảo import hàm gửi OTP bằng Nodemailer Gmail ở đây
 
 config()
 
@@ -135,7 +136,6 @@ export const searchUserController = async (req: Request, res: Response) => {
   const q = (req.query.q as string) || ''
   const { user_id } = req.decoded_authorization as TokenPayload
 
-  // Nếu không có từ khóa
   if (!q.trim()) {
     return res.json({
       message: 'Vui lòng nhập từ khóa tìm kiếm',
@@ -145,14 +145,12 @@ export const searchUserController = async (req: Request, res: Response) => {
 
   const result = await userService.searchUser(q, user_id)
 
-  // KIỂM TRA TẠI ĐÂY: Nếu mảng users rỗng (có thể do không khớp hoặc đã bị block)
   if (result.users.length === 0) {
     return res.json({
-      message: 'Không tìm thấy người dùng', // Thông báo đúng ý em muốn
+      message: 'Không tìm thấy người dùng',
       result: { users: [] }
     })
   }
-  // Nếu tìm thấy
   return res.json({
     message: 'Tìm kiếm người dùng thành công',
     result
@@ -184,10 +182,7 @@ export const forgotPasswordController = async (
   req: Request<ParamsDictionary, any, ForgotPasswordReqBody>,
   res: Response
 ) => {
-  const { _id, email } = req.user as User
-
   const result = await userService.forgotPassword(req.user as User)
-
   return res.json(result)
 }
 
@@ -214,8 +209,7 @@ export const forgotPasswordMobileController = async (
   req: Request<ParamsDictionary, any, ForgotPasswordReqBody>,
   res: Response
 ) => {
-  const { email } = req.body //
-  // Gọi trực tiếp service xử lý mã OTP
+  const { email } = req.body
   const result = await forgotPasswordService.forgotPassword(email)
   return res.json(result)
 }
@@ -228,8 +222,7 @@ export const resetPasswordMobileController = async (
   req: Request<ParamsDictionary, any, ResetPasswordReqBody>,
   res: Response
 ) => {
-  const { email, otp, password } = req.body //
-  // Gọi service xác thực mã số và cập nhật DB
+  const { email, otp, password } = req.body
   const result = await forgotPasswordService.resetPassword(email, otp, password)
   return res.json(result)
 }
@@ -238,14 +231,12 @@ export const emailVerifyValidator = async (req: Request, res: Response) => {
   const { user_id } = req.decoded_email_verify_token as TokenPayload
 
   const user = await databaseService.users.findOne({ _id: new ObjectId(user_id) })
-  //Nếu không tìm thấy user
   if (!user) {
     return res.status(404).json({
       message: 'User not found'
     })
   }
 
-  //Nếu token bằng rỗng thì đã verify rồi
   if (user.email_verify_token === '') {
     return res.json({
       message: 'Email already verified before'
@@ -258,4 +249,26 @@ export const emailVerifyValidator = async (req: Request, res: Response) => {
     message: 'Email verify successfully',
     result
   })
+}
+
+/**
+ * Dành cho Mobile: Đăng ký tài khoản gửi OTP bằng Nodemailer
+ * POST /auth/register-mobile
+ */
+export const registerMobileController = async (req: Request<ParamsDictionary, any, RegisterReqBody>, res: Response) => {
+  const result = await userService.registerMobile(req.body)
+  return res.json({
+    message: 'Register on mobile successfully, OTP sent!',
+    result
+  })
+}
+
+/**
+ * Dành cho Mobile: Xác thực mã số OTP để kích hoạt tài khoản
+ * POST /auth/verify-register-mobile
+ */
+export const verifyRegisterOTPMobileController = async (req: Request, res: Response) => {
+  const { email, otp } = req.body
+  const result = await userService.verifyRegisterOTPMobile(email, otp)
+  return res.json(result)
 }

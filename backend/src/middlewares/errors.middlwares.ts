@@ -1,18 +1,16 @@
 import { NextFunction, Request, Response } from 'express'
-import { omit } from 'lodash'
 import httpStatus from '~/constants/httpStatus'
-import { ErrorWithStatus } from '~/models/errors'
 
 export const defaultErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err instanceof ErrorWithStatus) {
-    return res.status(err.status).json(omit(err, ['status']))
-  }
-  Object.getOwnPropertyNames(err).forEach((key) => {
-    Object.defineProperty(err, key, { enumerable: true })
-  })
+  console.error('=== LỖI HỆ THỐNG BACKEND ===')
+  console.error(err) // Log lỗi gốc ra terminal để xem bị lỗi gì ở hàm gửi mail
+  console.error('============================')
 
-  res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-    message: err.message,
-    errorInfo: omit(err, ['stack'])
+  // Trả về mã lỗi có status cụ thể hoặc mặc định là 500
+  const status = err.status || httpStatus.INTERNAL_SERVER_ERROR
+
+  return res.status(status).json({
+    message: err.message || 'Internal Server Error',
+    errorInfo: process.env.NODE_ENV === 'development' ? err : undefined
   })
 }
