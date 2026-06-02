@@ -187,30 +187,30 @@ class TrafficRagService {
   private structuralChunking(content: string, meta: DocumentMeta, maxLen = 700): Document[] {
     const chunks: Document[] = []
     const docHeader = this.buildChunkHeader(meta)
-    
+
     // Tách thành các Điều
     const articles = content.split(/(?=\n\s*(?:Điều|ĐIỀU)\s+\d+\.\s+)/g)
-    
+
     for (const article of articles) {
       if (!article.trim()) continue
-      
+
       const lines = article.trim().split('\n')
       const articleTitle = lines[0].trim()
-      
+
       // Tách tiếp thành các Khoản (bằng từ khóa Khoản hoặc số đầu dòng như "1. ", "2. ")
       const clauses = article.split(/(?=\n?(?:Khoản|KHOẢN)\s+\d+|\n\s*\d+\.\s+)/g)
-      
+
       let currentClauseBuffer = ''
       const flush = (clauseText: string) => {
         if (!clauseText.trim()) return
-        
+
         const articleMatch = articleTitle.match(/(?:Điều|ĐIỀU)\s+(\d+[A-Za-z]*)/i)
         const clauseMatch = clauseText.match(/(?:(?:Khoản|KHOẢN)\s+(\d+[A-Za-z]*)|^\s*(\d+)\.\s+)/i)
-        const clauseNum = clauseMatch ? (clauseMatch[1] || clauseMatch[2]) : ''
+        const clauseNum = clauseMatch ? clauseMatch[1] || clauseMatch[2] : ''
         const clauseLabel = clauseNum ? `Khoản ${clauseNum}` : ''
-        
+
         const chunkHeader = `${docHeader}\n[MỤC/ĐIỀU: ${articleTitle}]`
-        
+
         chunks.push(
           new Document({
             pageContent: `${chunkHeader}\n\n${clauseText.trim()}`,
@@ -243,7 +243,7 @@ class TrafficRagService {
       }
       flush(currentClauseBuffer)
     }
-    
+
     return chunks
   }
 
@@ -349,7 +349,7 @@ class TrafficRagService {
 
   private async retrieve(query: string, topK = 5): Promise<VectorChunk[]> {
     const expandedQuery = this.expandQuery(query)
-    
+
     // 1. Tìm kiếm tương đồng vector (Cosine Similarity)
     const [queryVec] = await this.embeddings.embedDocuments([expandedQuery])
     const queryLower = expandedQuery.toLowerCase()
@@ -377,16 +377,36 @@ class TrafficRagService {
       else if (year >= 2022) score += 0.01
 
       // Tăng điểm cho các điều khoản trừ điểm/tước bằng lái xe nếu câu hỏi hỏi về điểm GPLX
-      if (queryLower.includes('điểm') || queryLower.includes('gplx') || queryLower.includes('bằng lái') || queryLower.includes('tước')) {
+      if (
+        queryLower.includes('điểm') ||
+        queryLower.includes('gplx') ||
+        queryLower.includes('bằng lái') ||
+        queryLower.includes('tước')
+      ) {
         const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
-        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause?.includes('12') || chunk.metadata.clause?.includes('13') || chunk.metadata.clause?.includes('15') || chunk.metadata.clause?.includes('16')) {
-          score += 0.20
+        if (
+          textWithoutHeader.includes('trừ điểm') ||
+          textWithoutHeader.includes('tước quyền sử dụng') ||
+          textWithoutHeader.includes('tước gplx') ||
+          chunk.metadata.clause?.includes('12') ||
+          chunk.metadata.clause?.includes('13') ||
+          chunk.metadata.clause?.includes('15') ||
+          chunk.metadata.clause?.includes('16')
+        ) {
+          score += 0.2
         }
       }
 
       // Tăng điểm định hướng theo loại phương tiện trong câu hỏi
       const hasOto = queryLower.includes('ô tô') || queryLower.includes('oto') || queryLower.includes('xe hơi')
-      const hasXeMay = (queryLower.includes('xe máy') || queryLower.includes('mô tô') || queryLower.includes('xe gắn máy') || queryLower.includes('gắn máy')) && !queryLower.includes('chuyên dùng') && !queryLower.includes('đại') && !queryLower.includes('đạp')
+      const hasXeMay =
+        (queryLower.includes('xe máy') ||
+          queryLower.includes('mô tô') ||
+          queryLower.includes('xe gắn máy') ||
+          queryLower.includes('gắn máy')) &&
+        !queryLower.includes('chuyên dùng') &&
+        !queryLower.includes('đại') &&
+        !queryLower.includes('đạp')
       const hasXeDap = queryLower.includes('xe đạp')
       const hasChuyenDung = queryLower.includes('chuyên dùng')
 
@@ -394,26 +414,42 @@ class TrafficRagService {
         if (hasXeMay) {
           if (chunk.metadata.article === 'Điều 7') {
             score += 0.35 // Boost mạnh cho xe máy
-          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
-            score -= 0.40 // Phạt nặng nếu hỏi xe máy nhưng trích ô tô/chuyên dùng/xe đạp
+          } else if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 8' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
+            score -= 0.4 // Phạt nặng nếu hỏi xe máy nhưng trích ô tô/chuyên dùng/xe đạp
           }
         } else if (hasOto) {
           if (chunk.metadata.article === 'Điều 6') {
             score += 0.35 // Boost mạnh cho ô tô
-          } else if (chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
-            score -= 0.40 // Phạt nặng nếu hỏi ô tô nhưng trích xe máy/chuyên dùng/xe đạp
+          } else if (
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 8' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
+            score -= 0.4 // Phạt nặng nếu hỏi ô tô nhưng trích xe máy/chuyên dùng/xe đạp
           }
         } else if (hasXeDap) {
           if (chunk.metadata.article === 'Điều 9') {
             score += 0.35 // Boost xe đạp
-          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8') {
-            score -= 0.40 // Phạt
+          } else if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 8'
+          ) {
+            score -= 0.4 // Phạt
           }
         } else if (hasChuyenDung) {
           if (chunk.metadata.article === 'Điều 8') {
             score += 0.35 // Boost xe chuyên dùng
-          } else if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 9') {
-            score -= 0.40 // Phạt
+          } else if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
+            score -= 0.4 // Phạt
           }
         }
       }
@@ -447,7 +483,14 @@ class TrafficRagService {
 
     // Phạt điểm RRF cho các điều khoản không đúng loại phương tiện và boost RRF cho các điều khoản đúng loại phương tiện
     const hasOto = queryLower.includes('ô tô') || queryLower.includes('oto') || queryLower.includes('xe hơi')
-    const hasXeMay = (queryLower.includes('xe máy') || queryLower.includes('mô tô') || queryLower.includes('xe gắn máy') || queryLower.includes('gắn máy')) && !queryLower.includes('chuyên dùng') && !queryLower.includes('đại') && !queryLower.includes('đạp')
+    const hasXeMay =
+      (queryLower.includes('xe máy') ||
+        queryLower.includes('mô tô') ||
+        queryLower.includes('xe gắn máy') ||
+        queryLower.includes('gắn máy')) &&
+      !queryLower.includes('chuyên dùng') &&
+      !queryLower.includes('đại') &&
+      !queryLower.includes('đạp')
     const hasXeDap = queryLower.includes('xe đạp')
     const hasChuyenDung = queryLower.includes('chuyên dùng')
 
@@ -455,25 +498,41 @@ class TrafficRagService {
       const chunk = this.vectorStore[chunkIndex]
       if (chunk.metadata.soHieu === '168/2024/NĐ-CP') {
         if (hasXeMay) {
-          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+          if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 8' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
             rrfScores.set(chunkIndex, rrfScore - 0.2) // Phạt nặng RRF
           } else if (chunk.metadata.article === 'Điều 7') {
             rrfScores.set(chunkIndex, rrfScore + 0.05) // Thêm điểm cộng RRF
           }
         } else if (hasOto) {
-          if (chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8' || chunk.metadata.article === 'Điều 9') {
+          if (
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 8' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
             rrfScores.set(chunkIndex, rrfScore - 0.2)
           } else if (chunk.metadata.article === 'Điều 6') {
             rrfScores.set(chunkIndex, rrfScore + 0.05)
           }
         } else if (hasXeDap) {
-          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 8') {
+          if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 8'
+          ) {
             rrfScores.set(chunkIndex, rrfScore - 0.2)
           } else if (chunk.metadata.article === 'Điều 9') {
             rrfScores.set(chunkIndex, rrfScore + 0.05)
           }
         } else if (hasChuyenDung) {
-          if (chunk.metadata.article === 'Điều 6' || chunk.metadata.article === 'Điều 7' || chunk.metadata.article === 'Điều 9') {
+          if (
+            chunk.metadata.article === 'Điều 6' ||
+            chunk.metadata.article === 'Điều 7' ||
+            chunk.metadata.article === 'Điều 9'
+          ) {
             rrfScores.set(chunkIndex, rrfScore - 0.2)
           } else if (chunk.metadata.article === 'Điều 8') {
             rrfScores.set(chunkIndex, rrfScore + 0.05)
@@ -483,11 +542,24 @@ class TrafficRagService {
     }
 
     // Tăng điểm RRF trực tiếp cho các điều khoản trừ điểm / GPLX nếu câu hỏi hỏi về điểm GPLX
-    if (queryLower.includes('điểm') || queryLower.includes('gplx') || queryLower.includes('bằng lái') || queryLower.includes('tước')) {
+    if (
+      queryLower.includes('điểm') ||
+      queryLower.includes('gplx') ||
+      queryLower.includes('bằng lái') ||
+      queryLower.includes('tước')
+    ) {
       for (const [chunkIndex, rrfScore] of rrfScores.entries()) {
         const chunk = this.vectorStore[chunkIndex]
         const textWithoutHeader = chunk.pageContent.substring(chunk.pageContent.indexOf('\n\n') + 2).toLowerCase()
-        if (textWithoutHeader.includes('trừ điểm') || textWithoutHeader.includes('tước quyền sử dụng') || textWithoutHeader.includes('tước gplx') || chunk.metadata.clause?.includes('12') || chunk.metadata.clause?.includes('13') || chunk.metadata.clause?.includes('15') || chunk.metadata.clause?.includes('16')) {
+        if (
+          textWithoutHeader.includes('trừ điểm') ||
+          textWithoutHeader.includes('tước quyền sử dụng') ||
+          textWithoutHeader.includes('tước gplx') ||
+          chunk.metadata.clause?.includes('12') ||
+          chunk.metadata.clause?.includes('13') ||
+          chunk.metadata.clause?.includes('15') ||
+          chunk.metadata.clause?.includes('16')
+        ) {
           rrfScores.set(chunkIndex, rrfScore + 0.05)
         }
       }
@@ -692,7 +764,7 @@ Nếu là câu hỏi THÔNG TIN CHUNG:
   }
 
   async forceReindex(): Promise<void> {
-    const basePath = path.join(__dirname, '../../data')
+    const basePath = path.join(process.cwd(), 'src/data')
     const dbPath = path.join(basePath, 'vector_db.json')
     if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
     this.vectorStore = []
