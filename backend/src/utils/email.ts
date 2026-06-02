@@ -29,10 +29,11 @@ const templatesEmail = fs.readFileSync(path.resolve('src/templates/verify-email.
 /**
  * HÀM GỬI MAIL TRUNG GIAN (DUNG HÒA GIỮA AWS SES VÀ GMAIL NODEMAILER)
  */
-const sendEmailCore = async (toAddress: string, subject: string, body: string) => {
+const sendEmailCore = async (toAddress: string, subject: string, body: string, provider?: 'ses' | 'nodemailer') => {
   const toAddressClean = toAddress.trim()
+  const useNodemailer = provider === 'nodemailer' || (provider === undefined && process.env.MAIL_USER && process.env.MAIL_PASSWORD)
 
-  if (process.env.MAIL_USER && process.env.MAIL_PASSWORD) {
+  if (useNodemailer) {
     console.log(`[Nodemailer] Đang gửi mail tới ${toAddressClean} bằng Gmail SMTP...`)
 
     const mailOptions = {
@@ -97,7 +98,8 @@ export const sendEmailNotification = (
         `
       )
       .replace('{{titleLink}}', 'Xác thực tài khoản')
-      .replace('{{link}}', `${process.env.CLIENT_URL}/verify-email?token=${email_verify_token}`)
+      .replace('{{link}}', `${process.env.CLIENT_URL}/verify-email?token=${email_verify_token}`),
+    'ses'
   )
 }
 
@@ -121,7 +123,8 @@ export const sendForgotPasswordEmail = (
         `
       )
       .replace('{{titleLink}}', 'Thiết lập lại mật khẩu')
-      .replace('{{link}}', `${process.env.CLIENT_URL}/forgot-password?token=${forgot_password_token}`)
+      .replace('{{link}}', `${process.env.CLIENT_URL}/forgot-password?token=${forgot_password_token}`),
+    'ses'
   )
 }
 
@@ -137,7 +140,7 @@ export const sendMobileRegisterOtpEmail = async (toEmail: string, otp: string): 
       <p style="color: #94a3b8; font-size: 13px;">Mã kích hoạt có hiệu lực trong <strong>10 phút</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.</p>
     </div>
   `
-  await sendEmailCore(toEmail, 'ChatPulse Mobile – Mã OTP xác thực tài khoản', htmlBody)
+  await sendEmailCore(toEmail, 'ChatPulse Mobile – Mã OTP xác thực tài khoản', htmlBody, 'nodemailer')
 }
 
 // 4. Gửi Email chứa mã số OTP Đặt lại mật khẩu (DÀNH RIÊNG CHO MOBILE)
@@ -153,5 +156,5 @@ export const sendOtpEmail = async (toEmail: string, otp: string): Promise<void> 
       <p style="color: #94a3b8; font-size: 13px;">Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>
     </div>
   `
-  await sendEmailCore(toEmail, 'Mã OTP đặt lại mật khẩu', htmlBody)
+  await sendEmailCore(toEmail, 'Mã OTP đặt lại mật khẩu', htmlBody, 'nodemailer')
 }

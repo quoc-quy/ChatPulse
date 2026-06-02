@@ -247,16 +247,39 @@ class UserService {
       }
     } else {
       const password = Math.random().toString(36).substring(2, 7)
-      const data = await this.register({
-        email: userInfo.email,
-        userName: userInfo.name,
-        date_of_birth: new Date(),
-        password,
-        confirm_password: password,
-        phone: `temp_${new ObjectId().toString()}`
-      })
+      const user_id = new ObjectId()
+      await databaseService.users.insertOne(
+        new User({
+          _id: user_id,
+          email: userInfo.email,
+          userName: userInfo.name,
+          date_of_birth: new Date(),
+          password: hashPassword(password),
+          phone: `temp_${new ObjectId().toString()}`,
+          verify: UserVerifyStatus.Verified,
+          email_verify_token: ''
+        })
+      )
+      const user = await databaseService.users.findOne(
+        {
+          _id: user_id
+        },
+        {
+          projection: {
+            password: 0,
+            created_at: 0,
+            updated_at: 0
+          }
+        }
+      )
+      const [access_token, refresh_token] = await this.signAccessAndRefreshToken(user_id.toString())
+      await databaseService.refreshTokens.insertOne(
+        new RefreshToken({ token: refresh_token, user_id: new ObjectId(user_id) })
+      )
       return {
-        ...data,
+        access_token,
+        refresh_token,
+        user,
         newUser: true
       }
     }
