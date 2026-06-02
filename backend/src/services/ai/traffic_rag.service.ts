@@ -272,7 +272,7 @@ class TrafficRagService {
   async initializeVectorStore(): Promise<void> {
     if (this.isInitialized) return
 
-    const basePath = path.join(__dirname, '../../data')
+    const basePath = path.join(process.cwd(), 'src/data')
     const cleanedPath = path.join(basePath, 'cleaned')
     const metaPath = path.join(cleanedPath, 'metadata.json')
     const dbPath = path.join(basePath, 'vector_db.json')
