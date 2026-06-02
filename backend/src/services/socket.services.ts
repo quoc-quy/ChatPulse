@@ -15,6 +15,7 @@ class SocketService {
   private callTimeouts: Map<string, NodeJS.Timeout> = new Map()
   public activeCallParticipants: Map<string, Set<string>> = new Map()
   public socketCalls: Map<string, { callId: string; conversationId: string }> = new Map()
+  public ringingInvitees: Map<string, Set<string>> = new Map()
 
   public isCallIdActive(callId: string, status: string): boolean {
     const statusLower = status.toLowerCase()
@@ -80,6 +81,7 @@ class SocketService {
               }
             }
             this.callTimeouts.delete(realCallId)
+            this.ringingInvitees.delete(realCallId)
           }, 60000) // 60.000 ms = 60 giây
           this.callTimeouts.set(realCallId, timeoutId)
           // ---------------------------------
@@ -90,9 +92,14 @@ class SocketService {
 
           const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
           if (conversation && conversation.participants) {
+            const ringingSet = new Set<string>()
             conversation.participants.forEach((participantId) => {
-              if (participantId.toString() !== userId) {
-                this.emitToUser(participantId.toString(), 'call:incoming', {
+              const pIdStr = participantId.toString()
+              if (pIdStr !== userId) {
+                if (this.usersOnline.has(pIdStr)) {
+                  ringingSet.add(pIdStr)
+                }
+                this.emitToUser(pIdStr, 'call:incoming', {
                   callId: realCallId,
                   conversationId,
                   callerId: userId,
@@ -102,6 +109,7 @@ class SocketService {
                 })
               }
             })
+            this.ringingInvitees.set(realCallId, ringingSet)
           }
           if (typeof callback === 'function') callback({ callId: realCallId })
         } catch (error) {
@@ -123,6 +131,11 @@ class SocketService {
           }
           activeSet.add(userId)
           console.log(`[Socket] User ${userId} joined call ${callId}. Active participants: ${activeSet.size}`)
+
+          const ringingSet = this.ringingInvitees.get(callId)
+          if (ringingSet) {
+            ringingSet.delete(userId)
+          }
 
           const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
 
@@ -248,27 +261,73 @@ class SocketService {
       // 4. Từ chối cuộc gọi
       socket.on('call:reject', async (data: { callId: string; conversationId: string }) => {
         try {
-          // Hủy bỏ đếm ngược 60s
-          const timeoutId = this.callTimeouts.get(data.callId)
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-            this.callTimeouts.delete(data.callId)
+          const { callId, conversationId } = data
+          const call = await databaseService.calls.findOne({ _id: new ObjectId(callId) })
+          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(conversationId) })
+
+          if (!call || !conversation) return
+
+          const isGroup = conversation.type === 'group'
+
+          // Xóa khỏi danh sách đang đổ chuông khi bấm từ chối
+          const ringingSet = this.ringingInvitees.get(callId)
+          if (ringingSet) {
+            ringingSet.delete(userId)
           }
 
-          const call = await databaseService.calls.findOne({ _id: new ObjectId(data.callId) })
-          if (call && !['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
-            await databaseService.calls.updateOne(
-              { _id: new ObjectId(data.callId) },
-              { $set: { status: CallStatus.REJECTED, endedAt: new Date() } }
-            )
-            await this.createAndEmitCallMessage(data.callId, 'rejected')
-          }
-
-          const conversation = await databaseService.conversations.findOne({ _id: new ObjectId(data.conversationId) })
-          if (conversation && conversation.participants) {
+          if (isGroup) {
+            // Gửi sự kiện user-left cho các thành viên khác biết thành viên này đã từ chối
             conversation.participants.forEach((pId) => {
-              if (pId.toString() !== userId) this.emitToUser(pId.toString(), 'call:rejected', { callId: data.callId })
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'call:user-left', { userId, socketId: socket.id })
+              }
             })
+
+            // Chỉ kết thúc cuộc gọi nhóm khi không còn ai đang tham gia VÀ không còn ai đang đổ chuông
+            const activeParticipants = this.activeCallParticipants.get(callId)
+            const activeSize = activeParticipants ? activeParticipants.size : 0
+            const ringingSize = ringingSet ? ringingSet.size : 0
+
+            if (activeSize === 0 && ringingSize === 0) {
+              const timeoutId = this.callTimeouts.get(callId)
+              if (timeoutId) {
+                clearTimeout(timeoutId)
+                this.callTimeouts.delete(callId)
+              }
+
+              if (!['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
+                await databaseService.calls.updateOne(
+                  { _id: new ObjectId(callId) },
+                  { $set: { status: CallStatus.REJECTED, endedAt: new Date() } }
+                )
+                await this.createAndEmitCallMessage(callId, 'rejected')
+              }
+
+              this.emitToUser(call.callerId.toString(), 'call:rejected', { callId })
+              this.ringingInvitees.delete(callId)
+            }
+          } else {
+            // Cuộc gọi 1-1: Kết thúc cuộc gọi ngay lập tức
+            const timeoutId = this.callTimeouts.get(callId)
+            if (timeoutId) {
+              clearTimeout(timeoutId)
+              this.callTimeouts.delete(callId)
+            }
+
+            if (!['ended', 'rejected', 'cancelled', 'missed'].includes(call.status.toLowerCase())) {
+              await databaseService.calls.updateOne(
+                { _id: new ObjectId(callId) },
+                { $set: { status: CallStatus.REJECTED, endedAt: new Date() } }
+              )
+              await this.createAndEmitCallMessage(callId, 'rejected')
+            }
+
+            conversation.participants.forEach((pId) => {
+              if (pId.toString() !== userId) {
+                this.emitToUser(pId.toString(), 'call:rejected', { callId })
+              }
+            })
+            this.ringingInvitees.delete(callId)
           }
         } catch (error) {
           console.error(error)
@@ -427,6 +486,7 @@ class SocketService {
 
       if (isOneOnOne || (activeSet && activeSet.size === 0)) {
         this.activeCallParticipants.delete(callId)
+        this.ringingInvitees.delete(callId)
       }
     } catch (error) {
       console.error('[Socket] Lỗi xử lý rời phòng:', error)

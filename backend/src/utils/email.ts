@@ -8,7 +8,7 @@ config()
 
 // 1. Khởi tạo AWS SES Client
 const sesClient = new SESClient({
-  region: process.env.AWS_REGION,
+  region: process.env.AWS_REGION_SES,
   credentials: {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID as string
