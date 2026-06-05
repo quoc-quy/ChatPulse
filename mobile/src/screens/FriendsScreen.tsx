@@ -755,7 +755,14 @@ export default function FriendsScreen({ navigation }: any) {
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.addBtn}>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => {
+              setIsSearchFocused(true);
+              // Delay nhỏ để đảm bảo TextInput đã render trước khi focus
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }}
+          >
             <UserPlus size={24} color={colors.foreground} />
           </TouchableOpacity>
         )}
