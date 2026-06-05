@@ -17,7 +17,6 @@ import backgroundLoginImage from '../../public/background-login.png'
 import axios from 'axios'
 import { Eye, EyeOff } from 'lucide-react'
 
-
 const getGoogleAuthUrl = () => {
   const { VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_REDIRECT_URI } = import.meta.env
   const url = `https://accounts.google.com/o/oauth2/v2/auth`
@@ -55,7 +54,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
 
       const fetchProfile = async () => {
         try {
-          const response = await axios.get('http://localhost:4000/users/me', {
+          const response = await axios.get(`https://chatpulse-production-0fe3.up.railway.app/users/me`, {
             headers: { Authorization: `Bearer ${access_token}` }
           })
 
