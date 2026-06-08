@@ -83,13 +83,97 @@ _Giao diện Mobile được thiết kế chuẩn Native bằng React Native Pap
 
 ```mermaid
 graph TD
-    ClientWeb[Web App - React 19] <-->|WebSockets / HTTPS| API[Express Backend]
-    ClientMobile[Mobile App - Expo] <-->|WebSockets / HTTPS| API
-    API <--> DB[(MongoDB Atlas)]
+    %% Define Layers
+    subgraph Presentation_Layer [PRESENTATION LAYER]
+        direction TB
+        UI_Clients[UI Clients Platforms: React Web App, React Native Mobile]
+        subgraph Middlewares
+            UM[Users Middleware]
+            FM[Friends Middleware]
+            CM[Conversations Middleware]
+        end
+        subgraph Controllers
+            UC[UsersController]
+            CC[ConversationsController / GroupController]
+            MC[MessageController]
+            FC[FriendsController]
+            TC[TrafficController]
+        end
+    end
 
-    ClientWeb & ClientMobile <-->|WebRTC Media Streams| LiveKit[LiveKit WebRTC Server]
-    API <-->|AI Agent / RAG| Gemini[Gemini AI / Langchain]
-    API <-->|File Upload| Cloud[AWS S3 / Cloudinary]
+    subgraph Business_Logic_Layer [BUSINESS LOGIC LAYER]
+        direction TB
+        US[UserService]
+        MS[MessageService / ConversationsService]
+        GS[GroupService]
+        FS[FriendService]
+        AIS[AIService]
+        SS[SocketService]
+        
+        subgraph Third_Party [Third-party & Infrastructure Services]
+            GAuth[Google OAuth 2.0]
+            S3[AWS S3]
+            SES[AWS SES]
+            TRAG[TrafficRagService]
+            OpenAI[OpenAI / Gemini API]
+            LiveKit[LiveKitService: Điều phối phòng kết nối Voice/Video Call WebRTC]
+        end
+    end
+
+    subgraph Persistence_Layer [PERSISTENCE LAYER]
+        UserSch[UserSchema, RefreshTokenSchema, OtpSchema]
+        MsgSch[MessageSchema, ConversationSchema, CallSchema]
+        FriendSch[FriendSchema, FriendRequestSchema, UserBlocksSchema]
+    end
+
+    subgraph Database_Layer [DATABASE LAYER]
+        DB[(MongoDB)]
+        KB[Knowledge Base: Folder Văn bản Luật: Thông tư/Nghị định]
+    end
+
+    %% Connections
+    UI_Clients -->|HTTP / REST API Requests| Middlewares
+    UI_Clients <-->|WebSocket Connection| SS
+    UI_Clients -.->|WebRTC Media Stream| LiveKit
+
+    UM --> UC
+    UM --> CC
+    UM --> MC
+    FM --> CC
+    FM --> FC
+    CM --> CC
+    CM --> MC
+    
+    UC --> US
+    CC --> MS
+    CC --> GS
+    MC --> MS
+    FC --> FS
+    TC --> AIS
+
+    US --> GAuth
+    US --> SES
+    US --> S3
+    MS --> S3
+    
+    AIS --> TRAG
+    AIS --> OpenAI
+    
+    TRAG --> KB
+    
+    US --> UserSch
+    MS --> MsgSch
+    FS --> FriendSch
+    
+    UserSch --> DB
+    MsgSch --> DB
+    FriendSch --> DB
+    
+    %% Styling
+    style Presentation_Layer fill:#e1f5fe,stroke:#01579b
+    style Business_Logic_Layer fill:#c8e6c9,stroke:#2e7d32
+    style Persistence_Layer fill:#fff9c4,stroke:#fbc02d
+    style Database_Layer fill:#ede7f6,stroke:#512da8
 ```
 
 ### 🔒 Cơ chế hoạt động của Mã hóa đầu cuối (E2EE):
